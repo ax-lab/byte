@@ -1,0 +1,19 @@
+{
+	"version": "0.2",
+	"language": "en",
+	"words": [
+	],
+	"flagWords": [
+		"teh"
+	],
+	"ignorePaths": [
+		".vscode/**",
+		"Cargo.lock",
+		"cspell.json",
+		"node_modules/**",
+		"package-lock.json"
+	],
+	"ignoreRegExpList": [
+		"`[^\\s]+`"
+	]
+}
