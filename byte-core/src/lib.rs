@@ -1,3 +1,6 @@
+pub mod lexer;
+pub mod tokens;
+
 pub fn name() -> &'static str {
 	"Byte Language"
 }
