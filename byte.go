@@ -1,8 +1,13 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/ax-lab/byte/bootstrap"
+)
 
 func main() {
-	fmt.Println("\nByte bootstrap script [WIP]")
-	fmt.Println("")
+	fmt.Println()
+	bootstrap.About()
+	fmt.Println()
 }
