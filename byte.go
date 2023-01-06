@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/ax-lab/byte/bootstrap"
 )
@@ -13,13 +13,13 @@ const ByteCargoDir = "byte-rs"
 func main() {
 	bootstrap.Boot()
 
-	fmt.Println()
-	fmt.Println("ROOT:", bootstrap.ProjectDir())
-	fmt.Println()
-	fmt.Println("ARGS:", os.Args)
-	fmt.Println()
-}
+	var cargoDir = filepath.Join(bootstrap.ProjectDir(), ByteCargoDir)
+	var success = bootstrap.ExecInDir("[cargo]", cargoDir, func() bool {
+		return bootstrap.Run("[cargo]", "cargo", "build", "--quiet")
+	})
 
-func buildAndRun() {
-
+	if success {
+		var exePath = filepath.Join(cargoDir, "target", "debug", bootstrap.Exe("byte"))
+		bootstrap.Spawn(exePath, os.Args...)
+	}
 }

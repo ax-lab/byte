@@ -57,7 +57,7 @@ func Boot() {
 	}
 
 	fmt.Printf("\n[bootstrap] rebuilding...\n")
-	if !Run("[build] ", "go", "build", "-o", exeFile, rootFile) {
+	if !Run("[build]", "go", "build", "-o", exeFile, rootFile) {
 		logBootErr(fmt.Errorf("build failed"))
 		return
 	}

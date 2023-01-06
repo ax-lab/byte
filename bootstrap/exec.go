@@ -9,6 +9,27 @@ import (
 	"syscall"
 )
 
+func ExecInDir(prefix, dir string, callback func() bool) bool {
+	noError := func(op string, err error) bool {
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s ExecInDir: %s: %v\n", prefix, op, err)
+		}
+		return err == nil
+	}
+
+	var success bool
+	cwd, err := os.Getwd()
+	if noError("getting current dir", err) {
+		err = os.Chdir(dir)
+		if noError("changing dir", err) {
+			success = callback()
+		}
+	}
+
+	err = os.Chdir(cwd)
+	return noError("restoring working dir", err) && success
+}
+
 // Spawn a new process "replaces" the current process by the given one.
 //
 // The new process shares the same environment and standard output streams
@@ -48,12 +69,12 @@ func Run(prefix, name string, args ...string) bool {
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "\n%sio error: %v\n\n", prefix, err)
+		fmt.Fprintf(os.Stderr, "\n%s io error: %v\n\n", prefix, err)
 		return false
 	}
 
 	if err = cmd.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "\n%sstart error: %v\n\n", prefix, err)
+		fmt.Fprintf(os.Stderr, "\n%s start error: %v\n\n", prefix, err)
 		return false
 	}
 
@@ -67,14 +88,15 @@ func Run(prefix, name string, args ...string) bool {
 			}
 
 			errors = true
-			for i, line := range bytes.Split(buffer[:n], lf) {
+			lines := bytes.Split(buffer[:n], lf)
+			for i, line := range lines {
 				if i > 0 {
 					os.Stderr.Write(lf)
 					eol = true
 				}
-				if eol && len(line) > 0 {
+				if eol && (len(line) > 0 || i < len(lines)-1) {
 					os.Stderr.Write([]byte(prefix))
-					os.Stderr.Write([]byte("err: "))
+					os.Stderr.Write([]byte(" | "))
 					eol = false
 				}
 
@@ -87,12 +109,7 @@ func Run(prefix, name string, args ...string) bool {
 	}
 
 	if err = cmd.Wait(); err != nil {
-		fmt.Fprintf(os.Stderr, "\n%scommand error: %v\n\n", prefix, err)
-		return false
-	}
-
-	if errors {
-		fmt.Fprintf(os.Stderr, "\n%scommand run with errors\n\n", prefix)
+		fmt.Fprintf(os.Stderr, "\n%s command error: %v\n\n", prefix, err)
 		return false
 	}
 
