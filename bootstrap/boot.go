@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"syscall"
 )
@@ -58,9 +57,8 @@ func Boot() {
 	}
 
 	fmt.Printf("\n[bootstrap] rebuilding...\n")
-	cmd := exec.Command("go", "build", "-o", exeFile, rootFile)
-	if err := cmd.Run(); err != nil {
-		logBootErr(err)
+	if !Run("[build] ", "go", "build", "-o", exeFile, rootFile) {
+		logBootErr(fmt.Errorf("build failed"))
 		return
 	}
 
@@ -115,5 +113,5 @@ func logBoot[T any](val T, err error) T {
 }
 
 func logBootErr(err any) {
-	fmt.Fprintf(os.Stderr, "[bootstrap: %v]", err)
+	fmt.Fprintf(os.Stderr, "[bootstrap] error: %v\n", err)
 }
