@@ -6,11 +6,44 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"syscall"
 )
 
-var lf = []byte("\n")
+// Spawn a new process "replaces" the current process by the given one.
+//
+// The new process shares the same environment and standard output streams
+// as the current process.
+//
+// After the spawned process exits, the current process will exit with the
+// same exit code.
+func Spawn(name string, args ...string) error {
+	files := make([]*os.File, 3)
+	files[syscall.Stdin] = os.Stdin
+	files[syscall.Stdout] = os.Stdout
+	files[syscall.Stderr] = os.Stderr
 
+	proc, err := os.StartProcess(name, args, &os.ProcAttr{
+		Dir:   ".",
+		Env:   os.Environ(),
+		Files: files,
+	})
+
+	if err != nil {
+		return fmt.Errorf("spawn: %v", err)
+	}
+
+	state, err := proc.Wait()
+	if err != nil {
+		return fmt.Errorf("spawn: wait failed: %v", err)
+	}
+
+	os.Exit(state.ExitCode())
+	panic("unreachable")
+}
+
+// Run a new process handling errors and stderr output.
 func Run(prefix, name string, args ...string) bool {
+	var lf = []byte("\n")
 	cmd := exec.Command(name, args...)
 
 	stderr, err := cmd.StderrPipe()

@@ -68,21 +68,11 @@ func Boot() {
 	files[syscall.Stderr] = os.Stderr
 
 	fmt.Printf("[bootstrap] restarting...\n")
-	proc := logBoot(os.StartProcess(exeFile, os.Args, &os.ProcAttr{
-		Dir:   ".",
-		Env:   os.Environ(),
-		Files: files,
-	}))
-	if proc == nil {
-		return
-	}
 
-	state := logBoot(proc.Wait())
-	if state == nil {
-		return
+	if err := Spawn(exeFile, os.Args...); err != nil {
+		logBootErr(fmt.Errorf("restart failed: %v", err))
+		os.Exit(123)
 	}
-
-	os.Exit(state.ExitCode())
 }
 
 func getBootstrapExe() string {
