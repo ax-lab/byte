@@ -7,15 +7,10 @@ import (
 	"syscall"
 )
 
-const (
-	MainSourceFile  = "byte.go"
-	BootstrapModule = "bootstrap"
-)
-
 // Performs the boot routine for the bootstrap process. This will check if
 // the bootstrapper needs to be update and rebuild itself, restarting the
 // process if that is the case.
-func Boot() {
+func Boot(mainSourceFile, bootstrapDir string) {
 	root := ProjectDir()
 
 	exeFile := getBootstrapExe()
@@ -23,7 +18,7 @@ func Boot() {
 		return
 	}
 
-	rootFile := filepath.Join(root, MainSourceFile)
+	rootFile := filepath.Join(root, mainSourceFile)
 	rootStat := logBoot(os.Stat(rootFile))
 	if rootStat == nil {
 		return
@@ -37,7 +32,7 @@ func Boot() {
 	exeTime := exeStat.ModTime()
 	isNewer := rootStat.ModTime().After(exeTime)
 	if !isNewer {
-		rootDir := filepath.Join(filepath.Dir(rootFile), BootstrapModule)
+		rootDir := filepath.Join(filepath.Dir(rootFile), bootstrapDir)
 		filepath.WalkDir(rootDir, func(path string, dir os.DirEntry, err error) error {
 			if isNewer {
 				return filepath.SkipDir

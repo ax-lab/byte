@@ -8,13 +8,15 @@ import (
 	"github.com/ax-lab/byte/bootstrap"
 )
 
-const BootstrapModuleDir = "bootstrap"
-const ByteCargoDir = "byte-rs"
+const (
+	BootstrapDir   = "bootstrap"
+	CargoWorkspace = "byte-rs"
+)
 
 func main() {
-	bootstrap.Boot()
+	bootstrap.Boot("byte.go", BootstrapDir)
 
-	var cargoDir = filepath.Join(bootstrap.ProjectDir(), ByteCargoDir)
+	var cargoDir = filepath.Join(bootstrap.ProjectDir(), CargoWorkspace)
 
 	var (
 		clean   = os.Getenv("CLEAN") != ""
