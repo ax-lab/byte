@@ -1,0 +1,6 @@
+# Bootstrapper binaries
+/byte
+/byte.exe
+
+# Rust output
+target/
