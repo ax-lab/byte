@@ -14,9 +14,14 @@ var projectDir = (func() string {
 	return dir
 })()
 
-// Returns the absolute root directory for the project
+// Returns the absolute root directory for the project.
 func ProjectDir() string {
 	return projectDir
+}
+
+// Returns the root path where to run cargo.
+func CargoDir() string {
+	return filepath.Join(ProjectDir(), CargoWorkspace)
 }
 
 // Returns the Go filename of the caller function.

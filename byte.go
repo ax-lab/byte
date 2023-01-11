@@ -3,21 +3,16 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/ax-lab/byte/bootstrap"
 )
 
-const (
-	BootstrapDir   = "bootstrap"
-	CargoWorkspace = "byte-rs"
-)
+const ()
 
 func main() {
-	bootstrap.Boot("byte.go", BootstrapDir)
+	bootstrap.Boot("byte.go")
 
-	var cargoDir = filepath.Join(bootstrap.ProjectDir(), CargoWorkspace)
-
+	var cargoDir = bootstrap.CargoDir()
 	var (
 		clean   = os.Getenv("CLEAN") != ""
 		release = os.Getenv("RELEASE") != ""
@@ -44,14 +39,19 @@ func main() {
 	}
 
 	if success {
-		var outputDir = "debug"
-		if release {
-			outputDir = "release"
+		var (
+			args = os.Args
+			verb = ""
+		)
+
+		if len(args) > 1 {
+			verb = args[1]
 		}
-		var exePath = filepath.Join(cargoDir, "target", outputDir, bootstrap.Exe("byte"))
-		if err := bootstrap.Spawn(exePath, os.Args...); err != nil {
-			fmt.Fprintf(os.Stderr, "\n[bootstrap] error: starting byte: %v\n\n", err)
-			os.Exit(123)
+
+		var byte = bootstrap.NewRunner(release)
+		switch verb {
+		default:
+			byte.Spawn(args...)
 		}
 	}
 }
