@@ -2,10 +2,15 @@ package bootstrap
 
 import (
 	"fmt"
+	"io/fs"
 	"log"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strings"
 )
+
+const RegexpIgnoreCase = "(?i)"
 
 var projectDir = (func() string {
 	// assume we are in a directory under the project root
@@ -42,4 +47,50 @@ func Caller(skip int) string {
 		return fmt.Sprintf("%s:%d: ", file, line)
 	}
 	return ""
+}
+
+func Glob(root, pattern string) (out []string) {
+	re := regexp.MustCompile(RegexpIgnoreCase + GlobRegex(pattern) + "$")
+	filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && re.MatchString(path) {
+			out = append(out, path)
+		}
+		return nil
+	})
+	return out
+}
+
+func GlobRegex(pattern string) string {
+	var output []string
+
+	next, runes := ' ', []rune(pattern)
+	for len(runes) > 0 {
+		next, runes = runes[0], runes[1:]
+		switch next {
+		case '/', '\\':
+			output = append(output, `[/\\]`)
+		case '?':
+			output = append(output, `[^/\\]`)
+		case '*':
+			output = append(output, `[^/\\]*`)
+		default:
+			output = append(output, regexp.QuoteMeta(string(next)))
+		}
+	}
+	return strings.Join(output, "")
+}
+
+func Relative(base, path string) string {
+	fullbase, err := filepath.Abs(base)
+	NoError(err, "getting absolute base path for relative")
+
+	fullpath, err := filepath.Abs(path)
+	NoError(err, "getting absolute path for relative")
+
+	rel, err := filepath.Rel(fullbase, fullpath)
+	NoError(err, "getting relative path")
+	return rel
 }

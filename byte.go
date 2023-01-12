@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/ax-lab/byte/bootstrap"
 )
@@ -44,12 +46,41 @@ func main() {
 			verb = ""
 		)
 
+		var verbArgs []string
 		if len(args) > 1 {
-			verb = args[1]
+			verb, verbArgs = args[1], args[2:]
 		}
 
 		var byte = bootstrap.NewRunner(release)
 		switch verb {
+		case "test":
+			tests := filepath.Join(bootstrap.ProjectDir(), "tests")
+			files := bootstrap.Glob(tests, "*.by")
+			for _, it := range files {
+				matches := len(verbArgs) == 0
+				for _, pattern := range verbArgs {
+					matches = matches || bootstrap.MatchesPattern(it, pattern)
+				}
+
+				if !matches {
+					continue
+				}
+
+				fmt.Printf("\n>>> %s\n", bootstrap.Relative(".", it))
+				input, err := ioutil.ReadFile(it)
+				bootstrap.NoError(err, "reading input")
+
+				text := string(input)
+				if len(text) == 0 {
+					text = "(empty file)"
+				} else if last := len(text) - 1; text[last] == '\n' {
+					text = text[:last]
+				} else {
+					text = text + "¶"
+				}
+				fmt.Printf("\n%s\n", text)
+			}
+			fmt.Println()
 		default:
 			byte.Spawn(args...)
 		}
