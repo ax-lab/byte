@@ -80,7 +80,7 @@ func (blk DiffBlock) String() string {
 }
 
 func computeDiff[T comparable](input, output []T) (out []DiffBlock) {
-	lcs := computeLCS(input, output)
+	lcs := computeLcs(input, output)
 	lcs = append(lcs, [3]int{len(input), len(output), 0})
 
 	src, dst := 0, 0
@@ -122,7 +122,7 @@ func computeDiff[T comparable](input, output []T) (out []DiffBlock) {
 	return out
 }
 
-func computeLCS[T comparable](a, b []T) (out [][3]int) {
+func computeLcs[T comparable](a, b []T) (out [][3]int) {
 	m := make([]int, len(a)*len(b))
 
 	get := func(xa, xb int) int {
@@ -168,4 +168,98 @@ func computeLCS[T comparable](a, b []T) (out [][3]int) {
 	}
 
 	return out
+}
+
+/*
+Computes the D value for the optimal D-path between A and B for the Myers
+diff-algorithm.
+
+The D parameter is the number of vertical or horizontal edges for the
+optimal D-path in the edit graph for A to B. This can also be seen as the
+number of character edit operations necessary to transform A into B.
+
+The edit graph for A[N], B[M] is defined by a grid from (0, 0) to (N, M),
+with edges in this grid corresponding to edit operations from A to B:
+
+- Horz edge (x, y) -> (x + 1, y): deletes character A[x]
+- Vert edge (x, y) -> (x, y + 1): inserts character B[Y] at A[x]
+- Diag edge (x, y) -> (x + 1, y + 1), iif A[x] == B[y]: no operation
+
+Any path from (0, 0) to (N, M) defines a set of edit operations to transform
+the string A into B. An optimal path will minimize the number of horizontal
+and vertical edges, hence will minimize D.
+
+Any D-path can be decomposed into a (D-1)-path, plus an horz/vert edge followed
+by a diagonal (potentially empty) snake.
+
+A furthest reaching D-path is a D-path ending at the furthest possible (x, y)
+coordinate from the origin.
+*/
+func ComputeD(a, b string) int {
+	// max possible value of D (i.e. when the LCS of A and B is empty)
+	max := len(a) + len(b)
+	if max == 0 {
+		return 0 // A and B are empty
+	}
+
+	// Given a diagonal `k` in the edit graph, where `k = x - y`, the vector
+	// V[K] will contain the endpoint of the furthest reaching D-path for
+	// diagonal K and the current value of D.
+	//
+	// By definition, `y = x - k`, so V[k] only needs to store x.
+	//
+	// Note that K = 0 is the diagonal where A[i] == B[i] and will contain the
+	// furthest reaching path with D = 0.
+	//
+	// By definition, a D-path must end on a diagonal K with:
+	//
+	//     K in { -D , -D+2 , ... , D-2 , D }
+	//
+	// The above be verified by induction from the trivial case for D = 0.
+	vec := make([]int, 2*max+1)
+	idx := func(i int) int {
+		return i + max
+	}
+	get := func(i int) int {
+		return vec[idx(i)]
+	}
+	set := func(i, val int) {
+		vec[idx(i)] = val
+	}
+
+	// Finds the optimal D value by successively computing the furthest
+	// reaching D-path for diagonal K until a path reaches (N, M).
+	//
+	// Note that since the parity of D and K is always the same, the D and D+1
+	// values are disjoint. This allows us to build a D path from a D-1 path
+	// in successive iterations.
+	for d := 0; d <= max; d++ {
+		for k := -d; k <= d; k += 2 {
+			// Build the furthest reaching D-path for the current diagonal K
+			// by extending the the furthest reaching (D-1) path computed in
+			// the previous iteration
+			var x int
+			if k == -d || (k != d && get(k-1) < get(k+1)) {
+				x = get(k + 1) // extend vertical edge from diag K+1
+			} else {
+				x = get(k-1) + 1 // extend horizontal edge from diag K-1
+			}
+
+			// extend the diagonal "snake" to find the furthest reaching point
+			y := x - k
+			for x < len(a) && y < len(b) && a[x] == b[y] {
+				x++
+				y++
+			}
+
+			// store the furthest reaching point and check the stop condition
+			set(k, x)
+			if x == len(a) && y == len(b) {
+				return d
+			}
+		}
+	}
+
+	// The above loop is garanteed to find a D-path as long as `MAX = N + M`.
+	panic("unreachable")
 }

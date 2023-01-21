@@ -104,3 +104,46 @@ func TestDiffLCS(t *testing.T) {
 		diff.Text(),
 	)
 }
+
+func TestAlgo(t *testing.T) {
+	check := func(len int, a, b string) {
+		require.Equal(
+			t, len, bootstrap.ComputeD(a, b),
+			"expected LCS of `%s` and `%s` to be length %d", a, b, len,
+		)
+		require.Equal(
+			t, len, bootstrap.ComputeD(b, a),
+			"expected LCS of `%s` and `%s` to be length %d", b, a, len,
+		)
+	}
+
+	check(0, "", "")
+	check(0, "abc", "abc")
+
+	check(3, "", "abc")
+
+	check(1, "xabc", "abc")
+	check(1, "axbc", "abc")
+	check(1, "abxc", "abc")
+	check(1, "abcx", "abc")
+
+	check(2, "xabc", "yabc")
+	check(2, "xabc", "aybc")
+	check(2, "xabc", "abyc")
+	check(2, "xabc", "abcy")
+
+	check(2, "axbc", "yabc")
+	check(2, "axbc", "aybc")
+	check(2, "axbc", "abyc")
+	check(2, "axbc", "abcy")
+
+	check(2, "abxc", "yabc")
+	check(2, "abxc", "aybc")
+	check(2, "abxc", "abyc")
+	check(2, "abxc", "abcy")
+
+	check(2, "abcx", "yabc")
+	check(2, "abcx", "aybc")
+	check(2, "abcx", "abyc")
+	check(2, "abcx", "abcy")
+}
