@@ -1,149 +1,125 @@
 package bootstrap_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/ax-lab/byte/bootstrap"
 	"github.com/stretchr/testify/require"
 )
 
-func TestDiffEqual(t *testing.T) {
-	test := require.New(t)
-
-	var a, b []string
-
-	// Diff of empty
-	test.Equal("", bootstrap.Compare(a, b).String())
-
-	// Diff for equal values should be empty
-	a = []string{"a", "b", "c"}
-	b = []string{"a", "b", "c"}
-	test.Equal("=[3] 0 -> 0", bootstrap.Compare(a, b).String())
+func TestDiffEmpty(t *testing.T) {
+	checkDiff(t, "", "", "")
 }
 
-func TestDiffTrivial(t *testing.T) {
-	test := require.New(t)
+func TestDiffEqual(t *testing.T) {
+	checkDiff(t, "a", "a", "a")
+	checkDiff(t, "abc", "abc", "abc")
+}
 
-	var a, b []string
+func TestDiffBasic(t *testing.T) {
+	// one empty
 
-	// empty A or B
+	checkDiff(t, "", "a", "+(a)")
+	checkDiff(t, "a", "", "-(a)")
 
-	a = []string{}
-	b = []string{"a", "b", "c"}
-	test.Equal(
-		[]string{"+a", "+b", "+c"},
-		bootstrap.Compare(a, b).Text(),
-	)
-
-	a = []string{"a", "b", "c"}
-	b = []string{}
-	test.Equal(
-		[]string{"-a", "-b", "-c"},
-		bootstrap.Compare(a, b).Text(),
-	)
+	checkDiff(t, "", "abc", "+(abc)")
+	checkDiff(t, "abc", "", "-(abc)")
 
 	// same prefix
 
-	a = []string{"a"}
-	b = []string{"a", "b", "c"}
-	test.Equal(
-		[]string{" a", "+b", "+c"},
-		bootstrap.Compare(a, b).Text(),
-	)
+	checkDiff(t, "a", "abc", "a+(bc)")
+	checkDiff(t, "abc", "a", "a-(bc)")
 
-	a = []string{"a", "b", "c"}
-	b = []string{"a"}
-	test.Equal(
-		[]string{" a", "-b", "-c"},
-		bootstrap.Compare(a, b).Text(),
-	)
+	checkDiff(t, "ab", "abc", "ab+(c)")
+	checkDiff(t, "abc", "ab", "ab-(c)")
+
+	checkDiff(t, "ab", "abcd", "ab+(cd)")
+	checkDiff(t, "abcd", "ab", "ab-(cd)")
 
 	// same sufix
 
-	a = []string{"c"}
-	b = []string{"a", "b", "c"}
-	test.Equal(
-		[]string{"+a", "+b", " c"},
-		bootstrap.Compare(a, b).Text(),
-	)
+	checkDiff(t, "c", "abc", "+(ab)c")
+	checkDiff(t, "abc", "c", "-(ab)c")
 
-	a = []string{"a", "b", "c"}
-	b = []string{"c"}
-	test.Equal(
-		[]string{"-a", "-b", " c"},
-		bootstrap.Compare(a, b).Text(),
-	)
+	checkDiff(t, "bc", "abc", "+(a)bc")
+	checkDiff(t, "abc", "bc", "-(a)bc")
+
+	checkDiff(t, "cd", "abcd", "+(ab)cd")
+	checkDiff(t, "abcd", "cd", "-(ab)cd")
 
 	// same infix
 
-	a = []string{"b"}
-	b = []string{"a", "b", "c"}
-	test.Equal(
-		[]string{"+a", " b", "+c"},
-		bootstrap.Compare(a, b).Text(),
-	)
+	checkDiff(t, "b", "abc", "+(a)b+(c)")
+	checkDiff(t, "abc", "b", "-(a)b-(c)")
 
-	a = []string{"a", "b", "c"}
-	b = []string{"b"}
-	test.Equal(
-		[]string{"-a", " b", "-c"},
-		bootstrap.Compare(a, b).Text(),
-	)
+	checkDiff(t, "bc", "abcd", "+(a)bc+(d)")
+	checkDiff(t, "abcd", "bc", "-(a)bc-(d)")
+
+	checkDiff(t, "c", "abcde", "+(ab)c+(de)")
+	checkDiff(t, "abcde", "c", "-(ab)c-(de)")
 }
 
-func TestDiffLCS(t *testing.T) {
-	test := require.New(t)
-
-	var a, b []string
-
-	a = []string{"a", "b", "c", "a", "b", "b", "a"}
-	b = []string{"c", "b", "a", "b", "a", "c"}
-	diff := bootstrap.Compare(a, b)
-	test.Equal(
-		[]string{"-a", "-b", " c", "+b", " a", " b", "-b", " a", "+c"},
-		diff.Text(),
-	)
+func TestDiffTextBook(t *testing.T) {
+	checkDiff(t, "abcabba", "cbabac", "-(ab)c+(b)ab-(b)a+(c)")
+	//checkDiff(t, "cbabac", "abcabba", "+(ab)c-(b)ab+(b)a-(c)")
 }
 
-func TestAlgo(t *testing.T) {
-	check := func(len int, a, b string) {
-		require.Equal(
-			t, len, bootstrap.ComputeD(a, b),
-			"expected LCS of `%s` and `%s` to be length %d", a, b, len,
-		)
-		require.Equal(
-			t, len, bootstrap.ComputeD(b, a),
-			"expected LCS of `%s` and `%s` to be length %d", b, a, len,
-		)
+func checkDiff(t *testing.T, a, b, result string) {
+	la, lb := []rune(a), []rune(b)
+	diff := bootstrap.Compare(la, lb)
+
+	output := strings.Builder{}
+	lastKind := -99
+
+	srcIndex, dstIndex := 0, 0
+	for _, op := range diff.Blocks() {
+		if op.Kind == lastKind {
+			t.Logf("diff has consecutive blocks with same type")
+			t.Fail()
+		}
+		lastKind = op.Kind
+
+		if op.Src != srcIndex {
+			t.Logf("unexpected diff src (expected %d, was %d)", srcIndex, op.Src)
+			t.Fail()
+		}
+		if op.Dst != dstIndex {
+			t.Logf("unexpected diff dst (expected %d, was %d)", dstIndex, op.Dst)
+			t.Fail()
+		}
+
+		if op.Kind < 0 {
+			srcIndex += op.Len
+			src := a[op.Src:srcIndex]
+			output.WriteString("-(")
+			output.WriteString(src)
+			output.WriteString(")")
+		} else if op.Kind > 0 {
+			dstIndex += op.Len
+			dst := b[op.Dst:dstIndex]
+			output.WriteString("+(")
+			output.WriteString(dst)
+			output.WriteString(")")
+		} else {
+			srcIndex += op.Len
+			dstIndex += op.Len
+			src := a[op.Src:srcIndex]
+			dst := b[op.Dst:dstIndex]
+			if src != dst {
+				t.Logf("expected diff src == dst for an equal block (was `%s` and `%s`)", src, dst)
+				t.Fail()
+			}
+			output.WriteString(src)
+		}
 	}
 
-	check(0, "", "")
-	check(0, "abc", "abc")
+	if srcIndex != len(a) || dstIndex != len(b) {
+		t.Logf("diff src and dst are not at the end (expected %d/%d, was %d/%d)",
+			len(a), len(b), srcIndex, dstIndex)
+		t.Fail()
+	}
 
-	check(3, "", "abc")
-
-	check(1, "xabc", "abc")
-	check(1, "axbc", "abc")
-	check(1, "abxc", "abc")
-	check(1, "abcx", "abc")
-
-	check(2, "xabc", "yabc")
-	check(2, "xabc", "aybc")
-	check(2, "xabc", "abyc")
-	check(2, "xabc", "abcy")
-
-	check(2, "axbc", "yabc")
-	check(2, "axbc", "aybc")
-	check(2, "axbc", "abyc")
-	check(2, "axbc", "abcy")
-
-	check(2, "abxc", "yabc")
-	check(2, "abxc", "aybc")
-	check(2, "abxc", "abyc")
-	check(2, "abxc", "abcy")
-
-	check(2, "abcx", "yabc")
-	check(2, "abcx", "aybc")
-	check(2, "abcx", "abyc")
-	check(2, "abcx", "abcy")
+	require.Equal(t, result, output.String(),
+		"expected diff of `%s` and `%s` to be: %s", a, b, result)
 }

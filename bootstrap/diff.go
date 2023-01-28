@@ -322,13 +322,6 @@ type diffSnake struct {
 	Segments   int // Number of segments
 }
 
-func (snake *diffSnake) setInfo(prefix, suffix diffInfo) {
-	snake.Segments = prefix.segs + suffix.segs
-	if prefix.last != suffix.last && prefix.segs > 0 && suffix.segs > 0 {
-		snake.Segments++
-	}
-}
-
 // Find the middle snakes for the optimal edit D-paths between A and B for
 // the Myers diff algorithm.
 //
@@ -507,8 +500,8 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 	fwd := make([]int, 2*maxD+1)
 	rev := make([]int, len(fwd))
 
-	fwdInfo := make([]diffInfo, len(fwd))
-	revInfo := make([]diffInfo, len(rev))
+	fwdQuality := make([]diffQuality, len(fwd))
+	revQuality := make([]diffQuality, len(rev))
 
 	// For the reverse path, all diagonals start at the right of the grid.
 	for i := 0; i < len(rev); i++ {
@@ -534,51 +527,74 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 
 		// forward path
 		for k := -hd; k <= hd; k += 2 {
-			// Extend the furthest X from either K-1 or K+1.
+			// Extend the furthest path from either K-1 or K+1.
 			var (
-				x    int
-				info diffInfo
+				nextX int
+				fromK int
 			)
-			if k == -hd || (k != hd && fwd[k-1+off] < fwd[k+1+off]) {
-				// vert edge from K+1
-				idx := k + 1 + off
-				x = fwd[idx]
 
-				// update info
-				info = fwdInfo[idx]
-				info.moveVert()
+			// We can either extend vertically or horizontally from a neighbour
+			// diagonal...
+			indexVert := k + 1 + off
+			indexHorz := k - 1 + off
+			switch k {
+			// ...in edge cases there is no choice
+			case -hd:
+				fromK = indexVert
+			case +hd:
+				fromK = indexHorz
+			// ...otherwise we take the diagonal with the furthest X value
+			// while strongly favoring a horizontal extension (delete)
+			default:
+				if fwd[indexVert] == fwd[indexHorz]+1 {
+					// in this case, both a vertical or horizontal extension
+					// will reach the same position, so we check which one
+					// provides a better quality
+					if isDiffQualityWorse(fwdQuality[indexHorz], fwdQuality[indexVert]) {
+						fromK = indexVert
+					} else {
+						fromK = indexHorz
+					}
+				} else if fwd[indexHorz] >= fwd[indexVert] {
+					fromK = indexHorz
+				} else {
+					fromK = indexVert
+				}
+			}
+
+			// Apply the non-diagonal edge extension.
+			quality := fwdQuality[fromK]
+			if fromK == indexHorz {
+				nextX = fwd[indexHorz] + 1
+				quality.moveHorz()
 			} else {
-				// horz edge from K-1 (preferred case since it increases x)
-				idx := k - 1 + off
-				x = fwd[idx] + 1
-
-				// update info
-				info = fwdInfo[idx]
-				info.moveHorz()
+				nextX = fwd[indexVert]
+				quality.moveVert()
 			}
 
-			// Extend the diagonal.
-			y := x - k
-			for x < len(a) && y < len(b) && a[x] == b[y] {
-				info.moveDiag()
-				x++
-				y++
+			// Extend the diagonal snake as far as possible.
+			nextY := nextX - k
+			for nextX < len(a) && nextY < len(b) && a[nextX] == b[nextY] {
+				quality.moveDiag()
+				nextX++
+				nextY++
 			}
 
-			fwd[k+off] = x
-			fwdInfo[k+off] = info
+			fwd[k+off] = nextX
+			fwdQuality[k+off] = quality
 
-			// Check for overlap with the reverse (D-1)-paths (note that
-			// the central reverse diagonal is delta).
+			// Check for overlap with the reverse (D-1)-paths. These diagonals
+			// are centered around `delta`, so we check if our forward K is
+			// also one of the previously calculated reverse Ks.
 			if odd && k >= delta-(hd-1) && k <= delta+(hd-1) {
-				if u := rev[k+off]; u <= x {
+				if posA := rev[k+off]; posA <= nextX {
 					snake := diffSnake{
-						PosA: u,
-						PosB: u - k, // v
-						Len:  x - u,
+						PosA: posA,
+						PosB: posA - k,
+						Len:  nextX - posA,
 						Diff: 2*hd - 1,
 					}
-					snake.setInfo(info, revInfo[k+off])
+					snake.setQuality(quality, revQuality[k+off])
 					out = append(out, snake)
 				}
 			}
@@ -589,59 +605,78 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 			// the reverse K diagonal
 			kr := k + delta
 
-			// Extend the furthest U from either K-1 or K+1.
+			// Extend the furthest path from either K-1 or K+1.
 			//
 			// Note the following differences from above since we are on the
 			// reverse path and moving top left on the grid:
 			//
-			// - K=0 should be the corner diagonal, so K needs the delta
-			//   applied when in reverse;
+			// - The center diagonal is delta instead of K=0;
 			// - When K is on the edge (-D or +D) the behaviour is different;
 			// - Horizontal edges extend from K+1 and vertical from K-1;
 			// - We want to minimize the horizontal position.
 			var (
-				u    int
-				info diffInfo
+				nextX int
+				fromK int
 			)
-			if k == hd || (k != -hd && rev[kr+1+off] > rev[kr-1+off]) {
-				// vert edge from K-1
-				idx := kr - 1 + off
-				u = rev[idx]
 
-				// update info
-				info = revInfo[idx]
-				info.moveVert()
+			// Here we have a similar logic as the forward case, but the
+			// diagonal cases are totally different since we are moving
+			// in reverse.
+			indexVert := kr - 1 + off
+			indexHorz := kr + 1 + off
+			switch k {
+			case +hd:
+				fromK = indexVert // note this is the K=0 case as well
+			case -hd:
+				fromK = indexHorz
+			default:
+				// Note that the signs here are also swapped, since we are
+				// minimizing the X in this case. We are still favoring the
+				// horizontal extensions though.
+				if rev[indexVert] == rev[indexHorz]-1 {
+					if isDiffQualityWorse(revQuality[indexHorz], revQuality[indexVert]) {
+						fromK = indexVert
+					} else {
+						fromK = indexHorz
+					}
+				} else if rev[indexHorz] <= rev[indexVert] {
+					fromK = indexHorz
+				} else {
+					fromK = indexVert
+				}
+			}
+
+			// Apply the non-diagonal edge extension.
+			quality := revQuality[fromK]
+			if fromK == indexHorz {
+				nextX = rev[indexHorz] - 1 // note the sign
+				quality.moveHorz()
 			} else {
-				// horz edge from K+1
-				idx := kr + 1 + off
-				u = rev[idx] - 1
-
-				// update info
-				info = revInfo[idx]
-				info.moveHorz()
+				nextX = rev[indexVert]
+				quality.moveVert()
 			}
 
-			// Extend the diagonal.
-			v := u - kr
-			for u > 0 && v > 0 && a[u-1] == b[v-1] {
-				info.moveDiag()
-				u--
-				v--
+			// Extend the diagonal snake as far as possible.
+			nextY := nextX - kr
+			for nextX > 0 && nextY > 0 && a[nextX-1] == b[nextY-1] {
+				quality.moveDiag()
+				nextX--
+				nextY--
 			}
 
-			rev[kr+off] = u
-			revInfo[kr+off] = info
+			rev[kr+off] = nextX
+			revQuality[kr+off] = quality
 
 			// Check for overlap with the forward D-paths computed above.
 			if !odd && kr >= -hd && kr <= hd {
-				if x := fwd[kr+off]; x >= u {
+				if endA := fwd[kr+off]; endA >= nextX {
 					snake := diffSnake{
-						PosA: u,
-						PosB: v,
-						Len:  x - u,
+						PosA: nextX,
+						PosB: nextY,
+						Len:  endA - nextX,
 						Diff: 2 * hd,
 					}
-					snake.setInfo(info, fwdInfo[kr+off])
+					snake.setQuality(fwdQuality[kr+off], quality)
 					out = append(out, snake)
 				}
 			}
@@ -656,21 +691,56 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 	return
 }
 
-// Qualitative information about a diff used to decide between LCS options.
-type diffInfo struct {
-	segs int // number of segments so far
-	last int // last segment direction
+// Qualitative information about a diff used to heuristically sort LCS options.
+type diffQuality struct {
+	init bool // init flag
+	segs int  // number of segments so far
+	last int  // last segment direction
 }
 
-func (info *diffInfo) moveVert() { info.move(-1) }
+// Set the resulting snake "quality" based on the prefix and suffix quality.
+func (snake *diffSnake) setQuality(prefix, suffix diffQuality) {
+	snake.Segments = prefix.segs + suffix.segs
+	if prefix.last == suffix.last && prefix.segs > 0 && suffix.segs > 0 {
+		snake.Segments--
+	}
+}
 
-func (info *diffInfo) moveHorz() { info.move(+1) }
+// Used to heuristically decide the best quality diff.
+func isDiffQualityWorse(horz, vert diffQuality) bool {
+	horzSegs, vertSegs := horz.segs, vert.segs
+	if horz.init && horz.last != 1 {
+		horzSegs++
+	}
+	if vert.init && vert.segs != -1 {
+		vertSegs++
+	}
+	if horzSegs > vertSegs {
+		return true
+	}
+	return false
+}
 
-func (info *diffInfo) moveDiag() { info.move(0) }
+func (info *diffQuality) moveVert() {
+	info.move(-1)
+}
 
-func (info *diffInfo) move(direction int) {
-	if direction != info.last || info.segs == 0 {
-		info.segs++
-		info.last = direction
+func (info *diffQuality) moveHorz() {
+	info.move(+1)
+}
+
+func (info *diffQuality) moveDiag() {
+	info.move(0)
+}
+
+func (info *diffQuality) move(direction int) {
+	if !info.init {
+		// the first move from an uninitialized diagonal should be ignored
+		info.init = true
+	} else {
+		if direction != info.last || info.segs == 0 {
+			info.segs++
+			info.last = direction
+		}
 	}
 }
