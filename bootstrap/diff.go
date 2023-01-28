@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -318,6 +319,14 @@ type diffSnake struct {
 	PosA, PosB int // Coordinates for the diagonal (offset in A and B)
 	Len        int // Length of the diagonal
 	Diff       int // Edit count for the containing edit path (D for the optimal D-path)
+	Segments   int // Number of segments
+}
+
+func (snake *diffSnake) setInfo(prefix, suffix diffInfo) {
+	snake.Segments = prefix.segs + suffix.segs
+	if prefix.last != suffix.last && prefix.segs > 0 && suffix.segs > 0 {
+		snake.Segments++
+	}
 }
 
 // Find the middle snakes for the optimal edit D-paths between A and B for
@@ -498,6 +507,9 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 	fwd := make([]int, 2*maxD+1)
 	rev := make([]int, len(fwd))
 
+	fwdInfo := make([]diffInfo, len(fwd))
+	revInfo := make([]diffInfo, len(rev))
+
 	// For the reverse path, all diagonals start at the right of the grid.
 	for i := 0; i < len(rev); i++ {
 		rev[i] = n
@@ -523,34 +535,51 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 		// forward path
 		for k := -hd; k <= hd; k += 2 {
 			// Extend the furthest X from either K-1 or K+1.
-			var x int
+			var (
+				x    int
+				info diffInfo
+			)
 			if k == -hd || (k != hd && fwd[k-1+off] < fwd[k+1+off]) {
 				// vert edge from K+1
-				x = fwd[k+1+off]
+				idx := k + 1 + off
+				x = fwd[idx]
+
+				// update info
+				info = fwdInfo[idx]
+				info.moveVert()
 			} else {
 				// horz edge from K-1 (preferred case since it increases x)
-				x = fwd[k-1+off] + 1
+				idx := k - 1 + off
+				x = fwd[idx] + 1
+
+				// update info
+				info = fwdInfo[idx]
+				info.moveHorz()
 			}
 
 			// Extend the diagonal.
 			y := x - k
 			for x < len(a) && y < len(b) && a[x] == b[y] {
+				info.moveDiag()
 				x++
 				y++
 			}
 
 			fwd[k+off] = x
+			fwdInfo[k+off] = info
 
 			// Check for overlap with the reverse (D-1)-paths (note that
 			// the central reverse diagonal is delta).
 			if odd && k >= delta-(hd-1) && k <= delta+(hd-1) {
 				if u := rev[k+off]; u <= x {
-					out = append(out, diffSnake{
+					snake := diffSnake{
 						PosA: u,
 						PosB: u - k, // v
 						Len:  x - u,
 						Diff: 2*hd - 1,
-					})
+					}
+					snake.setInfo(info, revInfo[k+off])
+					out = append(out, snake)
 				}
 			}
 		}
@@ -570,37 +599,78 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 			// - When K is on the edge (-D or +D) the behaviour is different;
 			// - Horizontal edges extend from K+1 and vertical from K-1;
 			// - We want to minimize the horizontal position.
-			var u int
+			var (
+				u    int
+				info diffInfo
+			)
 			if k == hd || (k != -hd && rev[kr+1+off] > rev[kr-1+off]) {
 				// vert edge from K-1
-				u = rev[kr-1+off]
+				idx := kr - 1 + off
+				u = rev[idx]
+
+				// update info
+				info = revInfo[idx]
+				info.moveVert()
 			} else {
 				// horz edge from K+1
-				u = rev[kr+1+off] - 1
+				idx := kr + 1 + off
+				u = rev[idx] - 1
+
+				// update info
+				info = revInfo[idx]
+				info.moveHorz()
 			}
 
 			// Extend the diagonal.
 			v := u - kr
 			for u > 0 && v > 0 && a[u-1] == b[v-1] {
+				info.moveDiag()
 				u--
 				v--
 			}
 
 			rev[kr+off] = u
+			revInfo[kr+off] = info
 
 			// Check for overlap with the forward D-paths computed above.
 			if !odd && kr >= -hd && kr <= hd {
 				if x := fwd[kr+off]; x >= u {
-					out = append(out, diffSnake{
+					snake := diffSnake{
 						PosA: u,
 						PosB: v,
 						Len:  x - u,
 						Diff: 2 * hd,
-					})
+					}
+					snake.setInfo(info, fwdInfo[kr+off])
+					out = append(out, snake)
 				}
 			}
 		}
 	}
 
+	// Between the optimal D-paths, sort by the ones with less segments.
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Segments < out[j].Segments
+	})
+
 	return
+}
+
+// Qualitative information about a diff used to decide between LCS options.
+type diffInfo struct {
+	segs int // number of segments so far
+	last int // last segment direction
+}
+
+func (info *diffInfo) moveVert() { info.move(-1) }
+
+func (info *diffInfo) moveHorz() { info.move(+1) }
+
+func (info *diffInfo) moveDiag() { info.move(0) }
+
+func (info *diffInfo) move(direction int) {
+	if direction != info.last || info.segs == 0 {
+		info.segs++
+		info.last = direction
+	}
 }
