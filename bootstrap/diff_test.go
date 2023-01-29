@@ -63,6 +63,7 @@ func TestDiffBasic(t *testing.T) {
 func TestDiffTextBook(t *testing.T) {
 	checkDiff(t, "abcabba", "cbabac", "-(ab)c+(b)ab-(b)a+(c)")
 	//checkDiff(t, "cbabac", "abcabba", "+(ab)c-(b)ab+(b)a-(c)")
+	checkDiff(t, "<A{a}>", "<A{a} B{b}>", "<A{a}+( B{b})>")
 }
 
 func checkDiff(t *testing.T, a, b, result string) {

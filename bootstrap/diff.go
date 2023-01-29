@@ -82,95 +82,134 @@ func (blk DiffBlock) String() string {
 
 func computeDiff[T comparable](input, output []T) (out []DiffBlock) {
 	lcs := LCS(input, output)
-	lcs = append(lcs, [3]int{len(input), len(output), 0})
+	lcs = append(lcs, CommonSequence{PosA: len(input), PosB: len(output), Len: 0})
 
-	src, dst := 0, 0
+	srcLast, dstLast := 0, 0
 	for _, it := range lcs {
-		s, d, l := it[0], it[1], it[2]
-		if del := s - src; del > 0 {
+		src, dst := it.PosA, it.PosB
+		if del := src - srcLast; del > 0 {
 			out = append(out, DiffBlock{
 				Kind: -1,
-				Src:  src,
-				Dst:  d,
+				Src:  srcLast,
+				Dst:  dst,
 				Len:  del,
 			})
 		}
-		if ins := d - dst; ins > 0 {
+		if ins := dst - dstLast; ins > 0 {
 			out = append(out, DiffBlock{
 				Kind: +1,
-				Src:  s,
-				Dst:  dst,
+				Src:  src,
+				Dst:  dstLast,
 				Len:  ins,
 			})
 		}
 
-		if l > 0 {
-			if cnt := len(out); cnt > 0 && out[cnt-1].Kind == 0 {
-				out[cnt-1].Len += l
+		if it.Len > 0 {
+			if count := len(out); count > 0 && out[count-1].Kind == 0 {
+				out[count-1].Len += it.Len
 			} else {
 				out = append(out, DiffBlock{
 					Kind: 0,
-					Src:  s,
-					Dst:  d,
-					Len:  l,
+					Src:  src,
+					Dst:  dst,
+					Len:  it.Len,
 				})
 			}
 		}
 
-		src, dst = s+l, d+l
+		srcLast, dstLast = src+it.Len, dst+it.Len
 	}
 
 	return out
 }
 
-func LCS[T comparable](a []T, b []T) (out [][3]int) {
+type CommonSequence struct {
+	PosA int
+	PosB int
+	Len  int
+}
+
+// Compute the Longest Common Subsequence (LCS) of A and B.
+func LCS[T comparable](a []T, b []T) (out []CommonSequence) {
 	return computeLCS(a, 0, len(a), b, 0, len(b))
 }
 
-func computeLCS[T comparable](a []T, a0, a1 int, b []T, b0, b1 int) (out [][3]int) {
-	if a1-a0 <= 0 || b1-b0 <= 0 {
+// Compute the LCS of a sub-sequence of A and B using Myers algorithm.
+func computeLCS[T comparable](a []T, ax, ay int, b []T, bx, by int) (out []CommonSequence) {
+	if ay-ax <= 0 || by-bx <= 0 {
 		return nil
 	}
 
-	n := a1 - a0
-	m := b1 - b0
+	n := ay - ax
+	m := by - bx
 
-	ls := diffFindMidSnakes(a[a0:a1], b[b0:b1])
-	it := ls[0]
-	d := it.Diff
-	u := it.PosA
-	v := it.PosB
-	x := u + it.Len
-	y := v + it.Len
+	// Find the middle "snake" diagonal in the edit path. See the function for
+	// details.
+	//
+	// TL;DR: the snake is a (possibly empty) common sequence of A and B that
+	// can be used to evenly split the edit path terms of D.
+	ls := diffFindMidSnakes(a[ax:ay], b[bx:by])
+	lastSegments := 0
 
-	x += a0
-	y += b0
-	u += a0
-	v += b0
-
-	if d > 1 {
-		out = computeLCS(a, a0, u, b, b0, v)
-		if x-u > 0 {
-			out = append(out, [3]int{u, v, x - u})
+	// Compute the LCS for each of the candidate snakes. They all will yield
+	// the longest possible sequence, but some are better than others when
+	// using for a diff.
+	for i, mid := range ls {
+		// Only consider a LCS producing the least diff segments
+		if i > 0 && mid.Segments > lastSegments {
+			break
 		}
-		out = append(out, computeLCS(a, x, a1, b, y, b1)...)
-	} else {
-		if n < m {
-			if a[0] == b[0] {
-				out = append(out, [3]int{a0, b0, n})
-			} else {
-				out = append(out, [3]int{a0, b0 + 1, n})
+		lastSegments = mid.Segments
+
+		midA := mid.PosA + ax
+		midB := mid.PosB + bx
+
+		var lcs []CommonSequence
+		if mid.Diff > 1 {
+			// prefix LCS
+			lcs = computeLCS(a, ax, midA, b, bx, midB)
+
+			if mid.Len > 0 {
+				// add the mid-snake as a common sequence
+				lcs = append(lcs, CommonSequence{PosA: midA, PosB: midB, Len: mid.Len})
 			}
+
+			// suffix LCS
+			lcs = append(lcs, computeLCS(a, midA+mid.Len, ay, b, midB+mid.Len, by)...)
 		} else {
-			if a[0] == b[0] {
-				out = append(out, [3]int{a0, b0, m})
+			// If D is 1 then there is a single element added/removed from one of
+			// the sequences. In that case the LCS is the shorter sequence.
+			//
+			// The same logic trivially works when D is zero (equal sequences).
+			if n < m {
+				if a[ax] == b[bx] {
+					lcs = append(lcs, CommonSequence{PosA: ax, PosB: bx, Len: n})
+				} else {
+					lcs = append(lcs, CommonSequence{PosA: ax, PosB: bx + 1, Len: n})
+				}
 			} else {
-				out = append(out, [3]int{a0 + 1, b0, m})
+				if a[ax] == b[bx] {
+					lcs = append(lcs, CommonSequence{PosA: ax, PosB: bx, Len: m})
+				} else {
+					lcs = append(lcs, CommonSequence{PosA: ax + 1, PosB: bx, Len: m})
+				}
 			}
+		}
+
+		// Check if the LCS we generated is better than the one we got so far:
+		use := i == 0
+		use = use || diffCompare(lcs, out, n, m) < 0
+
+		if use {
+			out = lcs
 		}
 	}
 
 	return out
+}
+
+func diffCompare(d1, d2 []CommonSequence, lenA, lenB int) int {
+	return 0
 }
 
 type diffSnake struct {
@@ -431,6 +470,7 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 			}
 
 			// Extend the diagonal snake as far as possible.
+			posX := nextX
 			nextY := nextX - k
 			for nextX < len(a) && nextY < len(b) && a[nextX] == b[nextY] {
 				quality.moveDiag()
@@ -447,9 +487,9 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 			if odd && k >= delta-(hd-1) && k <= delta+(hd-1) {
 				if posA := rev[k+off]; posA <= nextX {
 					snake := diffSnake{
-						PosA: posA,
-						PosB: posA - k,
-						Len:  nextX - posA,
+						PosA: posX,
+						PosB: posX - k,
+						Len:  nextX - posX,
 						Diff: 2*hd - 1,
 					}
 					snake.setQuality(quality, revQuality[k+off])
@@ -515,6 +555,7 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 			}
 
 			// Extend the diagonal snake as far as possible.
+			posX := nextX
 			nextY := nextX - kr
 			for nextX > 0 && nextY > 0 && a[nextX-1] == b[nextY-1] {
 				quality.moveDiag()
@@ -531,7 +572,7 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 					snake := diffSnake{
 						PosA: nextX,
 						PosB: nextY,
-						Len:  endA - nextX,
+						Len:  posX - nextX,
 						Diff: 2 * hd,
 					}
 					snake.setQuality(fwdQuality[kr+off], quality)
