@@ -61,9 +61,22 @@ func TestDiffBasic(t *testing.T) {
 }
 
 func TestDiffTextBook(t *testing.T) {
-	checkDiff(t, "abcabba", "cbabac", "-(ab)c+(b)ab-(b)a+(c)")
-	//checkDiff(t, "cbabac", "abcabba", "+(ab)c-(b)ab+(b)a-(c)")
+	checkDiff(t, "abcabba", "cbabac", "-(ab)c-(a)b+(a)ba+(c)")
+	checkDiff(t, "cbabac", "abcabba", "+(ab)c+(a)b-(a)ba-(c)")
 	checkDiff(t, "<A{a}>", "<A{a} B{b}>", "<A{a}+( B{b})>")
+}
+
+func TestDiffExplosive(t *testing.T) {
+	stemA := "abc"
+	stemB := "cba"
+	src, dst := "", ""
+	for i := 0; i < 100; i++ {
+		src += stemA
+		dst += stemB
+	}
+
+	// the goal here is just to finish
+	bootstrap.Compare([]rune(src), []rune(dst))
 }
 
 func checkDiff(t *testing.T, a, b, result string) {

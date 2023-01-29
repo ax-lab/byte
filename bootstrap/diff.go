@@ -6,6 +6,9 @@ import (
 	"strings"
 )
 
+// Max candidate diffs to consider at any given point
+const maxDiffCandidates = 1024
+
 type Diff[T comparable] struct {
 	src    []T
 	dst    []T
@@ -131,13 +134,25 @@ type CommonSequence struct {
 
 // Compute the Longest Common Subsequence (LCS) of A and B.
 func LCS[T comparable](a []T, b []T) (out []CommonSequence) {
-	return computeLCS(a, 0, len(a), b, 0, len(b))
+	lenA, lenB := len(a), len(b)
+	ls := computeLCS(a, 0, lenA, b, 0, lenB, maxDiffCandidates)
+	sort.Slice(ls, func(xa, xb int) bool {
+		return diffCompare(ls[xa], ls[xb], lenA, lenB) < 0
+	})
+	if len(ls) > 0 {
+		out = ls[0]
+	}
+	return out
 }
 
 // Compute the LCS of a sub-sequence of A and B using Myers algorithm.
-func computeLCS[T comparable](a []T, ax, ay int, b []T, bx, by int) (out []CommonSequence) {
+func computeLCS[T comparable](a []T, ax, ay int, b []T, bx, by int, maxCandidates int) (out [][]CommonSequence) {
 	if ay-ax <= 0 || by-bx <= 0 {
 		return nil
+	}
+
+	if maxCandidates <= 0 {
+		maxCandidates = 1
 	}
 
 	n := ay - ax
@@ -148,39 +163,50 @@ func computeLCS[T comparable](a []T, ax, ay int, b []T, bx, by int) (out []Commo
 	//
 	// TL;DR: the snake is a (possibly empty) common sequence of A and B that
 	// can be used to evenly split the edit path terms of D.
-	ls := diffFindMidSnakes(a[ax:ay], b[bx:by])
-	lastSegments := 0
+	ls := diffFindMidSnakes(a[ax:ay], b[bx:by], maxCandidates)
 
 	// Compute the LCS for each of the candidate snakes. They all will yield
 	// the longest possible sequence, but some are better than others when
 	// using for a diff.
-	for i, mid := range ls {
-		// Only consider a LCS producing the least diff segments
-		if i > 0 && mid.Segments > lastSegments {
-			break
-		}
-		lastSegments = mid.Segments
-
+	for _, mid := range ls {
 		midA := mid.PosA + ax
 		midB := mid.PosB + bx
 
-		var lcs []CommonSequence
+		max := maxCandidates / len(ls)
+
 		if mid.Diff > 1 {
 			// prefix LCS
-			lcs = computeLCS(a, ax, midA, b, bx, midB)
-
-			if mid.Len > 0 {
-				// add the mid-snake as a common sequence
-				lcs = append(lcs, CommonSequence{PosA: midA, PosB: midB, Len: mid.Len})
+			prefixes := computeLCS(a, ax, midA, b, bx, midB, max)
+			if len(prefixes) == 0 {
+				prefixes = append(prefixes, nil)
 			}
+			for _, pre := range prefixes {
+				if mid.Len > 0 {
+					// add the mid-snake as a common sequence
+					pre = append(pre, CommonSequence{PosA: midA, PosB: midB, Len: mid.Len})
+				}
 
-			// suffix LCS
-			lcs = append(lcs, computeLCS(a, midA+mid.Len, ay, b, midB+mid.Len, by)...)
+				suffixes := computeLCS(a, midA+mid.Len, ay, b, midB+mid.Len, by, max/len(prefixes))
+				for _, pos := range suffixes {
+					lcs := make([]CommonSequence, 0, len(pre)+len(pos))
+					lcs = append(lcs, pre...)
+					lcs = append(lcs, pos...)
+					out = append(out, lcs)
+					if len(out) >= maxCandidates {
+						break
+					}
+				}
+
+				if len(suffixes) == 0 {
+					out = append(out, pre)
+				}
+			}
 		} else {
 			// If D is 1 then there is a single element added/removed from one of
 			// the sequences. In that case the LCS is the shorter sequence.
 			//
 			// The same logic trivially works when D is zero (equal sequences).
+			var lcs []CommonSequence
 			if n < m {
 				if a[ax] == b[bx] {
 					lcs = append(lcs, CommonSequence{PosA: ax, PosB: bx, Len: n})
@@ -194,29 +220,81 @@ func computeLCS[T comparable](a []T, ax, ay int, b []T, bx, by int) (out []Commo
 					lcs = append(lcs, CommonSequence{PosA: ax + 1, PosB: bx, Len: m})
 				}
 			}
-		}
-
-		// Check if the LCS we generated is better than the one we got so far:
-		use := i == 0
-		use = use || diffCompare(lcs, out, n, m) < 0
-
-		if use {
-			out = lcs
+			out = append(out, lcs)
 		}
 	}
 
 	return out
 }
 
+// Compare the diff quality between two candidate LCS results and returns the
+// relative sort order between them.
 func diffCompare(d1, d2 []CommonSequence, lenA, lenB int) int {
-	return 0
+	// Since both sequences are optimal longest sequences, we give
+	// precedenceto the one with less segments.
+	//
+	// Less segments will result in a diff that favors longer runs
+	// of the same operation.
+	//
+	// For same segment counts, the tie break is the lesser edit cost.
+	segments1, editCost1 := diffSegmentCount(d1, lenA, lenB)
+	segments2, editCost2 := diffSegmentCount(d2, lenA, lenB)
+	if segments1 != segments2 {
+		return segments1 - segments2
+	}
+	return editCost1 - editCost2
+}
+
+// Count the number of diff segments for a given LCS and also calculate the
+// associated edit cost which can be used as a tie breaker when the segment
+// numbers are the same.
+//
+// The edit cost is calculated for either deletes or inserts and grows for
+// operations later in the diff.
+//
+// The goal is to favor the more "interesting" diff operation early in the
+// diff. If A is shorter we favor early inserts, otherwise we favor deletes.
+func diffSegmentCount(lcs []CommonSequence, lenA, lenB int) (count, editCost int) {
+	// keep a cost for inserts and deletes that grows for operations later
+	// in the diff
+	deleteCost, insertCost := 0, 0
+
+	// count the number of segments
+	count = len(lcs)
+	a, b := 0, 0
+	for _, it := range lcs {
+		if it.PosA > a {
+			count++ // delete from A
+			deleteCost += a
+		}
+		if it.PosB > b {
+			count++ // insert from B
+			insertCost += b
+		}
+		a, b = it.PosA+it.Len, it.PosB+it.Len
+	}
+	if a < lenA {
+		count++ // delete A suffix
+		deleteCost += a
+	}
+	if b < lenB {
+		count++ // insert B suffix
+		insertCost += b
+	}
+
+	// favor early inserts if the source is shorter, otherwise favor deletes
+	if lenA < lenB {
+		editCost = insertCost
+	} else {
+		editCost = deleteCost
+	}
+	return count, editCost
 }
 
 type diffSnake struct {
 	PosA, PosB int // Coordinates for the diagonal (offset in A and B)
 	Len        int // Length of the diagonal
 	Diff       int // Edit count for the containing edit path (D for the optimal D-path)
-	Segments   int // Number of segments
 }
 
 // Find the middle snakes for the optimal edit D-paths between A and B for
@@ -244,7 +322,7 @@ type diffSnake struct {
 // Also note that for the returned `diffSnake` values:
 //
 // > u = PosA, v = PosB, x = PosA + Len, y = PosB + Len, d = Diff
-func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
+func diffFindMidSnakes[T comparable](a, b []T, maxCandidates int) (out []diffSnake) {
 
 	//------------------------------------------------------------------------//
 	//
@@ -344,6 +422,21 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 	// longest possible diagonal "snake".
 	//
 	//
+	// Overlapping paths
+	// =================
+	//
+	// The stopping criteria for this algorithm is finding overlapping ⌈D/2⌉
+	// forward and ⌊D/2⌋ reverse paths on a same diagonal. Those overlapping
+	// paths are NOT necessarily part of the same D-path, but they are part
+	// of existing D-paths.
+	//
+	// It can also be shown that the first paths to overlap are optimal.
+	//
+	// A key observation for the above is that given a D-path (0,0) to (x,y)
+	// and a point (u,v) where x-y = u-v (same diagonal) and u ≤ x, it implies
+	// the existence of a K-path (0,0) to (u,v) where K ≤ D.
+	//
+	//
 	// Myers algorithm
 	// ==============
 	//
@@ -351,18 +444,18 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 	// successive values of D for each of the K diagonals.
 	//
 	// The code works by searching for both forward and reverse paths until
-	// paths with an overlapping diagonal "snake" are found. The snake is a
-	// common subsequence of A and B and part of an optimal D-path.
+	// paths in a same diagonal overlap.
 	//
-	// Moreover, the snake splits the optimal D-path into ⌈D/2⌉ and ⌊D/2⌋
-	// paths. This can be used to recursively build the edit script, that is,
-	// the LCS between A and B.
+	// Note that the overlapping paths, despite their name, are NOT necessarily
+	// the same path.
 	//
-	// Note that the overlapping snake can a diagonal of zero length.
+	// When the overlap is found, the forward or reverse "snake" is the middle
+	// snake of an optimal D-path. That is, the snake splits the optimal D-path
+	// into ⌈D/2⌉ and ⌊D/2⌋ paths.
 	//
-	// For each diagonal K, the furthest reaching point for the current D
-	// is recorded in an array indexed by K. Since K = X-Y, only the value
-	// of X needs to be stored.
+	// For each diagonal K, the furthest reaching point for the current D is
+	// recorded indexed by K. Since K = X-Y, only the value of X needs to be
+	// stored.
 	//
 	// Since K and D have the same parity, for each D the algorithm computes
 	// only the respective odd/even diagonals. This also means that the values
@@ -396,9 +489,6 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 	// Note that since K=X-Y, we store only X with Y=X-K.
 	fwd := make([]int, 2*maxD+1)
 	rev := make([]int, len(fwd))
-
-	fwdQuality := make([]diffQuality, len(fwd))
-	revQuality := make([]diffQuality, len(rev))
 
 	// For the reverse path, all diagonals start at the right of the grid.
 	for i := 0; i < len(rev); i++ {
@@ -443,16 +533,7 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 			// ...otherwise we take the diagonal with the furthest X value
 			// while strongly favoring a horizontal extension (delete)
 			default:
-				if fwd[indexVert] == fwd[indexHorz]+1 {
-					// in this case, both a vertical or horizontal extension
-					// will reach the same position, so we check which one
-					// provides a better quality
-					if isDiffQualityWorse(fwdQuality[indexHorz], fwdQuality[indexVert]) {
-						fromK = indexVert
-					} else {
-						fromK = indexHorz
-					}
-				} else if fwd[indexHorz] >= fwd[indexVert] {
+				if fwd[indexHorz] >= fwd[indexVert] {
 					fromK = indexHorz
 				} else {
 					fromK = indexVert
@@ -460,26 +541,21 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 			}
 
 			// Apply the non-diagonal edge extension.
-			quality := fwdQuality[fromK]
 			if fromK == indexHorz {
 				nextX = fwd[indexHorz] + 1
-				quality.moveHorz()
 			} else {
 				nextX = fwd[indexVert]
-				quality.moveVert()
 			}
 
 			// Extend the diagonal snake as far as possible.
 			posX := nextX
 			nextY := nextX - k
 			for nextX < len(a) && nextY < len(b) && a[nextX] == b[nextY] {
-				quality.moveDiag()
 				nextX++
 				nextY++
 			}
 
 			fwd[k+off] = nextX
-			fwdQuality[k+off] = quality
 
 			// Check for overlap with the reverse (D-1)-paths. These diagonals
 			// are centered around `delta`, so we check if our forward K is
@@ -492,8 +568,10 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 						Len:  nextX - posX,
 						Diff: 2*hd - 1,
 					}
-					snake.setQuality(quality, revQuality[k+off])
 					out = append(out, snake)
+					if len(out) >= maxCandidates {
+						break
+					}
 				}
 			}
 		}
@@ -528,16 +606,7 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 			case -hd:
 				fromK = indexHorz
 			default:
-				// Note that the signs here are also swapped, since we are
-				// minimizing the X in this case. We are still favoring the
-				// horizontal extensions though.
-				if rev[indexVert] == rev[indexHorz]-1 {
-					if isDiffQualityWorse(revQuality[indexHorz], revQuality[indexVert]) {
-						fromK = indexVert
-					} else {
-						fromK = indexHorz
-					}
-				} else if rev[indexHorz] <= rev[indexVert] {
+				if rev[indexHorz] <= rev[indexVert] {
 					fromK = indexHorz
 				} else {
 					fromK = indexVert
@@ -545,26 +614,21 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 			}
 
 			// Apply the non-diagonal edge extension.
-			quality := revQuality[fromK]
 			if fromK == indexHorz {
 				nextX = rev[indexHorz] - 1 // note the sign
-				quality.moveHorz()
 			} else {
 				nextX = rev[indexVert]
-				quality.moveVert()
 			}
 
 			// Extend the diagonal snake as far as possible.
 			posX := nextX
 			nextY := nextX - kr
 			for nextX > 0 && nextY > 0 && a[nextX-1] == b[nextY-1] {
-				quality.moveDiag()
 				nextX--
 				nextY--
 			}
 
 			rev[kr+off] = nextX
-			revQuality[kr+off] = quality
 
 			// Check for overlap with the forward D-paths computed above.
 			if !odd && kr >= -hd && kr <= hd {
@@ -575,71 +639,14 @@ func diffFindMidSnakes[T comparable](a, b []T) (out []diffSnake) {
 						Len:  posX - nextX,
 						Diff: 2 * hd,
 					}
-					snake.setQuality(fwdQuality[kr+off], quality)
 					out = append(out, snake)
+					if len(out) >= maxCandidates {
+						break
+					}
 				}
 			}
 		}
 	}
 
-	// Between the optimal D-paths, sort by the ones with less segments.
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].Segments < out[j].Segments
-	})
-
 	return
-}
-
-// Qualitative information about a diff used to heuristically sort LCS options.
-type diffQuality struct {
-	init bool // init flag
-	segs int  // number of segments so far
-	last int  // last segment direction
-}
-
-// Set the resulting snake "quality" based on the prefix and suffix quality.
-func (snake *diffSnake) setQuality(prefix, suffix diffQuality) {
-	snake.Segments = prefix.segs + suffix.segs
-	if prefix.last == suffix.last && prefix.segs > 0 && suffix.segs > 0 {
-		snake.Segments--
-	}
-}
-
-// Used to heuristically decide the best quality diff.
-func isDiffQualityWorse(horz, vert diffQuality) bool {
-	horzSegs, vertSegs := horz.segs, vert.segs
-	if horz.init && horz.last != 1 {
-		horzSegs++
-	}
-	if vert.init && vert.segs != -1 {
-		vertSegs++
-	}
-	if horzSegs > vertSegs {
-		return true
-	}
-	return false
-}
-
-func (info *diffQuality) moveVert() {
-	info.move(-1)
-}
-
-func (info *diffQuality) moveHorz() {
-	info.move(+1)
-}
-
-func (info *diffQuality) moveDiag() {
-	info.move(0)
-}
-
-func (info *diffQuality) move(direction int) {
-	if !info.init {
-		// the first move from an uninitialized diagonal should be ignored
-		info.init = true
-	} else {
-		if direction != info.last || info.segs == 0 {
-			info.segs++
-			info.last = direction
-		}
-	}
 }
