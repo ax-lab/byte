@@ -29,3 +29,7 @@ func (runner Runner) Spawn(args ...string) {
 		os.Exit(123)
 	}
 }
+
+func (runner Runner) ExecScript(filename string, callback func(output string, isError bool)) (int, error) {
+	return Exec(runner.exe, []string{filename}, callback)
+}

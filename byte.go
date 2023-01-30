@@ -79,6 +79,22 @@ func main() {
 					text = text + "¶"
 				}
 				fmt.Printf("\n%s\n", text)
+
+				fmt.Printf("\n---- RUNNING ----\n\n")
+				runner := bootstrap.NewRunner(false)
+				code, err := runner.ExecScript(it, func(output string, isError bool) {
+					if isError {
+						os.Stderr.WriteString(output)
+					} else {
+						os.Stdout.WriteString(output)
+					}
+				})
+				fmt.Printf("\n---- RESULTS ----\n")
+				if err != nil {
+					fmt.Printf("\nERROR: %v\n", err)
+				} else {
+					fmt.Printf("\nEXIT: %d\n", code)
+				}
 			}
 			fmt.Println()
 		default:
