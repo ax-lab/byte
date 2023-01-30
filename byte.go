@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -51,6 +50,14 @@ func main() {
 			verb, verbArgs = args[1], args[2:]
 		}
 
+		var (
+			failure = 0
+			success = 0
+			skipped = 0
+
+			all []bootstrap.ScriptTest
+		)
+
 		var byte = bootstrap.NewRunner(release)
 		switch verb {
 		case "test":
@@ -66,37 +73,32 @@ func main() {
 					continue
 				}
 
-				fmt.Printf("\n>>> %s\n", bootstrap.Relative(".", it))
-				input, err := ioutil.ReadFile(it)
-				bootstrap.NoError(err, "reading input")
-
-				text := string(input)
-				if len(text) == 0 {
-					text = "(empty file)"
-				} else if last := len(text) - 1; text[last] == '\n' {
-					text = text[:last]
+				out := bootstrap.RunScriptTest(it)
+				all = append(all, out)
+				if out.Skipped {
+					skipped++
+				} else if out.Success {
+					success++
 				} else {
-					text = text + "¶"
-				}
-				fmt.Printf("\n%s\n", text)
-
-				fmt.Printf("\n---- RUNNING ----\n\n")
-				runner := bootstrap.NewRunner(false)
-				code, err := runner.ExecScript(it, func(output string, isError bool) {
-					if isError {
-						os.Stderr.WriteString(output)
-					} else {
-						os.Stdout.WriteString(output)
-					}
-				})
-				fmt.Printf("\n---- RESULTS ----\n")
-				if err != nil {
-					fmt.Printf("\nERROR: %v\n", err)
-				} else {
-					fmt.Printf("\nEXIT: %d\n", code)
+					failure++
 				}
 			}
-			fmt.Println()
+
+			fmt.Printf("\n=== [SUMMARY - Tests: %d", len(all))
+			if failure > 0 {
+				fmt.Printf(" / Failed: %d", failure)
+			} else {
+				fmt.Printf(" / Passed: %d", success)
+			}
+			if skipped > 0 {
+				fmt.Printf(" / Skipped: %d", skipped)
+			}
+			fmt.Printf(" ]\n\n")
+
+			for _, test := range all {
+				test.OutputDetails()
+			}
+
 		default:
 			byte.Spawn(args...)
 		}

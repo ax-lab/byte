@@ -1,9 +1,11 @@
 package bootstrap
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log"
+	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -93,4 +95,35 @@ func Relative(base, path string) string {
 	rel, err := filepath.Rel(fullbase, fullpath)
 	NoError(err, "getting relative path")
 	return rel
+}
+
+func WithExtension(filename string, ext string) string {
+	out := strings.TrimSuffix(filename, filepath.Ext(filename))
+	return out + ext
+}
+
+func ReadText(filename string) string {
+	out, err := os.ReadFile(filename)
+	if err != nil && !os.IsNotExist(err) {
+		NoError(err, "reading file text")
+	}
+	return string(out)
+}
+
+func ReadJson(filename string, output any) any {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		NoError(err, "reading JSON file")
+	}
+
+	if output == nil {
+		output = &output
+	}
+
+	err = json.Unmarshal(data, output)
+	NoError(err, "decoding JSON file")
+	return output
 }
