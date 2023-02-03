@@ -1,9 +1,8 @@
-Support the following test features, including adding the language features
-necessary for running those tests:
+# Tests
 
-- [ ] add test support to Go bootstrapper
-	- [ ] support text output comparison w/ diffs
-	- [ ] support JSON output spec
+- [.] add test support to Go bootstrapper
+	- [X] support text output comparison w/ diffs
+	- [X] support JSON output spec
 	- [ ] exit code assertions
 	- [ ] error output assertions
 - [ ] test for compile errors
