@@ -115,3 +115,39 @@ func Run(prefix, name string, args ...string) bool {
 
 	return true
 }
+
+// Exec a process using a callback to process output.
+func Exec(name string, args []string, callback func(output string, isError bool)) (int, error) {
+	cmd := exec.Command(name, args...)
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return -1, err
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return -1, err
+	}
+
+	if err = cmd.Start(); err != nil {
+		return -1, err
+	}
+
+	consume := func(output io.Reader, isError bool) {
+		buffer := make([]byte, 4096)
+		for {
+			n, err := output.Read(buffer)
+			if n > 0 {
+				callback(string(buffer[:n]), isError)
+			}
+			if err == io.EOF {
+				break
+			}
+		}
+	}
+	go consume(stdout, false)
+	go consume(stderr, true)
+
+	status, err := cmd.Process.Wait()
+	return status.ExitCode(), err
+}
