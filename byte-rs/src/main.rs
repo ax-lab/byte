@@ -1,5 +1,9 @@
 use std::env;
 
+mod input;
+mod lexer;
+mod parser;
+
 fn main() {
 	let mut done = false;
 	let mut files = Vec::new();
@@ -36,6 +40,7 @@ fn main() {
 	}
 
 	for file in files {
+		let mut _input = input::open_file(&file);
 		match std::fs::read_to_string(&file) {
 			Ok(content) => {
 				execute(&file, &content);
