@@ -1,4 +1,5 @@
-pub enum Token {
+#[derive(Eq, PartialEq, Debug)]
+pub enum TokenKind {
 	Identifier,
 	Integer,
 	Symbol,
@@ -6,7 +7,7 @@ pub enum Token {
 	Comma,
 	LineBreak,
 	Invalid,
-	Error(std::io::Error),
+	Error(String),
 }
 
 pub trait Input {
@@ -24,16 +25,27 @@ pub trait Input {
 	}
 }
 
-pub fn read_token<I: Input>(input: &mut I) -> Token {
-	match input.read() {
-		Some(',') => Token::Comma,
+pub fn read_token<I: Input>(input: &mut I) -> Option<TokenKind> {
+	let token = match input.read() {
+		Some(',') => TokenKind::Comma,
+
+		Some(' ' | '\t') => {
+			loop {
+				match input.read() {
+					Some(' ' | '\t') => {}
+					_ => break,
+				}
+			}
+			input.putback();
+			return None;
+		}
 
 		Some('\r') => {
 			input.read_if('\n');
-			Token::LineBreak
+			TokenKind::LineBreak
 		}
 
-		Some('\n') => Token::LineBreak,
+		Some('\n') => TokenKind::LineBreak,
 
 		Some('0'..='9') => {
 			loop {
@@ -45,7 +57,7 @@ pub fn read_token<I: Input>(input: &mut I) -> Token {
 				}
 			}
 			input.putback();
-			Token::Integer
+			TokenKind::Integer
 		}
 
 		Some('a'..='z' | 'A'..='Z' | '_') => {
@@ -58,19 +70,21 @@ pub fn read_token<I: Input>(input: &mut I) -> Token {
 				}
 			}
 			input.putback();
-			Token::Identifier
+			TokenKind::Identifier
 		}
 
-		Some('+' | '-' | '*' | '/' | '=') => Token::Symbol,
+		Some('+' | '-' | '*' | '/' | '=') => TokenKind::Symbol,
 
 		None => {
 			if let Some(err) = input.error() {
-				Token::Error(err)
+				TokenKind::Error(err.to_string())
 			} else {
-				Token::EndOfFile
+				TokenKind::EndOfFile
 			}
 		}
 
-		_ => Token::Invalid,
-	}
+		_ => TokenKind::Invalid,
+	};
+
+	Some(token)
 }

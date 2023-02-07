@@ -1,4 +1,7 @@
-use std::env;
+use std::{collections::HashMap, env};
+
+use input::TokenStream;
+use parser::{parse_statement, Expr, Id, ParseResult, Statement};
 
 mod input;
 mod lexer;
@@ -40,13 +43,34 @@ fn main() {
 	}
 
 	for file in files {
-		let mut _input = input::open_file(&file);
-		match std::fs::read_to_string(&file) {
-			Ok(content) => {
-				execute(&file, &content);
+		match input::open_file(&file) {
+			Ok(mut input) => {
+				let mut program = Vec::new();
+				let mut token = input.next();
+				loop {
+					let next;
+					(next, token) = parse_statement(&mut input, token);
+					match next {
+						ParseResult::Error(io_err) => {
+							eprintln!("\n[error] reading {}: {}\n", file, io_err);
+							std::process::exit(1);
+						}
+						ParseResult::Invalid(span, msg) => {
+							eprintln!("\n[compile error] {input}:{span}: {msg}\n");
+							std::process::exit(2);
+						}
+						ParseResult::Ok(next) => {
+							program.push(next);
+						}
+						ParseResult::EndOfInput => {
+							break;
+						}
+					}
+				}
+				execute(program);
 			}
 			Err(msg) => {
-				eprintln!("\n[error] reading {}: {}\n", file, msg);
+				eprintln!("\n[error] open file: {msg}\n");
 				std::process::exit(1);
 			}
 		}
@@ -58,34 +82,45 @@ fn print_usage() {
 	println!("Compiles and executes the given FILE.\n");
 }
 
-fn execute(name: &str, input: &str) {
-	for (n, line) in input.lines().enumerate() {
-		let n = n + 1;
-		let line = line.trim();
-		if line == "" {
-			continue;
+fn execute(program: Vec<Statement>) {
+	let mut map = HashMap::<String, ExprResult>::new();
+	for st in program.into_iter() {
+		match st {
+			Statement::Assign(Id(id), expr) | Statement::Let(Id(id), expr) => {
+				let res = execute_expr(expr);
+				map.insert(id, res);
+			}
+
+			Statement::Print(expr_list) => {
+				for (i, expr) in expr_list.into_iter().enumerate() {
+					let res = execute_expr(expr);
+					if i > 0 {
+						print!(" ");
+					}
+					print!("{res}");
+				}
+				println!();
+			}
 		}
+	}
+}
 
-		let exit_with_err = |msg: &str| {
-			eprintln!("\n[compile error] {name}:{n}: {msg}\n\n    |{n:03}| {line}\n");
-			std::process::exit(2);
-		};
+enum ExprResult {
+	Integer(i64),
+	String(String),
+	None,
+}
 
-		let text = match line.strip_prefix("print ") {
-			Some(text) => text,
-			_ => exit_with_err("invalid command"),
-		};
+fn execute_expr(expr: Expr) -> ExprResult {
+	todo!()
+}
 
-		let literal = text
-			.trim()
-			.strip_prefix("'")
-			.map(|x| (x, '\''))
-			.or_else(|| text.trim().strip_prefix("\"").map(|x| (x, '"')));
-
-		let literal = literal
-			.and_then(|(s, delim)| s.strip_suffix(delim))
-			.unwrap_or_else(|| exit_with_err("invalid string literal"));
-
-		println!("{}", literal);
+impl std::fmt::Display for ExprResult {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			ExprResult::Integer(v) => write!(f, "{v}"),
+			ExprResult::String(v) => write!(f, "{v}"),
+			ExprResult::None => write!(f, "(none)"),
+		}
 	}
 }

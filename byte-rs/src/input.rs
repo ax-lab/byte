@@ -1,19 +1,26 @@
 use std::{fmt::Display, path::Path};
 
-use crate::lexer::{read_token, Input, Token};
+use crate::lexer::{read_token, Input, TokenKind};
 
-pub trait TokenStream {
-	fn next(&mut self) -> (Token, Span);
+#[derive(Debug)]
+pub struct Token {
+	pub kind: TokenKind,
+	pub span: Span,
+	pub text: String,
 }
 
-#[derive(Copy, Clone, Default)]
+pub trait TokenStream {
+	fn next(&mut self) -> Token;
+}
+
+#[derive(Copy, Clone, Default, Debug)]
 pub struct Pos {
 	line: usize,
 	column: usize,
 	offset: usize,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Span {
 	pub pos: Pos,
 	pub end: Pos,
@@ -45,11 +52,22 @@ pub struct SourceFile {
 impl Source for SourceFile {}
 
 impl TokenStream for SourceFile {
-	fn next(&mut self) -> (Token, Span) {
-		let pos = self.pos;
-		let token = read_token(self);
-		let end = self.pos;
-		(token, Span { pos, end })
+	fn next(&mut self) -> Token {
+		loop {
+			let pos = self.pos;
+			let kind = if let Some(kind) = read_token(self) {
+				kind
+			} else {
+				continue;
+			};
+			let end = self.pos;
+			break Token {
+				kind: kind,
+				span: Span { pos, end },
+				text: unsafe { std::str::from_utf8_unchecked(&self.text[pos.offset..end.offset]) }
+					.into(),
+			};
+		}
 	}
 }
 
@@ -98,5 +116,17 @@ impl Input for SourceFile {
 impl Display for SourceFile {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{}", self.path)
+	}
+}
+
+impl Display for Span {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.pos)
+	}
+}
+
+impl Display for Pos {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}:{}", self.line + 1, self.column + 1)
 	}
 }
