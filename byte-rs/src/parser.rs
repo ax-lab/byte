@@ -6,7 +6,6 @@ use crate::{
 pub enum Statement {
 	Print(Vec<Expr>),
 	Let(Id, Expr),
-	Assign(Id, Expr),
 }
 
 pub enum ParseResult {
@@ -21,15 +20,34 @@ pub enum Expr {
 	Literal(String),
 	Var(Id),
 	Neg(Box<Expr>),
-	Sum(Box<Expr>, Box<Expr>),
-	Sub(Box<Expr>, Box<Expr>),
-	Mul(Box<Expr>, Box<Expr>),
-	Div(Box<Expr>, Box<Expr>),
+	Binary(BinaryOp, Box<Expr>, Box<Expr>),
+}
+
+pub enum BinaryOp {
+	Add,
+	Sub,
+	Mul,
+	Div,
+}
+
+impl std::fmt::Display for BinaryOp {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			BinaryOp::Add => write!(f, "Add"),
+			BinaryOp::Sub => write!(f, "Sub"),
+			BinaryOp::Mul => write!(f, "Mul"),
+			BinaryOp::Div => write!(f, "Div"),
+		}
+	}
 }
 
 pub struct Id(pub String);
 
-pub fn parse_statement<T: TokenStream>(input: &mut T, next: Token) -> (ParseResult, Token) {
+pub fn parse_statement<T: TokenStream>(input: &mut T, mut next: Token) -> (ParseResult, Token) {
+	while next.kind == TokenKind::LineBreak {
+		next = input.next();
+	}
+
 	match next.kind {
 		TokenKind::Identifier => match next.text.as_str() {
 			"print" => {
@@ -62,7 +80,65 @@ pub fn parse_statement<T: TokenStream>(input: &mut T, next: Token) -> (ParseResu
 }
 
 fn parse_expr<T: TokenStream>(input: &mut T, next: Token) -> (Option<Expr>, Token) {
-	return parse_expr_unary(input, next);
+	return parse_expr_add(input, next);
+}
+
+fn parse_expr_add<T: TokenStream>(input: &mut T, next: Token) -> (Option<Expr>, Token) {
+	let (expr, mut next) = parse_expr_mul(input, next);
+	if let Some(left) = expr {
+		let op = if next.kind == TokenKind::Symbol {
+			match next.text.as_str() {
+				"+" => BinaryOp::Add,
+				"-" => BinaryOp::Sub,
+				_ => {
+					return (Some(left), next);
+				}
+			}
+		} else {
+			return (Some(left), next);
+		};
+
+		next = input.next();
+
+		let right;
+		(right, next) = parse_expr_add(input, next);
+		if let Some(right) = right {
+			(Some(Expr::Binary(op, left.into(), right.into())), next)
+		} else {
+			(None, next)
+		}
+	} else {
+		(expr, next)
+	}
+}
+
+fn parse_expr_mul<T: TokenStream>(input: &mut T, next: Token) -> (Option<Expr>, Token) {
+	let (expr, mut next) = parse_expr_unary(input, next);
+	if let Some(left) = expr {
+		let op = if next.kind == TokenKind::Symbol {
+			match next.text.as_str() {
+				"*" => BinaryOp::Mul,
+				"/" => BinaryOp::Div,
+				_ => {
+					return (Some(left), next);
+				}
+			}
+		} else {
+			return (Some(left), next);
+		};
+
+		next = input.next();
+
+		let right;
+		(right, next) = parse_expr_mul(input, next);
+		if let Some(right) = right {
+			(Some(Expr::Binary(op, left.into(), right.into())), next)
+		} else {
+			(None, next)
+		}
+	} else {
+		(expr, next)
+	}
 }
 
 fn parse_expr_unary<T: TokenStream>(input: &mut T, next: Token) -> (Option<Expr>, Token) {
@@ -74,6 +150,11 @@ fn parse_expr_unary<T: TokenStream>(input: &mut T, next: Token) -> (Option<Expr>
 
 		TokenKind::Integer => {
 			let expr = Expr::Integer(next.text);
+			(Some(expr), input.next())
+		}
+
+		TokenKind::String => {
+			let expr = Expr::Literal(next.text);
 			(Some(expr), input.next())
 		}
 
@@ -104,32 +185,24 @@ fn parse_expr_unary<T: TokenStream>(input: &mut T, next: Token) -> (Option<Expr>
 fn parse_print<T: TokenStream>(input: &mut T, mut next: Token) -> (ParseResult, Token) {
 	let mut expr_list = Vec::new();
 	loop {
-		next = if expr_list.len() > 0 {
-			if next.kind != TokenKind::Comma {
-				let err = ParseResult::Invalid(next.span, "expected ','".into());
-				return (err, next);
-			} else {
-				input.next()
-			}
-		} else {
-			next
-		};
-
-		match next.kind {
+		next = match next.kind {
 			TokenKind::EndOfFile | TokenKind::LineBreak => {
 				let res = ParseResult::Ok(Statement::Print(expr_list));
 				break (res, input.next());
 			}
-			_ => {
-				let expr;
-				(expr, next) = parse_expr(input, next);
-				if let Some(expr) = expr {
-					expr_list.push(expr);
-				} else {
-					let err = ParseResult::Invalid(next.span, "expression expected".into());
-					return (err, next);
-				}
-			}
+
+			TokenKind::Comma if expr_list.len() > 0 => input.next(),
+
+			_ => next,
+		};
+
+		let expr;
+		(expr, next) = parse_expr(input, next);
+		if let Some(expr) = expr {
+			expr_list.push(expr);
+		} else {
+			let err = ParseResult::Invalid(next.span, "expression expected".into());
+			break (err, next);
 		}
 	}
 }

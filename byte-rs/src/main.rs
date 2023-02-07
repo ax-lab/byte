@@ -1,7 +1,7 @@
 use std::{collections::HashMap, env};
 
 use input::TokenStream;
-use parser::{parse_statement, Expr, Id, ParseResult, Statement};
+use parser::{parse_statement, BinaryOp, Expr, Id, ParseResult, Statement};
 
 mod input;
 mod lexer;
@@ -86,14 +86,14 @@ fn execute(program: Vec<Statement>) {
 	let mut map = HashMap::<String, ExprResult>::new();
 	for st in program.into_iter() {
 		match st {
-			Statement::Assign(Id(id), expr) | Statement::Let(Id(id), expr) => {
-				let res = execute_expr(expr);
+			Statement::Let(Id(id), expr) => {
+				let res = execute_expr(expr, &mut map);
 				map.insert(id, res);
 			}
 
 			Statement::Print(expr_list) => {
 				for (i, expr) in expr_list.into_iter().enumerate() {
-					let res = execute_expr(expr);
+					let res = execute_expr(expr, &mut map);
 					if i > 0 {
 						print!(" ");
 					}
@@ -105,14 +105,50 @@ fn execute(program: Vec<Statement>) {
 	}
 }
 
+#[derive(Clone, Debug)]
 enum ExprResult {
 	Integer(i64),
 	String(String),
 	None,
 }
 
-fn execute_expr(expr: Expr) -> ExprResult {
-	todo!()
+fn execute_expr(expr: Expr, map: &mut HashMap<String, ExprResult>) -> ExprResult {
+	match expr {
+		Expr::Binary(op, left, right) => {
+			let left = execute_expr(*left, map);
+			let right = execute_expr(*right, map);
+			let left = match left {
+				ExprResult::Integer(value) => value,
+				v => panic!("{op} left operator `{v}` is not a number"),
+			};
+			let right = match right {
+				ExprResult::Integer(value) => value,
+				v => panic!("{op} right operator `{v}` is not a number"),
+			};
+			let result = match op {
+				BinaryOp::Add => left + right,
+				BinaryOp::Sub => left - right,
+				BinaryOp::Mul => left * right,
+				BinaryOp::Div => left / right,
+			};
+			ExprResult::Integer(result)
+		}
+
+		Expr::Integer(value) => ExprResult::Integer(value.parse().unwrap()),
+		Expr::Literal(value) => ExprResult::String(value),
+		Expr::Neg(value) => match execute_expr(*value, map) {
+			ExprResult::Integer(value) => ExprResult::Integer(-value),
+			v => panic!("minus operand `{v}` is not a number"),
+		},
+
+		Expr::Var(Id(id)) => {
+			if let Some(value) = map.get(&id) {
+				value.clone()
+			} else {
+				ExprResult::None
+			}
+		}
+	}
 }
 
 impl std::fmt::Display for ExprResult {

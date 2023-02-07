@@ -2,6 +2,7 @@
 pub enum TokenKind {
 	Identifier,
 	Integer,
+	String,
 	Symbol,
 	EndOfFile,
 	Comma,
@@ -74,6 +75,20 @@ pub fn read_token<I: Input>(input: &mut I) -> Option<TokenKind> {
 		}
 
 		Some('+' | '-' | '*' | '/' | '=') => TokenKind::Symbol,
+
+		Some('\'') => loop {
+			match input.read() {
+				Some('\'') => {
+					break TokenKind::String;
+				}
+
+				None => {
+					break TokenKind::Invalid;
+				}
+
+				_ => {}
+			}
+		},
 
 		None => {
 			if let Some(err) = input.error() {
