@@ -84,7 +84,7 @@ func main() {
 				}
 			}
 
-			fmt.Printf("\n=== [SUMMARY - Tests: %d", len(all))
+			fmt.Printf("\n=== [ SUMMARY - Tests: %d", len(all))
 			if failure > 0 {
 				fmt.Printf(" / Failed: %d", failure)
 			} else {
