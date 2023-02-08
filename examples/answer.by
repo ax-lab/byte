@@ -3,4 +3,4 @@ let y = 4
 let z = 2
 let answer = x * y + z
 
-print 'the answer to life the universe and everything is ' + answer
+print 'The answer to life the universe and everything is ' + answer + '.'

@@ -3,6 +3,7 @@ use crate::{
 	lexer::TokenKind,
 };
 
+#[derive(Debug)]
 pub enum Statement {
 	Print(Vec<Expr>),
 	Let(Id, Expr),
@@ -15,6 +16,7 @@ pub enum ParseResult {
 	EndOfInput,
 }
 
+#[derive(Debug)]
 pub enum Expr {
 	Integer(String),
 	Literal(String),
@@ -23,6 +25,7 @@ pub enum Expr {
 	Binary(BinaryOp, Box<Expr>, Box<Expr>),
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum BinaryOp {
 	Add,
 	Sub,
@@ -41,6 +44,7 @@ impl std::fmt::Display for BinaryOp {
 	}
 }
 
+#[derive(Debug)]
 pub struct Id(pub String);
 
 pub fn parse_statement<T: TokenStream>(input: &mut T, mut next: Token) -> (ParseResult, Token) {
@@ -84,60 +88,64 @@ fn parse_expr<T: TokenStream>(input: &mut T, next: Token) -> (Option<Expr>, Toke
 }
 
 fn parse_expr_add<T: TokenStream>(input: &mut T, next: Token) -> (Option<Expr>, Token) {
-	let (expr, mut next) = parse_expr_mul(input, next);
-	if let Some(left) = expr {
-		let op = if next.kind == TokenKind::Symbol {
-			match next.text.as_str() {
-				"+" => BinaryOp::Add,
-				"-" => BinaryOp::Sub,
-				_ => {
+	let (mut expr, mut next) = parse_expr_mul(input, next);
+	loop {
+		if let Some(left) = expr {
+			(expr, next) = if next.kind == TokenKind::Symbol {
+				let op = match next.text.as_str() {
+					"+" => Some(BinaryOp::Add),
+					"-" => Some(BinaryOp::Sub),
+					_ => None,
+				};
+				if let Some(op) = op {
+					let next = input.next();
+					let (right, next) = parse_expr_mul(input, next);
+					if let Some(right) = right {
+						let expr = Expr::Binary(op, left.into(), right.into());
+						(Some(expr), next)
+					} else {
+						return (None, next);
+					}
+				} else {
 					return (Some(left), next);
 				}
+			} else {
+				return (Some(left), next);
 			}
 		} else {
-			return (Some(left), next);
+			return (expr, next);
 		};
-
-		next = input.next();
-
-		let right;
-		(right, next) = parse_expr_add(input, next);
-		if let Some(right) = right {
-			(Some(Expr::Binary(op, left.into(), right.into())), next)
-		} else {
-			(None, next)
-		}
-	} else {
-		(expr, next)
 	}
 }
 
 fn parse_expr_mul<T: TokenStream>(input: &mut T, next: Token) -> (Option<Expr>, Token) {
-	let (expr, mut next) = parse_expr_unary(input, next);
-	if let Some(left) = expr {
-		let op = if next.kind == TokenKind::Symbol {
-			match next.text.as_str() {
-				"*" => BinaryOp::Mul,
-				"/" => BinaryOp::Div,
-				_ => {
+	let (mut expr, mut next) = parse_expr_unary(input, next);
+	loop {
+		if let Some(left) = expr {
+			(expr, next) = if next.kind == TokenKind::Symbol {
+				let op = match next.text.as_str() {
+					"*" => Some(BinaryOp::Mul),
+					"/" => Some(BinaryOp::Div),
+					_ => None,
+				};
+				if let Some(op) = op {
+					let next = input.next();
+					let (right, next) = parse_expr_unary(input, next);
+					if let Some(right) = right {
+						let expr = Expr::Binary(op, left.into(), right.into());
+						(Some(expr), next)
+					} else {
+						return (None, next);
+					}
+				} else {
 					return (Some(left), next);
 				}
+			} else {
+				return (Some(left), next);
 			}
 		} else {
-			return (Some(left), next);
+			return (expr, next);
 		};
-
-		next = input.next();
-
-		let right;
-		(right, next) = parse_expr_mul(input, next);
-		if let Some(right) = right {
-			(Some(Expr::Binary(op, left.into(), right.into())), next)
-		} else {
-			(None, next)
-		}
-	} else {
-		(expr, next)
 	}
 }
 
@@ -154,7 +162,10 @@ fn parse_expr_unary<T: TokenStream>(input: &mut T, next: Token) -> (Option<Expr>
 		}
 
 		TokenKind::String => {
-			let expr = Expr::Literal(next.text);
+			let text = next.text;
+			let text = text.strip_prefix("'").unwrap();
+			let text = text.strip_suffix("'").unwrap();
+			let expr = Expr::Literal(text.into());
 			(Some(expr), input.next())
 		}
 

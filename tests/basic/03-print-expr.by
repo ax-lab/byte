@@ -9,3 +9,10 @@ let x = 1
 let y = 2
 let z = 3
 print 'x = ' + x + ', y = ' + y + ', z = ' + z
+
+let a1 = 10
+let a2 = 4
+let a3 = 2
+let answer = a1 * a2 + a3
+
+print 'The answer to life the universe and everything is ' + answer + '.'

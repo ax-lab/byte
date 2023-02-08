@@ -117,21 +117,25 @@ fn execute_expr(expr: Expr, map: &mut HashMap<String, ExprResult>) -> ExprResult
 		Expr::Binary(op, left, right) => {
 			let left = execute_expr(*left, map);
 			let right = execute_expr(*right, map);
-			let left = match left {
-				ExprResult::Integer(value) => value,
-				v => panic!("{op} left operator `{v}` is not a number"),
-			};
-			let right = match right {
-				ExprResult::Integer(value) => value,
-				v => panic!("{op} right operator `{v}` is not a number"),
-			};
-			let result = match op {
-				BinaryOp::Add => left + right,
-				BinaryOp::Sub => left - right,
-				BinaryOp::Mul => left * right,
-				BinaryOp::Div => left / right,
-			};
-			ExprResult::Integer(result)
+			if let (BinaryOp::Add, ExprResult::String(left)) = (op, &left) {
+				ExprResult::String(format!("{}{}", left, right))
+			} else {
+				let left = match left {
+					ExprResult::Integer(value) => value,
+					v => panic!("{op} left operator `{v}` is not a number"),
+				};
+				let right = match right {
+					ExprResult::Integer(value) => value,
+					v => panic!("{op} right operator `{v}` is not a number"),
+				};
+				let result = match op {
+					BinaryOp::Add => left + right,
+					BinaryOp::Sub => left - right,
+					BinaryOp::Mul => left * right,
+					BinaryOp::Div => left / right,
+				};
+				ExprResult::Integer(result)
+			}
 		}
 
 		Expr::Integer(value) => ExprResult::Integer(value.parse().unwrap()),
