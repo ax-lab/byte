@@ -80,7 +80,7 @@ func (test *ScriptTest) CheckResult() {
 		test.Error = fmt.Errorf("test generated error output")
 	}
 	if test.ExitCode != 0 {
-		test.Error = fmt.Errorf("test exitted with code %d", test.ExitCode)
+		test.Error = fmt.Errorf("test exited with code %d", test.ExitCode)
 	}
 
 	actualLines := Lines(test.StdOut)

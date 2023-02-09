@@ -1,4 +1,11 @@
-use std::env;
+use std::{collections::HashMap, env};
+
+use input::TokenStream;
+use parser::{parse_statement, BinaryOp, Expr, Id, ParseResult, Statement};
+
+mod input;
+mod lexer;
+mod parser;
 
 fn main() {
 	let mut done = false;
@@ -36,12 +43,34 @@ fn main() {
 	}
 
 	for file in files {
-		match std::fs::read_to_string(&file) {
-			Ok(content) => {
-				execute(&file, &content);
+		match input::open_file(&file) {
+			Ok(mut input) => {
+				let mut program = Vec::new();
+				let mut token = input.next();
+				loop {
+					let next;
+					(next, token) = parse_statement(&mut input, token);
+					match next {
+						ParseResult::Error(io_err) => {
+							eprintln!("\n[error] reading {}: {}\n", file, io_err);
+							std::process::exit(1);
+						}
+						ParseResult::Invalid(span, msg) => {
+							eprintln!("\n[compile error] {input}:{span}: {msg}\n");
+							std::process::exit(2);
+						}
+						ParseResult::Ok(next) => {
+							program.push(next);
+						}
+						ParseResult::EndOfInput => {
+							break;
+						}
+					}
+				}
+				execute(program);
 			}
 			Err(msg) => {
-				eprintln!("\n[error] reading {}: {}\n", file, msg);
+				eprintln!("\n[error] open file: {msg}\n");
 				std::process::exit(1);
 			}
 		}
@@ -53,34 +82,85 @@ fn print_usage() {
 	println!("Compiles and executes the given FILE.\n");
 }
 
-fn execute(name: &str, input: &str) {
-	for (n, line) in input.lines().enumerate() {
-		let n = n + 1;
-		let line = line.trim();
-		if line == "" {
-			continue;
+fn execute(program: Vec<Statement>) {
+	let mut map = HashMap::<String, ExprResult>::new();
+	for st in program.into_iter() {
+		match st {
+			Statement::Let(Id(id), expr) => {
+				let res = execute_expr(expr, &mut map);
+				map.insert(id, res);
+			}
+
+			Statement::Print(expr_list) => {
+				for (i, expr) in expr_list.into_iter().enumerate() {
+					let res = execute_expr(expr, &mut map);
+					if i > 0 {
+						print!(" ");
+					}
+					print!("{res}");
+				}
+				println!();
+			}
+		}
+	}
+}
+
+#[derive(Clone, Debug)]
+enum ExprResult {
+	Integer(i64),
+	String(String),
+	None,
+}
+
+fn execute_expr(expr: Expr, map: &mut HashMap<String, ExprResult>) -> ExprResult {
+	match expr {
+		Expr::Binary(op, left, right) => {
+			let left = execute_expr(*left, map);
+			let right = execute_expr(*right, map);
+			if let (BinaryOp::Add, ExprResult::String(left)) = (op, &left) {
+				ExprResult::String(format!("{}{}", left, right))
+			} else {
+				let left = match left {
+					ExprResult::Integer(value) => value,
+					v => panic!("{op} left operator `{v}` is not a number"),
+				};
+				let right = match right {
+					ExprResult::Integer(value) => value,
+					v => panic!("{op} right operator `{v}` is not a number"),
+				};
+				let result = match op {
+					BinaryOp::Add => left + right,
+					BinaryOp::Sub => left - right,
+					BinaryOp::Mul => left * right,
+					BinaryOp::Div => left / right,
+				};
+				ExprResult::Integer(result)
+			}
 		}
 
-		let exit_with_err = |msg: &str| {
-			eprintln!("\n[compile error] {name}:{n}: {msg}\n\n    |{n:03}| {line}\n");
-			std::process::exit(2);
-		};
+		Expr::Integer(value) => ExprResult::Integer(value.parse().unwrap()),
+		Expr::Literal(value) => ExprResult::String(value),
+		Expr::Neg(value) => match execute_expr(*value, map) {
+			ExprResult::Integer(value) => ExprResult::Integer(-value),
+			v => panic!("minus operand `{v}` is not a number"),
+		},
 
-		let text = match line.strip_prefix("print ") {
-			Some(text) => text,
-			_ => exit_with_err("invalid command"),
-		};
+		Expr::Var(Id(id)) => {
+			if let Some(value) = map.get(&id) {
+				value.clone()
+			} else {
+				ExprResult::None
+			}
+		}
+	}
+}
 
-		let literal = text
-			.trim()
-			.strip_prefix("'")
-			.map(|x| (x, '\''))
-			.or_else(|| text.trim().strip_prefix("\"").map(|x| (x, '"')));
-
-		let literal = literal
-			.and_then(|(s, delim)| s.strip_suffix(delim))
-			.unwrap_or_else(|| exit_with_err("invalid string literal"));
-
-		println!("{}", literal);
+impl std::fmt::Display for ExprResult {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			ExprResult::Integer(v) => write!(f, "{v}"),
+			ExprResult::String(v) => write!(f, "{v}"),
+			ExprResult::None => write!(f, "(none)"),
+		}
 	}
 }
