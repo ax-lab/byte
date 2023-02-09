@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sync"
 	"syscall"
 )
 
@@ -133,7 +134,10 @@ func Exec(name string, args []string, callback func(output string, isError bool)
 		return -1, err
 	}
 
+	wg := sync.WaitGroup{}
+
 	consume := func(output io.Reader, isError bool) {
+		defer wg.Done()
 		buffer := make([]byte, 4096)
 		for {
 			n, err := output.Read(buffer)
@@ -145,9 +149,12 @@ func Exec(name string, args []string, callback func(output string, isError bool)
 			}
 		}
 	}
+
+	wg.Add(2)
 	go consume(stdout, false)
 	go consume(stderr, true)
 
 	status, err := cmd.Process.Wait()
+	wg.Wait()
 	return status.ExitCode(), err
 }
