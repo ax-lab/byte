@@ -1,11 +1,11 @@
 use std::{collections::HashMap, env};
 
-use input::TokenStream;
 use parser::{parse_statement, BinaryOp, Expr, Id, ParseResult, Statement};
 
 mod input;
 mod lexer;
 mod parser;
+mod token;
 
 fn main() {
 	let mut done = false;
@@ -46,15 +46,11 @@ fn main() {
 		match input::open_file(&file) {
 			Ok(mut input) => {
 				let mut program = Vec::new();
-				let mut token = input.next();
 				loop {
 					let next;
-					(next, token) = parse_statement(&mut input, token);
+					let mut tokens = input.tokens();
+					next = parse_statement(&mut tokens);
 					match next {
-						ParseResult::Error(io_err) => {
-							eprintln!("\n[error] reading {}: {}\n", file, io_err);
-							std::process::exit(1);
-						}
 						ParseResult::Invalid(span, msg) => {
 							eprintln!("\n[compile error] {input}:{span}: {msg}\n");
 							std::process::exit(2);
