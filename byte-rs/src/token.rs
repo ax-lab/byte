@@ -35,7 +35,7 @@ impl std::fmt::Display for Span {
 
 impl std::fmt::Display for Pos {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}:{}", self.line + 1, self.column + 1)
+		write!(f, "{:03},{:02}", self.line + 1, self.column + 1)
 	}
 }
 

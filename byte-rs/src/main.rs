@@ -2,6 +2,8 @@ use std::{collections::HashMap, env};
 
 use parser::{parse_statement, BinaryOp, Expr, Id, ParseResult, Statement};
 
+use crate::token::Token;
+
 mod input;
 mod lexer;
 mod parser;
@@ -10,6 +12,8 @@ mod token;
 fn main() {
 	let mut done = false;
 	let mut files = Vec::new();
+	let mut list_tokens = false;
+	let mut list_ast = false;
 	for arg in env::args().skip(1) {
 		done = done
 			|| match arg.as_str() {
@@ -20,6 +24,14 @@ fn main() {
 				"--help" | "-h" => {
 					print_usage();
 					true
+				}
+				"--tokens" => {
+					list_tokens = true;
+					false
+				}
+				"--ast" => {
+					list_ast = true;
+					false
 				}
 				_ => {
 					files.push(arg);
@@ -49,6 +61,17 @@ fn main() {
 				loop {
 					let next;
 					let mut tokens = input.tokens();
+					if list_tokens {
+						loop {
+							let (next, span, text) = (tokens.get(), tokens.span(), tokens.text());
+							println!("{span}: {:10}  =  {text:?}", format!("{next:?}"));
+							if next == Token::None {
+								std::process::exit(0);
+							}
+							tokens.shift();
+						}
+					}
+
 					next = parse_statement(&mut tokens);
 					match next {
 						ParseResult::Invalid(span, msg) => {
@@ -63,7 +86,15 @@ fn main() {
 						}
 					}
 				}
-				execute(program);
+
+				if list_ast {
+					for (i, it) in program.into_iter().enumerate() {
+						println!("\n{i:03} = {it:#?}");
+					}
+					println!();
+				} else {
+					execute(program);
+				}
 			}
 			Err(msg) => {
 				eprintln!("\n[error] open file: {msg}\n");
