@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use crate::lexer;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -47,13 +49,18 @@ pub trait Reader: lexer::Input {
 
 pub struct TokenStream<'a, T: Reader> {
 	input: &'a mut T,
-	next: Option<(Token, Span)>,
+	next: VecDeque<(Token, Span)>,
+	ident: VecDeque<usize>,
 }
 
 #[allow(unused)]
 impl<'a, T: Reader> TokenStream<'a, T> {
 	pub fn new(input: &'a mut T) -> TokenStream<'a, T> {
-		TokenStream { input, next: None }
+		TokenStream {
+			input,
+			next: Default::default(),
+			ident: Default::default(),
+		}
 	}
 
 	/// Returns the next available token in this stream or None at the end
@@ -81,7 +88,7 @@ impl<'a, T: Reader> TokenStream<'a, T> {
 
 	/// Consumes the next token in the stream.
 	pub fn shift(&mut self) {
-		self.next = None;
+		self.next.pop_front();
 	}
 
 	/// Returns a child `TokenStream` that will iterate tokens from the
@@ -105,7 +112,12 @@ impl<'a, T: Reader> TokenStream<'a, T> {
 	}
 
 	fn read(&mut self) -> (Token, Span) {
-		let next = self.next.get_or_insert_with(|| {
+		if self.next.is_empty() {
+			// check if we are at the start of the line so we can compute identation
+			let start = self.input.pos();
+			let new_line = start.column == 0;
+
+			// read the next token
 			let (token, pos) = loop {
 				let pos = self.input.pos();
 				let (token, ok) = lexer::read_token(self.input);
@@ -116,8 +128,37 @@ impl<'a, T: Reader> TokenStream<'a, T> {
 				}
 			};
 			let end = self.input.pos();
-			(token, Span { pos, end })
-		});
-		*next
+			self.next.push_back((token, Span { pos, end }));
+
+			// check if we need indent or dedent tokens by comparing the first token level
+			if (new_line && token != Token::LineBreak) || token == Token::None {
+				let ident = self.ident.back().copied().unwrap_or(0);
+				if pos.column > ident {
+					self.ident.push_back(pos.column);
+					self.next.push_front((
+						Token::Ident,
+						Span {
+							pos: start,
+							end: pos,
+						},
+					));
+				} else {
+					let mut ident = ident;
+					while pos.column < ident {
+						self.ident.pop_back();
+						ident = self.ident.back().copied().unwrap_or(0);
+						self.next.push_front((
+							Token::Dedent,
+							Span {
+								pos: start,
+								end: pos,
+							},
+						))
+					}
+				}
+			}
+		}
+
+		self.next.front().copied().unwrap()
 	}
 }
