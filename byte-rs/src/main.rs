@@ -112,24 +112,55 @@ fn print_usage() {
 fn execute(program: Vec<Statement>) {
 	let mut map = HashMap::<String, ExprResult>::new();
 	for st in program.into_iter() {
-		match st {
-			Statement::Let(Id(id), expr) => {
-				let res = execute_expr(expr, &mut map);
-				map.insert(id, res);
-			}
+		execute_statement(&st, &mut map);
+	}
+}
 
-			Statement::Print(expr_list) => {
-				for (i, expr) in expr_list.into_iter().enumerate() {
-					let res = execute_expr(expr, &mut map);
-					if i > 0 {
-						print!(" ");
-					}
-					print!("{res}");
+fn execute_statement(st: &Statement, map: &mut HashMap<String, ExprResult>) {
+	match st {
+		Statement::Block(statements) => {
+			for it in statements.iter() {
+				execute_statement(it, map);
+			}
+		}
+
+		Statement::Let(Id(id), expr) => {
+			let res = execute_expr(expr, map);
+			map.insert(id.clone(), res);
+		}
+
+		Statement::Print(expr_list) => {
+			for (i, expr) in expr_list.iter().enumerate() {
+				let res = execute_expr(expr, map);
+				if i > 0 {
+					print!(" ");
 				}
-				println!();
+				print!("{res}");
 			}
+			println!();
+		}
 
-			_ => panic!("execute: statement not supported:\n\n{st:#?}"),
+		Statement::For(Id(id), from, to, block) => {
+			let from = match execute_expr(from, map) {
+				ExprResult::Integer(from) => from,
+				value => panic!("for: invalid from expression {value:?}"),
+			};
+			let to = match execute_expr(to, map) {
+				ExprResult::Integer(to) => to,
+				value => panic!("for: invalid to expression {value:?}"),
+			};
+
+			for i in from..=to {
+				map.insert(id.clone(), ExprResult::Integer(i));
+				execute_statement(block, map);
+			}
+		}
+
+		Statement::If(cond, block) => {
+			let cond = execute_expr(cond, map);
+			if cond.to_bool() {
+				execute_statement(block, map);
+			}
 		}
 	}
 }
@@ -152,42 +183,49 @@ impl ExprResult {
 	}
 }
 
-fn execute_expr(expr: Expr, map: &mut HashMap<String, ExprResult>) -> ExprResult {
+fn execute_expr(expr: &Expr, map: &mut HashMap<String, ExprResult>) -> ExprResult {
 	match expr {
 		Expr::Binary(op, left, right) => {
-			let left = execute_expr(*left, map);
-			let right = execute_expr(*right, map);
-			if let (BinaryOp::Add, ExprResult::String(left)) = (op, &left) {
-				ExprResult::String(format!("{}{}", left, right))
-			} else {
-				let left = match left {
-					ExprResult::Integer(value) => value,
-					v => panic!("{op} left operator `{v}` is not a number"),
-				};
-				let right = match right {
-					ExprResult::Integer(value) => value,
-					v => panic!("{op} right operator `{v}` is not a number"),
-				};
-				let result = match op {
-					BinaryOp::Add => left + right,
-					BinaryOp::Sub => left - right,
-					BinaryOp::Mul => left * right,
-					BinaryOp::Div => left / right,
-					BinaryOp::Mod => left % right,
-				};
-				ExprResult::Integer(result)
+			let left = execute_expr(&left, map);
+			let right = execute_expr(&right, map);
+
+			if let BinaryOp::Add = op {
+				if let ExprResult::String(left) = left {
+					return ExprResult::String(format!("{left}{right}"));
+				}
+
+				if let ExprResult::String(right) = right {
+					return ExprResult::String(format!("{left}{right}"));
+				}
 			}
+
+			let left = match left {
+				ExprResult::Integer(value) => value,
+				v => panic!("{op} with left `{v}` is invalid"),
+			};
+			let right = match right {
+				ExprResult::Integer(value) => value,
+				v => panic!("{op} with `{left}` and `{v}` is invalid"),
+			};
+			let result = match op {
+				BinaryOp::Add => left + right,
+				BinaryOp::Sub => left - right,
+				BinaryOp::Mul => left * right,
+				BinaryOp::Div => left / right,
+				BinaryOp::Mod => left % right,
+			};
+			ExprResult::Integer(result)
 		}
 
 		Expr::Integer(value) => ExprResult::Integer(value.parse().unwrap()),
-		Expr::Literal(value) => ExprResult::String(value),
-		Expr::Neg(value) => match execute_expr(*value, map) {
+		Expr::Literal(value) => ExprResult::String(value.clone()),
+		Expr::Neg(value) => match execute_expr(&value, map) {
 			ExprResult::Integer(value) => ExprResult::Integer(-value),
 			v => panic!("minus operand `{v}` is not a number"),
 		},
 
 		Expr::Var(Id(id)) => {
-			if let Some(value) = map.get(&id) {
+			if let Some(value) = map.get(id) {
 				value.clone()
 			} else {
 				ExprResult::None
@@ -195,17 +233,17 @@ fn execute_expr(expr: Expr, map: &mut HashMap<String, ExprResult>) -> ExprResult
 		}
 
 		Expr::TernaryConditional(cond, left, right) => {
-			let cond = execute_expr(*cond, map);
+			let cond = execute_expr(cond, map);
 			if cond.to_bool() {
-				execute_expr(*left, map)
+				execute_expr(left, map)
 			} else {
-				execute_expr(*right, map)
+				execute_expr(right, map)
 			}
 		}
 
 		Expr::Equality(left, right) => {
-			let left = execute_expr(*left, map);
-			let right = execute_expr(*right, map);
+			let left = execute_expr(left, map);
+			let right = execute_expr(right, map);
 			if left == right {
 				ExprResult::Integer(1)
 			} else {
