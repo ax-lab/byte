@@ -4,6 +4,9 @@ use crate::token::{Reader, Span, Token, TokenStream};
 pub enum Statement {
 	Print(Vec<Expr>),
 	Let(Id, Expr),
+	If(Expr, Box<Statement>),
+	For(Id, Expr, Expr, Box<Statement>),
+	Block(Vec<Statement>),
 }
 
 pub enum ParseResult {
@@ -19,6 +22,8 @@ pub enum Expr {
 	Var(Id),
 	Neg(Box<Expr>),
 	Binary(BinaryOp, Box<Expr>, Box<Expr>),
+	Equality(Box<Expr>, Box<Expr>),
+	TernaryConditional(Box<Expr>, Box<Expr>, Box<Expr>),
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -27,6 +32,7 @@ pub enum BinaryOp {
 	Sub,
 	Mul,
 	Div,
+	Mod,
 }
 
 impl std::fmt::Display for BinaryOp {
@@ -36,6 +42,7 @@ impl std::fmt::Display for BinaryOp {
 			BinaryOp::Sub => write!(f, "Sub"),
 			BinaryOp::Mul => write!(f, "Mul"),
 			BinaryOp::Div => write!(f, "Div"),
+			BinaryOp::Mod => write!(f, "Mod"),
 		}
 	}
 }
@@ -59,6 +66,14 @@ pub fn parse_statement<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 				input.shift();
 				parse_let(input)
 			}
+			"for" => {
+				input.shift();
+				parse_for(input)
+			}
+			"if" => {
+				input.shift();
+				parse_if(input)
+			}
 			_ => ParseResult::Invalid(span, "unexpected identifier".into()),
 		},
 		Token::None => ParseResult::EndOfInput,
@@ -67,8 +82,147 @@ pub fn parse_statement<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 	}
 }
 
+fn parse_if<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
+	if let Some(expr) = parse_expr(input) {
+		let block = parse_block(input);
+		if let ParseResult::Ok(block) = block {
+			ParseResult::Ok(Statement::If(expr, block.into()))
+		} else {
+			block
+		}
+	} else {
+		ParseResult::Invalid(input.span(), "expression expected after 'if'".into())
+	}
+}
+
+fn parse_for<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
+	if input.get() != Token::Identifier {
+		return ParseResult::Invalid(input.span(), "identifier expected after 'for'".into());
+	}
+
+	let id = Id(input.text().into());
+	input.shift();
+
+	if input.get() != Token::Identifier || input.text() != "in" {
+		return ParseResult::Invalid(input.span(), "for 'in' expected".into());
+	}
+	input.shift();
+
+	let from = if let Some(expr) = parse_expr(input) {
+		expr
+	} else {
+		return ParseResult::Invalid(input.span(), "expression expected after 'for in'".into());
+	};
+
+	if input.text() != ".." {
+		return ParseResult::Invalid(input.span(), "for '..' expected".into());
+	}
+	input.shift();
+
+	let to = if let Some(expr) = parse_expr(input) {
+		expr
+	} else {
+		return ParseResult::Invalid(input.span(), "expression expected after 'for in ..'".into());
+	};
+
+	let block = parse_block(input);
+	if let ParseResult::Ok(block) = block {
+		ParseResult::Ok(Statement::For(id, from, to, block.into()))
+	} else {
+		block
+	}
+}
+
+fn parse_block<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
+	if input.text() != ":" {
+		return ParseResult::Invalid(input.span(), "block ':' expected".into());
+	}
+	input.shift();
+
+	if input.get() != Token::LineBreak {
+		return ParseResult::Invalid(input.span(), "end of line expected after ':'".into());
+	}
+
+	while input.get() == Token::LineBreak {
+		input.shift();
+	}
+
+	if input.get() != Token::Ident {
+		return ParseResult::Invalid(input.span(), "idented block expected".into());
+	}
+	input.shift();
+
+	let mut block = Vec::new();
+	loop {
+		while input.get() == Token::LineBreak {
+			input.shift();
+		}
+
+		if input.get() == Token::Dedent {
+			input.shift();
+			break;
+		}
+
+		let statement = parse_statement(input);
+		if let ParseResult::Ok(statement) = statement {
+			block.push(statement);
+		} else {
+			return statement;
+		}
+	}
+
+	ParseResult::Ok(Statement::Block(block))
+}
+
 fn parse_expr<T: Reader>(input: &mut TokenStream<T>) -> Option<Expr> {
-	return parse_expr_add(input);
+	return parse_expr_cond(input);
+}
+
+fn parse_expr_cond<T: Reader>(input: &mut TokenStream<T>) -> Option<Expr> {
+	if let Some(cond) = parse_expr_comparison(input) {
+		if input.text() == "?" {
+			input.shift();
+			if let Some(left) = parse_expr_cond(input) {
+				if input.text() != ":" {
+					return None;
+				} else {
+					input.shift();
+					if let Some(right) = parse_expr_cond(input) {
+						Some(Expr::TernaryConditional(
+							cond.into(),
+							left.into(),
+							right.into(),
+						))
+					} else {
+						None
+					}
+				}
+			} else {
+				None
+			}
+		} else {
+			Some(cond)
+		}
+	} else {
+		None
+	}
+}
+
+fn parse_expr_comparison<T: Reader>(input: &mut TokenStream<T>) -> Option<Expr> {
+	if let Some(left) = parse_expr_add(input) {
+		if input.text() == "==" {
+			input.shift();
+			if let Some(right) = parse_expr_add(input) {
+				Some(Expr::Equality(left.into(), right.into()))
+			} else {
+				None
+			}
+		} else {
+			Some(left)
+		}
+	} else {
+		None
+	}
 }
 
 fn parse_expr_add<T: Reader>(input: &mut TokenStream<T>) -> Option<Expr> {
@@ -110,6 +264,7 @@ fn parse_expr_mul<T: Reader>(input: &mut TokenStream<T>) -> Option<Expr> {
 				let op = match input.text() {
 					"*" => Some(BinaryOp::Mul),
 					"/" => Some(BinaryOp::Div),
+					"%" => Some(BinaryOp::Mod),
 					_ => None,
 				};
 				if let Some(op) = op {
@@ -158,22 +313,36 @@ fn parse_expr_unary<T: Reader>(input: &mut TokenStream<T>) -> Option<Expr> {
 
 		Token::Symbol => {
 			let text = input.text();
-			let is_minus = text == "-";
-			if is_minus || text == "+" {
+			if text == "(" {
 				input.shift();
-				let expr = parse_expr_unary(input);
-				if let Some(expr) = expr {
-					let expr = if is_minus {
-						Expr::Neg(expr.into())
+				if let Some(expr) = parse_expr(input) {
+					if input.text() != ")" {
+						None
 					} else {
-						expr
-					};
-					Some(expr)
+						input.shift();
+						Some(expr)
+					}
 				} else {
 					None
 				}
 			} else {
-				None
+				let is_minus = text == "-";
+				if is_minus || text == "+" {
+					input.shift();
+					let expr = parse_expr_unary(input);
+					if let Some(expr) = expr {
+						let expr = if is_minus {
+							Expr::Neg(expr.into())
+						} else {
+							expr
+						};
+						Some(expr)
+					} else {
+						None
+					}
+				} else {
+					None
+				}
 			}
 		}
 

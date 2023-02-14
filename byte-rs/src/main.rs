@@ -128,15 +128,28 @@ fn execute(program: Vec<Statement>) {
 				}
 				println!();
 			}
+
+			_ => panic!("execute: statement not supported:\n\n{st:#?}"),
 		}
 	}
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum ExprResult {
 	Integer(i64),
 	String(String),
 	None,
+}
+
+impl ExprResult {
+	pub fn to_bool(&self) -> bool {
+		match &self {
+			ExprResult::Integer(0) => false,
+			ExprResult::String(x) if x == "" => false,
+			ExprResult::None => false,
+			_ => true,
+		}
+	}
 }
 
 fn execute_expr(expr: Expr, map: &mut HashMap<String, ExprResult>) -> ExprResult {
@@ -160,6 +173,7 @@ fn execute_expr(expr: Expr, map: &mut HashMap<String, ExprResult>) -> ExprResult
 					BinaryOp::Sub => left - right,
 					BinaryOp::Mul => left * right,
 					BinaryOp::Div => left / right,
+					BinaryOp::Mod => left % right,
 				};
 				ExprResult::Integer(result)
 			}
@@ -177,6 +191,25 @@ fn execute_expr(expr: Expr, map: &mut HashMap<String, ExprResult>) -> ExprResult
 				value.clone()
 			} else {
 				ExprResult::None
+			}
+		}
+
+		Expr::TernaryConditional(cond, left, right) => {
+			let cond = execute_expr(*cond, map);
+			if cond.to_bool() {
+				execute_expr(*left, map)
+			} else {
+				execute_expr(*right, map)
+			}
+		}
+
+		Expr::Equality(left, right) => {
+			let left = execute_expr(*left, map);
+			let right = execute_expr(*right, map);
+			if left == right {
+				ExprResult::Integer(1)
+			} else {
+				ExprResult::Integer(0)
 			}
 		}
 	}

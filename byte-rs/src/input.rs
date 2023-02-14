@@ -62,6 +62,9 @@ impl lexer::Input for SourceFile {
 						self.pos.column = 0;
 					}
 				}
+				'\t' => {
+					self.pos.column += 4 - (self.pos.column % 4);
+				}
 				_ => {
 					self.pos.column += 1;
 				}

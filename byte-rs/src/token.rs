@@ -132,9 +132,10 @@ impl<'a, T: Reader> TokenStream<'a, T> {
 
 			// check if we need indent or dedent tokens by comparing the first token level
 			if (new_line && token != Token::LineBreak) || token == Token::None {
+				let column = if token == Token::None { 0 } else { pos.column };
 				let ident = self.ident.back().copied().unwrap_or(0);
-				if pos.column > ident {
-					self.ident.push_back(pos.column);
+				if column > ident {
+					self.ident.push_back(column);
 					self.next.push_front((
 						Token::Ident,
 						Span {
@@ -144,7 +145,7 @@ impl<'a, T: Reader> TokenStream<'a, T> {
 					));
 				} else {
 					let mut ident = ident;
-					while pos.column < ident {
+					while column < ident {
 						self.ident.pop_back();
 						ident = self.ident.back().copied().unwrap_or(0);
 						self.next.push_front((

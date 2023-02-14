@@ -63,7 +63,17 @@ pub fn read_token<I: Input>(input: &mut I) -> (Token, bool) {
 			(Token::Identifier, true)
 		}
 
-		Some('+' | '-' | '*' | '/' | '=') => (Token::Symbol, true),
+		Some('.') => {
+			input.read_if('.');
+			(Token::Symbol, true)
+		}
+
+		Some('=') => {
+			input.read_if('=');
+			(Token::Symbol, true)
+		}
+
+		Some('+' | '-' | '*' | '/' | '%' | '?' | ':' | '(' | ')') => (Token::Symbol, true),
 
 		Some('\'') => loop {
 			match input.read() {
@@ -87,6 +97,6 @@ pub fn read_token<I: Input>(input: &mut I) -> (Token, bool) {
 			}
 		}
 
-		_ => (Token::Symbol, true),
+		Some(char) => panic!("invalid symbol: {char:?}"),
 	}
 }
