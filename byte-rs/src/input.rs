@@ -1,32 +1,7 @@
-use std::{fmt::Display, path::Path};
+use std::path::Path;
 
-use crate::lexer::{read_token, Input, TokenKind};
-
-#[derive(Debug)]
-pub struct Token {
-	pub kind: TokenKind,
-	pub span: Span,
-	pub text: String,
-}
-
-pub trait TokenStream {
-	fn next(&mut self) -> Token;
-}
-
-#[derive(Copy, Clone, Default, Debug)]
-pub struct Pos {
-	line: usize,
-	column: usize,
-	offset: usize,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct Span {
-	pub pos: Pos,
-	pub end: Pos,
-}
-
-pub trait Source: Display + TokenStream {}
+use crate::token::{Pos, TokenStream};
+use crate::{lexer, token};
 
 pub fn open_file<P: AsRef<Path>>(path: P) -> std::io::Result<SourceFile> {
 	let text = std::fs::read(path.as_ref())?;
@@ -49,29 +24,24 @@ pub struct SourceFile {
 	prev_cr: bool,
 }
 
-impl Source for SourceFile {}
-
-impl TokenStream for SourceFile {
-	fn next(&mut self) -> Token {
-		loop {
-			let pos = self.pos;
-			let kind = if let Some(kind) = read_token(self) {
-				kind
-			} else {
-				continue;
-			};
-			let end = self.pos;
-			break Token {
-				kind: kind,
-				span: Span { pos, end },
-				text: unsafe { std::str::from_utf8_unchecked(&self.text[pos.offset..end.offset]) }
-					.into(),
-			};
-		}
+impl SourceFile {
+	pub fn tokens(&mut self) -> TokenStream<SourceFile> {
+		TokenStream::new(self)
 	}
 }
 
-impl Input for SourceFile {
+impl token::Reader for SourceFile {
+	fn read_text(&mut self, span: token::Span) -> &str {
+		let (pos, end) = (span.pos, span.end);
+		unsafe { std::str::from_utf8_unchecked(&self.text[pos.offset..end.offset]) }
+	}
+
+	fn pos(&mut self) -> Pos {
+		self.pos
+	}
+}
+
+impl lexer::Input for SourceFile {
 	fn read(&mut self) -> Option<char> {
 		self.prev = self.pos;
 		self.prev_cr = self.was_cr;
@@ -91,6 +61,9 @@ impl Input for SourceFile {
 						self.pos.line += 1;
 						self.pos.column = 0;
 					}
+				}
+				'\t' => {
+					self.pos.column += 4 - (self.pos.column % 4);
 				}
 				_ => {
 					self.pos.column += 1;
@@ -113,20 +86,8 @@ impl Input for SourceFile {
 	}
 }
 
-impl Display for SourceFile {
+impl std::fmt::Display for SourceFile {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{}", self.path)
-	}
-}
-
-impl Display for Span {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.pos)
-	}
-}
-
-impl Display for Pos {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}:{}", self.line + 1, self.column + 1)
 	}
 }

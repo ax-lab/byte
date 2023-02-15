@@ -1,15 +1,4 @@
-#[derive(Eq, PartialEq, Debug)]
-pub enum TokenKind {
-	Identifier,
-	Integer,
-	String,
-	Symbol,
-	EndOfFile,
-	Comma,
-	LineBreak,
-	Invalid,
-	Error(String),
-}
+use super::token::Token;
 
 pub trait Input {
 	fn read(&mut self) -> Option<char>;
@@ -26,9 +15,9 @@ pub trait Input {
 	}
 }
 
-pub fn read_token<I: Input>(input: &mut I) -> Option<TokenKind> {
-	let token = match input.read() {
-		Some(',') => TokenKind::Comma,
+pub fn read_token<I: Input>(input: &mut I) -> (Token, bool) {
+	match input.read() {
+		Some(',') => (Token::Comma, true),
 
 		Some(' ' | '\t') => {
 			loop {
@@ -38,15 +27,15 @@ pub fn read_token<I: Input>(input: &mut I) -> Option<TokenKind> {
 				}
 			}
 			input.putback();
-			return None;
+			return (Token::None, true);
 		}
 
 		Some('\r') => {
 			input.read_if('\n');
-			TokenKind::LineBreak
+			(Token::LineBreak, true)
 		}
 
-		Some('\n') => TokenKind::LineBreak,
+		Some('\n') => (Token::LineBreak, true),
 
 		Some('0'..='9') => {
 			loop {
@@ -58,7 +47,7 @@ pub fn read_token<I: Input>(input: &mut I) -> Option<TokenKind> {
 				}
 			}
 			input.putback();
-			TokenKind::Integer
+			(Token::Integer, true)
 		}
 
 		Some('a'..='z' | 'A'..='Z' | '_') => {
@@ -71,19 +60,29 @@ pub fn read_token<I: Input>(input: &mut I) -> Option<TokenKind> {
 				}
 			}
 			input.putback();
-			TokenKind::Identifier
+			(Token::Identifier, true)
 		}
 
-		Some('+' | '-' | '*' | '/' | '=') => TokenKind::Symbol,
+		Some('.') => {
+			input.read_if('.');
+			(Token::Symbol, true)
+		}
+
+		Some('=') => {
+			input.read_if('=');
+			(Token::Symbol, true)
+		}
+
+		Some('+' | '-' | '*' | '/' | '%' | '?' | ':' | '(' | ')') => (Token::Symbol, true),
 
 		Some('\'') => loop {
 			match input.read() {
 				Some('\'') => {
-					break TokenKind::String;
+					break (Token::String, true);
 				}
 
 				None => {
-					break TokenKind::Invalid;
+					break (Token::Symbol, true);
 				}
 
 				_ => {}
@@ -92,14 +91,12 @@ pub fn read_token<I: Input>(input: &mut I) -> Option<TokenKind> {
 
 		None => {
 			if let Some(err) = input.error() {
-				TokenKind::Error(err.to_string())
+				panic!("input error: {err}");
 			} else {
-				TokenKind::EndOfFile
+				(Token::None, false)
 			}
 		}
 
-		_ => TokenKind::Invalid,
-	};
-
-	Some(token)
+		Some(char) => panic!("invalid symbol: {char:?}"),
+	}
 }

@@ -79,6 +79,18 @@ func TestDiffExplosive(t *testing.T) {
 	bootstrap.Compare([]rune(src), []rune(dst))
 }
 
+func TestDiffRegression(t *testing.T) {
+	// Caused a dst index assertion failure:
+	checkDiff(t, "yab123", "zzab456", "-(y)+(zz)ab-(123)+(456)")
+	checkDiff(t, "xa", "xb", "x-(a)+(b)")
+	checkDiff(t, "xaa", "xbb", "x-(aa)+(bb)")
+
+	// Caused an index out of range panic:
+	checkDiff(t, "xaaaaa", "xbbbbb", "x-(aaaaa)+(bbbbb)")
+	checkDiff(t, "xaaaaaaaaaaaaaaa", "xbbbbbbbbbbbbbbb", "x-(aaaaaaaaaaaaaaa)+(bbbbbbbbbbbbbbb)")
+	checkDiff(t, "aaaaaaaaaaaaaaax", "bbbbbbbbbbbbbbbx", "-(aaaaaaaaaaaaaaa)+(bbbbbbbbbbbbbbb)x")
+}
+
 func checkDiff(t *testing.T, a, b, result string) {
 	la, lb := []rune(a), []rune(b)
 	diff := bootstrap.Compare(la, lb)

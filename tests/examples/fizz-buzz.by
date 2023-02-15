@@ -1,0 +1,5 @@
+let N = 15
+for i in 1..N:
+	print i + '...', (i % 3 == 0 ? 'Fizz' : '') + (i % 5 == 0 ? 'Buzz' : '')
+	if i == N:
+		print 'done!'

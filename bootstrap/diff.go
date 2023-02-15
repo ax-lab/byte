@@ -64,6 +64,13 @@ func (diff Diff[T]) String() string {
 	return str.String()
 }
 
+// Represents a block of removed, inserted, or equal elements.
+//
+// `Kind` represents the type of block:
+//
+// - If  0 -> this is a run of equal elements between `Src` and `Dst`;
+// - If -1 -> this is a block of elements from `Src` removed from `Dst`;
+// - If +1 -> this is a block of elements from `Dst` inserted into `Src`.
 type DiffBlock struct {
 	Kind int
 	Src  int
@@ -89,19 +96,26 @@ func computeDiff[T comparable](input, output []T) (out []DiffBlock) {
 
 	srcLast, dstLast := 0, 0
 	for _, it := range lcs {
+		// Note that when indexing an insert in `src` or a delete in `dst` we
+		// have an arbitrary choice of indexing it before or after the non-LCS
+		// block respective to that sequence.
+		//
+		// The choice here is such that when iterating both sequences and the
+		// diff while updating indexes, the indexes will always match.
 		src, dst := it.PosA, it.PosB
 		if del := src - srcLast; del > 0 {
 			out = append(out, DiffBlock{
 				Kind: -1,
 				Src:  srcLast,
-				Dst:  dst,
+				Dst:  dstLast, // delete is first, so "bind" to previous LCS block
 				Len:  del,
 			})
 		}
+
 		if ins := dst - dstLast; ins > 0 {
 			out = append(out, DiffBlock{
 				Kind: +1,
-				Src:  src,
+				Src:  src, // bind to after the above delete (the next LCS block)
 				Dst:  dstLast,
 				Len:  ins,
 			})
@@ -496,7 +510,8 @@ func diffFindMidSnakes[T comparable](a, b []T, maxCandidates int) (out []diffSna
 	}
 
 	// Offset to apply when indexing fwd and rev, since K can be negative.
-	off := maxD
+	offX := maxD
+	offR := offX - delta // kr = k + delta
 
 	// Search the furthest forward and reverse reaching paths for increasing
 	// values of (half) D until we find an overlapping snake between them.
@@ -522,8 +537,8 @@ func diffFindMidSnakes[T comparable](a, b []T, maxCandidates int) (out []diffSna
 
 			// We can either extend vertically or horizontally from a neighbour
 			// diagonal...
-			indexVert := k + 1 + off
-			indexHorz := k - 1 + off
+			indexVert := k + 1 + offX
+			indexHorz := k - 1 + offX
 			switch k {
 			// ...in edge cases there is no choice
 			case -hd:
@@ -555,13 +570,13 @@ func diffFindMidSnakes[T comparable](a, b []T, maxCandidates int) (out []diffSna
 				nextY++
 			}
 
-			fwd[k+off] = nextX
+			fwd[k+offX] = nextX
 
 			// Check for overlap with the reverse (D-1)-paths. These diagonals
 			// are centered around `delta`, so we check if our forward K is
 			// also one of the previously calculated reverse Ks.
 			if odd && k >= delta-(hd-1) && k <= delta+(hd-1) {
-				if posA := rev[k+off]; posA <= nextX {
+				if posA := rev[k+offR]; posA <= nextX {
 					snake := diffSnake{
 						PosA: posX,
 						PosB: posX - k,
@@ -598,8 +613,8 @@ func diffFindMidSnakes[T comparable](a, b []T, maxCandidates int) (out []diffSna
 			// Here we have a similar logic as the forward case, but the
 			// diagonal cases are totally different since we are moving
 			// in reverse.
-			indexVert := kr - 1 + off
-			indexHorz := kr + 1 + off
+			indexVert := kr - 1 + offR
+			indexHorz := kr + 1 + offR
 			switch k {
 			case +hd:
 				fromK = indexVert // note this is the K=0 case as well
@@ -628,11 +643,11 @@ func diffFindMidSnakes[T comparable](a, b []T, maxCandidates int) (out []diffSna
 				nextY--
 			}
 
-			rev[kr+off] = nextX
+			rev[kr+offR] = nextX
 
 			// Check for overlap with the forward D-paths computed above.
 			if !odd && kr >= -hd && kr <= hd {
-				if endA := fwd[kr+off]; endA >= nextX {
+				if endA := fwd[kr+offX]; endA >= nextX {
 					snake := diffSnake{
 						PosA: nextX,
 						PosB: nextY,
