@@ -58,20 +58,20 @@ fn main() {
 		match input::open_file(&file) {
 			Ok(mut input) => {
 				let mut program = Vec::new();
+				let mut tokens = input.tokens();
+				if list_tokens {
+					loop {
+						let (next, span, text) = (tokens.get(), tokens.span(), tokens.text());
+						println!("{span}: {:10}  =  {text:?}", format!("{next:?}"));
+						if next == Token::None {
+							std::process::exit(0);
+						}
+						tokens.shift();
+					}
+				}
+
 				loop {
 					let next;
-					let mut tokens = input.tokens();
-					if list_tokens {
-						loop {
-							let (next, span, text) = (tokens.get(), tokens.span(), tokens.text());
-							println!("{span}: {:10}  =  {text:?}", format!("{next:?}"));
-							if next == Token::None {
-								std::process::exit(0);
-							}
-							tokens.shift();
-						}
-					}
-
 					next = parse_statement(&mut tokens);
 					match next {
 						ParseResult::Invalid(span, msg) => {
