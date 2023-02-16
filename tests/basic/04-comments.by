@@ -1,0 +1,37 @@
+#! /usr/bin/byte
+
+# This is a single line comment
+
+#------------------------------------------------------------------------------#
+# Boxes are pretty
+#------------------------------------------------------------------------------#
+
+# print 'this commented code will be ignored'
+
+print 'first line'  # <-- first line that is actually printed
+
+
+#(
+	This is a multiline comment (parenthesis in(side) here are balanced)
+)
+
+#((
+	Since parenthesis are balanced, you can start with any number!
+))
+
+#(((
+	This style is more balanced, if it strikes your fancy.	
+#)))
+
+#(
+	As ugly as this is, it will actually be printed:
+)print 'second line'
+
+# (
+#     This style of comment allows easily disabling section of code by adding
+#     a space before the parenthesis and removing it!
+
+print 'third line'    # this is printed as long as the space is there
+
+#     This would be the end of the disabled section!
+# )
