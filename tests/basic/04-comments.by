@@ -28,10 +28,10 @@ print 'first line'  # <-- first line that is actually printed
 )print 'second line'
 
 # (
-#     This style of comment allows easily disabling section of code by adding
-#     a space before the parenthesis and removing it!
+#   This style of comment allows easily toggling sections of code by
+#   adding or removing a space before the parenthesis!
 
 print 'third line'    # this is printed as long as the space is there
 
-#     This would be the end of the disabled section!
+#   This would be the end of the disabled section!
 # )
