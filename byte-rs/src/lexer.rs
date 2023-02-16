@@ -30,6 +30,35 @@ pub fn read_token<I: Input>(input: &mut I) -> (Token, bool) {
 			return (Token::None, true);
 		}
 
+		Some('#') => {
+			let (multi, mut level) = if input.read_if('(') {
+				(true, 1)
+			} else {
+				(false, 0)
+			};
+
+			let putback = loop {
+				match input.read() {
+					Some('\n' | '\r') if !multi => break true,
+					Some('(') if multi => {
+						level += 1;
+					}
+					Some(')') if multi => {
+						level -= 1;
+						if level == 0 {
+							break false;
+						}
+					}
+					Some(_) => {}
+					None => break false,
+				}
+			};
+			if putback {
+				input.putback();
+			}
+			return (Token::Comment, true);
+		}
+
 		Some('\r') => {
 			input.read_if('\n');
 			(Token::LineBreak, true)

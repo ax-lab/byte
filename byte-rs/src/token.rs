@@ -6,6 +6,7 @@ use crate::lexer;
 #[allow(unused)]
 pub enum Token {
 	None,
+	Comment,
 	LineBreak,
 	Ident,
 	Dedent,
@@ -112,7 +113,7 @@ impl<'a, T: Reader> TokenStream<'a, T> {
 	}
 
 	fn read(&mut self) -> (Token, Span) {
-		if self.next.is_empty() {
+		while self.next.is_empty() {
 			// check if we are at the start of the line so we can compute identation
 			let start = self.input.pos();
 			let new_line = start.column == 0;
@@ -128,7 +129,9 @@ impl<'a, T: Reader> TokenStream<'a, T> {
 				}
 			};
 			let end = self.input.pos();
-			self.next.push_back((token, Span { pos, end }));
+			if token != Token::Comment {
+				self.next.push_back((token, Span { pos, end }));
+			}
 
 			// check if we need indent or dedent tokens by comparing the first token level
 			if (new_line && token != Token::LineBreak) || token == Token::None {

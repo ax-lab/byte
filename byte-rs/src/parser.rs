@@ -78,7 +78,7 @@ pub fn parse_statement<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 		},
 		Token::None => ParseResult::EndOfInput,
 
-		_ => ParseResult::Invalid(span, "unexpected token".into()),
+		other => ParseResult::Invalid(span, format!("unexpected token `{other:?}`")),
 	}
 }
 

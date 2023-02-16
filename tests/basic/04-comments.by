@@ -1,0 +1,63 @@
+#! /usr/bin/byte
+
+# This is a single line comment
+
+#------------------------------------------------------------------------------#
+# Boxes are pretty
+#------------------------------------------------------------------------------#
+
+# print 'this commented code will be ignored'
+
+print 'first line'  # <-- first line that is actually printed
+
+
+#(
+	This is a multiline comment (parenthesis in(side) here are balanced)
+)
+
+#((
+	Since parenthesis are balanced, you can start with any number!
+))
+
+#(((
+	This style is more balanced, if it strikes your fancy.	
+#)))
+
+#(
+	As ugly as this is, it will actually be printed:
+)print 'second line'
+
+# (
+#   This style of comment allows easily toggling sections of code by
+#   adding or removing a space before the parenthesis!
+
+print 'third line'    # this is printed as long as the space is there
+
+#   This would be the end of the disabled section!
+# )
+
+print '# fourth line is not a comment'
+
+#------------------------------------------------------------------------------#
+# The following tests are for indentation corner cases
+#------------------------------------------------------------------------------#
+
+#(
+	The lexer should not consider this an indentation:
+
+	)print 'fifth line is not indented'
+
+if 1 == 1:
+	#(
+
+Indentation inside comments is ignored!
+
+This inherits the indentation of the comment line:
+	
+	)print 'but sixth line is'
+
+if 1 == 1:
+	#(
+		This is also indented because the original comment is:
+
+)print 'seventh line'
