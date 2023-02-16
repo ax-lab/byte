@@ -17,7 +17,7 @@ func RunScriptTest(scriptFileName string) (out ScriptTest) {
 	outputJson := ReadJson(outJson, nil)
 
 	if outputText == "" && outputJson == nil {
-		fmt.Printf("... no output file found, skipping")
+		fmt.Printf("... SKIP!\t(no test output file)\n")
 		out.Success = true
 		out.Skipped = true
 		return
