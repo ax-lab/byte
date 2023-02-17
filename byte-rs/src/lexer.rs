@@ -1,32 +1,97 @@
-use super::token::Token;
+use std::collections::HashMap;
+
+use crate::token::{Pos, Token};
+
+pub struct State {
+	pub symbols: SymbolTable,
+}
+
+impl Default for State {
+	fn default() -> Self {
+		State {
+			symbols: SymbolTable::new(),
+		}
+	}
+}
+
+#[derive(Clone)]
+pub struct SymbolTable {
+	states: Vec<(bool, HashMap<char, usize>)>,
+}
+
+impl SymbolTable {
+	pub fn new() -> Self {
+		SymbolTable {
+			states: {
+				let mut vec = Vec::new();
+				vec.push(Default::default());
+				vec
+			},
+		}
+	}
+
+	pub fn push(&mut self, current: usize, next: char) -> Option<(usize, bool)> {
+		let (_, transitions) = &self.states[current];
+		if let Some(&next) = transitions.get(&next) {
+			let valid = self.states[next].0;
+			Some((next, valid))
+		} else {
+			None
+		}
+	}
+
+	pub fn add_symbol<S: AsRef<str>>(&mut self, symbol: S) {
+		let symbol = symbol.as_ref();
+		assert!(symbol.len() > 0);
+
+		let mut current = 0;
+		for char in symbol.chars() {
+			current = {
+				let len = self.states.len();
+				let state = &mut self.states[current];
+				let next = state.1.entry(char);
+				*next.or_insert(len)
+			};
+			if current == self.states.len() {
+				self.states.push(Default::default());
+			}
+		}
+		self.states[current].0 = true;
+	}
+}
 
 pub trait Input {
+	fn pos(&self) -> Pos;
+
 	fn read(&mut self) -> Option<char>;
-	fn putback(&mut self);
+	fn rewind(&mut self, pos: Pos);
 	fn error(&self) -> Option<std::io::Error>;
 
 	fn read_if(&mut self, next: char) -> bool {
+		let pos = self.pos();
 		if self.read() == Some(next) {
 			true
 		} else {
-			self.putback();
+			self.rewind(pos);
 			false
 		}
 	}
 }
 
-pub fn read_token<I: Input>(input: &mut I) -> (Token, bool) {
+pub fn read_token<I: Input>(input: &mut I, state: &mut State) -> (Token, bool) {
 	match input.read() {
 		Some(',') => (Token::Comma, true),
 
 		Some(' ' | '\t') => {
+			let mut pos;
 			loop {
+				pos = input.pos();
 				match input.read() {
 					Some(' ' | '\t') => {}
 					_ => break,
 				}
 			}
-			input.putback();
+			input.rewind(pos);
 			return (Token::None, true);
 		}
 
@@ -37,7 +102,9 @@ pub fn read_token<I: Input>(input: &mut I) -> (Token, bool) {
 				(false, 0)
 			};
 
+			let mut pos;
 			let putback = loop {
+				pos = input.pos();
 				match input.read() {
 					Some('\n' | '\r') if !multi => break true,
 					Some('(') if multi => {
@@ -54,7 +121,7 @@ pub fn read_token<I: Input>(input: &mut I) -> (Token, bool) {
 				}
 			};
 			if putback {
-				input.putback();
+				input.rewind(pos);
 			}
 			return (Token::Comment, true);
 		}
@@ -67,7 +134,9 @@ pub fn read_token<I: Input>(input: &mut I) -> (Token, bool) {
 		Some('\n') => (Token::LineBreak, true),
 
 		Some('0'..='9') => {
+			let mut pos;
 			loop {
+				pos = input.pos();
 				match input.read() {
 					Some('0'..='9') => {}
 					_ => {
@@ -75,12 +144,14 @@ pub fn read_token<I: Input>(input: &mut I) -> (Token, bool) {
 					}
 				}
 			}
-			input.putback();
+			input.rewind(pos);
 			(Token::Integer, true)
 		}
 
 		Some('a'..='z' | 'A'..='Z' | '_') => {
+			let mut pos;
 			loop {
+				pos = input.pos();
 				match input.read() {
 					Some('a'..='z' | 'A'..='Z' | '_' | '0'..='9') => {}
 					_ => {
@@ -88,21 +159,9 @@ pub fn read_token<I: Input>(input: &mut I) -> (Token, bool) {
 					}
 				}
 			}
-			input.putback();
+			input.rewind(pos);
 			(Token::Identifier, true)
 		}
-
-		Some('.') => {
-			input.read_if('.');
-			(Token::Symbol, true)
-		}
-
-		Some('=') => {
-			input.read_if('=');
-			(Token::Symbol, true)
-		}
-
-		Some('+' | '-' | '*' | '/' | '%' | '?' | ':' | '(' | ')') => (Token::Symbol, true),
 
 		Some('\'') => loop {
 			match input.read() {
@@ -126,6 +185,182 @@ pub fn read_token<I: Input>(input: &mut I) -> (Token, bool) {
 			}
 		}
 
-		Some(char) => panic!("invalid symbol: {char:?}"),
+		Some(char) => {
+			if let Some((mut current, valid)) = state.symbols.push(0, char) {
+				let mut last_valid = if valid { Some(input.pos()) } else { None };
+				let mut pos = input.pos();
+				while let Some(next) = input.read() {
+					if let Some((next, valid)) = state.symbols.push(current, next) {
+						pos = input.pos();
+						current = next;
+						if valid {
+							last_valid = Some(pos);
+						}
+					} else {
+						break;
+					}
+				}
+				if let Some(valid) = last_valid {
+					input.rewind(valid);
+					(Token::Symbol, true)
+				} else {
+					input.rewind(pos);
+					(Token::Invalid, true)
+				}
+			} else {
+				(Token::Invalid, true)
+			}
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn lexer_should_parse_symbols() {
+		let mut symbols = SymbolTable::new();
+		symbols.add_symbol("+");
+		symbols.add_symbol("++");
+		symbols.add_symbol(".");
+		symbols.add_symbol("..");
+		symbols.add_symbol("...");
+		symbols.add_symbol(">");
+		symbols.add_symbol(">>>>");
+
+		check_symbols(&symbols, "", &[]);
+		check_symbols(&symbols, "+", &["+"]);
+		check_symbols(&symbols, "++", &["++"]);
+		check_symbols(&symbols, "+++", &["++", "+"]);
+		check_symbols(&symbols, ".", &["."]);
+		check_symbols(&symbols, "..", &[".."]);
+		check_symbols(&symbols, "...", &["..."]);
+		check_symbols(&symbols, "....", &["...", "."]);
+		check_symbols(&symbols, ".....+", &["...", "..", "+"]);
+		check_symbols(&symbols, ">>>", &[">", ">", ">"]);
+		check_symbols(&symbols, ">>>>", &[">>>>"]);
+		check_symbols(&symbols, ">>>>>>>>", &[">>>>", ">>>>"]);
+	}
+
+	#[test]
+	fn symbol_table_should_recognize_added_symbols() {
+		let mut x = SymbolTable::new();
+		x.add_symbol("a");
+		x.add_symbol("b");
+		x.add_symbol("car");
+		x.add_symbol("12");
+		x.add_symbol("123");
+		x.add_symbol("12345");
+
+		let mut state;
+
+		let mut check = move |state: &mut usize, char: char, expected: Option<bool>| {
+			let actual = x.push(*state, char);
+			if let Some((next, _)) = actual {
+				*state = next;
+			} else {
+				*state = 0;
+			}
+			assert_eq!(expected, actual.map(|x| x.1));
+		};
+
+		state = 0;
+		check(&mut state, 'a', Some(true));
+		check(&mut state, 'x', None);
+
+		state = 0;
+		check(&mut state, 'b', Some(true));
+		check(&mut state, 'b', None);
+
+		state = 0;
+		check(&mut state, 'c', Some(false));
+		check(&mut state, 'a', Some(false));
+		check(&mut state, 'r', Some(true));
+		check(&mut state, 'x', None);
+
+		state = 0;
+		check(&mut state, '1', Some(false));
+		check(&mut state, '2', Some(true));
+		check(&mut state, '3', Some(true));
+		check(&mut state, '4', Some(false));
+		check(&mut state, '5', Some(true));
+		check(&mut state, 'x', None);
+	}
+
+	fn check_symbols(symbols: &SymbolTable, input: &'static str, expected: &[&'static str]) {
+		let mut input = TestInput::new(input);
+		let mut state = State::default();
+		state.symbols = symbols.clone();
+		for (i, expected) in expected.iter().cloned().enumerate() {
+			let next = read_token(&mut input, &mut state);
+			let text = input.text();
+			assert_eq!(
+				next,
+				(Token::Symbol, true),
+				"unexpected output {:?} `{}` at #{} (expected `{}`)",
+				next,
+				text,
+				i,
+				expected,
+			);
+			assert_eq!(
+				text.as_str(),
+				expected,
+				"unexpected symbol `{}` at #{} (expected `{}`)",
+				text,
+				i,
+				expected
+			);
+		}
+
+		let next = read_token(&mut input, &mut state);
+		assert_eq!(next, (Token::None, false));
+	}
+
+	struct TestInput {
+		chars: Vec<char>,
+		pos: Pos,
+		txt: usize,
+	}
+
+	impl TestInput {
+		pub fn new(input: &'static str) -> Self {
+			TestInput {
+				chars: input.chars().collect(),
+				pos: Pos::default(),
+				txt: 0,
+			}
+		}
+
+		pub fn text(&mut self) -> String {
+			let chars = &self.chars[self.txt..self.pos.offset];
+			self.txt = self.pos.offset;
+			chars.into_iter().collect()
+		}
+	}
+
+	impl Input for TestInput {
+		fn pos(&self) -> Pos {
+			self.pos
+		}
+
+		fn read(&mut self) -> Option<char> {
+			let offset = self.pos.offset;
+			if offset < self.chars.len() {
+				self.pos.offset += 1;
+				Some(self.chars[offset])
+			} else {
+				None
+			}
+		}
+
+		fn rewind(&mut self, pos: Pos) {
+			self.pos = pos;
+		}
+
+		fn error(&self) -> Option<std::io::Error> {
+			None
+		}
 	}
 }

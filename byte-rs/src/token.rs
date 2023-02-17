@@ -6,6 +6,7 @@ use crate::lexer;
 #[allow(unused)]
 pub enum Token {
 	None,
+	Invalid,
 	Comment,
 	LineBreak,
 	Ident,
@@ -22,6 +23,7 @@ pub struct Pos {
 	pub line: usize,
 	pub column: usize,
 	pub offset: usize,
+	pub was_cr: bool,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -44,23 +46,37 @@ impl std::fmt::Display for Pos {
 
 pub trait Reader: lexer::Input {
 	fn read_text(&mut self, span: Span) -> &str;
-
-	fn pos(&mut self) -> Pos;
 }
 
 pub struct TokenStream<'a, T: Reader> {
 	input: &'a mut T,
 	next: VecDeque<(Token, Span)>,
 	ident: VecDeque<usize>,
+	state: lexer::State,
 }
 
 #[allow(unused)]
 impl<'a, T: Reader> TokenStream<'a, T> {
 	pub fn new(input: &'a mut T) -> TokenStream<'a, T> {
+		let mut state = lexer::State::default();
+		state.symbols.add_symbol("+");
+		state.symbols.add_symbol("-");
+		state.symbols.add_symbol("*");
+		state.symbols.add_symbol("/");
+		state.symbols.add_symbol("%");
+		state.symbols.add_symbol("=");
+		state.symbols.add_symbol("==");
+		state.symbols.add_symbol("?");
+		state.symbols.add_symbol(":");
+		state.symbols.add_symbol("(");
+		state.symbols.add_symbol(")");
+		state.symbols.add_symbol(".");
+		state.symbols.add_symbol("..");
 		TokenStream {
 			input,
 			next: Default::default(),
 			ident: Default::default(),
+			state,
 		}
 	}
 
@@ -121,8 +137,18 @@ impl<'a, T: Reader> TokenStream<'a, T> {
 			// read the next token
 			let (token, pos) = loop {
 				let pos = self.input.pos();
-				let (token, ok) = lexer::read_token(self.input);
-				if token != Token::None {
+				let (token, ok) = lexer::read_token(self.input, &mut self.state);
+				if token == Token::Invalid {
+					let span = Span {
+						pos,
+						end: self.input.pos(),
+					};
+					panic!(
+						"invalid token at {} (`{}`)",
+						span,
+						self.input.read_text(span)
+					);
+				} else if token != Token::None {
 					break (token, pos);
 				} else if !ok {
 					break (Token::None, pos);
