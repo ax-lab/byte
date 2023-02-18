@@ -1,5 +1,8 @@
 use crate::token::{Reader, Span, Token, TokenStream};
 
+#[allow(unused)]
+mod operators;
+
 #[derive(Debug)]
 pub enum Statement {
 	Print(Vec<Expr>),
@@ -33,6 +36,7 @@ pub enum BinaryOp {
 	Mul,
 	Div,
 	Mod,
+	Or,
 }
 
 impl std::fmt::Display for BinaryOp {
@@ -43,6 +47,7 @@ impl std::fmt::Display for BinaryOp {
 			BinaryOp::Mul => write!(f, "Mul"),
 			BinaryOp::Div => write!(f, "Div"),
 			BinaryOp::Mod => write!(f, "Mod"),
+			BinaryOp::Or => write!(f, "Or"),
 		}
 	}
 }
@@ -62,7 +67,7 @@ pub fn parse_statement<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 				input.shift();
 				parse_print(input)
 			}
-			"let" => {
+			"let" | "const" => {
 				input.shift();
 				parse_let(input)
 			}
@@ -179,7 +184,7 @@ fn parse_expr<T: Reader>(input: &mut TokenStream<T>) -> Option<Expr> {
 }
 
 fn parse_expr_cond<T: Reader>(input: &mut TokenStream<T>) -> Option<Expr> {
-	if let Some(cond) = parse_expr_comparison(input) {
+	if let Some(cond) = parse_expr_boolean(input) {
 		if input.text() == "?" {
 			input.shift();
 			if let Some(left) = parse_expr_cond(input) {
@@ -202,6 +207,23 @@ fn parse_expr_cond<T: Reader>(input: &mut TokenStream<T>) -> Option<Expr> {
 			}
 		} else {
 			Some(cond)
+		}
+	} else {
+		None
+	}
+}
+
+fn parse_expr_boolean<T: Reader>(input: &mut TokenStream<T>) -> Option<Expr> {
+	if let Some(left) = parse_expr_comparison(input) {
+		if input.text() == "or" {
+			input.shift();
+			if let Some(right) = parse_expr_boolean(input) {
+				Some(Expr::Binary(BinaryOp::Or, left.into(), right.into()))
+			} else {
+				None
+			}
+		} else {
+			Some(left)
 		}
 	} else {
 		None
