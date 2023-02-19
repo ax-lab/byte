@@ -3,12 +3,39 @@ use std::collections::HashMap;
 use crate::parser::{BinaryOp, Expr, TernaryOp, UnaryOp, Value};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ResultCell {
+	Ref(String),
+	Value(Result),
+}
+
+impl ResultCell {
+	pub fn to_value(self, map: &HashMap<String, Result>) -> Result {
+		match self {
+			ResultCell::Ref(id) => {
+				if let Some(value) = map.get(&id) {
+					value.clone()
+				} else {
+					Result::None
+				}
+			}
+			ResultCell::Value(value) => value,
+		}
+	}
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Result {
 	Integer(i64),
 	String(String),
 	Boolean(bool),
 	Null,
 	None,
+}
+
+impl Into<ResultCell> for Result {
+	fn into(self) -> ResultCell {
+		ResultCell::Value(self)
+	}
 }
 
 impl Result {
@@ -65,7 +92,12 @@ impl Result {
 }
 
 pub fn execute_expr(expr: &Expr, map: &mut HashMap<String, Result>) -> Result {
-	match expr {
+	let result = execute_expr_ref(expr, map);
+	result.to_value(map)
+}
+
+fn execute_expr_ref(expr: &Expr, map: &mut HashMap<String, Result>) -> ResultCell {
+	let result = match expr {
 		Expr::Unary(op, expr) => {
 			let expr = execute_expr(&expr, map);
 			match op {
@@ -97,6 +129,17 @@ pub fn execute_expr(expr: &Expr, map: &mut HashMap<String, Result>) -> Result {
 			}
 		}
 
+		Expr::Binary(BinaryOp::Assign, left, right) => {
+			let left = execute_expr_ref(left, map);
+			let right = execute_expr(right, map);
+			if let ResultCell::Ref(id) = left {
+				map.insert(id.clone(), right);
+				return ResultCell::Ref(id);
+			} else {
+				panic!("cannot assign to value");
+			}
+		}
+
 		Expr::Binary(op, left, right) => {
 			let left = execute_expr(&left, map);
 			let right = execute_expr(&right, map);
@@ -105,7 +148,7 @@ pub fn execute_expr(expr: &Expr, map: &mut HashMap<String, Result>) -> Result {
 				BinaryOp::Add => {
 					if left.is_string() || right.is_string() {
 						let result = format!("{}{}", left.to_string(), right.to_string());
-						return Result::String(result);
+						return Result::String(result).into();
 					}
 					left.to_integer() + right.to_integer()
 				}
@@ -113,7 +156,8 @@ pub fn execute_expr(expr: &Expr, map: &mut HashMap<String, Result>) -> Result {
 				BinaryOp::Mul => left.to_integer() * right.to_integer(),
 				BinaryOp::Div => left.to_integer() / right.to_integer(),
 				BinaryOp::Mod => left.to_integer() % right.to_integer(),
-				BinaryOp::Equal => return Result::Boolean(left == right),
+				BinaryOp::Equal => return Result::Boolean(left == right).into(),
+				BinaryOp::Assign => unreachable!("assign is handled explicitly"),
 			};
 			Result::Integer(result)
 		}
@@ -132,18 +176,14 @@ pub fn execute_expr(expr: &Expr, map: &mut HashMap<String, Result>) -> Result {
 		Expr::Value(Value::Literal(value)) => Result::String(value.clone()),
 		Expr::Value(Value::Null) => Result::Null,
 		Expr::Value(Value::Boolean(value)) => Result::Boolean(*value),
-		Expr::Value(Value::Var(id)) => {
-			if let Some(value) = map.get(id) {
-				value.clone()
-			} else {
-				Result::None
-			}
-		}
+		Expr::Value(Value::Var(id)) => return ResultCell::Ref(id.clone()),
 
 		expr => {
 			todo!("expression {expr:?}");
 		}
-	}
+	};
+
+	result.into()
 }
 
 impl std::fmt::Display for Result {

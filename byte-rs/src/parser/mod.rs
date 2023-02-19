@@ -18,12 +18,13 @@ pub enum Statement {
 	If(Expr, Box<Statement>),
 	For(Id, Expr, Expr, Box<Statement>),
 	Block(Vec<Statement>),
+	Expr(Expr),
 }
 
 pub enum ParseResult {
 	Ok(Statement),
 	Invalid(Span, String),
-	EndOfInput,
+	None,
 }
 
 pub fn parse_statement<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
@@ -32,7 +33,7 @@ pub fn parse_statement<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 	}
 
 	let span = input.span();
-	match input.get() {
+	let result = match input.get() {
 		Token::Identifier => match input.text() {
 			"print" => {
 				input.shift();
@@ -50,11 +51,21 @@ pub fn parse_statement<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 				input.shift();
 				parse_if(input)
 			}
-			_ => ParseResult::Invalid(span, "unexpected identifier".into()),
+			_ => ParseResult::None,
 		},
-		Token::None => ParseResult::EndOfInput,
+		Token::None => return ParseResult::None,
 
 		other => ParseResult::Invalid(span, format!("unexpected token `{other:?}`")),
+	};
+
+	if let ParseResult::None = result {
+		match parse_expression(input) {
+			ExprResult::Expr(expr) => ParseResult::Ok(Statement::Expr(expr)),
+			ExprResult::Error(span, error) => ParseResult::Invalid(span, error),
+			ExprResult::None => ParseResult::Invalid(span, "unexpected identifier".into()),
+		}
+	} else {
+		result
 	}
 }
 

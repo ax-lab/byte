@@ -84,7 +84,7 @@ fn main() {
 						ParseResult::Ok(next) => {
 							program.push(next);
 						}
-						ParseResult::EndOfInput => {
+						ParseResult::None => {
 							break;
 						}
 					}
@@ -125,6 +125,10 @@ fn execute_statement(st: &Statement, map: &mut HashMap<String, Result>) {
 			for it in statements.iter() {
 				execute_statement(it, map);
 			}
+		}
+
+		Statement::Expr(expr) => {
+			execute_expr(expr, map);
 		}
 
 		Statement::Let(Id(id), expr) => {

@@ -52,6 +52,7 @@ impl Operator {
 				BinaryOp::Add => (Precedence::Additive(0), Grouping::Left),
 				BinaryOp::Sub => (Precedence::Additive(0), Grouping::Left),
 				BinaryOp::Equal => (Precedence::Comparison(0), Grouping::Left),
+				BinaryOp::Assign => (Precedence::Assignment(0), Grouping::Right),
 			},
 			Operator::Ternary(op) => match op {
 				TernaryOp::Condition => (Precedence::Conditional(0), Grouping::Right),
@@ -157,6 +158,7 @@ pub enum BinaryOp {
 	Add,
 	Sub,
 	Equal,
+	Assign,
 }
 
 impl BinaryOp {
@@ -167,6 +169,7 @@ impl BinaryOp {
 			"%" => BinaryOp::Mod,
 			"+" => BinaryOp::Add,
 			"-" => BinaryOp::Sub,
+			"=" => BinaryOp::Assign,
 			"==" => BinaryOp::Equal,
 			_ => return None,
 		};
