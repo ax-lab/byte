@@ -9,3 +9,6 @@ false false 1
 true is true
 false is false
 a, b, and c should be 3: a = 3, b = 3, c = 3
+OR: 0 1 2 3
+AND: 0 1 2 3
+AND/OR: 1 2 3

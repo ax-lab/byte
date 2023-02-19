@@ -17,3 +17,7 @@ let b = 2
 let c = 0
 a = b = c = a + b
 print 'a, b, and c should be 3: a = ' + a + ', b = ' + b + ', c = ' + c
+
+print 'OR:', 0 or 0, 1 or 2 or 3, 0 or 2 or 1, 0 or 0 or 3
+print 'AND:', 0 and 1, 2 and 1, 1 and 3 and 2, 1 and 2 and 3 
+print 'AND/OR:', 0 or 2 and 1, 0 and 1 or 2, 1 and 3 or 2

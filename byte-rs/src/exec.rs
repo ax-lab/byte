@@ -47,11 +47,11 @@ impl ResultValue {
 		matches!(self, &ResultValue::Integer(_))
 	}
 
-	pub fn to_bool(self) -> bool {
+	pub fn to_bool(&self) -> bool {
 		match self {
-			ResultValue::Integer(value) => value != 0,
+			ResultValue::Integer(value) => *value != 0,
 			ResultValue::String(value) => value != "",
-			ResultValue::Boolean(value) => value,
+			ResultValue::Boolean(value) => *value,
 			ResultValue::None => false,
 			ResultValue::Null => false,
 		}
@@ -140,6 +140,27 @@ fn execute_expr_ref(expr: &Expr, map: &mut HashMap<String, ResultValue>) -> Resu
 			}
 		}
 
+		Expr::Binary(op @ (BinaryOp::And | BinaryOp::Or), left, right) => {
+			let left = execute_expr(left, map);
+			match op {
+				BinaryOp::And => {
+					if left.to_bool() {
+						execute_expr(right, map)
+					} else {
+						left
+					}
+				}
+				BinaryOp::Or => {
+					if left.to_bool() {
+						left
+					} else {
+						execute_expr(right, map)
+					}
+				}
+				_ => unreachable!(),
+			}
+		}
+
 		Expr::Binary(op, left, right) => {
 			let left = execute_expr(&left, map);
 			let right = execute_expr(&right, map);
@@ -157,7 +178,9 @@ fn execute_expr_ref(expr: &Expr, map: &mut HashMap<String, ResultValue>) -> Resu
 				BinaryOp::Div => left.to_integer() / right.to_integer(),
 				BinaryOp::Mod => left.to_integer() % right.to_integer(),
 				BinaryOp::Equal => return ResultValue::Boolean(left == right).into(),
-				BinaryOp::Assign => unreachable!("assign is handled explicitly"),
+				BinaryOp::Assign | BinaryOp::And | BinaryOp::Or => {
+					unreachable!("handled explicitly")
+				}
 			};
 			ResultValue::Integer(result)
 		}
