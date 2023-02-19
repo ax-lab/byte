@@ -23,7 +23,7 @@ pub enum Statement {
 
 pub enum ParseResult {
 	Ok(Statement),
-	Invalid(Span, String),
+	Error(Span, String),
 	None,
 }
 
@@ -55,14 +55,14 @@ pub fn parse_statement<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 		},
 		Token::None => return ParseResult::None,
 
-		other => ParseResult::Invalid(span, format!("unexpected token `{other:?}`")),
+		other => ParseResult::Error(span, format!("unexpected token `{other:?}`")),
 	};
 
 	if let ParseResult::None = result {
 		match parse_expression(input) {
 			ExprResult::Expr(expr) => ParseResult::Ok(Statement::Expr(expr)),
-			ExprResult::Error(span, error) => ParseResult::Invalid(span, error),
-			ExprResult::None => ParseResult::Invalid(span, "unexpected identifier".into()),
+			ExprResult::Error(span, error) => ParseResult::Error(span, error),
+			ExprResult::None => ParseResult::Error(span, "unexpected identifier".into()),
 		}
 	} else {
 		result
@@ -79,47 +79,44 @@ fn parse_if<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 				block
 			}
 		}
-		ExprResult::Error(span, err) => ParseResult::Invalid(span, err),
+		ExprResult::Error(span, error) => ParseResult::Error(span, error),
 		ExprResult::None => {
-			ParseResult::Invalid(input.span(), "expression expected after 'if'".into())
+			ParseResult::Error(input.span(), "expression expected after 'if'".into())
 		}
 	}
 }
 
 fn parse_for<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 	if input.get() != Token::Identifier {
-		return ParseResult::Invalid(input.span(), "identifier expected after 'for'".into());
+		return ParseResult::Error(input.span(), "identifier expected after 'for'".into());
 	}
 
 	let id = Id(input.text().into());
 	input.shift();
 
 	if input.get() != Token::Identifier || input.text() != "in" {
-		return ParseResult::Invalid(input.span(), "for 'in' expected".into());
+		return ParseResult::Error(input.span(), "for 'in' expected".into());
 	}
 	input.shift();
 
 	let from = match parse_expression(input) {
 		ExprResult::Expr(expr) => expr,
-		ExprResult::Error(span, err) => return ParseResult::Invalid(span, err),
+		ExprResult::Error(span, error) => return ParseResult::Error(span, error),
 		ExprResult::None => {
-			return ParseResult::Invalid(input.span(), "expression expected after 'for in'".into())
+			return ParseResult::Error(input.span(), "expression expected after 'for in'".into())
 		}
 	};
 
 	if input.text() != ".." {
-		return ParseResult::Invalid(input.span(), "for '..' expected".into());
+		return ParseResult::Error(input.span(), "for '..' expected".into());
 	}
 	input.shift();
 
 	let to = match parse_expression(input) {
 		ExprResult::Expr(expr) => expr,
-		ExprResult::Error(span, err) => return ParseResult::Invalid(span, err),
+		ExprResult::Error(span, error) => return ParseResult::Error(span, error),
 		ExprResult::None => {
-			return ParseResult::Invalid(
-				input.span(),
-				"expression expected after 'for in ..'".into(),
-			)
+			return ParseResult::Error(input.span(), "expression expected after 'for in ..'".into())
 		}
 	};
 
@@ -133,12 +130,12 @@ fn parse_for<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 
 fn parse_block<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 	if input.text() != ":" {
-		return ParseResult::Invalid(input.span(), "block ':' expected".into());
+		return ParseResult::Error(input.span(), "block ':' expected".into());
 	}
 	input.shift();
 
 	if input.get() != Token::LineBreak {
-		return ParseResult::Invalid(input.span(), "end of line expected after ':'".into());
+		return ParseResult::Error(input.span(), "end of line expected after ':'".into());
 	}
 
 	while input.get() == Token::LineBreak {
@@ -146,7 +143,7 @@ fn parse_block<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 	}
 
 	if input.get() != Token::Ident {
-		return ParseResult::Invalid(input.span(), "idented block expected".into());
+		return ParseResult::Error(input.span(), "idented block expected".into());
 	}
 	input.shift();
 
@@ -189,9 +186,9 @@ fn parse_print<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 
 		let expr = match parse_expression(input) {
 			ExprResult::Expr(expr) => expr,
-			ExprResult::Error(span, err) => break ParseResult::Invalid(span, err),
+			ExprResult::Error(span, error) => break ParseResult::Error(span, error),
 			ExprResult::None => {
-				break ParseResult::Invalid(input.span(), "expression expected".into())
+				break ParseResult::Error(input.span(), "expression expected".into())
 			}
 		};
 		expr_list.push(expr);
@@ -200,14 +197,14 @@ fn parse_print<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 
 fn parse_let<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 	if input.get() != Token::Identifier {
-		return ParseResult::Invalid(input.span(), "identifier expected".into());
+		return ParseResult::Error(input.span(), "identifier expected".into());
 	}
 
 	let id = Id(input.text().into());
 	input.shift();
 
 	if input.get() != Token::Symbol || input.text() != "=" {
-		return ParseResult::Invalid(input.span(), "expected '='".into());
+		return ParseResult::Error(input.span(), "expected '='".into());
 	}
 
 	input.shift();
@@ -216,14 +213,14 @@ fn parse_let<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 			let res = ParseResult::Ok(Statement::Let(id, expr));
 			parse_end(input, res)
 		}
-		ExprResult::Error(span, err) => ParseResult::Invalid(span, err),
-		ExprResult::None => ParseResult::Invalid(input.span(), "expression expected".into()),
+		ExprResult::Error(span, error) => ParseResult::Error(span, error),
+		ExprResult::None => ParseResult::Error(input.span(), "expression expected".into()),
 	}
 }
 
 fn parse_end<T: Reader>(input: &mut TokenStream<T>, result: ParseResult) -> ParseResult {
 	match input.get() {
 		Token::None | Token::LineBreak => result,
-		_ => ParseResult::Invalid(input.span(), "expected end of statement".into()),
+		_ => ParseResult::Error(input.span(), "expected end of statement".into()),
 	}
 }

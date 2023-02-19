@@ -1,30 +1,30 @@
 use std::collections::HashMap;
 
-use crate::parser::{BinaryOp, Expr, TernaryOp, UnaryOp, Value};
+use crate::parser::{BinaryOp, Expr, ExprAtom, TernaryOp, UnaryOp};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ResultCell {
+pub enum Result {
 	Ref(String),
-	Value(Result),
+	Value(ResultValue),
 }
 
-impl ResultCell {
-	pub fn to_value(self, map: &HashMap<String, Result>) -> Result {
+impl Result {
+	pub fn to_value(self, map: &HashMap<String, ResultValue>) -> ResultValue {
 		match self {
-			ResultCell::Ref(id) => {
+			Result::Ref(id) => {
 				if let Some(value) = map.get(&id) {
 					value.clone()
 				} else {
-					Result::None
+					ResultValue::None
 				}
 			}
-			ResultCell::Value(value) => value,
+			Result::Value(value) => value,
 		}
 	}
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Result {
+pub enum ResultValue {
 	Integer(i64),
 	String(String),
 	Boolean(bool),
@@ -32,96 +32,96 @@ pub enum Result {
 	None,
 }
 
-impl Into<ResultCell> for Result {
-	fn into(self) -> ResultCell {
-		ResultCell::Value(self)
+impl Into<Result> for ResultValue {
+	fn into(self) -> Result {
+		Result::Value(self)
 	}
 }
 
-impl Result {
+impl ResultValue {
 	pub fn is_string(&self) -> bool {
-		matches!(self, &Result::String(_))
+		matches!(self, &ResultValue::String(_))
 	}
 
 	pub fn is_integer(&self) -> bool {
-		matches!(self, &Result::Integer(_))
+		matches!(self, &ResultValue::Integer(_))
 	}
 
 	pub fn to_bool(self) -> bool {
 		match self {
-			Result::Integer(value) => value != 0,
-			Result::String(value) => value != "",
-			Result::Boolean(value) => value,
-			Result::None => false,
-			Result::Null => false,
+			ResultValue::Integer(value) => value != 0,
+			ResultValue::String(value) => value != "",
+			ResultValue::Boolean(value) => value,
+			ResultValue::None => false,
+			ResultValue::Null => false,
 		}
 	}
 
 	pub fn to_string(self) -> String {
 		match self {
-			Result::Integer(value) => format!("{value}"),
-			Result::String(value) => value,
-			Result::Boolean(value) => (if value { "true" } else { "false" }).into(),
-			Result::None => Default::default(),
-			Result::Null => Default::default(),
+			ResultValue::Integer(value) => format!("{value}"),
+			ResultValue::String(value) => value,
+			ResultValue::Boolean(value) => (if value { "true" } else { "false" }).into(),
+			ResultValue::None => Default::default(),
+			ResultValue::Null => Default::default(),
 		}
 	}
 
 	pub fn to_integer(self) -> i64 {
 		match self {
-			Result::Integer(value) => value,
-			Result::String(_) => panic!("using string value as a number"),
-			Result::Boolean(value) => {
+			ResultValue::Integer(value) => value,
+			ResultValue::String(_) => panic!("using string value as a number"),
+			ResultValue::Boolean(value) => {
 				if value {
 					1
 				} else {
 					0
 				}
 			}
-			Result::None => 0,
-			Result::Null => 0,
+			ResultValue::None => 0,
+			ResultValue::Null => 0,
 		}
 	}
 
 	pub fn parse_integer(self) -> i64 {
 		match self {
-			Result::String(val) => val.parse().unwrap(),
+			ResultValue::String(val) => val.parse().unwrap(),
 			other => other.to_integer(),
 		}
 	}
 }
 
-pub fn execute_expr(expr: &Expr, map: &mut HashMap<String, Result>) -> Result {
+pub fn execute_expr(expr: &Expr, map: &mut HashMap<String, ResultValue>) -> ResultValue {
 	let result = execute_expr_ref(expr, map);
 	result.to_value(map)
 }
 
-fn execute_expr_ref(expr: &Expr, map: &mut HashMap<String, Result>) -> ResultCell {
+fn execute_expr_ref(expr: &Expr, map: &mut HashMap<String, ResultValue>) -> Result {
 	let result = match expr {
 		Expr::Unary(op, expr) => {
 			let expr = execute_expr(&expr, map);
 			match op {
 				UnaryOp::Minus => {
 					let result = -expr.to_integer();
-					Result::Integer(result)
+					ResultValue::Integer(result)
 				}
 
 				UnaryOp::Plus => {
 					let result = expr.parse_integer();
-					Result::Integer(result)
+					ResultValue::Integer(result)
 				}
 
 				UnaryOp::Not => {
 					let result = !expr.to_bool();
-					Result::Boolean(result)
+					ResultValue::Boolean(result)
 				}
 
 				UnaryOp::Negate => {
 					if expr.is_integer() {
-						Result::Integer(if expr.to_integer() == 0 { 1 } else { 0 })
+						ResultValue::Integer(if expr.to_integer() == 0 { 1 } else { 0 })
 					} else {
 						let result = !expr.to_bool();
-						Result::Boolean(result)
+						ResultValue::Boolean(result)
 					}
 				}
 
@@ -132,9 +132,9 @@ fn execute_expr_ref(expr: &Expr, map: &mut HashMap<String, Result>) -> ResultCel
 		Expr::Binary(BinaryOp::Assign, left, right) => {
 			let left = execute_expr_ref(left, map);
 			let right = execute_expr(right, map);
-			if let ResultCell::Ref(id) = left {
+			if let Result::Ref(id) = left {
 				map.insert(id.clone(), right);
-				return ResultCell::Ref(id);
+				return Result::Ref(id);
 			} else {
 				panic!("cannot assign to value");
 			}
@@ -148,7 +148,7 @@ fn execute_expr_ref(expr: &Expr, map: &mut HashMap<String, Result>) -> ResultCel
 				BinaryOp::Add => {
 					if left.is_string() || right.is_string() {
 						let result = format!("{}{}", left.to_string(), right.to_string());
-						return Result::String(result).into();
+						return ResultValue::String(result).into();
 					}
 					left.to_integer() + right.to_integer()
 				}
@@ -156,10 +156,10 @@ fn execute_expr_ref(expr: &Expr, map: &mut HashMap<String, Result>) -> ResultCel
 				BinaryOp::Mul => left.to_integer() * right.to_integer(),
 				BinaryOp::Div => left.to_integer() / right.to_integer(),
 				BinaryOp::Mod => left.to_integer() % right.to_integer(),
-				BinaryOp::Equal => return Result::Boolean(left == right).into(),
+				BinaryOp::Equal => return ResultValue::Boolean(left == right).into(),
 				BinaryOp::Assign => unreachable!("assign is handled explicitly"),
 			};
-			Result::Integer(result)
+			ResultValue::Integer(result)
 		}
 
 		Expr::Ternary(TernaryOp::Condition, cond, if_true, if_false) => {
@@ -172,11 +172,11 @@ fn execute_expr_ref(expr: &Expr, map: &mut HashMap<String, Result>) -> ResultCel
 			result
 		}
 
-		Expr::Value(Value::Integer(value)) => Result::Integer(value.parse().unwrap()),
-		Expr::Value(Value::Literal(value)) => Result::String(value.clone()),
-		Expr::Value(Value::Null) => Result::Null,
-		Expr::Value(Value::Boolean(value)) => Result::Boolean(*value),
-		Expr::Value(Value::Var(id)) => return ResultCell::Ref(id.clone()),
+		Expr::Value(ExprAtom::Integer(value)) => ResultValue::Integer(value.parse().unwrap()),
+		Expr::Value(ExprAtom::Literal(value)) => ResultValue::String(value.clone()),
+		Expr::Value(ExprAtom::Null) => ResultValue::Null,
+		Expr::Value(ExprAtom::Boolean(value)) => ResultValue::Boolean(*value),
+		Expr::Value(ExprAtom::Var(id)) => return Result::Ref(id.clone()),
 
 		expr => {
 			todo!("expression {expr:?}");
@@ -186,14 +186,14 @@ fn execute_expr_ref(expr: &Expr, map: &mut HashMap<String, Result>) -> ResultCel
 	result.into()
 }
 
-impl std::fmt::Display for Result {
+impl std::fmt::Display for ResultValue {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
-			Result::Integer(v) => write!(f, "{v}"),
-			Result::String(v) => write!(f, "{v}"),
-			Result::Boolean(v) => write!(f, "{}", if *v { "true" } else { "false" }),
-			Result::Null => write!(f, "null"),
-			Result::None => write!(f, "(none)"),
+			ResultValue::Integer(v) => write!(f, "{v}"),
+			ResultValue::String(v) => write!(f, "{v}"),
+			ResultValue::Boolean(v) => write!(f, "{}", if *v { "true" } else { "false" }),
+			ResultValue::Null => write!(f, "null"),
+			ResultValue::None => write!(f, "(none)"),
 		}
 	}
 }

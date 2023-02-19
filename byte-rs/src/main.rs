@@ -1,6 +1,6 @@
 use std::{collections::HashMap, env};
 
-use exec::{execute_expr, Result};
+use exec::{execute_expr, ResultValue};
 use parser::{parse_statement, Id, ParseResult, Statement};
 
 use crate::token::Token;
@@ -77,7 +77,7 @@ fn main() {
 					let next;
 					next = parse_statement(&mut tokens);
 					match next {
-						ParseResult::Invalid(span, msg) => {
+						ParseResult::Error(span, msg) => {
 							eprintln!("\n[compile error] {input}:{span}: {msg}\n");
 							std::process::exit(2);
 						}
@@ -113,13 +113,13 @@ fn print_usage() {
 }
 
 fn execute(program: Vec<Statement>) {
-	let mut map = HashMap::<String, Result>::new();
+	let mut map = HashMap::<String, ResultValue>::new();
 	for st in program.into_iter() {
 		execute_statement(&st, &mut map);
 	}
 }
 
-fn execute_statement(st: &Statement, map: &mut HashMap<String, Result>) {
+fn execute_statement(st: &Statement, map: &mut HashMap<String, ResultValue>) {
 	match st {
 		Statement::Block(statements) => {
 			for it in statements.iter() {
@@ -149,16 +149,16 @@ fn execute_statement(st: &Statement, map: &mut HashMap<String, Result>) {
 
 		Statement::For(Id(id), from, to, block) => {
 			let from = match execute_expr(from, map) {
-				Result::Integer(from) => from,
+				ResultValue::Integer(from) => from,
 				value => panic!("for: invalid from expression {value:?}"),
 			};
 			let to = match execute_expr(to, map) {
-				Result::Integer(to) => to,
+				ResultValue::Integer(to) => to,
 				value => panic!("for: invalid to expression {value:?}"),
 			};
 
 			for i in from..=to {
-				map.insert(id.clone(), Result::Integer(i));
+				map.insert(id.clone(), ResultValue::Integer(i));
 				execute_statement(block, map);
 			}
 		}

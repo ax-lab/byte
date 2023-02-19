@@ -7,7 +7,7 @@ use super::operators::*;
 use super::ParseResult;
 
 #[derive(Debug)]
-pub enum Value {
+pub enum ExprAtom {
 	Var(String),
 	Integer(String),
 	Literal(String),
@@ -24,7 +24,7 @@ pub enum ExprResult {
 
 #[derive(Debug)]
 pub enum Expr {
-	Value(Value),
+	Value(ExprAtom),
 	Unary(UnaryOp, Box<Expr>),
 	Binary(BinaryOp, Box<Expr>, Box<Expr>),
 	Ternary(TernaryOp, Box<Expr>, Box<Expr>, Box<Expr>),
@@ -157,18 +157,18 @@ fn parse_atom<T: Reader>(input: &mut TokenStream<T>) -> ExprResult {
 		Token::Identifier => {
 			let text = input.text();
 			match text {
-				"null" => Value::Null,
-				"true" => Value::Boolean(true),
-				"false" => Value::Boolean(false),
-				id => Value::Var(id.into()),
+				"null" => ExprAtom::Null,
+				"true" => ExprAtom::Boolean(true),
+				"false" => ExprAtom::Boolean(false),
+				id => ExprAtom::Var(id.into()),
 			}
 		}
-		Token::Integer => Value::Integer(input.text().into()),
+		Token::Integer => ExprAtom::Integer(input.text().into()),
 		Token::String => {
 			let text = input.text();
 			let text = text.strip_prefix("'").unwrap();
 			let text = text.strip_suffix("'").unwrap();
-			Value::Literal(text.into())
+			ExprAtom::Literal(text.into())
 		}
 		Token::Symbol => {
 			let next = input.text();
