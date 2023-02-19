@@ -1,0 +1,11 @@
+print 1
+print 'hello'
+print true
+print false
+print (null)
+
+print +false, +1, -2, -(-(+'3')), -+-+-+4
+print not true, not not false, !0
+
+print true ? 'true is true' : 'this is wrong'
+print false ? 'this is wrong' : 'false is false' 

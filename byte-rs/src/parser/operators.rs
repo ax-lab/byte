@@ -1,170 +1,206 @@
-use std::collections::HashMap;
+use std::cmp::Ordering;
 
-use crate::lexer;
-
-/// Enumerate the type of supported operators with its symbols.
-#[derive(Copy, Clone)]
-pub enum Op {
-	UnaryPrefix(&'static str),
-	UnarySuffix(&'static str),
-	Binary(&'static str, OpGroup),
-	Ternary(&'static str, &'static str),
-	List(&'static str),
-	BracketSuffix(&'static str, &'static str),
+/// Predefined levels of precedence in order from the highest.
+///
+/// Operators within a same level of precedence can be further ordered by
+/// the numeric field in ascending order, with highest precedence first
+/// (i.e. lower numeric value).
+#[derive(Eq, PartialEq, Ord, PartialOrd)]
+pub enum Precedence {
+	Member(i8),
+	Unary(i8),
+	Power(i8),
+	Multiplicative(i8),
+	Additive(i8),
+	Comparison(i8),
+	Logical(i8),
+	Conditional(i8),
+	Assignment(i8),
+	Comma(i8),
 }
 
-#[derive(Copy, Clone)]
-pub enum OpGroup {
+pub enum Grouping {
 	Left,
 	Right,
 }
 
-/// Predefined precedence levels.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub enum OpPrecedence {
-	Scope,
-	Member,
-	Prefix,
-	Suffix,
-	Pow,
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub enum Operator {
+	Unary(UnaryOp),
+	Binary(BinaryOp),
+	Ternary(TernaryOp),
+	List(ListOp),
+}
+
+impl Operator {
+	fn precedence(&self) -> (Precedence, Grouping) {
+		match *self {
+			Operator::Unary(op) => match op {
+				UnaryOp::Not => (Precedence::Logical(1), Grouping::Right),
+				UnaryOp::Plus => (Precedence::Unary(0), Grouping::Left),
+				UnaryOp::Minus => (Precedence::Unary(0), Grouping::Left),
+				UnaryOp::Negate => (Precedence::Unary(0), Grouping::Left),
+				UnaryOp::Increment => (Precedence::Unary(0), Grouping::Left),
+				UnaryOp::Decrement => (Precedence::Unary(0), Grouping::Left),
+				UnaryOp::PosIncrement => (Precedence::Unary(0), Grouping::Left),
+				UnaryOp::PosDecrement => (Precedence::Unary(0), Grouping::Left),
+			},
+			Operator::Binary(op) => match op {
+				BinaryOp::Mul => (Precedence::Multiplicative(0), Grouping::Left),
+				BinaryOp::Div => (Precedence::Multiplicative(0), Grouping::Left),
+				BinaryOp::Mod => (Precedence::Multiplicative(0), Grouping::Left),
+				BinaryOp::Add => (Precedence::Additive(0), Grouping::Left),
+				BinaryOp::Sub => (Precedence::Additive(0), Grouping::Left),
+				BinaryOp::Equal => (Precedence::Comparison(0), Grouping::Left),
+			},
+			Operator::Ternary(op) => match op {
+				TernaryOp::Condition => (Precedence::Conditional(0), Grouping::Right),
+			},
+			Operator::List(op) => todo!(),
+		}
+	}
+}
+
+impl std::cmp::Ord for Operator {
+	fn cmp(&self, other: &Self) -> Ordering {
+		let (lp, lg) = self.precedence();
+		let (rp, rg) = other.precedence();
+		let cmp = lp.cmp(&rp);
+		if cmp == Ordering::Equal {
+			/*
+			   Use associativity to decide precedence, as following:
+
+			   +------+------+-------+-----------------------+
+			   | L    | R    | Prec? | Example               |
+			   +------+------+-------+-----------------------+
+			   |  <-  |  <-  |   L   |    ((a <- b) <- c)    |
+			   |  ->  |  ->  |   R   |    (a -> (b -> c))    |
+			   |  <-  |  ->  |   R   |    (a <- (b -> c))    |
+			   |  ->  |  <-  |   L   |    ((a -> b) <- c)    |
+			   +------+------+-------+-----------------------+
+			*/
+			match lg {
+				Grouping::Left => match rg {
+					Grouping::Left => Ordering::Less,
+					Grouping::Right => Ordering::Greater,
+				},
+				Grouping::Right => match rg {
+					Grouping::Right => Ordering::Greater,
+					Grouping::Left => Ordering::Less,
+				},
+			}
+		} else {
+			cmp
+		}
+	}
+}
+
+impl std::cmp::PartialOrd for Operator {
+	fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum UnaryOp {
+	Not,
+	Plus,
+	Minus,
+	Negate,
+	Increment,
+	Decrement,
+	PosIncrement,
+	PosDecrement,
+}
+
+impl UnaryOp {
+	pub fn get_prefix(token: &str) -> Option<UnaryOp> {
+		let op = match token {
+			"not" => UnaryOp::Not,
+			"+" => UnaryOp::Plus,
+			"-" => UnaryOp::Minus,
+			"!" => UnaryOp::Negate,
+			"++" => UnaryOp::Increment,
+			"--" => UnaryOp::Decrement,
+			_ => return None,
+		};
+		Some(op)
+	}
+
+	pub fn get_posfix(token: &str) -> Option<UnaryOp> {
+		let op = match token {
+			"++" => UnaryOp::PosIncrement,
+			"--" => UnaryOp::PosDecrement,
+			_ => return None,
+		};
+		Some(op)
+	}
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum SuffixOp {
+	Inc,
+	Dec,
+}
+
+impl SuffixOp {
+	pub fn get(token: &str) -> Option<SuffixOp> {
+		todo!()
+	}
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum BinaryOp {
 	Mul,
+	Div,
+	Mod,
 	Add,
-	Shift,
-	Compare,
-	Bitwise,
-	Logical,
-	Ternary,
-	Assignment,
+	Sub,
+	Equal,
+}
+
+impl BinaryOp {
+	pub fn get(token: &str) -> Option<BinaryOp> {
+		let op = match token {
+			"*" => BinaryOp::Mul,
+			"/" => BinaryOp::Div,
+			"%" => BinaryOp::Mod,
+			"+" => BinaryOp::Add,
+			"-" => BinaryOp::Sub,
+			"==" => BinaryOp::Equal,
+			_ => return None,
+		};
+		Some(op)
+	}
+
+	pub fn get_bracket(token: &str) -> Option<&'static str> {
+		todo!()
+	}
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum TernaryOp {
+	Condition,
+}
+
+impl TernaryOp {
+	pub fn get(token: &str) -> Option<(TernaryOp, &'static str)> {
+		let op = match token {
+			"?" => (TernaryOp::Condition, ":"),
+			_ => return None,
+		};
+		Some(op)
+	}
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum ListOp {
 	Comma,
 }
 
-impl OpPrecedence {
-	pub fn least() -> Self {
-		OpPrecedence::Comma
-	}
-
-	pub fn next(self) -> Option<Self> {
-		let level = match self {
-			OpPrecedence::Scope => return None,
-			OpPrecedence::Member => OpPrecedence::Scope,
-			OpPrecedence::Prefix => OpPrecedence::Member,
-			OpPrecedence::Suffix => OpPrecedence::Prefix,
-			OpPrecedence::Pow => OpPrecedence::Suffix,
-			OpPrecedence::Mul => OpPrecedence::Pow,
-			OpPrecedence::Add => OpPrecedence::Mul,
-			OpPrecedence::Shift => OpPrecedence::Add,
-			OpPrecedence::Compare => OpPrecedence::Shift,
-			OpPrecedence::Bitwise => OpPrecedence::Compare,
-			OpPrecedence::Logical => OpPrecedence::Bitwise,
-			OpPrecedence::Ternary => OpPrecedence::Logical,
-			OpPrecedence::Assignment => OpPrecedence::Ternary,
-			OpPrecedence::Comma => OpPrecedence::Assignment,
-		};
-		Some(level)
-	}
-}
-
-#[derive(Default)]
-pub struct OpTable {
-	empty: Vec<(i64, Op)>,
-	prefix: Vec<Op>,
-	suffix: Vec<Op>,
-	levels: HashMap<OpPrecedence, Vec<(i64, Op)>>,
-}
-
-impl OpTable {
-	pub fn get(&self, level: OpPrecedence) -> impl Iterator<Item = Op> + '_ {
-		self.levels
-			.get(&level)
-			.unwrap_or(&self.empty)
-			.iter()
-			.map(|(_, it)| it)
-			.cloned()
-	}
-
-	pub fn get_all_prefix(&self) -> &Vec<Op> {
-		&self.prefix
-	}
-
-	pub fn get_all_suffix(&self) -> &Vec<Op> {
-		&self.suffix
-	}
-
-	pub fn with(self, level: OpPrecedence) -> OpTableBuilder {
-		OpTableBuilder {
-			level,
-			order: 0,
-			table: self,
-		}
-	}
-
-	pub fn export_symbols(&self, symbols: &mut lexer::SymbolTable) {
-		let mut add = |sym: &'static str| {
-			if let Some('a'..='z' | 'A'..='Z' | '_') = sym.chars().next() {
-				// keyword operator, don't add
-			} else if sym != "" {
-				symbols.add_symbol(sym);
-			}
-		};
-
-		for it in self.levels.values() {
-			for (_, op) in it {
-				match op {
-					Op::UnaryPrefix(sym) => add(sym),
-					Op::UnarySuffix(sym) => add(sym),
-					Op::Binary(sym, _) => add(sym),
-					Op::Ternary(a, b) => {
-						add(a);
-						add(b);
-					}
-					Op::List(sym) => add(sym),
-					Op::BracketSuffix(a, b) => {
-						add(a);
-						add(b);
-					}
-				}
-			}
-		}
-	}
-}
-
-pub struct OpTableBuilder {
-	level: OpPrecedence,
-	order: i64,
-	table: OpTable,
-}
-
-impl OpTableBuilder {
-	pub fn add_operator(mut self, op: Op) -> Self {
-		let mut entry = self.table.levels.entry(self.level);
-		let list = entry.or_insert(Default::default());
-		list.push((self.order, op));
-		list.sort_by_key(|x| x.0);
-		self
-	}
-
-	pub fn after(self) -> Self {
-		OpTableBuilder {
-			level: self.level,
-			order: self.order + 1,
-			table: self.table,
-		}
-	}
-
-	pub fn before(self) -> Self {
-		OpTableBuilder {
-			level: self.level,
-			order: self.order - 1,
-			table: self.table,
-		}
-	}
-
-	pub fn with(self, level: OpPrecedence) -> Self {
-		self.table.with(level)
-	}
-
-	pub fn table(self) -> OpTable {
-		self.table
+impl ListOp {
+	pub fn get(token: &str) -> Option<ListOp> {
+		todo!()
 	}
 }
 
@@ -173,12 +209,9 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn precedence_next_returns_higher_precedence() {
-		let mut prec = OpPrecedence::least();
-		assert_eq!(prec, OpPrecedence::Comma);
-		while let Some(next) = prec.next() {
-			prec = next;
-		}
-		assert_eq!(prec, OpPrecedence::Scope);
+	fn precedence_should_be_ordered() {
+		assert!(Precedence::Comma(0) > Precedence::Member(0));
+		assert!(Precedence::Comma(0) > Precedence::Member(100));
+		assert!(Precedence::Comma(1) > Precedence::Comma(-1));
 	}
 }

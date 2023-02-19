@@ -66,6 +66,7 @@ impl<'a, T: Reader> TokenStream<'a, T> {
 		state.symbols.add_symbol("%");
 		state.symbols.add_symbol("=");
 		state.symbols.add_symbol("==");
+		state.symbols.add_symbol("!");
 		state.symbols.add_symbol("?");
 		state.symbols.add_symbol(":");
 		state.symbols.add_symbol("(");
