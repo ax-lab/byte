@@ -99,6 +99,10 @@ func main() {
 				test.OutputDetails()
 			}
 
+			if failure > 0 {
+				os.Exit(1)
+			}
+
 		default:
 			byte.Spawn(args...)
 		}
