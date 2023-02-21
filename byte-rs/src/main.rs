@@ -3,14 +3,12 @@ use std::{collections::HashMap, env};
 use exec::{execute_expr, ResultValue};
 use parser::{parse_statement, Id, ParseResult, Statement};
 
-use crate::token::Token;
-
-mod input;
-mod lexer;
-mod parser;
-mod token;
+use crate::lexer::Token;
 
 mod exec;
+mod lexer;
+mod parser;
+mod source;
 
 fn main() {
 	let mut done = false;
@@ -58,7 +56,7 @@ fn main() {
 	}
 
 	for file in files {
-		match input::open_file(&file) {
+		match source::open_file(&file) {
 			Ok(mut input) => {
 				let mut program = Vec::new();
 				let mut tokens = input.tokens();

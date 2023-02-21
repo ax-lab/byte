@@ -1,7 +1,13 @@
 use std::path::Path;
 
-use crate::token::{Pos, TokenStream};
-use crate::{lexer, token};
+use crate::lexer::{Input, Pos, Reader, Span, TokenStream};
+
+pub struct SourceFile {
+	path: String,
+	text: Vec<u8>,
+	pos: Pos,
+	prev: Pos,
+}
 
 pub fn open_file<P: AsRef<Path>>(path: P) -> std::io::Result<SourceFile> {
 	let text = std::fs::read(path.as_ref())?;
@@ -13,27 +19,20 @@ pub fn open_file<P: AsRef<Path>>(path: P) -> std::io::Result<SourceFile> {
 	})
 }
 
-pub struct SourceFile {
-	path: String,
-	text: Vec<u8>,
-	pos: Pos,
-	prev: Pos,
-}
-
 impl SourceFile {
 	pub fn tokens(&mut self) -> TokenStream<SourceFile> {
 		TokenStream::new(self)
 	}
 }
 
-impl token::Reader for SourceFile {
-	fn read_text(&mut self, span: token::Span) -> &str {
+impl Reader for SourceFile {
+	fn read_text(&mut self, span: Span) -> &str {
 		let (pos, end) = (span.pos, span.end);
 		unsafe { std::str::from_utf8_unchecked(&self.text[pos.offset..end.offset]) }
 	}
 }
 
-impl lexer::Input for SourceFile {
+impl Input for SourceFile {
 	fn pos(&self) -> Pos {
 		self.pos
 	}

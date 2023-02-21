@@ -1,7 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::token::{Reader, TokenStream};
-use crate::token::{Span, Token};
+use crate::lexer::{Reader, Span, Token, TokenStream};
 
 use super::operators::*;
 use super::ParseResult;

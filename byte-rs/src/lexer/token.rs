@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::lexer;
+use super::{Input, Span, State};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[allow(unused)]
@@ -18,33 +18,7 @@ pub enum Token {
 	Comma,
 }
 
-#[derive(Copy, Clone, Default, Debug)]
-pub struct Pos {
-	pub line: usize,
-	pub column: usize,
-	pub offset: usize,
-	pub was_cr: bool,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct Span {
-	pub pos: Pos,
-	pub end: Pos,
-}
-
-impl std::fmt::Display for Span {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.pos)
-	}
-}
-
-impl std::fmt::Display for Pos {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{:03},{:02}", self.line + 1, self.column + 1)
-	}
-}
-
-pub trait Reader: lexer::Input {
+pub trait Reader: Input {
 	fn read_text(&mut self, span: Span) -> &str;
 }
 
@@ -52,13 +26,13 @@ pub struct TokenStream<'a, T: Reader> {
 	input: &'a mut T,
 	next: VecDeque<(Token, Span)>,
 	ident: VecDeque<usize>,
-	state: lexer::State,
+	state: State,
 }
 
 #[allow(unused)]
 impl<'a, T: Reader> TokenStream<'a, T> {
 	pub fn new(input: &'a mut T) -> TokenStream<'a, T> {
-		let mut state = lexer::State::default();
+		let mut state = State::default();
 		state.symbols.add_symbol("+");
 		state.symbols.add_symbol("-");
 		state.symbols.add_symbol("*");
@@ -138,7 +112,7 @@ impl<'a, T: Reader> TokenStream<'a, T> {
 			// read the next token
 			let (token, pos) = loop {
 				let pos = self.input.pos();
-				let (token, ok) = lexer::read_token(self.input, &mut self.state);
+				let (token, ok) = super::read_token(self.input, &mut self.state);
 				if token == Token::Invalid {
 					let span = Span {
 						pos,

@@ -1,4 +1,4 @@
-use crate::token::{Reader, Span, Token, TokenStream};
+use crate::lexer::{Reader, Span, Token, TokenStream};
 
 #[allow(unused)]
 mod operators;

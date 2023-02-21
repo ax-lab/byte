@@ -1,6 +1,13 @@
 use std::collections::HashMap;
 
-use crate::token::{Pos, Token};
+mod span;
+pub use span::*;
+
+mod token;
+pub use token::*;
+
+mod input;
+pub use input::*;
 
 pub struct State {
 	pub symbols: SymbolTable,
@@ -57,24 +64,6 @@ impl SymbolTable {
 			}
 		}
 		self.states[current].0 = true;
-	}
-}
-
-pub trait Input {
-	fn pos(&self) -> Pos;
-
-	fn read(&mut self) -> Option<char>;
-	fn rewind(&mut self, pos: Pos);
-	fn error(&self) -> Option<std::io::Error>;
-
-	fn read_if(&mut self, next: char) -> bool {
-		let pos = self.pos();
-		if self.read() == Some(next) {
-			true
-		} else {
-			self.rewind(pos);
-			false
-		}
 	}
 }
 
