@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::lexer::{Input, Pos, Reader, Span, TokenStream};
+use crate::lexer::{Input, Pos, Span, TokenStream};
 
 pub struct SourceFile {
 	path: String,
@@ -25,14 +25,12 @@ impl SourceFile {
 	}
 }
 
-impl Reader for SourceFile {
+impl Input for SourceFile {
 	fn read_text(&mut self, span: Span) -> &str {
 		let (pos, end) = (span.pos, span.end);
 		unsafe { std::str::from_utf8_unchecked(&self.text[pos.offset..end.offset]) }
 	}
-}
 
-impl Input for SourceFile {
 	fn pos(&self) -> Pos {
 		self.pos
 	}

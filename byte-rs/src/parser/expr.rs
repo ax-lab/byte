@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::lexer::{Reader, Span, Token, TokenStream};
+use crate::lexer::{Input, Span, Token, TokenStream};
 
 use super::operators::*;
 use super::ParseResult;
@@ -30,7 +30,7 @@ pub enum Expr {
 	List(ListOp, Vec<Expr>),
 }
 
-pub fn parse_expression<T: Reader>(input: &mut TokenStream<T>) -> ExprResult {
+pub fn parse_expression<T: Input>(input: &mut TokenStream<T>) -> ExprResult {
 	let mut ops = VecDeque::new();
 	let mut values = VecDeque::new();
 
@@ -151,7 +151,7 @@ pub fn parse_expression<T: Reader>(input: &mut TokenStream<T>) -> ExprResult {
 	}
 }
 
-fn parse_atom<T: Reader>(input: &mut TokenStream<T>) -> ExprResult {
+fn parse_atom<T: Input>(input: &mut TokenStream<T>) -> ExprResult {
 	let value = match input.get() {
 		Token::Identifier => {
 			let text = input.text();

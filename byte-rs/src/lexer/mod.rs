@@ -330,6 +330,10 @@ mod tests {
 	}
 
 	impl Input for TestInput {
+		fn read_text(&mut self, _span: Span) -> &str {
+			unimplemented!()
+		}
+
 		fn pos(&self) -> Pos {
 			self.pos
 		}

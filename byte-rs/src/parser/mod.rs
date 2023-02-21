@@ -1,4 +1,4 @@
-use crate::lexer::{Reader, Span, Token, TokenStream};
+use crate::lexer::{Input, Span, Token, TokenStream};
 
 #[allow(unused)]
 mod operators;
@@ -27,7 +27,7 @@ pub enum ParseResult {
 	None,
 }
 
-pub fn parse_statement<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
+pub fn parse_statement<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 	while input.get() == Token::LineBreak {
 		input.shift();
 	}
@@ -69,7 +69,7 @@ pub fn parse_statement<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 	}
 }
 
-fn parse_if<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
+fn parse_if<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 	match parse_expression(input) {
 		ExprResult::Expr(expr) => {
 			let block = parse_block(input);
@@ -86,7 +86,7 @@ fn parse_if<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 	}
 }
 
-fn parse_for<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
+fn parse_for<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 	if input.get() != Token::Identifier {
 		return ParseResult::Error(input.span(), "identifier expected after 'for'".into());
 	}
@@ -128,7 +128,7 @@ fn parse_for<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 	}
 }
 
-fn parse_block<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
+fn parse_block<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 	if input.text() != ":" {
 		return ParseResult::Error(input.span(), "block ':' expected".into());
 	}
@@ -169,7 +169,7 @@ fn parse_block<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 	ParseResult::Ok(Statement::Block(block))
 }
 
-fn parse_print<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
+fn parse_print<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 	let mut expr_list = Vec::new();
 	loop {
 		match input.get() {
@@ -195,7 +195,7 @@ fn parse_print<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 	}
 }
 
-fn parse_let<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
+fn parse_let<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 	if input.get() != Token::Identifier {
 		return ParseResult::Error(input.span(), "identifier expected".into());
 	}
@@ -218,7 +218,7 @@ fn parse_let<T: Reader>(input: &mut TokenStream<T>) -> ParseResult {
 	}
 }
 
-fn parse_end<T: Reader>(input: &mut TokenStream<T>, result: ParseResult) -> ParseResult {
+fn parse_end<T: Input>(input: &mut TokenStream<T>, result: ParseResult) -> ParseResult {
 	match input.get() {
 		Token::None | Token::LineBreak => result,
 		_ => ParseResult::Error(input.span(), "expected end of statement".into()),

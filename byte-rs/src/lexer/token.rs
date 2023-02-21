@@ -18,11 +18,7 @@ pub enum Token {
 	Comma,
 }
 
-pub trait Reader: Input {
-	fn read_text(&mut self, span: Span) -> &str;
-}
-
-pub struct TokenStream<'a, T: Reader> {
+pub struct TokenStream<'a, T: Input> {
 	input: &'a mut T,
 	next: VecDeque<(Token, Span)>,
 	ident: VecDeque<usize>,
@@ -30,7 +26,7 @@ pub struct TokenStream<'a, T: Reader> {
 }
 
 #[allow(unused)]
-impl<'a, T: Reader> TokenStream<'a, T> {
+impl<'a, T: Input> TokenStream<'a, T> {
 	pub fn new(input: &'a mut T) -> TokenStream<'a, T> {
 		let mut state = State::default();
 		state.symbols.add_symbol("+");
