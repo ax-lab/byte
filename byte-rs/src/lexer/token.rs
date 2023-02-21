@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use super::{Input, Span, State};
+use super::{Input, Reader, Span, State};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[allow(unused)]
@@ -19,7 +19,7 @@ pub enum Token {
 }
 
 pub struct TokenStream<'a, T: Input> {
-	input: &'a mut T,
+	input: &'a mut Reader<T>,
 	next: VecDeque<(Token, Span)>,
 	ident: VecDeque<usize>,
 	state: State,
@@ -27,7 +27,7 @@ pub struct TokenStream<'a, T: Input> {
 
 #[allow(unused)]
 impl<'a, T: Input> TokenStream<'a, T> {
-	pub fn new(input: &'a mut T) -> TokenStream<'a, T> {
+	pub fn new(input: &'a mut Reader<T>) -> TokenStream<'a, T> {
 		let mut state = State::default();
 		state.symbols.add_symbol("+");
 		state.symbols.add_symbol("-");

@@ -20,20 +20,20 @@ impl Default for State {
 	}
 }
 
-pub fn read_token<I: Input>(input: &mut I, state: &mut State) -> (Token, bool) {
+pub fn read_token<I: Input>(input: &mut Reader<I>, state: &mut State) -> (Token, bool) {
 	match input.read() {
 		Some(',') => (Token::Comma, true),
 
 		Some(' ' | '\t') => {
 			let mut pos;
 			loop {
-				pos = input.pos();
+				pos = input.save();
 				match input.read() {
 					Some(' ' | '\t') => {}
 					_ => break,
 				}
 			}
-			input.rewind(pos);
+			input.restore(pos);
 			return (Token::None, true);
 		}
 
@@ -46,7 +46,7 @@ pub fn read_token<I: Input>(input: &mut I, state: &mut State) -> (Token, bool) {
 
 			let mut pos;
 			let putback = loop {
-				pos = input.pos();
+				pos = input.save();
 				match input.read() {
 					Some('\n' | '\r') if !multi => break true,
 					Some('(') if multi => {
@@ -63,7 +63,7 @@ pub fn read_token<I: Input>(input: &mut I, state: &mut State) -> (Token, bool) {
 				}
 			};
 			if putback {
-				input.rewind(pos);
+				input.restore(pos);
 			}
 			return (Token::Comment, true);
 		}
@@ -78,7 +78,7 @@ pub fn read_token<I: Input>(input: &mut I, state: &mut State) -> (Token, bool) {
 		Some('0'..='9') => {
 			let mut pos;
 			loop {
-				pos = input.pos();
+				pos = input.save();
 				match input.read() {
 					Some('0'..='9') => {}
 					_ => {
@@ -86,14 +86,14 @@ pub fn read_token<I: Input>(input: &mut I, state: &mut State) -> (Token, bool) {
 					}
 				}
 			}
-			input.rewind(pos);
+			input.restore(pos);
 			(Token::Integer, true)
 		}
 
 		Some('a'..='z' | 'A'..='Z' | '_') => {
 			let mut pos;
 			loop {
-				pos = input.pos();
+				pos = input.save();
 				match input.read() {
 					Some('a'..='z' | 'A'..='Z' | '_' | '0'..='9') => {}
 					_ => {
@@ -101,7 +101,7 @@ pub fn read_token<I: Input>(input: &mut I, state: &mut State) -> (Token, bool) {
 					}
 				}
 			}
-			input.rewind(pos);
+			input.restore(pos);
 			(Token::Identifier, true)
 		}
 
@@ -129,11 +129,11 @@ pub fn read_token<I: Input>(input: &mut I, state: &mut State) -> (Token, bool) {
 
 		Some(char) => {
 			if let Some((mut current, valid)) = state.symbols.push(0, char) {
-				let mut last_valid = if valid { Some(input.pos()) } else { None };
-				let mut pos = input.pos();
+				let mut last_valid = if valid { Some(input.save()) } else { None };
+				let mut pos = input.save();
 				while let Some(next) = input.read() {
 					if let Some((next, valid)) = state.symbols.push(current, next) {
-						pos = input.pos();
+						pos = input.save();
 						current = next;
 						if valid {
 							last_valid = Some(pos);
@@ -143,10 +143,10 @@ pub fn read_token<I: Input>(input: &mut I, state: &mut State) -> (Token, bool) {
 					}
 				}
 				if let Some(valid) = last_valid {
-					input.rewind(valid);
+					input.restore(valid);
 					(Token::Symbol, true)
 				} else {
-					input.rewind(pos);
+					input.restore(pos);
 					(Token::Invalid, true)
 				}
 			} else {
@@ -231,12 +231,16 @@ mod tests {
 	}
 
 	fn check_symbols(symbols: &SymbolTable, input: &'static str, expected: &[&'static str]) {
-		let mut input = TestInput::new(input);
+		let mut input = Reader::from(TestInput::new(input));
 		let mut state = State::default();
 		state.symbols = symbols.clone();
 		for (i, expected) in expected.iter().cloned().enumerate() {
+			let pos = input.pos();
 			let next = read_token(&mut input, &mut state);
-			let text = input.text();
+			let text = input.read_text(Span {
+				pos,
+				end: input.pos(),
+			});
 			assert_eq!(
 				next,
 				(Token::Symbol, true),
@@ -247,12 +251,9 @@ mod tests {
 				expected,
 			);
 			assert_eq!(
-				text.as_str(),
-				expected,
+				text, expected,
 				"unexpected symbol `{}` at #{} (expected `{}`)",
-				text,
-				i,
-				expected
+				text, i, expected
 			);
 		}
 
@@ -262,50 +263,48 @@ mod tests {
 
 	struct TestInput {
 		chars: Vec<char>,
-		pos: Pos,
-		txt: usize,
+		pos: usize,
+		txt: String,
 	}
 
 	impl TestInput {
 		pub fn new(input: &'static str) -> Self {
 			TestInput {
 				chars: input.chars().collect(),
-				pos: Pos::default(),
-				txt: 0,
+				pos: 0,
+				txt: String::new(),
 			}
-		}
-
-		pub fn text(&mut self) -> String {
-			let chars = &self.chars[self.txt..self.pos.offset];
-			self.txt = self.pos.offset;
-			chars.into_iter().collect()
 		}
 	}
 
 	impl Input for TestInput {
-		fn read_text(&mut self, _span: Span) -> &str {
-			unimplemented!()
+		type Error = String;
+
+		fn read_text(&mut self, pos: usize, end: usize) -> &str {
+			let chars = &self.chars[pos..end];
+			self.txt = chars.into_iter().collect();
+			return &self.txt;
 		}
 
-		fn pos(&self) -> Pos {
+		fn offset(&self) -> usize {
 			self.pos
 		}
 
+		fn set_offset(&mut self, pos: usize) {
+			self.pos = pos;
+		}
+
 		fn read(&mut self) -> Option<char> {
-			let offset = self.pos.offset;
+			let offset = self.pos;
 			if offset < self.chars.len() {
-				self.pos.offset += 1;
+				self.pos += 1;
 				Some(self.chars[offset])
 			} else {
 				None
 			}
 		}
 
-		fn rewind(&mut self, pos: Pos) {
-			self.pos = pos;
-		}
-
-		fn error(&self) -> Option<std::io::Error> {
+		fn error(&self) -> Option<String> {
 			None
 		}
 	}

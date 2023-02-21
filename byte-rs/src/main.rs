@@ -57,9 +57,10 @@ fn main() {
 
 	for file in files {
 		match source::open_file(&file) {
-			Ok(mut input) => {
+			Ok(input) => {
+				let mut input = lexer::Reader::from(input);
 				let mut program = Vec::new();
-				let mut tokens = input.tokens();
+				let mut tokens = lexer::TokenStream::new(&mut input);
 				if list_tokens {
 					loop {
 						let (next, span, text) = (tokens.get(), tokens.span(), tokens.text());
@@ -76,6 +77,7 @@ fn main() {
 					next = parse_statement(&mut tokens);
 					match next {
 						ParseResult::Error(span, msg) => {
+							let input = input.inner();
 							eprintln!("\n[compile error] {input}:{span}: {msg}\n");
 							std::process::exit(2);
 						}

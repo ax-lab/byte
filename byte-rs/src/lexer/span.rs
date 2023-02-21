@@ -3,7 +3,6 @@ pub struct Pos {
 	pub line: usize,
 	pub column: usize,
 	pub offset: usize,
-	pub was_cr: bool,
 }
 
 #[derive(Copy, Clone, Debug)]
