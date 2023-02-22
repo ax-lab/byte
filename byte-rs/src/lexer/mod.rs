@@ -8,6 +8,8 @@ pub use span::*;
 pub use symbols::*;
 pub use token::*;
 
+mod token_symbol;
+
 pub struct State {
 	pub symbols: SymbolTable,
 }
@@ -261,7 +263,7 @@ mod tests {
 		assert_eq!(next, (Token::None, false));
 	}
 
-	struct TestInput {
+	pub struct TestInput {
 		chars: Vec<char>,
 		pos: usize,
 		txt: String,

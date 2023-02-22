@@ -2,6 +2,18 @@ use std::collections::VecDeque;
 
 use super::{Input, Reader, Span, State};
 
+pub trait TokenValue: Copy + std::fmt::Debug {}
+
+pub enum TokenResult<T: TokenValue> {
+	Ok(T),
+	None,
+	Error(String),
+}
+
+pub trait Tokenizer<T: TokenValue> {
+	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> TokenResult<T>;
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[allow(unused)]
 pub enum Token {
