@@ -169,8 +169,7 @@ fn parse_atom<T: Input>(input: &mut TokenStream<T>) -> ExprResult {
 			let text = text.strip_suffix("'").unwrap();
 			ExprAtom::Literal(text.into())
 		}
-		Token::Symbol => {
-			let next = input.text();
+		Token::Symbol(next) => {
 			if next == "(" {
 				input.shift();
 				let expr = parse_expression(input);

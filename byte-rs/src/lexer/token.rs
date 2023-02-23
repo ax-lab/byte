@@ -1,53 +1,37 @@
 use std::collections::VecDeque;
 
-use super::{Input, Reader, Span, State};
+use super::{Input, LexResult, LexValue, Reader, Span};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[allow(unused)]
 pub enum Token {
 	None,
-	Invalid,
 	Comment,
+	Invalid,
 	LineBreak,
 	Ident,
 	Dedent,
 	Identifier,
 	Integer,
 	String,
-	Symbol,
-	Comma,
+	Symbol(&'static str),
 }
+
+impl LexValue for Token {}
 
 pub struct TokenStream<'a, T: Input> {
 	input: &'a mut Reader<T>,
 	next: VecDeque<(Token, Span)>,
 	ident: VecDeque<usize>,
-	state: State,
 }
 
 #[allow(unused)]
 impl<'a, T: Input> TokenStream<'a, T> {
 	pub fn new(input: &'a mut Reader<T>) -> TokenStream<'a, T> {
-		let mut state = State::default();
-		state.symbols.add_symbol("+");
-		state.symbols.add_symbol("-");
-		state.symbols.add_symbol("*");
-		state.symbols.add_symbol("/");
-		state.symbols.add_symbol("%");
-		state.symbols.add_symbol("=");
-		state.symbols.add_symbol("==");
-		state.symbols.add_symbol("!");
-		state.symbols.add_symbol("?");
-		state.symbols.add_symbol(":");
-		state.symbols.add_symbol("(");
-		state.symbols.add_symbol(")");
-		state.symbols.add_symbol(".");
-		state.symbols.add_symbol("..");
 		TokenStream {
 			input,
 			next: Default::default(),
 			ident: Default::default(),
-			state,
 		}
 	}
 
@@ -106,33 +90,25 @@ impl<'a, T: Input> TokenStream<'a, T> {
 			let new_line = start.column == 0;
 
 			// read the next token
-			let (token, pos) = loop {
-				let pos = self.input.pos();
-				let (token, ok) = super::read_token(self.input, &mut self.state);
-				if token == Token::Invalid {
-					let span = Span {
-						pos,
-						end: self.input.pos(),
-					};
-					panic!(
-						"invalid token at {} (`{}`)",
-						span,
-						self.input.read_text(span)
-					);
-				} else if token != Token::None {
-					break (token, pos);
-				} else if !ok {
-					break (Token::None, pos);
-				}
+			let (result, span) = super::read_token(self.input);
+			let token = match result {
+				LexResult::Ok(token) => token,
+				LexResult::None => Token::None,
+				LexResult::Error(error) => panic!("{error} at {span}"),
 			};
+
 			let end = self.input.pos();
 			if token != Token::Comment {
-				self.next.push_back((token, Span { pos, end }));
+				self.next.push_back((token, span));
 			}
 
 			// check if we need indent or dedent tokens by comparing the first token level
 			if (new_line && token != Token::LineBreak) || token == Token::None {
-				let column = if token == Token::None { 0 } else { pos.column };
+				let column = if token == Token::None {
+					0
+				} else {
+					span.pos.column
+				};
 				let ident = self.ident.back().copied().unwrap_or(0);
 				if column > ident {
 					self.ident.push_back(column);
@@ -140,7 +116,7 @@ impl<'a, T: Input> TokenStream<'a, T> {
 						Token::Ident,
 						Span {
 							pos: start,
-							end: pos,
+							end: span.pos,
 						},
 					));
 				} else {
@@ -152,7 +128,7 @@ impl<'a, T: Input> TokenStream<'a, T> {
 							Token::Dedent,
 							Span {
 								pos: start,
-								end: pos,
+								end: span.pos,
 							},
 						))
 					}

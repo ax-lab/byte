@@ -179,7 +179,7 @@ fn parse_print<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 				break res;
 			}
 
-			Token::Comma if expr_list.len() > 0 => input.shift(),
+			Token::Symbol(",") if expr_list.len() > 0 => input.shift(),
 
 			_ => (),
 		};
@@ -203,7 +203,7 @@ fn parse_let<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 	let id = Id(input.text().into());
 	input.shift();
 
-	if input.get() != Token::Symbol || input.text() != "=" {
+	if input.get() != Token::Symbol("=") {
 		return ParseResult::Error(input.span(), "expected '='".into());
 	}
 

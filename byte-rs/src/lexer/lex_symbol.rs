@@ -8,9 +8,14 @@ pub struct SymbolTable<T: LexValue> {
 
 impl<T: LexValue> Default for SymbolTable<T> {
 	fn default() -> Self {
-		SymbolTable {
+		let mut out = SymbolTable {
 			states: Default::default(),
-		}
+		};
+		out.states.push(Entry {
+			value: None,
+			next: Default::default(),
+		});
+		out
 	}
 }
 
@@ -22,13 +27,6 @@ struct Entry<T: LexValue> {
 impl<T: LexValue> SymbolTable<T> {
 	pub fn add(&mut self, symbol: &'static str, value: T) {
 		assert!(symbol.len() > 0);
-		if self.states.len() == 0 {
-			self.states.push(Entry {
-				value: None,
-				next: Default::default(),
-			});
-		}
-
 		let mut current = 0;
 		for char in symbol.chars() {
 			current = {
@@ -65,7 +63,7 @@ impl<T: LexValue> Lexer<T> for SymbolTable<T> {
 		let (mut state, valid) = if let Some((state, valid)) = state {
 			(state, valid)
 		} else {
-			return LexResult::None;
+			return LexResult::Error("invalid symbol".into());
 		};
 
 		let mut last_pos = input.save();

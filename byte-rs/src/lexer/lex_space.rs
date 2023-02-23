@@ -1,9 +1,9 @@
-use super::{Input, LexResult, Lexer, Reader};
+use super::{Input, LexResult, LexValue, Lexer, Reader};
 
-pub struct TokenSpace;
+pub struct TokenSpace<T: LexValue>(pub T);
 
-impl Lexer<()> for TokenSpace {
-	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexResult<()> {
+impl<T: LexValue> Lexer<T> for TokenSpace<T> {
+	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexResult<T> {
 		match next {
 			' ' | '\t' => {
 				let mut pos;
@@ -15,7 +15,7 @@ impl Lexer<()> for TokenSpace {
 					}
 				}
 				input.restore(pos);
-				LexResult::Ok(())
+				LexResult::Ok(self.0)
 			}
 
 			_ => LexResult::None,
