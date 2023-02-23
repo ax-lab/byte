@@ -8,7 +8,16 @@ pub use span::*;
 pub use symbols::*;
 pub use token::*;
 
-mod token_symbol;
+mod lexer;
+pub use lexer::*;
+
+mod lex_comment;
+mod lex_identifier;
+mod lex_line_break;
+mod lex_number;
+mod lex_space;
+mod lex_string;
+mod lex_symbol;
 
 pub struct State {
 	pub symbols: SymbolTable,

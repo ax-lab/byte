@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use super::{Input, Reader, TokenResult, TokenValue, Tokenizer};
+use super::{Input, LexResult, LexValue, Lexer, Reader};
 
-pub struct SymbolTable<T: TokenValue> {
+pub struct SymbolTable<T: LexValue> {
 	states: Vec<Entry<T>>,
 }
 
-impl<T: TokenValue> Default for SymbolTable<T> {
+impl<T: LexValue> Default for SymbolTable<T> {
 	fn default() -> Self {
 		SymbolTable {
 			states: Default::default(),
@@ -14,12 +14,12 @@ impl<T: TokenValue> Default for SymbolTable<T> {
 	}
 }
 
-struct Entry<T: TokenValue> {
+struct Entry<T: LexValue> {
 	value: Option<T>,
 	next: HashMap<char, usize>,
 }
 
-impl<T: TokenValue> SymbolTable<T> {
+impl<T: LexValue> SymbolTable<T> {
 	pub fn add(&mut self, symbol: &'static str, value: T) {
 		assert!(symbol.len() > 0);
 		if self.states.len() == 0 {
@@ -59,13 +59,15 @@ impl<T: TokenValue> SymbolTable<T> {
 	}
 }
 
-impl<T: TokenValue> Tokenizer<T> for SymbolTable<T> {
-	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> TokenResult<T> {
+impl<T: LexValue> Lexer for SymbolTable<T> {
+	type Value = T;
+
+	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexResult<T> {
 		let state = self.get_next(0, next);
 		let (mut state, valid) = if let Some((state, valid)) = state {
 			(state, valid)
 		} else {
-			return TokenResult::None;
+			return LexResult::None;
 		};
 
 		let mut last_pos = input.save();
@@ -83,9 +85,9 @@ impl<T: TokenValue> Tokenizer<T> for SymbolTable<T> {
 		}
 		if let Some((pos, index)) = valid {
 			input.restore(pos);
-			TokenResult::Ok(self.states[index].value.unwrap())
+			LexResult::Ok(self.states[index].value.unwrap())
 		} else {
-			TokenResult::Error("invalid symbol".into())
+			LexResult::Error("invalid symbol".into())
 		}
 	}
 }
@@ -98,7 +100,7 @@ mod tests {
 	#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 	struct Token(pub &'static str);
 
-	impl TokenValue for Token {}
+	impl LexValue for Token {}
 
 	#[test]
 	fn lexer_should_parse_symbols() {
@@ -125,7 +127,7 @@ mod tests {
 		check_symbols(&symbols, ">>>>>>>>", &[Token("arrow"), Token("arrow")]);
 	}
 
-	fn check_symbols<T: TokenValue + Eq + std::fmt::Debug>(
+	fn check_symbols<T: LexValue + Eq + std::fmt::Debug>(
 		symbols: &SymbolTable<T>,
 		input: &'static str,
 		expected: &[T],
@@ -141,15 +143,15 @@ mod tests {
 				end: input.pos(),
 			});
 			match next {
-				TokenResult::Ok(actual) => assert_eq!(
+				LexResult::Ok(actual) => assert_eq!(
 					actual, expected,
 					"unexpected symbol {:?} from `{}` at #{} (expected {:?})",
 					actual, text, i, expected,
 				),
-				TokenResult::Error(error) => {
+				LexResult::Error(error) => {
 					panic!("unexpected error at #{i}: {error} (consumed: `{text}`)")
 				}
-				TokenResult::None => {
+				LexResult::None => {
 					panic!("expected token, got none at #{i} (consumed: `{text}`)")
 				}
 			}
