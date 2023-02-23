@@ -59,9 +59,7 @@ impl<T: LexValue> SymbolTable<T> {
 	}
 }
 
-impl<T: LexValue> Lexer for SymbolTable<T> {
-	type Value = T;
-
+impl<T: LexValue> Lexer<T> for SymbolTable<T> {
 	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexResult<T> {
 		let state = self.get_next(0, next);
 		let (mut state, valid) = if let Some((state, valid)) = state {

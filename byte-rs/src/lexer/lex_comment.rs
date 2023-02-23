@@ -2,9 +2,7 @@ use super::{Input, LexResult, LexValue, Lexer, Reader};
 
 pub struct TokenComment<T: LexValue>(pub T);
 
-impl<T: LexValue> Lexer for TokenComment<T> {
-	type Value = T;
-
+impl<T: LexValue> Lexer<T> for TokenComment<T> {
 	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexResult<T> {
 		match next {
 			'#' => {

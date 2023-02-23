@@ -2,9 +2,7 @@ use super::{Input, LexResult, LexValue, Lexer, Reader};
 
 pub struct TokenIdentifier<T: LexValue>(pub T);
 
-impl<T: LexValue> Lexer for TokenIdentifier<T> {
-	type Value = T;
-
+impl<T: LexValue> Lexer<T> for TokenIdentifier<T> {
 	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexResult<T> {
 		match next {
 			'a'..='z' | 'A'..='Z' | '_' => {

@@ -2,9 +2,7 @@ use super::{Input, LexResult, Lexer, Reader};
 
 pub struct TokenSpace;
 
-impl Lexer for TokenSpace {
-	type Value = ();
-
+impl Lexer<()> for TokenSpace {
 	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexResult<()> {
 		match next {
 			' ' | '\t' => {
