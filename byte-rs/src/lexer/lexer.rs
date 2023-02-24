@@ -2,17 +2,17 @@ use std::marker::PhantomData;
 
 use super::{Input, Reader};
 
-pub enum LexerResult<T: IsToken> {
-	None,
-	Token(T),
-	Error(String),
-}
-
 pub trait IsToken: Clone + std::fmt::Debug {}
 
 impl IsToken for () {}
 
 impl IsToken for &'static str {}
+
+pub enum LexerResult<T: IsToken> {
+	None,
+	Token(T),
+	Error(String),
+}
 
 pub trait Lexer<T: IsToken>: Sized {
 	/// Tries to read the next recognized token from the input.
