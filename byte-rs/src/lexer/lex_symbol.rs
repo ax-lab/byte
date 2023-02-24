@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
-use super::{Input, LexResult, LexValue, Lexer, Reader};
+use super::{Input, IsToken, Lexer, LexerResult, Reader};
 
-pub struct SymbolTable<T: LexValue> {
+pub struct LexSymbol<T: IsToken> {
 	states: Vec<Entry<T>>,
 }
 
-impl<T: LexValue> Default for SymbolTable<T> {
+impl<T: IsToken> Default for LexSymbol<T> {
 	fn default() -> Self {
-		let mut out = SymbolTable {
+		let mut out = LexSymbol {
 			states: Default::default(),
 		};
 		out.states.push(Entry {
@@ -19,13 +19,13 @@ impl<T: LexValue> Default for SymbolTable<T> {
 	}
 }
 
-struct Entry<T: LexValue> {
+struct Entry<T: IsToken> {
 	value: Option<T>,
 	next: HashMap<char, usize>,
 }
 
-impl<T: LexValue> SymbolTable<T> {
-	pub fn add(&mut self, symbol: &'static str, value: T) {
+impl<T: IsToken> LexSymbol<T> {
+	pub fn add_symbol(&mut self, symbol: &'static str, value: T) {
 		assert!(symbol.len() > 0);
 		let mut current = 0;
 		for char in symbol.chars() {
@@ -57,13 +57,13 @@ impl<T: LexValue> SymbolTable<T> {
 	}
 }
 
-impl<T: LexValue> Lexer<T> for SymbolTable<T> {
-	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexResult<T> {
+impl<T: IsToken> Lexer<T> for LexSymbol<T> {
+	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexerResult<T> {
 		let state = self.get_next(0, next);
 		let (mut state, valid) = if let Some((state, valid)) = state {
 			(state, valid)
 		} else {
-			return LexResult::Error("invalid symbol".into());
+			return LexerResult::Error("invalid symbol".into());
 		};
 
 		let mut last_pos = input.save();
@@ -81,9 +81,9 @@ impl<T: LexValue> Lexer<T> for SymbolTable<T> {
 		}
 		if let Some((pos, index)) = valid {
 			input.restore(pos);
-			LexResult::Ok(self.states[index].value.unwrap())
+			LexerResult::Token(self.states[index].value.clone().unwrap())
 		} else {
-			LexResult::Error("invalid symbol".into())
+			LexerResult::Error("invalid symbol".into())
 		}
 	}
 }
@@ -96,35 +96,35 @@ mod tests {
 	#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 	struct Token(pub &'static str);
 
-	impl LexValue for Token {}
+	impl IsToken for Token {}
 
 	#[test]
 	fn lexer_should_parse_symbols() {
-		let mut symbols = SymbolTable::default();
-		symbols.add("+", Token("+"));
-		symbols.add("++", Token("++"));
-		symbols.add(".", Token("."));
-		symbols.add("..", Token(".."));
-		symbols.add("...", Token("..."));
-		symbols.add(">", Token(">"));
-		symbols.add(">>>>", Token("arrow"));
+		let mut lexer = LexSymbol::default();
+		lexer.add_symbol("+", Token("+"));
+		lexer.add_symbol("++", Token("++"));
+		lexer.add_symbol(".", Token("."));
+		lexer.add_symbol("..", Token(".."));
+		lexer.add_symbol("...", Token("..."));
+		lexer.add_symbol(">", Token(">"));
+		lexer.add_symbol(">>>>", Token("arrow"));
 
-		check_symbols(&symbols, "", &[]);
-		check_symbols(&symbols, "+", &[Token("+")]);
-		check_symbols(&symbols, "++", &[Token("++")]);
-		check_symbols(&symbols, "+++", &[Token("++"), Token("+")]);
-		check_symbols(&symbols, ".", &[Token(".")]);
-		check_symbols(&symbols, "..", &[Token("..")]);
-		check_symbols(&symbols, "...", &[Token("...")]);
-		check_symbols(&symbols, "....", &[Token("..."), Token(".")]);
-		check_symbols(&symbols, ".....+", &[Token("..."), Token(".."), Token("+")]);
-		check_symbols(&symbols, ">>>", &[Token(">"), Token(">"), Token(">")]);
-		check_symbols(&symbols, ">>>>", &[Token("arrow")]);
-		check_symbols(&symbols, ">>>>>>>>", &[Token("arrow"), Token("arrow")]);
+		check_symbols(&lexer, "", &[]);
+		check_symbols(&lexer, "+", &[Token("+")]);
+		check_symbols(&lexer, "++", &[Token("++")]);
+		check_symbols(&lexer, "+++", &[Token("++"), Token("+")]);
+		check_symbols(&lexer, ".", &[Token(".")]);
+		check_symbols(&lexer, "..", &[Token("..")]);
+		check_symbols(&lexer, "...", &[Token("...")]);
+		check_symbols(&lexer, "....", &[Token("..."), Token(".")]);
+		check_symbols(&lexer, ".....+", &[Token("..."), Token(".."), Token("+")]);
+		check_symbols(&lexer, ">>>", &[Token(">"), Token(">"), Token(">")]);
+		check_symbols(&lexer, ">>>>", &[Token("arrow")]);
+		check_symbols(&lexer, ">>>>>>>>", &[Token("arrow"), Token("arrow")]);
 	}
 
-	fn check_symbols<T: LexValue + Eq + std::fmt::Debug>(
-		symbols: &SymbolTable<T>,
+	fn check_symbols<T: IsToken + Eq + std::fmt::Debug>(
+		symbols: &LexSymbol<T>,
 		input: &'static str,
 		expected: &[T],
 	) {
@@ -139,15 +139,15 @@ mod tests {
 				end: input.pos(),
 			});
 			match next {
-				LexResult::Ok(actual) => assert_eq!(
+				LexerResult::Token(actual) => assert_eq!(
 					actual, expected,
 					"unexpected symbol {:?} from `{}` at #{} (expected {:?})",
 					actual, text, i, expected,
 				),
-				LexResult::Error(error) => {
+				LexerResult::Error(error) => {
 					panic!("unexpected error at #{i}: {error} (consumed: `{text}`)")
 				}
-				LexResult::None => {
+				LexerResult::None => {
 					panic!("expected token, got none at #{i} (consumed: `{text}`)")
 				}
 			}

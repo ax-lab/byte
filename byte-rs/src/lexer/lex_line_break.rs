@@ -1,18 +1,18 @@
-use super::{Input, LexResult, LexValue, Lexer, Reader};
+use super::{Input, IsToken, Lexer, LexerResult, Reader};
 
-pub struct TokenLineBreak<T: LexValue>(pub T);
+pub struct LexLineBreak<T: IsToken>(pub T);
 
-impl<T: LexValue> Lexer<T> for TokenLineBreak<T> {
-	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexResult<T> {
+impl<T: IsToken> Lexer<T> for LexLineBreak<T> {
+	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexerResult<T> {
 		match next {
 			'\r' => {
 				input.read_if('\n');
-				LexResult::Ok(self.0)
+				LexerResult::Token(self.0.clone())
 			}
 
-			'\n' => LexResult::Ok(self.0),
+			'\n' => LexerResult::Token(self.0.clone()),
 
-			_ => LexResult::None,
+			_ => LexerResult::None,
 		}
 	}
 }

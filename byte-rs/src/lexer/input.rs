@@ -1,5 +1,6 @@
 use super::{Pos, Span};
 
+/// Trait implemented by any input to a [super::Lexer].
 pub trait Input {
 	type Error: std::fmt::Display;
 
@@ -7,11 +8,10 @@ pub trait Input {
 	fn set_offset(&mut self, pos: usize);
 
 	fn read(&mut self) -> Option<char>;
-	fn read_text(&mut self, from: usize, end: usize) -> &str;
-
-	fn error(&self) -> Option<Self::Error>;
+	fn read_text(&mut self, pos: usize, end: usize) -> &str;
 }
 
+/// Wrapper for an [Input] providing support for lexing.
 pub struct Reader<T: Input> {
 	inner: T,
 	pos: Pos,
@@ -38,10 +38,12 @@ impl<T: Input> Reader<T> {
 		&mut self.inner
 	}
 
+	/// Return the current position for the reader.
 	pub fn pos(&self) -> Pos {
 		self.pos
 	}
 
+	/// Read the next character in the input and advances its position.
 	pub fn read(&mut self) -> Option<char> {
 		if let Some(next) = self.inner.read() {
 			self.advance(next, self.inner.offset());
@@ -51,35 +53,36 @@ impl<T: Input> Reader<T> {
 		}
 	}
 
+	/// Return a span of text from the input.
 	pub fn read_text(&mut self, span: Span) -> &str {
 		self.inner.read_text(span.pos.offset, span.end.offset)
 	}
 
+	/// Returns the current state of the reader for backtracking.
 	pub fn save(&self) -> (Pos, bool) {
 		(self.pos, self.was_cr)
 	}
 
+	/// Backtrack to a state saved by [`save()`].
 	pub fn restore(&mut self, state: (Pos, bool)) {
 		(self.pos, self.was_cr) = state;
 		self.inner.set_offset(self.pos.offset);
 	}
 
+	/// Read the next character in the input if it is the given character.
 	pub fn read_if(&mut self, expected: char) -> bool {
-		let pos = self.inner.offset();
+		let offset = self.inner.offset();
 		if let Some(next) = self.inner.read() {
 			if next == expected {
 				self.advance(next, self.inner.offset());
 				return true;
 			}
 		}
-		self.inner.set_offset(pos);
+		self.inner.set_offset(offset);
 		false
 	}
 
-	pub fn error(&self) -> Option<String> {
-		self.inner.error().map(|x| format!("{x}"))
-	}
-
+	/// Advance the reader position based on the given character.
 	fn advance(&mut self, next: char, offset: usize) {
 		match next {
 			'\n' => {

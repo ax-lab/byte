@@ -1,23 +1,23 @@
-use super::{Input, LexResult, LexValue, Lexer, Reader};
+use super::{Input, IsToken, Lexer, LexerResult, Reader};
 
-pub struct TokenString<T: LexValue>(pub T);
+pub struct LexString<T: IsToken>(pub T);
 
-impl<T: LexValue> Lexer<T> for TokenString<T> {
-	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexResult<T> {
+impl<T: IsToken> Lexer<T> for LexString<T> {
+	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexerResult<T> {
 		match next {
 			'\'' => loop {
 				match input.read() {
 					Some('\'') => {
-						break LexResult::Ok(self.0);
+						break LexerResult::Token(self.0.clone());
 					}
 
-					None => break LexResult::Error("unclosed string literal".into()),
+					None => break LexerResult::Error("unclosed string literal".into()),
 
 					_ => {}
 				}
 			},
 
-			_ => LexResult::None,
+			_ => LexerResult::None,
 		}
 	}
 }

@@ -1,9 +1,9 @@
-use super::{Input, LexResult, LexValue, Lexer, Reader};
+use super::{Input, IsToken, Lexer, LexerResult, Reader};
 
-pub struct TokenNumber<T: LexValue>(pub T);
+pub struct LexNumber<T: IsToken>(pub T);
 
-impl<T: LexValue> Lexer<T> for TokenNumber<T> {
-	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexResult<T> {
+impl<T: IsToken> Lexer<T> for LexNumber<T> {
+	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexerResult<T> {
 		match next {
 			'0'..='9' => {
 				let mut pos;
@@ -17,10 +17,10 @@ impl<T: LexValue> Lexer<T> for TokenNumber<T> {
 					}
 				}
 				input.restore(pos);
-				LexResult::Ok(self.0)
+				LexerResult::Token(self.0.clone())
 			}
 
-			_ => LexResult::None,
+			_ => LexerResult::None,
 		}
 	}
 }

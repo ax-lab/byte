@@ -18,16 +18,16 @@ mod lex_space;
 mod lex_string;
 mod lex_symbol;
 
-pub fn read_token<T: Input>(input: &mut Reader<T>) -> (LexResult<Token>, Span) {
+pub fn read_token<T: Input>(input: &mut Reader<T>) -> (LexerResult<Token>, Span) {
 	let config = Lazy::new(|| {
-		let space = lex_space::TokenSpace(());
+		let space = lex_space::LexSpace(());
 		let skip = space;
 
-		let comment = lex_comment::TokenComment(Token::Comment);
-		let line_break = lex_line_break::TokenLineBreak(Token::LineBreak);
-		let identifier = lex_identifier::TokenIdentifier(Token::Identifier);
-		let string = lex_string::TokenString(Token::String);
-		let number = lex_number::TokenNumber(Token::Integer);
+		let comment = lex_comment::LexComment(Token::Comment);
+		let line_break = lex_line_break::LexLineBreak(Token::LineBreak);
+		let identifier = lex_identifier::LexIdentifier(Token::Identifier);
+		let string = lex_string::LexString(Token::String);
+		let number = lex_number::LexNumber(Token::Integer);
 		let symbol = symbols();
 		let lexer = comment
 			.or(line_break)
@@ -43,28 +43,18 @@ pub fn read_token<T: Input>(input: &mut Reader<T>) -> (LexResult<Token>, Span) {
 	let (res, pos) = loop {
 		if let Some(next) = input.read() {
 			match skip.read(next, input) {
-				LexResult::Ok(..) => {
+				LexerResult::Token(..) => {
 					pos = input.pos();
 				}
-				LexResult::None => {
+				LexerResult::None => {
 					let res = lexer.read(next, input);
 					break (res, pos);
 				}
-				LexResult::Error(error) => break (LexResult::Error(error), pos),
+				LexerResult::Error(error) => break (LexerResult::Error(error), pos),
 			}
 		} else {
-			break (LexResult::None, pos);
+			break (LexerResult::None, pos);
 		}
-	};
-
-	let res = if let LexResult::None = res {
-		if let Some(error) = input.error() {
-			LexResult::Error(error)
-		} else {
-			LexResult::None
-		}
-	} else {
-		res
 	};
 
 	(
@@ -76,23 +66,23 @@ pub fn read_token<T: Input>(input: &mut Reader<T>) -> (LexResult<Token>, Span) {
 	)
 }
 
-fn symbols() -> lex_symbol::SymbolTable<Token> {
-	let mut sym = lex_symbol::SymbolTable::default();
-	sym.add(",", Token::Symbol(","));
-	sym.add("+", Token::Symbol("+"));
-	sym.add("-", Token::Symbol("-"));
-	sym.add("*", Token::Symbol("*"));
-	sym.add("/", Token::Symbol("/"));
-	sym.add("%", Token::Symbol("%"));
-	sym.add("=", Token::Symbol("="));
-	sym.add("==", Token::Symbol("=="));
-	sym.add("!", Token::Symbol("!"));
-	sym.add("?", Token::Symbol("?"));
-	sym.add(":", Token::Symbol(":"));
-	sym.add("(", Token::Symbol("("));
-	sym.add(")", Token::Symbol(")"));
-	sym.add(".", Token::Symbol("."));
-	sym.add("..", Token::Symbol(".."));
+fn symbols() -> lex_symbol::LexSymbol<Token> {
+	let mut sym = lex_symbol::LexSymbol::default();
+	sym.add_symbol(",", Token::Symbol(","));
+	sym.add_symbol("+", Token::Symbol("+"));
+	sym.add_symbol("-", Token::Symbol("-"));
+	sym.add_symbol("*", Token::Symbol("*"));
+	sym.add_symbol("/", Token::Symbol("/"));
+	sym.add_symbol("%", Token::Symbol("%"));
+	sym.add_symbol("=", Token::Symbol("="));
+	sym.add_symbol("==", Token::Symbol("=="));
+	sym.add_symbol("!", Token::Symbol("!"));
+	sym.add_symbol("?", Token::Symbol("?"));
+	sym.add_symbol(":", Token::Symbol(":"));
+	sym.add_symbol("(", Token::Symbol("("));
+	sym.add_symbol(")", Token::Symbol(")"));
+	sym.add_symbol(".", Token::Symbol("."));
+	sym.add_symbol("..", Token::Symbol(".."));
 	sym
 }
 
@@ -141,10 +131,6 @@ mod tests {
 			} else {
 				None
 			}
-		}
-
-		fn error(&self) -> Option<String> {
-			None
 		}
 	}
 }

@@ -47,10 +47,6 @@ impl Input for SourceFile {
 			None
 		}
 	}
-
-	fn error(&self) -> Option<std::io::Error> {
-		None
-	}
 }
 
 impl std::fmt::Display for SourceFile {

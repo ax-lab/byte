@@ -1,9 +1,9 @@
-use super::{Input, LexResult, LexValue, Lexer, Reader};
+use super::{Input, IsToken, Lexer, LexerResult, Reader};
 
-pub struct TokenComment<T: LexValue>(pub T);
+pub struct LexComment<T: IsToken>(pub T);
 
-impl<T: LexValue> Lexer<T> for TokenComment<T> {
-	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexResult<T> {
+impl<T: IsToken> Lexer<T> for LexComment<T> {
+	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexerResult<T> {
 		match next {
 			'#' => {
 				let (multi, mut level) = if input.read_if('(') {
@@ -33,10 +33,10 @@ impl<T: LexValue> Lexer<T> for TokenComment<T> {
 				if putback {
 					input.restore(pos);
 				}
-				LexResult::Ok(self.0)
+				LexerResult::Token(self.0.clone())
 			}
 
-			_ => LexResult::None,
+			_ => LexerResult::None,
 		}
 	}
 }

@@ -1,13 +1,11 @@
 use std::collections::VecDeque;
 
-use super::{Input, LexResult, LexValue, Reader, Span};
+use super::{Input, IsToken, LexerResult, Reader, Span};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[allow(unused)]
 pub enum Token {
 	None,
 	Comment,
-	Invalid,
 	LineBreak,
 	Ident,
 	Dedent,
@@ -17,7 +15,7 @@ pub enum Token {
 	Symbol(&'static str),
 }
 
-impl LexValue for Token {}
+impl IsToken for Token {}
 
 pub struct TokenStream<'a, T: Input> {
 	input: &'a mut Reader<T>,
@@ -92,9 +90,9 @@ impl<'a, T: Input> TokenStream<'a, T> {
 			// read the next token
 			let (result, span) = super::read_token(self.input);
 			let token = match result {
-				LexResult::Ok(token) => token,
-				LexResult::None => Token::None,
-				LexResult::Error(error) => panic!("{error} at {span}"),
+				LexerResult::Token(token) => token,
+				LexerResult::None => Token::None,
+				LexerResult::Error(error) => panic!("{error} at {span}"),
 			};
 
 			let end = self.input.pos();
