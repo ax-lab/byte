@@ -28,45 +28,42 @@ pub enum ParseResult {
 }
 
 pub fn parse_statement<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
-	while input.get() == Token::LineBreak {
-		input.shift();
-	}
+	input.skip_while(|token| matches!(token, Token::LineBreak));
+	input
+		.read(|input, token, span| {
+			let result = match token {
+				Token::Identifier(id) => match id.as_str() {
+					"print" => parse_print(input),
+					"let" | "const" => parse_let(input),
+					"for" => parse_for(input),
+					"if" => parse_if(input),
+					_ => {
+						let token = Token::Identifier(id);
+						input.unget(token, span);
+						ParseResult::None
+					}
+				},
 
-	let span = input.span();
-	let result = match input.get() {
-		Token::Identifier => match input.text() {
-			"print" => {
-				input.shift();
-				parse_print(input)
-			}
-			"let" | "const" => {
-				input.shift();
-				parse_let(input)
-			}
-			"for" => {
-				input.shift();
-				parse_for(input)
-			}
-			"if" => {
-				input.shift();
-				parse_if(input)
-			}
-			_ => ParseResult::None,
-		},
-		Token::None => return ParseResult::None,
-
-		other => ParseResult::Error(span, format!("unexpected token `{other:?}`")),
-	};
-
-	if let ParseResult::None = result {
-		match parse_expression(input) {
-			ExprResult::Expr(expr) => ParseResult::Ok(Statement::Expr(expr)),
-			ExprResult::Error(span, error) => ParseResult::Error(span, error),
-			ExprResult::None => ParseResult::Error(span, "unexpected identifier".into()),
-		}
-	} else {
-		result
-	}
+				token => {
+					input.unget(token, span);
+					ParseResult::None
+				}
+			};
+			let result = if let ParseResult::None = result {
+				match parse_expression(input) {
+					ExprResult::Expr(expr) => ParseResult::Ok(Statement::Expr(expr)),
+					ExprResult::Error(span, error) => ParseResult::Error(span, error),
+					ExprResult::None => {
+						let token = input.next_token();
+						ParseResult::Error(span, format!("expected expression, got {token:?}"))
+					}
+				}
+			} else {
+				result
+			};
+			Some(result)
+		})
+		.unwrap_or(ParseResult::None)
 }
 
 fn parse_if<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
@@ -81,80 +78,79 @@ fn parse_if<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 		}
 		ExprResult::Error(span, error) => ParseResult::Error(span, error),
 		ExprResult::None => {
-			ParseResult::Error(input.span(), "expression expected after 'if'".into())
+			ParseResult::Error(input.next_span(), "expression expected after 'if'".into())
 		}
 	}
 }
 
 fn parse_for<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
-	if input.get() != Token::Identifier {
-		return ParseResult::Error(input.span(), "identifier expected after 'for'".into());
-	}
+	let id = if let Some(id) = input.read_with(|token, _| match token {
+		Token::Identifier(id) => Some(id),
+		_ => None,
+	}) {
+		id
+	} else {
+		return ParseResult::Error(input.next_span(), "identifier expected after 'for'".into());
+	};
 
-	let id = Id(input.text().into());
-	input.shift();
-
-	if input.get() != Token::Identifier || input.text() != "in" {
-		return ParseResult::Error(input.span(), "for 'in' expected".into());
+	if !input.read_symbol_str("in") {
+		return ParseResult::Error(input.next_span(), "for 'in' expected".into());
 	}
-	input.shift();
 
 	let from = match parse_expression(input) {
 		ExprResult::Expr(expr) => expr,
 		ExprResult::Error(span, error) => return ParseResult::Error(span, error),
 		ExprResult::None => {
-			return ParseResult::Error(input.span(), "expression expected after 'for in'".into())
+			return ParseResult::Error(
+				input.next_span(),
+				"expression expected after 'for in'".into(),
+			)
 		}
 	};
 
-	if input.text() != ".." {
-		return ParseResult::Error(input.span(), "for '..' expected".into());
+	if !input.read_symbol_str("..") {
+		return ParseResult::Error(input.next_span(), "for '..' expected".into());
 	}
-	input.shift();
 
 	let to = match parse_expression(input) {
 		ExprResult::Expr(expr) => expr,
 		ExprResult::Error(span, error) => return ParseResult::Error(span, error),
 		ExprResult::None => {
-			return ParseResult::Error(input.span(), "expression expected after 'for in ..'".into())
+			return ParseResult::Error(
+				input.next_span(),
+				"expression expected after 'for in ..'".into(),
+			)
 		}
 	};
 
 	let block = parse_block(input);
 	if let ParseResult::Ok(block) = block {
-		ParseResult::Ok(Statement::For(id, from, to, block.into()))
+		ParseResult::Ok(Statement::For(Id(id), from, to, block.into()))
 	} else {
 		block
 	}
 }
 
 fn parse_block<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
-	if input.text() != ":" {
-		return ParseResult::Error(input.span(), "block ':' expected".into());
-	}
-	input.shift();
-
-	if input.get() != Token::LineBreak {
-		return ParseResult::Error(input.span(), "end of line expected after ':'".into());
+	if !input.read_symbol_str(":") {
+		return ParseResult::Error(input.next_span(), "block ':' expected".into());
 	}
 
-	while input.get() == Token::LineBreak {
-		input.shift();
+	if !input.read_if(|token| matches!(token, Token::LineBreak)) {
+		return ParseResult::Error(input.next_span(), "end of line expected after ':'".into());
 	}
 
-	if input.get() != Token::Ident {
-		return ParseResult::Error(input.span(), "idented block expected".into());
+	input.skip_while(|token| matches!(token, Token::LineBreak));
+
+	if !input.read_if(|token| matches!(token, Token::Ident)) {
+		return ParseResult::Error(input.next_span(), "idented block expected".into());
 	}
-	input.shift();
 
 	let mut block = Vec::new();
 	loop {
-		while input.get() == Token::LineBreak {
-			input.shift();
-		}
+		input.skip_while(|token| matches!(token, Token::LineBreak));
 
-		if input.get() == Token::Dedent {
-			input.shift();
+		if input.read_if(|token| matches!(token, Token::Dedent)) {
 			break;
 		}
 
@@ -172,23 +168,20 @@ fn parse_block<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 fn parse_print<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 	let mut expr_list = Vec::new();
 	loop {
-		match input.get() {
-			Token::None | Token::LineBreak => {
-				input.shift();
-				let res = ParseResult::Ok(Statement::Print(expr_list));
-				break res;
-			}
+		if input.read_if(|token| matches!(token, Token::None | Token::LineBreak)) {
+			let res = ParseResult::Ok(Statement::Print(expr_list));
+			break res;
+		}
 
-			Token::Symbol(",") if expr_list.len() > 0 => input.shift(),
-
-			_ => (),
-		};
+		if expr_list.len() > 0 {
+			input.read_if(|token| matches!(token, Token::Symbol(",")));
+		}
 
 		let expr = match parse_expression(input) {
 			ExprResult::Expr(expr) => expr,
 			ExprResult::Error(span, error) => break ParseResult::Error(span, error),
 			ExprResult::None => {
-				break ParseResult::Error(input.span(), "expression expected".into())
+				break ParseResult::Error(input.next_span(), "expression expected".into())
 			}
 		};
 		expr_list.push(expr);
@@ -196,31 +189,32 @@ fn parse_print<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 }
 
 fn parse_let<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
-	if input.get() != Token::Identifier {
-		return ParseResult::Error(input.span(), "identifier expected".into());
+	let id = if let Some(id) = input.read_with(|token, _| match token {
+		Token::Identifier(id) => Some(id),
+		_ => None,
+	}) {
+		Id(id)
+	} else {
+		return ParseResult::Error(input.next_span(), "identifier expected".into());
+	};
+
+	if !input.read_symbol_str("=") {
+		return ParseResult::Error(input.next_span(), "expected '='".into());
 	}
 
-	let id = Id(input.text().into());
-	input.shift();
-
-	if input.get() != Token::Symbol("=") {
-		return ParseResult::Error(input.span(), "expected '='".into());
-	}
-
-	input.shift();
 	match parse_expression(input) {
 		ExprResult::Expr(expr) => {
 			let res = ParseResult::Ok(Statement::Let(id, expr));
 			parse_end(input, res)
 		}
 		ExprResult::Error(span, error) => ParseResult::Error(span, error),
-		ExprResult::None => ParseResult::Error(input.span(), "expression expected".into()),
+		ExprResult::None => ParseResult::Error(input.next_span(), "expression expected".into()),
 	}
 }
 
 fn parse_end<T: Input>(input: &mut TokenStream<T>, result: ParseResult) -> ParseResult {
-	match input.get() {
+	input.read_map(|token, span| match token {
 		Token::None | Token::LineBreak => result,
-		_ => ParseResult::Error(input.span(), "expected end of statement".into()),
-	}
+		_ => ParseResult::Error(span, "expected end of statement".into()),
+	})
 }

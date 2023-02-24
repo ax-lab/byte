@@ -1,9 +1,8 @@
 use std::{collections::HashMap, env};
 
 use exec::{execute_expr, ResultValue};
+use lexer::Token;
 use parser::{parse_statement, Id, ParseResult, Statement};
-
-use crate::lexer::Token;
 
 mod exec;
 mod lexer;
@@ -63,13 +62,14 @@ fn main() {
 				let mut tokens = lexer::TokenStream::new(&mut input);
 				if list_tokens {
 					loop {
-						let (next, span, text) = (tokens.get(), tokens.span(), tokens.text());
-						println!("{span}: {:10}  =  {text:?}", format!("{next:?}"));
-						if next == Token::None {
-							std::process::exit(0);
+						match tokens.dump_next() {
+							(Token::None, _, _) => break,
+							(token, span, text) => {
+								println!("{span}: {:10}  =  {token:?}", format!("{text:?}"));
+							}
 						}
-						tokens.shift();
 					}
+					std::process::exit(0);
 				}
 
 				loop {
@@ -79,6 +79,9 @@ fn main() {
 						ParseResult::Error(span, msg) => {
 							let input = input.inner();
 							eprintln!("\n[compile error] {input}:{span}: {msg}\n");
+							if list_ast {
+								break;
+							}
 							std::process::exit(2);
 						}
 						ParseResult::Ok(next) => {

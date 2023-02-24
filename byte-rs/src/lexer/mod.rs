@@ -25,9 +25,9 @@ pub fn read_token<T: Input>(input: &mut Reader<T>) -> (LexerResult<Token>, Span)
 
 		let comment = lex_comment::LexComment(Token::Comment);
 		let line_break = lex_line_break::LexLineBreak(Token::LineBreak);
-		let identifier = lex_identifier::LexIdentifier(Token::Identifier);
-		let string = lex_string::LexString(Token::String);
-		let number = lex_number::LexNumber(Token::Integer);
+		let identifier = lex_identifier::LexIdentifier(|s| Token::Identifier(s));
+		let string = lex_string::LexString(|s| Token::Literal(s));
+		let number = lex_number::LexNumber(|n| Token::Integer(n));
 		let symbol = symbols();
 		let lexer = comment
 			.or(line_break)

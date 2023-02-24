@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 
+use crate::lexer::WithToken;
 use crate::lexer::{Input, Span, Token, TokenStream};
 
 use super::operators::*;
@@ -8,7 +9,7 @@ use super::ParseResult;
 #[derive(Debug)]
 pub enum ExprAtom {
 	Var(String),
-	Integer(String),
+	Integer(u64),
 	Literal(String),
 	Boolean(bool),
 	Null,
@@ -21,6 +22,18 @@ pub enum ExprResult {
 	Expr(Expr),
 }
 
+impl From<Expr> for ExprResult {
+	fn from(expr: Expr) -> Self {
+		ExprResult::Expr(expr)
+	}
+}
+
+impl From<ExprAtom> for ExprResult {
+	fn from(atom: ExprAtom) -> Self {
+		ExprResult::Expr(Expr::Value(atom))
+	}
+}
+
 #[derive(Debug)]
 pub enum Expr {
 	Value(ExprAtom),
@@ -28,6 +41,16 @@ pub enum Expr {
 	Binary(BinaryOp, Box<Expr>, Box<Expr>),
 	Ternary(TernaryOp, Box<Expr>, Box<Expr>, Box<Expr>),
 	List(ListOp, Vec<Expr>),
+}
+
+pub trait AsResult {
+	fn result(self) -> ExprResult;
+}
+
+impl<T: Into<ExprResult>> AsResult for T {
+	fn result(self) -> ExprResult {
+		self.into()
+	}
 }
 
 pub fn parse_expression<T: Input>(input: &mut TokenStream<T>) -> ExprResult {
@@ -73,16 +96,11 @@ pub fn parse_expression<T: Input>(input: &mut TokenStream<T>) -> ExprResult {
 	};
 
 	loop {
-		let mut next = input.text();
-		while let Some(op) = UnaryOp::get_prefix(next) {
+		while let Some(op) = input.read_symbol(|next| UnaryOp::get_prefix(next)) {
 			// the unary operator doesn't affect other operators on the stack
 			// because it binds forward to the next operator
 			let op = Operator::Unary(op);
 			ops.push_back(op);
-
-			// move lexer forward
-			input.shift();
-			next = input.text();
 		}
 
 		match parse_atom(input) {
@@ -91,7 +109,10 @@ pub fn parse_expression<T: Input>(input: &mut TokenStream<T>) -> ExprResult {
 			}
 			ExprResult::None => {
 				return if ops.len() > 0 {
-					ExprResult::Error(input.span(), "expected expression after operator".into())
+					ExprResult::Error(
+						input.next_span(),
+						"expected expression after operator".into(),
+					)
 				} else {
 					break;
 				};
@@ -103,17 +124,15 @@ pub fn parse_expression<T: Input>(input: &mut TokenStream<T>) -> ExprResult {
 
 		// Ternary and binary operators work similarly, but the ternary will
 		// parse the middle expression as parenthesized.
-		let next = input.text();
-		if let Some((op, end)) = TernaryOp::get(next) {
+		if let Some((op, end)) = input.read_symbol(|next| TernaryOp::get(next)) {
 			let op = Operator::Ternary(op);
 			push_op(op, &mut ops, &mut values);
-			input.shift();
 
 			let expr = match parse_expression(input) {
 				ExprResult::Expr(expr) => expr,
 				ExprResult::None => {
 					return ExprResult::Error(
-						input.span(),
+						input.next_span(),
 						"expected expression after ternary operator".into(),
 					)
 				}
@@ -121,17 +140,14 @@ pub fn parse_expression<T: Input>(input: &mut TokenStream<T>) -> ExprResult {
 			};
 			values.push_back(expr);
 
-			if input.text() != end {
-				return ExprResult::Error(
-					input.span(),
-					format!("expected ternary operator '{end}'"),
-				);
+			if let Some(error) = input.expect_symbol(end, |span| {
+				ExprResult::Error(span, format!("expected ternary operator '{end}'"))
+			}) {
+				return error;
 			}
-			input.shift();
-		} else if let Some(op) = BinaryOp::get(next) {
+		} else if let Some(op) = input.read_symbol(|next| BinaryOp::get(next)) {
 			let op = Operator::Binary(op);
 			push_op(op, &mut ops, &mut values);
-			input.shift();
 		} else {
 			break;
 		}
@@ -152,51 +168,42 @@ pub fn parse_expression<T: Input>(input: &mut TokenStream<T>) -> ExprResult {
 }
 
 fn parse_atom<T: Input>(input: &mut TokenStream<T>) -> ExprResult {
-	let value = match input.get() {
-		Token::Identifier => {
-			let text = input.text();
-			match text {
-				"null" => ExprAtom::Null,
-				"true" => ExprAtom::Boolean(true),
-				"false" => ExprAtom::Boolean(false),
-				id => ExprAtom::Var(id.into()),
-			}
-		}
-		Token::Integer => ExprAtom::Integer(input.text().into()),
-		Token::String => {
-			let text = input.text();
-			let text = text.strip_prefix("'").unwrap();
-			let text = text.strip_suffix("'").unwrap();
-			ExprAtom::Literal(text.into())
-		}
-		Token::Symbol(next) => {
-			if next == "(" {
-				input.shift();
-				let expr = parse_expression(input);
-				match expr {
-					ExprResult::Expr(expr) => {
-						let expr = if input.text() == ")" {
-							input.shift();
-							ExprResult::Expr(expr)
-						} else {
-							ExprResult::Error(input.span(), "expected ')'".into())
-						};
-						return expr;
-					}
-					ExprResult::None => {
-						return ExprResult::Error(
-							input.span(),
-							"expression expected inside '()'".into(),
-						)
-					}
-					err @ ExprResult::Error(..) => return err,
+	input
+		.read_maybe(|input, token, span| {
+			let result = match token {
+				Token::Identifier(id) => {
+					let atom = match id.as_str() {
+						"null" => ExprAtom::Null,
+						"true" => ExprAtom::Boolean(true),
+						"false" => ExprAtom::Boolean(false),
+						_ => ExprAtom::Var(id),
+					};
+					atom.result()
 				}
-			}
-			return ExprResult::None;
-		}
-		_ => return ExprResult::None,
-	};
-
-	input.shift();
-	ExprResult::Expr(Expr::Value(value))
+				Token::Integer(value) => ExprAtom::Integer(value).result(),
+				Token::Literal(text) => ExprAtom::Literal(text).result(),
+				Token::Symbol("(") => {
+					let expr = parse_expression(input);
+					match expr {
+						ExprResult::Expr(expr) => {
+							if let Some(error) = input.expect_symbol(")", |span| {
+								ExprResult::Error(span, "expected ')'".into())
+							}) {
+								error
+							} else {
+								ExprResult::Expr(expr)
+							}
+						}
+						ExprResult::None => ExprResult::Error(
+							input.next_span(),
+							"expression expected inside '()'".into(),
+						),
+						err @ ExprResult::Error(..) => err,
+					}
+				}
+				_ => return WithToken::None(token),
+			};
+			WithToken::Read(result)
+		})
+		.unwrap_or(ExprResult::None)
 }

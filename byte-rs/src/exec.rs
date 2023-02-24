@@ -25,7 +25,7 @@ impl Result {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ResultValue {
-	Integer(i64),
+	Integer(i128),
 	String(String),
 	Boolean(bool),
 	Null,
@@ -67,7 +67,7 @@ impl ResultValue {
 		}
 	}
 
-	pub fn to_integer(self) -> i64 {
+	pub fn to_integer(self) -> i128 {
 		match self {
 			ResultValue::Integer(value) => value,
 			ResultValue::String(_) => panic!("using string value as a number"),
@@ -83,7 +83,7 @@ impl ResultValue {
 		}
 	}
 
-	pub fn parse_integer(self) -> i64 {
+	pub fn parse_integer(self) -> i128 {
 		match self {
 			ResultValue::String(val) => val.parse().unwrap(),
 			other => other.to_integer(),
@@ -195,7 +195,7 @@ fn execute_expr_ref(expr: &Expr, map: &mut HashMap<String, ResultValue>) -> Resu
 			result
 		}
 
-		Expr::Value(ExprAtom::Integer(value)) => ResultValue::Integer(value.parse().unwrap()),
+		Expr::Value(ExprAtom::Integer(value)) => ResultValue::Integer(*value as i128),
 		Expr::Value(ExprAtom::Literal(value)) => ResultValue::String(value.clone()),
 		Expr::Value(ExprAtom::Null) => ResultValue::Null,
 		Expr::Value(ExprAtom::Boolean(value)) => ResultValue::Boolean(*value),
