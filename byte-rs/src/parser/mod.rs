@@ -84,7 +84,7 @@ fn parse_if<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 }
 
 fn parse_for<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
-	let id = if let Some(id) = input.read_with(|token, _| match token {
+	let id = if let Some(id) = input.read(|_, token, _| match token {
 		Token::Identifier(id) => Some(id),
 		_ => None,
 	}) {
@@ -93,7 +93,7 @@ fn parse_for<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 		return ParseResult::Error(input.next_span(), "identifier expected after 'for'".into());
 	};
 
-	if !input.read_symbol_str("in") {
+	if !input.read_symbol("in") {
 		return ParseResult::Error(input.next_span(), "for 'in' expected".into());
 	}
 
@@ -108,7 +108,7 @@ fn parse_for<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 		}
 	};
 
-	if !input.read_symbol_str("..") {
+	if !input.read_symbol("..") {
 		return ParseResult::Error(input.next_span(), "for '..' expected".into());
 	}
 
@@ -132,7 +132,7 @@ fn parse_for<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 }
 
 fn parse_block<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
-	if !input.read_symbol_str(":") {
+	if !input.read_symbol(":") {
 		return ParseResult::Error(input.next_span(), "block ':' expected".into());
 	}
 
@@ -189,7 +189,7 @@ fn parse_print<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 }
 
 fn parse_let<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
-	let id = if let Some(id) = input.read_with(|token, _| match token {
+	let id = if let Some(id) = input.read(|_, token, _| match token {
 		Token::Identifier(id) => Some(id),
 		_ => None,
 	}) {
@@ -198,7 +198,7 @@ fn parse_let<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 		return ParseResult::Error(input.next_span(), "identifier expected".into());
 	};
 
-	if !input.read_symbol_str("=") {
+	if !input.read_symbol("=") {
 		return ParseResult::Error(input.next_span(), "expected '='".into());
 	}
 
@@ -213,7 +213,7 @@ fn parse_let<T: Input>(input: &mut TokenStream<T>) -> ParseResult {
 }
 
 fn parse_end<T: Input>(input: &mut TokenStream<T>, result: ParseResult) -> ParseResult {
-	input.read_map(|token, span| match token {
+	input.map_next(|token, span| match token {
 		Token::None | Token::LineBreak => result,
 		_ => ParseResult::Error(span, "expected end of statement".into()),
 	})

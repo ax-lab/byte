@@ -16,6 +16,8 @@ pub enum Token {
 impl IsToken for Token {}
 
 impl Token {
+	/// Returns the text for a symbolic token (either [`Token::Symbol`]
+	/// or [`Token::Identifier`]).
 	pub fn symbol(&self) -> Option<&str> {
 		match self {
 			Token::Identifier(s) => Some(s.as_str()),

@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::lexer::WithToken;
+use crate::lexer::ReadToken;
 use crate::lexer::{Input, Span, Token, TokenStream};
 
 use super::operators::*;
@@ -96,7 +96,7 @@ pub fn parse_expression<T: Input>(input: &mut TokenStream<T>) -> ExprResult {
 	};
 
 	loop {
-		while let Some(op) = input.read_symbol(|next| UnaryOp::get_prefix(next)) {
+		while let Some(op) = input.map_symbol(|next| UnaryOp::get_prefix(next)) {
 			// the unary operator doesn't affect other operators on the stack
 			// because it binds forward to the next operator
 			let op = Operator::Unary(op);
@@ -124,7 +124,7 @@ pub fn parse_expression<T: Input>(input: &mut TokenStream<T>) -> ExprResult {
 
 		// Ternary and binary operators work similarly, but the ternary will
 		// parse the middle expression as parenthesized.
-		if let Some((op, end)) = input.read_symbol(|next| TernaryOp::get(next)) {
+		if let Some((op, end)) = input.map_symbol(|next| TernaryOp::get(next)) {
 			let op = Operator::Ternary(op);
 			push_op(op, &mut ops, &mut values);
 
@@ -145,7 +145,7 @@ pub fn parse_expression<T: Input>(input: &mut TokenStream<T>) -> ExprResult {
 			}) {
 				return error;
 			}
-		} else if let Some(op) = input.read_symbol(|next| BinaryOp::get(next)) {
+		} else if let Some(op) = input.map_symbol(|next| BinaryOp::get(next)) {
 			let op = Operator::Binary(op);
 			push_op(op, &mut ops, &mut values);
 		} else {
@@ -169,7 +169,7 @@ pub fn parse_expression<T: Input>(input: &mut TokenStream<T>) -> ExprResult {
 
 fn parse_atom<T: Input>(input: &mut TokenStream<T>) -> ExprResult {
 	input
-		.read_maybe(|input, token, span| {
+		.try_read(|input, token, span| {
 			let result = match token {
 				Token::Identifier(id) => {
 					let atom = match id.as_str() {
@@ -201,9 +201,9 @@ fn parse_atom<T: Input>(input: &mut TokenStream<T>) -> ExprResult {
 						err @ ExprResult::Error(..) => err,
 					}
 				}
-				_ => return WithToken::None(token),
+				_ => return ReadToken::Unget(token),
 			};
-			WithToken::Read(result)
+			ReadToken::MapTo(result)
 		})
 		.unwrap_or(ExprResult::None)
 }
