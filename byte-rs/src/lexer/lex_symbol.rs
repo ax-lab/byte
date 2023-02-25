@@ -91,7 +91,6 @@ impl<T: IsToken> Lexer<T> for LexSymbol<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::lexer::Span;
 
 	#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 	struct Token(pub &'static str);
@@ -134,10 +133,9 @@ mod tests {
 			let next = input.read().expect("unexpected end of input");
 			let pos = input.pos();
 			let next = symbols.read(next, &mut input);
-			let text = input.read_text(Span {
-				pos,
-				end: input.pos(),
-			});
+			let end = input.pos();
+			let input = input.inner();
+			let text = input.read_text(pos.offset, end.offset);
 			match next {
 				LexerResult::Token(actual) => assert_eq!(
 					actual, expected,

@@ -1,7 +1,9 @@
+use std::{cell::RefCell, rc::Rc};
+
 use super::{Span, Token, TokenSource};
 
-pub struct TokenStream<'a, T: TokenSource> {
-	input: &'a mut T,
+pub struct TokenStream<T: TokenSource> {
+	input: Rc<RefCell<T>>,
 }
 
 pub enum ReadToken<T> {
@@ -9,19 +11,25 @@ pub enum ReadToken<T> {
 	Unget(Token),
 }
 
-impl<'a, T: TokenSource> TokenStream<'a, T> {
-	pub fn new(input: &'a mut T) -> TokenStream<'a, T> {
-		TokenStream { input }
+impl<T: TokenSource> TokenStream<T> {
+	pub fn new(input: T) -> TokenStream<T> {
+		TokenStream {
+			input: Rc::new(input.into()),
+		}
 	}
 
 	/// Span for the next token in the input for use in compiler messages.
 	pub fn next_span(&mut self) -> Span {
-		self.peek_next().1
+		let next = self.input.borrow();
+		let next = next.peek();
+		next.1
 	}
 
 	/// Next token in the input. This is meant for use in compiler messages.
-	pub fn next_token(&mut self) -> &Token {
-		&self.peek_next().0
+	pub fn next_token(&mut self) -> Token {
+		let next = self.input.borrow();
+		let next = next.peek();
+		next.0.clone()
 	}
 
 	/// Read the next token in the input and passes it to the given parser
@@ -74,15 +82,23 @@ impl<'a, T: TokenSource> TokenStream<'a, T> {
 	/// Similar to `map_next` but does not consume the token if the mapping
 	/// function returns [`None`].
 	pub fn try_map_next<V, F: FnOnce(&Token, Span) -> Option<V>>(&mut self, map: F) -> Option<V> {
-		let (token, span) = self.peek_next();
-		if let Token::None = token {
-			None
-		} else if let Some(value) = map(token, *span) {
+		let value = {
+			let next = self.input.borrow();
+			let next = next.peek();
+			let token = &next.0;
+			let span = next.1;
+			if let Token::None = token {
+				None
+			} else if let Some(value) = map(token, span) {
+				Some(value)
+			} else {
+				None
+			}
+		};
+		if value.is_some() {
 			self.shift();
-			Some(value)
-		} else {
-			None
 		}
+		value
 	}
 
 	/// Consume the next token if it is a symbol and it has a mapping returned
@@ -104,15 +120,22 @@ impl<'a, T: TokenSource> TokenStream<'a, T> {
 	/// Returns `true` if the token was read or `false` if the predicate
 	/// was not true or at the end of input.
 	pub fn read_if<F: Fn(&Token) -> bool>(&mut self, predicate: F) -> bool {
-		let (token, _) = self.peek_next();
-		if let Token::None = token {
-			false
-		} else if predicate(token) {
+		let res = {
+			let next = self.input.borrow();
+			let next = next.peek();
+			let token = &next.0;
+			if let Token::None = token {
+				false
+			} else if predicate(token) {
+				true
+			} else {
+				false
+			}
+		};
+		if res {
 			self.shift();
-			true
-		} else {
-			false
 		}
+		res
 	}
 
 	/// Skip any number of tokens matching the given predicate.
@@ -136,8 +159,15 @@ impl<'a, T: TokenSource> TokenStream<'a, T> {
 	///
 	/// On success, returns None.
 	pub fn expect<E, F: FnOnce(&Token, Span) -> Option<E>>(&mut self, predicate: F) -> Option<E> {
-		let (token, span) = self.peek_next();
-		if let Some(error) = predicate(token, *span) {
+		let error = {
+			let next = self.input.borrow();
+			let next = next.peek();
+			let token = &next.0;
+			let span = next.1;
+			predicate(token, span)
+		};
+
+		if let Some(error) = error {
 			Some(error)
 		} else {
 			self.shift();
@@ -147,7 +177,7 @@ impl<'a, T: TokenSource> TokenStream<'a, T> {
 
 	/// Return a token to the stream to be read again.
 	pub fn unget(&mut self, token: Token, span: Span) {
-		self.input.unget(token, span);
+		self.input.borrow_mut().unget(token, span);
 	}
 
 	//------------------------------------------------------------------------//
@@ -206,14 +236,10 @@ impl<'a, T: TokenSource> TokenStream<'a, T> {
 	//------------------------------------------------------------------------//
 
 	fn shift(&mut self) {
-		self.input.read();
-	}
-
-	fn peek_next(&mut self) -> &(Token, Span) {
-		self.input.peek()
+		self.input.borrow_mut().read();
 	}
 
 	fn read_next(&mut self) -> (Token, Span) {
-		self.input.read()
+		self.input.borrow_mut().read()
 	}
 }

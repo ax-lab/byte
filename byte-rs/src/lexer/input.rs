@@ -1,4 +1,4 @@
-use super::{Pos, Span};
+use super::Pos;
 
 /// Trait implemented by any input to a [super::Lexer].
 pub trait Input {
@@ -33,11 +33,6 @@ impl<T: Input> Reader<T> {
 		&self.inner
 	}
 
-	#[allow(dead_code)]
-	pub fn inner_mut(&mut self) -> &mut T {
-		&mut self.inner
-	}
-
 	/// Return the current position for the reader.
 	pub fn pos(&self) -> Pos {
 		self.pos
@@ -51,11 +46,6 @@ impl<T: Input> Reader<T> {
 		} else {
 			None
 		}
-	}
-
-	/// Return a span of text from the input.
-	pub fn read_text(&self, span: Span) -> &str {
-		self.inner.read_text(span.pos.offset, span.end.offset)
 	}
 
 	/// Returns the current state of the reader for backtracking.

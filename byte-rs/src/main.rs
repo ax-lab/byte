@@ -4,6 +4,8 @@ use exec::{execute_expr, ResultValue};
 use lexer::{ReaderTokenSource, Token, TokenSource, TokenStream};
 use parser::{parse_statement, Block, Id, ParseResult, Statement};
 
+use crate::lexer::Input;
+
 mod exec;
 mod lexer;
 mod parser;
@@ -64,19 +66,24 @@ fn main() {
 			Ok(input) => {
 				let mut input = ReaderTokenSource::from(input);
 				let mut program = Vec::new();
-				let mut tokens = TokenStream::new(&mut input);
 				if list_tokens {
 					loop {
 						match input.read() {
 							(Token::None, _) => break,
 							(token, span) => {
-								let text = input.read_text(span);
+								let pos = span.pos.offset;
+								let end = span.end.offset;
+								let input = input.inner();
+								let text = input.read_text(pos, end);
 								println!("{span}: {:10}  =  {token:?}", format!("{text:?}"));
 							}
 						}
 					}
 					std::process::exit(0);
-				} else if list_blocks {
+				}
+
+				let mut tokens = TokenStream::new(input);
+				if list_blocks {
 					loop {
 						let block = parser::parse_block(&mut tokens);
 						match block {
@@ -94,8 +101,7 @@ fn main() {
 					next = parse_statement(&mut tokens);
 					match next {
 						ParseResult::Error(span, msg) => {
-							let input = input.inner();
-							eprintln!("\n[compile error] {input}:{span}: {msg}\n");
+							eprintln!("\n[compile error] {file}:{span}: {msg}\n");
 							if list_ast {
 								break;
 							}
