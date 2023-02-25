@@ -1,7 +1,7 @@
 use std::{collections::HashMap, env};
 
 use exec::{execute_expr, ResultValue};
-use lexer::Token;
+use lexer::{ReaderTokenSource, Token, TokenSource, TokenStream};
 use parser::{parse_statement, Id, ParseResult, Statement};
 
 mod exec;
@@ -57,14 +57,15 @@ fn main() {
 	for file in files {
 		match source::open_file(&file) {
 			Ok(input) => {
-				let mut input = lexer::Reader::from(input);
+				let mut input = ReaderTokenSource::from(input);
 				let mut program = Vec::new();
-				let mut tokens = lexer::TokenStream::new(&mut input);
+				let mut tokens = TokenStream::new(&mut input);
 				if list_tokens {
 					loop {
-						match tokens.dump_next() {
-							(Token::None, _, _) => break,
-							(token, span, text) => {
+						match input.read() {
+							(Token::None, _) => break,
+							(token, span) => {
+								let text = input.read_text(span);
 								println!("{span}: {:10}  =  {token:?}", format!("{text:?}"));
 							}
 						}

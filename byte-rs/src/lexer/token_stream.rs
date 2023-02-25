@@ -1,11 +1,7 @@
-use std::collections::VecDeque;
+use super::{Span, Token, TokenSource};
 
-use super::{Input, LexerResult, Reader, Span, Token};
-
-pub struct TokenStream<'a, T: Input> {
-	input: &'a mut Reader<T>,
-	next: VecDeque<(Token, Span)>,
-	ident: VecDeque<usize>,
+pub struct TokenStream<'a, T: TokenSource> {
+	input: &'a mut T,
 }
 
 pub enum ReadToken<T> {
@@ -13,13 +9,9 @@ pub enum ReadToken<T> {
 	Unget(Token),
 }
 
-impl<'a, T: Input> TokenStream<'a, T> {
-	pub fn new(input: &'a mut Reader<T>) -> TokenStream<'a, T> {
-		TokenStream {
-			input,
-			next: Default::default(),
-			ident: Default::default(),
-		}
+impl<'a, T: TokenSource> TokenStream<'a, T> {
+	pub fn new(input: &'a mut T) -> TokenStream<'a, T> {
+		TokenStream { input }
 	}
 
 	/// Span for the next token in the input for use in compiler messages.
@@ -163,17 +155,7 @@ impl<'a, T: Input> TokenStream<'a, T> {
 
 	/// Return a token to the stream to be read again.
 	pub fn unget(&mut self, token: Token, span: Span) {
-		let next = self.next_span();
-		assert!(span.end.offset <= next.pos.offset);
-		self.next.push_front((token, span));
-	}
-
-	/// This is meant for use when debugging the whole stream of tokens without
-	/// parsing.
-	pub fn dump_next(&mut self) -> (Token, Span, &str) {
-		let (token, span) = self.read_next();
-		let text = self.input.read_text(span);
-		(token, span, text)
+		self.input.unget(token, span);
 	}
 
 	//------------------------------------------------------------------------//
@@ -206,70 +188,14 @@ impl<'a, T: Input> TokenStream<'a, T> {
 	//------------------------------------------------------------------------//
 
 	fn shift(&mut self) {
-		self.next.pop_front().expect("shifting empty token");
+		self.input.read();
 	}
 
 	fn peek_next(&mut self) -> &(Token, Span) {
-		self.fill_next();
-		self.next.front().unwrap()
+		self.input.peek()
 	}
 
 	fn read_next(&mut self) -> (Token, Span) {
-		self.fill_next();
-		self.next.pop_front().unwrap()
-	}
-
-	fn fill_next(&mut self) {
-		while self.next.is_empty() {
-			// check if we are at the start of the line so we can compute identation
-			let start = self.input.pos();
-			let new_line = start.column == 0;
-
-			// read the next token
-			let (result, span) = super::read_token(self.input);
-			let token = match result {
-				LexerResult::Token(token) => token,
-				LexerResult::None => Token::None,
-				LexerResult::Error(error) => panic!("{error} at {span}"),
-			};
-
-			let need_indent = (new_line && token != Token::LineBreak) || token == Token::None;
-			let column = if token == Token::None {
-				0
-			} else {
-				span.pos.column
-			};
-			if token != Token::Comment {
-				self.next.push_back((token, span));
-			}
-
-			// check if we need indent or dedent tokens by comparing the first token level
-			if need_indent {
-				let ident = self.ident.back().copied().unwrap_or(0);
-				if column > ident {
-					self.ident.push_back(column);
-					self.next.push_front((
-						Token::Ident,
-						Span {
-							pos: start,
-							end: span.pos,
-						},
-					));
-				} else {
-					let mut ident = ident;
-					while column < ident {
-						self.ident.pop_back();
-						ident = self.ident.back().copied().unwrap_or(0);
-						self.next.push_front((
-							Token::Dedent,
-							Span {
-								pos: start,
-								end: span.pos,
-							},
-						))
-					}
-				}
-			}
-		}
+		self.input.read()
 	}
 }

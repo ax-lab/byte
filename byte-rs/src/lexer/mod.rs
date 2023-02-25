@@ -1,6 +1,7 @@
 mod input;
 mod span;
 mod token;
+mod token_source;
 mod token_stream;
 
 use once_cell::unsync::Lazy;
@@ -8,6 +9,7 @@ use once_cell::unsync::Lazy;
 pub use input::*;
 pub use span::*;
 pub use token::*;
+pub use token_source::*;
 pub use token_stream::*;
 
 mod lexer;
