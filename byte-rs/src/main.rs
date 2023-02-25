@@ -2,7 +2,7 @@ use std::{collections::HashMap, env};
 
 use exec::{execute_expr, ResultValue};
 use lexer::{ReaderTokenSource, Token, TokenSource, TokenStream};
-use parser::{parse_statement, Block, BlockFormatter, Id, ParseResult, Statement};
+use parser::{parse_statement, Block, Id, ParseResult, Statement};
 
 mod exec;
 mod lexer;
@@ -81,9 +81,8 @@ fn main() {
 						let block = parser::parse_block(&mut tokens);
 						match block {
 							Block::None => break,
-							other => {
-								let fmt = BlockFormatter(&mut tokens, &other);
-								println!("{fmt}");
+							block => {
+								println!("{block}");
 							}
 						}
 					}

@@ -24,10 +24,6 @@ impl<'a, T: TokenSource> TokenStream<'a, T> {
 		&self.peek_next().0
 	}
 
-	pub fn read_text(&self, span: Span) -> &str {
-		self.input.read_text(span)
-	}
-
 	/// Read the next token in the input and passes it to the given parser
 	/// function returning an [`Option`] result.
 	///
@@ -149,6 +145,15 @@ impl<'a, T: TokenSource> TokenStream<'a, T> {
 		}
 	}
 
+	/// Return a token to the stream to be read again.
+	pub fn unget(&mut self, token: Token, span: Span) {
+		self.input.unget(token, span);
+	}
+
+	//------------------------------------------------------------------------//
+	// Parsing helpers
+	//------------------------------------------------------------------------//
+
 	/// Helper for expecting a specific symbol token.
 	pub fn expect_symbol<E, P: FnOnce(Span) -> E>(&mut self, symbol: &str, error: P) -> Option<E> {
 		self.expect(|token, span| {
@@ -161,9 +166,14 @@ impl<'a, T: TokenSource> TokenStream<'a, T> {
 		})
 	}
 
-	/// Return a token to the stream to be read again.
-	pub fn unget(&mut self, token: Token, span: Span) {
-		self.input.unget(token, span);
+	pub fn expect_dedent(&mut self) -> Option<(String, Span)> {
+		self.expect(|token, span| {
+			if let Token::Dedent = token {
+				None
+			} else {
+				Some((format!("expected dedent, got `{token}`"), span))
+			}
+		})
 	}
 
 	//------------------------------------------------------------------------//

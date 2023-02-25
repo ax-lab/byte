@@ -145,7 +145,7 @@ fn parse_indented_block<T: TokenSource>(input: &mut TokenStream<T>) -> ParseResu
 
 	input.skip_while(|token| matches!(token, Token::LineBreak));
 
-	if !input.read_if(|token| matches!(token, Token::Ident)) {
+	if !input.read_if(|token| matches!(token, Token::Indent)) {
 		return ParseResult::Error(input.next_span(), "idented block expected".into());
 	}
 

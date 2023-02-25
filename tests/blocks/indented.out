@@ -1,0 +1,69 @@
+Line(
+	let expr_1 =
+	...Line(
+		1 +
+	)
+	...Line(
+		2 +
+	)
+	...Line(
+		3
+	)
+)
+Line(
+	let expr_2
+	...Line(
+		= 4
+	)
+	...Line(
+		+ 5
+	)
+	...Line(
+		+ 6
+	)
+)
+Line(
+	let expr_3 = 7 + 8
+	...Line(
+		+ 9 + 10
+	)
+)
+Line(
+	expr_1 = expr_2 = expr_3
+	...Line(
+		a01
+	)
+	...Line(
+		a02
+		...Line(
+			b03
+		)
+		...Line(
+			b04
+		)
+	)
+	...Line(
+		a05
+		...Line(
+			b06
+			...Line(
+				c07
+				...Line(
+					d08
+				)
+			)
+		)
+		...Line(
+			b09
+		)
+	)
+	...Line(
+		a10
+	)
+	...Line(
+		a11
+	)
+)
+Line(
+	end
+)

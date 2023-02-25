@@ -13,6 +13,7 @@ pub struct ReaderTokenSource<T: Input> {
 	input: Reader<T>,
 	next: VecDeque<(Token, Span)>,
 	indent: VecDeque<usize>,
+	last_span: Option<Span>,
 }
 
 impl<T: Input> From<T> for ReaderTokenSource<T> {
@@ -21,6 +22,7 @@ impl<T: Input> From<T> for ReaderTokenSource<T> {
 			input: Reader::from(input),
 			next: Default::default(),
 			indent: Default::default(),
+			last_span: None,
 		}
 	}
 }
@@ -33,12 +35,18 @@ impl<T: Input> TokenSource for ReaderTokenSource<T> {
 
 	fn read(&mut self) -> (Token, Span) {
 		self.fill_next();
-		self.next.pop_front().unwrap()
+		let (token, span) = self.next.pop_front().unwrap();
+		self.last_span = Some(span);
+		(token, span)
 	}
 
 	fn unget(&mut self, token: Token, span: Span) {
-		let next = self.peek().1;
-		assert!(span.end.offset <= next.pos.offset);
+		assert_eq!(
+			Some(span),
+			self.last_span,
+			"unget should only be used for the last token"
+		);
+		self.last_span = None;
 		self.next.push_front((token, span));
 	}
 
@@ -87,7 +95,7 @@ impl<T: Input> ReaderTokenSource<T> {
 				if column > ident {
 					self.indent.push_back(column);
 					self.next.push_front((
-						Token::Ident,
+						Token::Indent,
 						Span {
 							pos: start,
 							end: span.pos,

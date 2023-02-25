@@ -1,11 +1,11 @@
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, Eq, PartialEq)]
 pub struct Pos {
 	pub line: usize,
 	pub column: usize,
 	pub offset: usize,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Span {
 	pub pos: Pos,
 	pub end: Pos,
