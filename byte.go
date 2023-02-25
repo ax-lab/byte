@@ -62,7 +62,7 @@ func main() {
 		switch verb {
 		case "test":
 			tests := filepath.Join(bootstrap.ProjectDir(), "tests")
-			files := bootstrap.Glob(tests, "*.by")
+			files := bootstrap.Glob(tests, "*.(by|blk)")
 			for _, it := range files {
 				matches := len(verbArgs) == 0
 				for _, pattern := range verbArgs {

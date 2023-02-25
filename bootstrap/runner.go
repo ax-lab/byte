@@ -30,6 +30,13 @@ func (runner Runner) Spawn(args ...string) {
 	}
 }
 
-func (runner Runner) ExecScript(filename string, callback func(output string, isError bool)) (int, error) {
-	return Exec(runner.exe, []string{filename}, callback)
+func (runner Runner) ExecScript(
+	filename string,
+	callback func(output string, isError bool),
+) (int, error) {
+	args := []string{filename}
+	if filepath.Ext(filename) == ".blk" {
+		args = append(args, "--blocks")
+	}
+	return Exec(runner.exe, args, callback)
 }
