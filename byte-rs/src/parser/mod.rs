@@ -1,5 +1,8 @@
 use crate::lexer::{Span, Token, TokenSource, TokenStream};
 
+mod blocks;
+pub use blocks::*;
+
 #[allow(unused)]
 mod operators;
 pub use operators::*;
@@ -69,7 +72,7 @@ pub fn parse_statement<T: TokenSource>(input: &mut TokenStream<T>) -> ParseResul
 fn parse_if<T: TokenSource>(input: &mut TokenStream<T>) -> ParseResult {
 	match parse_expression(input) {
 		ExprResult::Expr(expr) => {
-			let block = parse_block(input);
+			let block = parse_indented_block(input);
 			if let ParseResult::Ok(block) = block {
 				ParseResult::Ok(Statement::If(expr, block.into()))
 			} else {
@@ -123,7 +126,7 @@ fn parse_for<T: TokenSource>(input: &mut TokenStream<T>) -> ParseResult {
 		}
 	};
 
-	let block = parse_block(input);
+	let block = parse_indented_block(input);
 	if let ParseResult::Ok(block) = block {
 		ParseResult::Ok(Statement::For(Id(id), from, to, block.into()))
 	} else {
@@ -131,7 +134,7 @@ fn parse_for<T: TokenSource>(input: &mut TokenStream<T>) -> ParseResult {
 	}
 }
 
-fn parse_block<T: TokenSource>(input: &mut TokenStream<T>) -> ParseResult {
+fn parse_indented_block<T: TokenSource>(input: &mut TokenStream<T>) -> ParseResult {
 	if !input.read_symbol(":") {
 		return ParseResult::Error(input.next_span(), "block ':' expected".into());
 	}

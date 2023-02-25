@@ -24,6 +24,10 @@ impl<'a, T: TokenSource> TokenStream<'a, T> {
 		&self.peek_next().0
 	}
 
+	pub fn read_text(&self, span: Span) -> &str {
+		self.input.read_text(span)
+	}
+
 	/// Read the next token in the input and passes it to the given parser
 	/// function returning an [`Option`] result.
 	///
@@ -49,11 +53,15 @@ impl<'a, T: TokenSource> TokenStream<'a, T> {
 		consumer: F,
 	) -> Option<V> {
 		let (token, span) = self.read_next();
-		match consumer(self, token, span) {
-			ReadToken::MapTo(value) => Some(value),
-			ReadToken::Unget(token) => {
-				self.unget(token, span);
-				None
+		if let Token::None = token {
+			None
+		} else {
+			match consumer(self, token, span) {
+				ReadToken::MapTo(value) => Some(value),
+				ReadToken::Unget(token) => {
+					self.unget(token, span);
+					None
+				}
 			}
 		}
 	}

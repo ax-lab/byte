@@ -8,7 +8,7 @@ pub trait Input {
 	fn set_offset(&mut self, pos: usize);
 
 	fn read(&mut self) -> Option<char>;
-	fn read_text(&mut self, pos: usize, end: usize) -> &str;
+	fn read_text(&self, pos: usize, end: usize) -> &str;
 }
 
 /// Wrapper for an [Input] providing support for lexing.
@@ -54,7 +54,7 @@ impl<T: Input> Reader<T> {
 	}
 
 	/// Return a span of text from the input.
-	pub fn read_text(&mut self, span: Span) -> &str {
+	pub fn read_text(&self, span: Span) -> &str {
 		self.inner.read_text(span.pos.offset, span.end.offset)
 	}
 

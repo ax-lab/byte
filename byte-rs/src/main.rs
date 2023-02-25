@@ -2,7 +2,7 @@ use std::{collections::HashMap, env};
 
 use exec::{execute_expr, ResultValue};
 use lexer::{ReaderTokenSource, Token, TokenSource, TokenStream};
-use parser::{parse_statement, Id, ParseResult, Statement};
+use parser::{parse_statement, Block, BlockFormatter, Id, ParseResult, Statement};
 
 mod exec;
 mod lexer;
@@ -14,6 +14,7 @@ fn main() {
 	let mut files = Vec::new();
 	let mut list_tokens = false;
 	let mut list_ast = false;
+	let mut list_blocks = false;
 	for arg in env::args().skip(1) {
 		done = done
 			|| match arg.as_str() {
@@ -31,6 +32,10 @@ fn main() {
 				}
 				"--ast" => {
 					list_ast = true;
+					false
+				}
+				"--blocks" => {
+					list_blocks = true;
 					false
 				}
 				_ => {
@@ -67,6 +72,18 @@ fn main() {
 							(token, span) => {
 								let text = input.read_text(span);
 								println!("{span}: {:10}  =  {token:?}", format!("{text:?}"));
+							}
+						}
+					}
+					std::process::exit(0);
+				} else if list_blocks {
+					loop {
+						let block = parser::parse_block(&mut tokens);
+						match block {
+							Block::None => break,
+							other => {
+								let fmt = BlockFormatter(&mut tokens, &other);
+								println!("{fmt}");
 							}
 						}
 					}

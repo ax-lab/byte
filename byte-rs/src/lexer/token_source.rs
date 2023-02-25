@@ -6,7 +6,7 @@ pub trait TokenSource {
 	fn peek(&mut self) -> &(Token, Span);
 	fn read(&mut self) -> (Token, Span);
 	fn unget(&mut self, token: Token, span: Span);
-	fn read_text(&mut self, span: Span) -> &str;
+	fn read_text(&self, span: Span) -> &str;
 }
 
 pub struct ReaderTokenSource<T: Input> {
@@ -42,7 +42,7 @@ impl<T: Input> TokenSource for ReaderTokenSource<T> {
 		self.next.push_front((token, span));
 	}
 
-	fn read_text(&mut self, span: Span) -> &str {
+	fn read_text(&self, span: Span) -> &str {
 		self.input.read_text(span)
 	}
 }
