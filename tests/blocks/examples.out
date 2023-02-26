@@ -1,0 +1,39 @@
+Line(
+	if P(
+		Line(
+			1 +
+			...Line(
+				2 +
+			)
+			...Line(
+				3 +
+			)
+			...Line(
+				4
+			)
+		)
+	) == 10
+	...Line(
+		true
+	)
+)
+Line(
+	if P(
+		Line(
+			1 +
+		)
+		Line(
+			2
+		)
+	) == 3
+	...Line(
+		true
+	)
+)
+Line(
+	call 1 P(
+		Line(
+			2 3
+		)
+	) 4
+)

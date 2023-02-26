@@ -1,0 +1,16 @@
+if (1 +            # starting level
+	2 +            # indent within the parenthesis
+	3 +            # same level (separate line, but merged by the syntax)
+	4) == 10       # implicit dedent back to the if level
+	true           # indented under the if
+
+# also valid (same overall syntax):
+if (
+	1 +            # indent
+	2              # same level
+) == 3             # explicit dedent
+	true
+
+call 1 (
+	2 3            # generates an INDENT and later a DEDENT
+) 4
