@@ -1,4 +1,7 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+	cell::{Ref, RefCell, RefMut},
+	rc::Rc,
+};
 
 use super::{Span, Token, TokenSource};
 
@@ -18,6 +21,14 @@ impl<T: TokenSource> TokenStream<T> {
 		}
 	}
 
+	pub fn inner(&self) -> Ref<T> {
+		self.input.borrow()
+	}
+
+	pub fn inner_mut(&self) -> RefMut<T> {
+		self.input.borrow_mut()
+	}
+
 	/// Span for the next token in the input for use in compiler messages.
 	pub fn next_span(&mut self) -> Span {
 		let next = self.input.borrow();
@@ -25,11 +36,11 @@ impl<T: TokenSource> TokenStream<T> {
 		next.1
 	}
 
-	/// Next token in the input. This is meant for use in compiler messages.
-	pub fn next_token(&mut self) -> Token {
+	/// Next token in the input for use in compiler messages.
+	pub fn next_token(&mut self) -> (Token, Span) {
 		let next = self.input.borrow();
 		let next = next.peek();
-		next.0.clone()
+		(next.0.clone(), next.1)
 	}
 
 	/// Read the next token in the input and passes it to the given parser
@@ -204,6 +215,10 @@ impl<T: TokenSource> TokenStream<T> {
 				Some((format!("expected dedent, got `{token}`"), span))
 			}
 		})
+	}
+
+	pub fn skip_blank_lines(&mut self) {
+		self.skip_while(|token| matches!(token, Token::LineBreak | Token::Comment));
 	}
 
 	//------------------------------------------------------------------------//

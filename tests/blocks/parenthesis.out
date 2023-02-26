@@ -1,0 +1,70 @@
+Line(
+	P(
+		Line(
+			a
+		)
+	)
+)
+Line(
+	P(
+		Line(
+			a + b + P(
+				Line(
+					c + d
+				)
+			)
+		)
+	)
+)
+Line(
+	P(
+		Line(
+			x
+		)
+	)
+)
+Line(
+	P(
+		Line(
+			x1
+		)
+		Line(
+			P(
+				Line(
+					y1
+					...Line(
+						z1
+					)
+				)
+			)
+		)
+	)
+)
+Line(
+	P(
+		Line(
+			x2
+			...Line(
+				P(
+					Line(
+						y2
+						...Line(
+							z2
+						)
+					)
+				)
+			)
+		)
+	)
+)
+Line(
+	P() + P(
+		Line(
+			a + P(
+				Line(
+					b
+				)
+			)
+		)
+	)
+)

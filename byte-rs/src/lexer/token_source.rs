@@ -9,6 +9,8 @@ pub trait TokenSource {
 	fn peek(&self) -> Ref<(Token, Span)>;
 	fn read(&mut self) -> (Token, Span);
 	fn unget(&mut self, token: Token, span: Span);
+	fn indent_level(&self) -> usize;
+	fn pop_indent(&mut self, level: usize);
 }
 
 pub struct ReaderTokenSource<T: Input> {
@@ -51,6 +53,27 @@ impl<T: Input> TokenSource for ReaderTokenSource<T> {
 		);
 		self.last_span = None;
 		self.next.borrow_mut().push_front((token, span));
+	}
+
+	fn indent_level(&self) -> usize {
+		self.indent.borrow().len()
+	}
+
+	fn pop_indent(&mut self, level: usize) {
+		let span = self.peek().1;
+		let mut next = self.next.borrow_mut();
+		let mut indent = self.indent.borrow_mut();
+		assert!(indent.len() >= level);
+		while indent.len() > level {
+			indent.pop_back().unwrap();
+			next.push_front((
+				Token::Dedent,
+				Span {
+					pos: span.pos,
+					end: span.pos,
+				},
+			));
+		}
 	}
 }
 
