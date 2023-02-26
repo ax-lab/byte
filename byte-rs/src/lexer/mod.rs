@@ -74,6 +74,7 @@ pub fn read_token<T: Input>(input: &mut Reader<T>) -> (LexerResult<Token>, Span)
 fn symbols() -> lex_symbol::LexSymbol<Token> {
 	let mut sym = lex_symbol::LexSymbol::default();
 	sym.add_symbol(",", Token::Symbol(","));
+	sym.add_symbol(";", Token::Symbol(";"));
 	sym.add_symbol("+", Token::Symbol("+"));
 	sym.add_symbol("-", Token::Symbol("-"));
 	sym.add_symbol("*", Token::Symbol("*"));
