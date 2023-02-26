@@ -129,10 +129,12 @@ func (test ScriptTest) OutputDetails() {
 	diff := Compare(test.ActualOutput, test.ExpectOutput)
 	test.output("  - Expected output differences:\n\n")
 	for _, it := range diff.Blocks() {
+		num := it.Dst
 		sign, text, pos := " ", test.ExpectOutput, it.Dst
 		if it.Kind > 0 {
 			sign = "+"
 		} else if it.Kind < 0 {
+			num = it.Src
 			sign, text, pos = "-", test.ActualOutput, it.Src
 		}
 		for i := 0; i < it.Len; i++ {
@@ -140,7 +142,7 @@ func (test ScriptTest) OutputDetails() {
 			if line == "" {
 				line = "⏎"
 			}
-			test.output("      %s %s\n", sign, line)
+			test.output("      %03d %s %s\n", num+i+1, sign, line)
 		}
 	}
 
