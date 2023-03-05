@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use super::{IsToken, Lexer, LexerResult, Reader};
+use super::{Lexer, LexerResult, Reader, Token};
 
-pub struct LexSymbol<T: IsToken> {
-	states: Vec<Entry<T>>,
+pub struct LexSymbol {
+	states: Vec<Entry>,
 }
 
-impl<T: IsToken> Default for LexSymbol<T> {
+impl Default for LexSymbol {
 	fn default() -> Self {
 		let mut out = LexSymbol {
 			states: Default::default(),
@@ -19,13 +19,13 @@ impl<T: IsToken> Default for LexSymbol<T> {
 	}
 }
 
-struct Entry<T: IsToken> {
-	value: Option<T>,
+struct Entry {
+	value: Option<Token>,
 	next: HashMap<char, usize>,
 }
 
-impl<T: IsToken> LexSymbol<T> {
-	pub fn add_symbol(&mut self, symbol: &'static str, value: T) {
+impl LexSymbol {
+	pub fn add_symbol(&mut self, symbol: &'static str, value: Token) {
 		assert!(symbol.len() > 0);
 		let mut current = 0;
 		for char in symbol.chars() {
@@ -57,8 +57,8 @@ impl<T: IsToken> LexSymbol<T> {
 	}
 }
 
-impl<T: IsToken> Lexer<T> for LexSymbol<T> {
-	fn read(&self, next: char, input: &mut Reader) -> LexerResult<T> {
+impl Lexer for LexSymbol {
+	fn read(&self, next: char, input: &mut Reader) -> LexerResult {
 		let state = self.get_next(0, next);
 		let (mut state, valid) = if let Some((state, valid)) = state {
 			(state, valid)
@@ -92,41 +92,48 @@ impl<T: IsToken> Lexer<T> for LexSymbol<T> {
 mod tests {
 	use super::*;
 
-	#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-	struct Token(pub &'static str);
-
-	impl IsToken for Token {}
-
 	#[test]
 	fn lexer_should_parse_symbols() {
 		let mut lexer = LexSymbol::default();
-		lexer.add_symbol("+", Token("+"));
-		lexer.add_symbol("++", Token("++"));
-		lexer.add_symbol(".", Token("."));
-		lexer.add_symbol("..", Token(".."));
-		lexer.add_symbol("...", Token("..."));
-		lexer.add_symbol(">", Token(">"));
-		lexer.add_symbol(">>>>", Token("arrow"));
+		lexer.add_symbol("+", Token::Symbol("+"));
+		lexer.add_symbol("++", Token::Symbol("++"));
+		lexer.add_symbol(".", Token::Symbol("."));
+		lexer.add_symbol("..", Token::Symbol(".."));
+		lexer.add_symbol("...", Token::Symbol("..."));
+		lexer.add_symbol(">", Token::Symbol(">"));
+		lexer.add_symbol(">>>>", Token::Symbol("arrow"));
 
 		check_symbols(&lexer, "", &[]);
-		check_symbols(&lexer, "+", &[Token("+")]);
-		check_symbols(&lexer, "++", &[Token("++")]);
-		check_symbols(&lexer, "+++", &[Token("++"), Token("+")]);
-		check_symbols(&lexer, ".", &[Token(".")]);
-		check_symbols(&lexer, "..", &[Token("..")]);
-		check_symbols(&lexer, "...", &[Token("...")]);
-		check_symbols(&lexer, "....", &[Token("..."), Token(".")]);
-		check_symbols(&lexer, ".....+", &[Token("..."), Token(".."), Token("+")]);
-		check_symbols(&lexer, ">>>", &[Token(">"), Token(">"), Token(">")]);
-		check_symbols(&lexer, ">>>>", &[Token("arrow")]);
-		check_symbols(&lexer, ">>>>>>>>", &[Token("arrow"), Token("arrow")]);
+		check_symbols(&lexer, "+", &[Token::Symbol("+")]);
+		check_symbols(&lexer, "++", &[Token::Symbol("++")]);
+		check_symbols(&lexer, "+++", &[Token::Symbol("++"), Token::Symbol("+")]);
+		check_symbols(&lexer, ".", &[Token::Symbol(".")]);
+		check_symbols(&lexer, "..", &[Token::Symbol("..")]);
+		check_symbols(&lexer, "...", &[Token::Symbol("...")]);
+		check_symbols(&lexer, "....", &[Token::Symbol("..."), Token::Symbol(".")]);
+		check_symbols(
+			&lexer,
+			".....+",
+			&[
+				Token::Symbol("..."),
+				Token::Symbol(".."),
+				Token::Symbol("+"),
+			],
+		);
+		check_symbols(
+			&lexer,
+			">>>",
+			&[Token::Symbol(">"), Token::Symbol(">"), Token::Symbol(">")],
+		);
+		check_symbols(&lexer, ">>>>", &[Token::Symbol("arrow")]);
+		check_symbols(
+			&lexer,
+			">>>>>>>>",
+			&[Token::Symbol("arrow"), Token::Symbol("arrow")],
+		);
 	}
 
-	fn check_symbols<T: IsToken + Eq + std::fmt::Debug>(
-		symbols: &LexSymbol<T>,
-		input: &'static str,
-		expected: &[T],
-	) {
+	fn check_symbols(symbols: &LexSymbol, input: &'static str, expected: &[Token]) {
 		use crate::lexer::tests::TestInput;
 		let mut input = Reader::from(TestInput::new(input));
 		for (i, expected) in expected.iter().cloned().enumerate() {

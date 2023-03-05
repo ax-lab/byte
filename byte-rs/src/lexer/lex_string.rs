@@ -1,9 +1,9 @@
-use super::{IsToken, Lexer, LexerResult, Reader};
+use super::{Lexer, LexerResult, Reader, Token};
 
-pub struct LexString<T: IsToken, F: Fn(String) -> T>(pub F);
+pub struct LexString<F: Fn(String) -> Token>(pub F);
 
-impl<T: IsToken, F: Fn(String) -> T> Lexer<T> for LexString<T, F> {
-	fn read(&self, next: char, input: &mut Reader) -> LexerResult<T> {
+impl<F: Fn(String) -> Token> Lexer for LexString<F> {
+	fn read(&self, next: char, input: &mut Reader) -> LexerResult {
 		match next {
 			'\'' => {
 				let mut text = String::new();

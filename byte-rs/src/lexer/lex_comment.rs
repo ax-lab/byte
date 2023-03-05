@@ -1,9 +1,9 @@
-use super::{IsToken, Lexer, LexerResult, Reader};
+use super::{Lexer, LexerResult, Reader, Token};
 
-pub struct LexComment<T: IsToken>(pub T);
+pub struct LexComment(pub Token);
 
-impl<T: IsToken> Lexer<T> for LexComment<T> {
-	fn read(&self, next: char, input: &mut Reader) -> LexerResult<T> {
+impl Lexer for LexComment {
+	fn read(&self, next: char, input: &mut Reader) -> LexerResult {
 		match next {
 			'#' => {
 				let (multi, mut level) = if input.read_if('(') {

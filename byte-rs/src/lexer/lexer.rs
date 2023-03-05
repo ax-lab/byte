@@ -1,20 +1,12 @@
-use std::marker::PhantomData;
+use super::{Reader, Token};
 
-use super::Reader;
-
-pub trait IsToken: Clone + std::fmt::Debug {}
-
-impl IsToken for () {}
-
-impl IsToken for &'static str {}
-
-pub enum LexerResult<T: IsToken> {
+pub enum LexerResult {
 	None,
-	Token(T),
+	Token(Token),
 	Error(String),
 }
 
-pub trait Lexer<T: IsToken>: Sized {
+pub trait Lexer: Sized {
 	/// Tries to read the next recognized token from the input.
 	///
 	/// Returns [`LexerResult::None`] if the next token is not recognized or
@@ -22,26 +14,21 @@ pub trait Lexer<T: IsToken>: Sized {
 	///
 	/// The input will advance to the end of the recognized token iff the
 	/// token is recognized.
-	fn read(&self, next: char, input: &mut Reader) -> LexerResult<T>;
+	fn read(&self, next: char, input: &mut Reader) -> LexerResult;
 
 	/// Creates a chained composite lexer.
-	fn or<B: Lexer<T>>(self, other: B) -> LexOr<Self, B, T> {
-		LexOr {
-			a: self,
-			b: other,
-			phantom: Default::default(),
-		}
+	fn or<B: Lexer>(self, other: B) -> LexOr<Self, B> {
+		LexOr { a: self, b: other }
 	}
 }
 
-pub struct LexOr<A: Lexer<T>, B: Lexer<T>, T: IsToken> {
+pub struct LexOr<A: Lexer, B: Lexer> {
 	a: A,
 	b: B,
-	phantom: PhantomData<T>,
 }
 
-impl<A: Lexer<T>, B: Lexer<T>, T: IsToken> Lexer<T> for LexOr<A, B, T> {
-	fn read(&self, next: char, input: &mut Reader) -> LexerResult<T> {
+impl<A: Lexer, B: Lexer> Lexer for LexOr<A, B> {
+	fn read(&self, next: char, input: &mut Reader) -> LexerResult {
 		let res = self.a.read(next, input);
 		if let LexerResult::None = res {
 			self.b.read(next, input)

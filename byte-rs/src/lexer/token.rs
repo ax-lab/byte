@@ -1,5 +1,3 @@
-use super::IsToken;
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Token {
 	None,
@@ -12,8 +10,6 @@ pub enum Token {
 	Literal(String),
 	Symbol(&'static str),
 }
-
-impl IsToken for Token {}
 
 impl Token {
 	/// Returns the text for a symbolic token (either [`Token::Symbol`]

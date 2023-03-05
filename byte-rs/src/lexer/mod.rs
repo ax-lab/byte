@@ -23,9 +23,9 @@ mod lex_space;
 mod lex_string;
 mod lex_symbol;
 
-pub fn read_token(input: &mut Reader) -> (LexerResult<Token>, Span) {
+pub fn read_token(input: &mut Reader) -> (LexerResult, Span) {
 	let config = Lazy::new(|| {
-		let space = lex_space::LexSpace(());
+		let space = lex_space::LexSpace(Token::None);
 		let skip = space;
 
 		let comment = lex_comment::LexComment(Token::Comment);
@@ -71,7 +71,7 @@ pub fn read_token(input: &mut Reader) -> (LexerResult<Token>, Span) {
 	)
 }
 
-fn symbols() -> lex_symbol::LexSymbol<Token> {
+fn symbols() -> lex_symbol::LexSymbol {
 	let mut sym = lex_symbol::LexSymbol::default();
 	sym.add_symbol(",", Token::Symbol(","));
 	sym.add_symbol(";", Token::Symbol(";"));

@@ -1,9 +1,9 @@
-use super::{IsToken, Lexer, LexerResult, Reader};
+use super::{Lexer, LexerResult, Reader, Token};
 
-pub struct LexNumber<T: IsToken, F: Fn(u64) -> T>(pub F);
+pub struct LexNumber<F: Fn(u64) -> Token>(pub F);
 
-impl<T: IsToken, F: Fn(u64) -> T> Lexer<T> for LexNumber<T, F> {
-	fn read(&self, next: char, input: &mut Reader) -> LexerResult<T> {
+impl<F: Fn(u64) -> Token> Lexer for LexNumber<F> {
+	fn read(&self, next: char, input: &mut Reader) -> LexerResult {
 		match next {
 			'0'..='9' => {
 				let mut value = decimal_value(next);
