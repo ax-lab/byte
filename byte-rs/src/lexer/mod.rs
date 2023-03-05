@@ -1,13 +1,13 @@
 mod input;
-mod span;
 mod token;
 mod token_source;
 mod token_stream;
 
 use once_cell::unsync::Lazy;
 
+pub use super::span::*;
+
 pub use input::*;
-pub use span::*;
 pub use token::*;
 pub use token_source::*;
 pub use token_stream::*;

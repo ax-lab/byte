@@ -10,6 +10,7 @@ mod exec;
 mod lexer;
 mod parser;
 mod source;
+mod span;
 
 fn main() {
 	let mut done = false;
