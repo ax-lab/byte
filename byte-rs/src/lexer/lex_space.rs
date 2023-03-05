@@ -1,9 +1,9 @@
-use super::{Input, IsToken, Lexer, LexerResult, Reader};
+use super::{IsToken, Lexer, LexerResult, Reader};
 
 pub struct LexSpace<T: IsToken>(pub T);
 
 impl<T: IsToken> Lexer<T> for LexSpace<T> {
-	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexerResult<T> {
+	fn read(&self, next: char, input: &mut Reader) -> LexerResult<T> {
 		match next {
 			' ' | '\t' => {
 				let mut pos;

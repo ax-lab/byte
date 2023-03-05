@@ -23,7 +23,7 @@ mod lex_space;
 mod lex_string;
 mod lex_symbol;
 
-pub fn read_token<T: Input>(input: &mut Reader<T>) -> (LexerResult<Token>, Span) {
+pub fn read_token(input: &mut Reader) -> (LexerResult<Token>, Span) {
 	let config = Lazy::new(|| {
 		let space = lex_space::LexSpace(());
 		let skip = space;

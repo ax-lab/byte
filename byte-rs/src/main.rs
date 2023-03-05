@@ -4,8 +4,6 @@ use exec::{execute_expr, ResultValue};
 use lexer::{ReaderTokenSource, Token, TokenSource, TokenStream};
 use parser::{parse_statement, Block, Id, ParseResult, Statement};
 
-use crate::lexer::Input;
-
 mod exec;
 mod input;
 mod lexer;
@@ -74,7 +72,6 @@ fn main() {
 							(token, span) => {
 								let pos = span.pos.offset;
 								let end = span.end.offset;
-								let input = input.inner();
 								let text = input.read_text(pos, end);
 								println!("{span}: {:10}  =  {token:?}", format!("{text:?}"));
 							}

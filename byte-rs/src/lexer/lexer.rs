@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use super::{Input, Reader};
+use super::Reader;
 
 pub trait IsToken: Clone + std::fmt::Debug {}
 
@@ -22,7 +22,7 @@ pub trait Lexer<T: IsToken>: Sized {
 	///
 	/// The input will advance to the end of the recognized token iff the
 	/// token is recognized.
-	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexerResult<T>;
+	fn read(&self, next: char, input: &mut Reader) -> LexerResult<T>;
 
 	/// Creates a chained composite lexer.
 	fn or<B: Lexer<T>>(self, other: B) -> LexOr<Self, B, T> {
@@ -41,7 +41,7 @@ pub struct LexOr<A: Lexer<T>, B: Lexer<T>, T: IsToken> {
 }
 
 impl<A: Lexer<T>, B: Lexer<T>, T: IsToken> Lexer<T> for LexOr<A, B, T> {
-	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexerResult<T> {
+	fn read(&self, next: char, input: &mut Reader) -> LexerResult<T> {
 		let res = self.a.read(next, input);
 		if let LexerResult::None = res {
 			self.b.read(next, input)

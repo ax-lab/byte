@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{Input, IsToken, Lexer, LexerResult, Reader};
+use super::{IsToken, Lexer, LexerResult, Reader};
 
 pub struct LexSymbol<T: IsToken> {
 	states: Vec<Entry<T>>,
@@ -58,7 +58,7 @@ impl<T: IsToken> LexSymbol<T> {
 }
 
 impl<T: IsToken> Lexer<T> for LexSymbol<T> {
-	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexerResult<T> {
+	fn read(&self, next: char, input: &mut Reader) -> LexerResult<T> {
 		let state = self.get_next(0, next);
 		let (mut state, valid) = if let Some((state, valid)) = state {
 			(state, valid)

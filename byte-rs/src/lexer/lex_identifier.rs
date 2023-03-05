@@ -1,9 +1,9 @@
-use super::{Input, IsToken, Lexer, LexerResult, Reader};
+use super::{IsToken, Lexer, LexerResult, Reader};
 
 pub struct LexIdentifier<T: IsToken, F: Fn(String) -> T>(pub F);
 
 impl<T: IsToken, F: Fn(String) -> T> Lexer<T> for LexIdentifier<T, F> {
-	fn read<S: Input>(&self, next: char, input: &mut Reader<S>) -> LexerResult<T> {
+	fn read(&self, next: char, input: &mut Reader) -> LexerResult<T> {
 		match next {
 			'a'..='z' | 'A'..='Z' | '_' => {
 				let mut pos;

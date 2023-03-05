@@ -13,14 +13,14 @@ pub trait TokenSource {
 	fn pop_indent(&mut self, level: usize);
 }
 
-pub struct ReaderTokenSource<T: Input> {
-	input: RefCell<Reader<T>>,
+pub struct ReaderTokenSource {
+	input: RefCell<Reader>,
 	next: RefCell<VecDeque<(Token, Span)>>,
 	indent: RefCell<VecDeque<usize>>,
 	last_span: Option<Span>,
 }
 
-impl<T: Input> From<T> for ReaderTokenSource<T> {
+impl<T: Input + 'static> From<T> for ReaderTokenSource {
 	fn from(input: T) -> Self {
 		ReaderTokenSource {
 			input: Reader::from(input).into(),
@@ -31,7 +31,7 @@ impl<T: Input> From<T> for ReaderTokenSource<T> {
 	}
 }
 
-impl<T: Input> TokenSource for ReaderTokenSource<T> {
+impl TokenSource for ReaderTokenSource {
 	fn peek(&self) -> Ref<(Token, Span)> {
 		self.fill_next();
 		let next = self.next.borrow();
@@ -77,10 +77,9 @@ impl<T: Input> TokenSource for ReaderTokenSource<T> {
 	}
 }
 
-impl<T: Input> ReaderTokenSource<T> {
-	pub fn inner(&self) -> Ref<T> {
-		let input = self.input.borrow();
-		Ref::map(input, |x| x.inner())
+impl ReaderTokenSource {
+	pub fn read_text(&self, pos: usize, end: usize) -> String {
+		self.input.borrow().inner().read_text(pos, end).to_string()
 	}
 
 	fn fill_next(&self) {

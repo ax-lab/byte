@@ -2,25 +2,25 @@ use super::Input;
 use super::Pos;
 
 /// Wrapper for an [Input] providing support for lexing.
-pub struct Reader<T: Input> {
-	inner: T,
+pub struct Reader {
+	inner: Box<dyn Input>,
 	pos: Pos,
 	was_cr: bool,
 }
 
-impl<T: Input> From<T> for Reader<T> {
+impl<T: Input + 'static> From<T> for Reader {
 	fn from(value: T) -> Self {
 		Reader {
-			inner: value,
+			inner: Box::new(value),
 			pos: Default::default(),
 			was_cr: false,
 		}
 	}
 }
 
-impl<T: Input> Reader<T> {
-	pub fn inner(&self) -> &T {
-		&self.inner
+impl Reader {
+	pub fn inner(&self) -> &dyn Input {
+		self.inner.as_ref()
 	}
 
 	/// Return the current position for the reader.
