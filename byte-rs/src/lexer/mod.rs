@@ -97,42 +97,22 @@ mod tests {
 	use super::*;
 
 	pub struct TestInput {
-		pos: usize,
 		txt: &'static str,
 	}
 
 	impl TestInput {
 		pub fn new(input: &'static str) -> Self {
-			TestInput { pos: 0, txt: input }
+			TestInput { txt: input }
 		}
 	}
 
 	impl Input for TestInput {
-		fn read_text(&self, pos: usize, end: usize) -> &str {
-			let txt = self.txt.as_bytes();
-			unsafe { std::str::from_utf8_unchecked(&txt[pos..end]) }
+		fn len(&self) -> usize {
+			self.txt.len()
 		}
 
-		fn offset(&self) -> usize {
-			self.pos
-		}
-
-		fn set_offset(&mut self, pos: usize) {
-			self.pos = pos;
-		}
-
-		fn read(&mut self) -> Option<char> {
-			let txt = self.read_text(self.pos, self.txt.len());
-			let mut chars = txt.char_indices();
-			if let Some((_, next)) = chars.next() {
-				self.pos = chars
-					.next()
-					.map(|x| self.pos + x.0)
-					.unwrap_or(self.txt.len());
-				Some(next)
-			} else {
-				None
-			}
+		fn read(&self, pos: usize, end: usize) -> &[u8] {
+			&self.txt.as_bytes()[pos..end]
 		}
 	}
 }

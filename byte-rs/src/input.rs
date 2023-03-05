@@ -25,9 +25,10 @@ impl std::fmt::Display for Pos {
 
 /// Trait implemented by any input to a [super::Lexer].
 pub trait Input {
-	fn offset(&self) -> usize;
-	fn set_offset(&mut self, pos: usize);
+	fn len(&self) -> usize;
+	fn read(&self, pos: usize, end: usize) -> &[u8];
 
-	fn read(&mut self) -> Option<char>;
-	fn read_text(&self, pos: usize, end: usize) -> &str;
+	fn read_text(&self, pos: usize, end: usize) -> &str {
+		unsafe { std::str::from_utf8_unchecked(self.read(pos, end)) }
+	}
 }

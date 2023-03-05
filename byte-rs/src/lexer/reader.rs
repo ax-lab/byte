@@ -30,8 +30,12 @@ impl<T: Input> Reader<T> {
 
 	/// Read the next character in the input and advances its position.
 	pub fn read(&mut self) -> Option<char> {
-		if let Some(next) = self.inner.read() {
-			self.advance(next, self.inner.offset());
+		let len = self.inner.len();
+		let txt = self.inner.read_text(self.pos.offset, len);
+		let mut chars = txt.char_indices();
+		if let Some((_, next)) = chars.next() {
+			let offset = chars.next().map(|x| self.pos.offset + x.0).unwrap_or(len);
+			self.advance(next, offset);
 			Some(next)
 		} else {
 			None
@@ -46,23 +50,20 @@ impl<T: Input> Reader<T> {
 	/// Backtrack to a state saved by [`save()`].
 	pub fn restore(&mut self, state: (Pos, bool)) {
 		(self.pos, self.was_cr) = state;
-		self.inner.set_offset(self.pos.offset);
 	}
 
 	/// Read the next character in the input if it is the given character.
 	pub fn read_if(&mut self, expected: char) -> bool {
-		let offset = self.inner.offset();
-		if let Some(next) = self.inner.read() {
+		let pos = self.save();
+		if let Some(next) = self.read() {
 			if next == expected {
-				self.advance(next, self.inner.offset());
 				return true;
 			}
 		}
-		self.inner.set_offset(offset);
+		self.restore(pos);
 		false
 	}
 
-	/// Advance the reader position based on the given character.
 	fn advance(&mut self, next: char, offset: usize) {
 		match next {
 			'\n' => {
