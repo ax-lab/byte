@@ -18,8 +18,6 @@ pub fn open_file<P: AsRef<Path>>(path: P) -> std::io::Result<SourceFile> {
 }
 
 impl Input for SourceFile {
-	type Error = std::io::Error;
-
 	fn read_text(&self, pos: usize, end: usize) -> &str {
 		unsafe { std::str::from_utf8_unchecked(&self.text[pos..end]) }
 	}

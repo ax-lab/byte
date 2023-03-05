@@ -7,10 +7,10 @@ use parser::{parse_statement, Block, Id, ParseResult, Statement};
 use crate::lexer::Input;
 
 mod exec;
+mod input;
 mod lexer;
 mod parser;
 mod source;
-mod span;
 
 fn main() {
 	let mut done = false;

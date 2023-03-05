@@ -1,13 +1,13 @@
-mod input;
+mod reader;
 mod token;
 mod token_source;
 mod token_stream;
 
 use once_cell::unsync::Lazy;
 
-pub use super::span::*;
+pub use super::input::*;
 
-pub use input::*;
+pub use reader::*;
 pub use token::*;
 pub use token_source::*;
 pub use token_stream::*;
@@ -108,8 +108,6 @@ mod tests {
 	}
 
 	impl Input for TestInput {
-		type Error = String;
-
 		fn read_text(&self, pos: usize, end: usize) -> &str {
 			let txt = self.txt.as_bytes();
 			unsafe { std::str::from_utf8_unchecked(&txt[pos..end]) }

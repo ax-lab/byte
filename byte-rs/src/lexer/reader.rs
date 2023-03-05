@@ -1,15 +1,5 @@
+use super::Input;
 use super::Pos;
-
-/// Trait implemented by any input to a [super::Lexer].
-pub trait Input {
-	type Error: std::fmt::Display;
-
-	fn offset(&self) -> usize;
-	fn set_offset(&mut self, pos: usize);
-
-	fn read(&mut self) -> Option<char>;
-	fn read_text(&self, pos: usize, end: usize) -> &str;
-}
 
 /// Wrapper for an [Input] providing support for lexing.
 pub struct Reader<T: Input> {
