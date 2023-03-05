@@ -141,7 +141,6 @@ mod tests {
 			let pos = input.pos();
 			let next = symbols.read(next, &mut input);
 			let end = input.pos();
-			let input = input.inner();
 			let text = input.read_text(pos.offset, end.offset);
 			match next {
 				LexerResult::Token(actual) => assert_eq!(

@@ -1,9 +1,12 @@
+use std::rc::Rc;
+
 use super::Input;
 use super::Pos;
 
 /// Wrapper for an [Input] providing support for lexing.
+#[derive(Clone)]
 pub struct Reader {
-	inner: Box<dyn Input>,
+	inner: Rc<Box<dyn Input>>,
 	pos: Pos,
 	was_cr: bool,
 }
@@ -11,7 +14,7 @@ pub struct Reader {
 impl<T: Input + 'static> From<T> for Reader {
 	fn from(value: T) -> Self {
 		Reader {
-			inner: Box::new(value),
+			inner: Rc::new(Box::new(value)),
 			pos: Default::default(),
 			was_cr: false,
 		}
@@ -19,8 +22,8 @@ impl<T: Input + 'static> From<T> for Reader {
 }
 
 impl Reader {
-	pub fn inner(&self) -> &dyn Input {
-		self.inner.as_ref()
+	pub fn read_text(&self, pos: usize, end: usize) -> String {
+		self.inner.read_text(pos, end).to_string()
 	}
 
 	/// Return the current position for the reader.

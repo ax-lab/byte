@@ -79,7 +79,7 @@ impl TokenSource for ReaderTokenSource {
 
 impl ReaderTokenSource {
 	pub fn read_text(&self, pos: usize, end: usize) -> String {
-		self.input.borrow().inner().read_text(pos, end).to_string()
+		self.input.borrow().read_text(pos, end)
 	}
 
 	fn fill_next(&self) {
