@@ -1,6 +1,20 @@
 use crate::lexer::{ReadToken, Span, Token, TokenStream};
 
-pub enum Block {
+/// Display a list of blocks in the input TokenStream. This is used only
+/// for testing the tokenization.
+pub fn list_blocks(input: &mut TokenStream) {
+	loop {
+		let block = parse_block(input);
+		match block {
+			Block::None => break,
+			block => {
+				println!("{block}");
+			}
+		}
+	}
+}
+
+enum Block {
 	None,
 	Item(Token, Span),
 	Line {
@@ -11,7 +25,7 @@ pub enum Block {
 	Error(String, Span),
 }
 
-pub fn parse_block(input: &mut TokenStream) -> Block {
+fn parse_block(input: &mut TokenStream) -> Block {
 	parse_line(input, 0, None)
 }
 

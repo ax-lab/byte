@@ -2,7 +2,7 @@ use std::{collections::HashMap, env};
 
 use exec::{execute_expr, ResultValue};
 use lexer::{Token, TokenStream};
-use parser::{parse_statement, Block, Id, ParseResult, Statement};
+use parser::{parse_statement, Id, ParseResult, Statement};
 
 mod exec;
 mod input;
@@ -81,15 +81,7 @@ fn main() {
 				}
 
 				if list_blocks {
-					loop {
-						let block = parser::parse_block(&mut input);
-						match block {
-							Block::None => break,
-							block => {
-								println!("{block}");
-							}
-						}
-					}
+					parser::list_blocks(&mut input);
 					std::process::exit(0);
 				}
 
