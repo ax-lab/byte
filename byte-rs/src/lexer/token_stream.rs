@@ -211,10 +211,6 @@ impl TokenStream {
 		})
 	}
 
-	pub fn skip_blank_lines(&mut self) {
-		self.skip_while(|token| matches!(token, Token::LineBreak | Token::Comment));
-	}
-
 	//------------------------------------------------------------------------//
 	// Internal methods
 	//------------------------------------------------------------------------//
@@ -238,10 +234,12 @@ fn read_all(input: &mut Reader) -> Vec<(Token, Span)> {
 	let mut parens = VecDeque::new();
 
 	let mut is_last = false;
+	let mut is_empty = true;
 	while !is_last {
 		// check if we are at the start of the line so we can compute indentation
 		let start = input.pos();
 		let new_line = start.column == 0;
+		is_empty = is_empty || new_line;
 
 		// read the next token
 		let (result, span) = super::read_token(input);
@@ -306,7 +304,15 @@ fn read_all(input: &mut Reader) -> Vec<(Token, Span)> {
 		}
 
 		is_last = token == Token::None;
-		if token != Token::Comment {
+
+		let skip = match token {
+			Token::Comment => true,
+			Token::LineBreak => is_empty,
+			_ => false,
+		};
+
+		if !skip {
+			is_empty = false;
 			tokens.push((token, span));
 		}
 	}

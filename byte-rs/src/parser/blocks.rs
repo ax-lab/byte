@@ -16,12 +16,11 @@ pub fn parse_block(input: &mut TokenStream) -> Block {
 }
 
 fn parse_line(input: &mut TokenStream, level: usize, stop: Option<&'static str>) -> Block {
-	input.skip_blank_lines();
 	let expr = parse_expr(input, level, stop);
 	if expr.len() == 0 {
 		Block::None
 	} else {
-		input.skip_blank_lines();
+		input.read_if(|x| x == &Token::LineBreak);
 		let result = Block::Line {
 			expr,
 
@@ -89,13 +88,13 @@ fn parse_expr(input: &mut TokenStream, _level: usize, stop: Option<&'static str>
 
 fn parse_parenthesis(input: &mut TokenStream, left: (Token, Span), right: &'static str) -> Block {
 	let level = 0;
-	input.skip_blank_lines();
+	input.read_if(|x| x == &Token::LineBreak);
 	let indented = input.read_if(|next| next == &Token::Indent);
 
 	let mut inner = Vec::new();
 	if indented {
 		loop {
-			input.skip_blank_lines();
+			input.read_if(|x| x == &Token::LineBreak);
 			if input.read_if(|token| token == &Token::Dedent) {
 				break;
 			}
