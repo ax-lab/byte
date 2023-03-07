@@ -21,6 +21,15 @@ impl Token {
 			_ => None,
 		}
 	}
+
+	/// Returns the closing symbol for an opening parenthesis token.
+	pub fn closing(&self) -> Option<&'static str> {
+		let right = match self {
+			Token::Symbol("(") => ")",
+			_ => return None,
+		};
+		Some(right)
+	}
 }
 
 impl std::fmt::Display for Token {

@@ -1,4 +1,4 @@
-use crate::lexer::{ReadToken, Span, Token, TokenSource, TokenStream};
+use crate::lexer::{ReadToken, Span, Token, TokenStream};
 
 pub enum Block {
 	None,
@@ -11,15 +11,11 @@ pub enum Block {
 	Error(String, Span),
 }
 
-pub fn parse_block<T: TokenSource>(input: &mut TokenStream<T>) -> Block {
+pub fn parse_block(input: &mut TokenStream) -> Block {
 	parse_line(input, 0, None)
 }
 
-fn parse_line<T: TokenSource>(
-	input: &mut TokenStream<T>,
-	level: usize,
-	stop: Option<&'static str>,
-) -> Block {
+fn parse_line(input: &mut TokenStream, level: usize, stop: Option<&'static str>) -> Block {
 	input.skip_blank_lines();
 	let expr = parse_expr(input, level, stop);
 	if expr.len() == 0 {
@@ -58,11 +54,7 @@ fn parse_line<T: TokenSource>(
 	}
 }
 
-fn parse_expr<T: TokenSource>(
-	input: &mut TokenStream<T>,
-	level: usize,
-	stop: Option<&'static str>,
-) -> Vec<Block> {
+fn parse_expr(input: &mut TokenStream, _level: usize, stop: Option<&'static str>) -> Vec<Block> {
 	let mut expr = Vec::new();
 	let mut stopped = false;
 	while let Some((token, span)) = input.try_read(|_, token, span| {
@@ -92,18 +84,11 @@ fn parse_expr<T: TokenSource>(
 			token => expr.push(Block::Item(token, span)),
 		}
 	}
-	if stopped {
-		input.inner_mut().pop_indent(level);
-	}
 	expr
 }
 
-fn parse_parenthesis<T: TokenSource>(
-	input: &mut TokenStream<T>,
-	left: (Token, Span),
-	right: &'static str,
-) -> Block {
-	let level = input.inner().indent_level();
+fn parse_parenthesis(input: &mut TokenStream, left: (Token, Span), right: &'static str) -> Block {
+	let level = 0;
 	input.skip_blank_lines();
 	let indented = input.read_if(|next| next == &Token::Indent);
 

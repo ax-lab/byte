@@ -1,12 +1,11 @@
-use std::{
-	cell::{Ref, RefCell, RefMut},
-	rc::Rc,
-};
+use std::{collections::VecDeque, rc::Rc};
 
-use super::{Span, Token, TokenSource};
+use super::{Input, LexerResult, Reader, Span, Token};
 
-pub struct TokenStream<T: TokenSource> {
-	input: Rc<RefCell<T>>,
+pub struct TokenStream {
+	reader: Reader,
+	tokens: Rc<Vec<(Token, Span)>>,
+	index: usize,
 }
 
 pub enum ReadToken<T> {
@@ -14,33 +13,29 @@ pub enum ReadToken<T> {
 	Unget(Token),
 }
 
-impl<T: TokenSource> TokenStream<T> {
-	pub fn new(input: T) -> TokenStream<T> {
+impl TokenStream {
+	pub fn new<T: Input + 'static>(input: T) -> TokenStream {
+		let mut reader = Reader::from(input);
+		let tokens = read_all(&mut reader);
 		TokenStream {
-			input: Rc::new(input.into()),
+			reader,
+			tokens: Rc::new(tokens),
+			index: 0,
 		}
 	}
 
-	pub fn inner(&self) -> Ref<T> {
-		self.input.borrow()
-	}
-
-	pub fn inner_mut(&self) -> RefMut<T> {
-		self.input.borrow_mut()
+	pub fn read_text(&self, pos: usize, end: usize) -> String {
+		self.reader.read_text(pos, end)
 	}
 
 	/// Span for the next token in the input for use in compiler messages.
 	pub fn next_span(&mut self) -> Span {
-		let next = self.input.borrow();
-		let next = next.peek();
-		next.1
+		self.tokens[self.index].1
 	}
 
 	/// Next token in the input for use in compiler messages.
 	pub fn next_token(&mut self) -> (Token, Span) {
-		let next = self.input.borrow();
-		let next = next.peek();
-		(next.0.clone(), next.1)
+		self.tokens[self.index].clone()
 	}
 
 	/// Read the next token in the input and passes it to the given parser
@@ -51,7 +46,7 @@ impl<T: TokenSource> TokenStream<T> {
 		&mut self,
 		parser: F,
 	) -> Option<V> {
-		let (token, span) = self.read_next();
+		let (token, span) = self.read_pair();
 		if let Token::None = token {
 			None
 		} else {
@@ -67,7 +62,7 @@ impl<T: TokenSource> TokenStream<T> {
 		&mut self,
 		consumer: F,
 	) -> Option<V> {
-		let (token, span) = self.read_next();
+		let (token, span) = self.read_pair();
 		if let Token::None = token {
 			None
 		} else {
@@ -86,7 +81,7 @@ impl<T: TokenSource> TokenStream<T> {
 	///
 	/// This will call the parser function even at the end of the input.
 	pub fn map_next<V, F: FnOnce(Token, Span) -> V>(&mut self, parser: F) -> V {
-		let (token, span) = self.read_next();
+		let (token, span) = self.read_pair();
 		parser(token, span)
 	}
 
@@ -94,8 +89,7 @@ impl<T: TokenSource> TokenStream<T> {
 	/// function returns [`None`].
 	pub fn try_map_next<V, F: FnOnce(&Token, Span) -> Option<V>>(&mut self, map: F) -> Option<V> {
 		let value = {
-			let next = self.input.borrow();
-			let next = next.peek();
+			let next = &self.tokens[self.index];
 			let token = &next.0;
 			let span = next.1;
 			if let Token::None = token {
@@ -132,8 +126,7 @@ impl<T: TokenSource> TokenStream<T> {
 	/// was not true or at the end of input.
 	pub fn read_if<F: Fn(&Token) -> bool>(&mut self, predicate: F) -> bool {
 		let res = {
-			let next = self.input.borrow();
-			let next = next.peek();
+			let next = &self.tokens[self.index];
 			let token = &next.0;
 			if let Token::None = token {
 				false
@@ -171,8 +164,7 @@ impl<T: TokenSource> TokenStream<T> {
 	/// On success, returns None.
 	pub fn expect<E, F: FnOnce(&Token, Span) -> Option<E>>(&mut self, predicate: F) -> Option<E> {
 		let error = {
-			let next = self.input.borrow();
-			let next = next.peek();
+			let next = &self.tokens[self.index];
 			let token = &next.0;
 			let span = next.1;
 			predicate(token, span)
@@ -187,8 +179,10 @@ impl<T: TokenSource> TokenStream<T> {
 	}
 
 	/// Return a token to the stream to be read again.
-	pub fn unget(&mut self, token: Token, span: Span) {
-		self.input.borrow_mut().unget(token, span);
+	pub fn unget(&mut self, _token: Token, span: Span) {
+		assert!(self.index > 0);
+		self.index -= 1;
+		assert!(self.next_span() == span);
 	}
 
 	//------------------------------------------------------------------------//
@@ -222,39 +216,99 @@ impl<T: TokenSource> TokenStream<T> {
 	}
 
 	//------------------------------------------------------------------------//
-
-	/// Return a child `TokenStream` that will iterate tokens from the
-	/// current one, but will stop at a [`Token::Ident`].
-	#[allow(unused)]
-	pub fn indented(&mut self) -> TokenStream<T> {
-		todo!()
-	}
-
-	/// Return a child `TokenStream` that will iterate tokens from the
-	/// current one, but will stop at tokens for which `f` returns true.
-	#[allow(unused)]
-	pub fn until(&mut self, f: fn(Token) -> bool) -> TokenStream<T> {
-		todo!()
-	}
-
-	/// Return a child `TokenStream` that will iterate tokens from the
-	/// current one, but will stop at the given right parenthesis.
-	///
-	/// Note that this overrides an [`TokenStream::until`] limitation.
-	#[allow(unused)]
-	pub fn parenthesized(&mut self, right: Token) -> TokenStream<T> {
-		todo!()
-	}
-
-	//------------------------------------------------------------------------//
 	// Internal methods
 	//------------------------------------------------------------------------//
 
 	fn shift(&mut self) {
-		self.input.borrow_mut().read();
+		if self.index < self.tokens.len() - 1 {
+			self.index += 1;
+		}
 	}
 
-	fn read_next(&mut self) -> (Token, Span) {
-		self.input.borrow_mut().read()
+	pub fn read_pair(&mut self) -> (Token, Span) {
+		let out = self.tokens[self.index].clone();
+		self.shift();
+		out
 	}
+}
+
+fn read_all(input: &mut Reader) -> Vec<(Token, Span)> {
+	let mut tokens = Vec::new();
+	let mut indent = VecDeque::new();
+	let mut parens = VecDeque::new();
+
+	let mut is_last = false;
+	while !is_last {
+		// check if we are at the start of the line so we can compute indentation
+		let start = input.pos();
+		let new_line = start.column == 0;
+
+		// read the next token
+		let (result, span) = super::read_token(input);
+		let token = match result {
+			LexerResult::Token(token) => token,
+			LexerResult::None => Token::None,
+			LexerResult::Error(error) => panic!("{error} at {span}"),
+		};
+
+		let (closing, closing_level) = if let Some(&(closing, level)) = parens.back() {
+			if Some(closing) == token.symbol() {
+				parens.pop_back();
+				(true, level)
+			} else {
+				(false, 0)
+			}
+		} else {
+			(false, 0)
+		};
+
+		let need_indent =
+			(new_line && token != Token::LineBreak) || token == Token::None || closing;
+		let column = if token == Token::None {
+			0
+		} else if closing {
+			closing_level
+		} else {
+			span.pos.column
+		};
+
+		// check if we need indent or dedent tokens by comparing the first token level
+		if need_indent {
+			let level = indent.back().copied().unwrap_or(0);
+			if column > level {
+				indent.push_back(column);
+				tokens.push((
+					Token::Indent,
+					Span {
+						pos: start,
+						end: span.pos,
+					},
+				));
+			} else {
+				let mut level = level;
+				while column < level {
+					indent.pop_back();
+					level = indent.back().copied().unwrap_or(0);
+					tokens.push((
+						Token::Dedent,
+						Span {
+							pos: start,
+							end: span.pos,
+						},
+					));
+				}
+			}
+		}
+
+		if let Some(closing) = token.closing() {
+			let level = indent.back().copied().unwrap_or(0);
+			parens.push_back((closing, level));
+		}
+
+		is_last = token == Token::None;
+		if token != Token::Comment {
+			tokens.push((token, span));
+		}
+	}
+	tokens
 }

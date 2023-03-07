@@ -1,6 +1,5 @@
 mod reader;
 mod token;
-mod token_source;
 mod token_stream;
 
 use once_cell::unsync::Lazy;
@@ -9,7 +8,6 @@ pub use super::input::*;
 
 pub use reader::*;
 pub use token::*;
-pub use token_source::*;
 pub use token_stream::*;
 
 mod lexer;
