@@ -34,7 +34,7 @@ fn parse_line(input: &mut TokenStream, level: usize, stop: Option<&'static str>)
 	if expr.len() == 0 {
 		Block::None
 	} else {
-		input.read_if(|x| x == &Token::LineBreak);
+		input.read_if(|x| x == &Token::Break);
 		let result = Block::Line {
 			expr,
 
@@ -80,13 +80,12 @@ fn parse_expr(input: &mut TokenStream, _level: usize, stop: Option<&'static str>
 			ReadToken::Unget(token)
 		} else {
 			match token {
-				Token::LineBreak | Token::Dedent => ReadToken::Unget(token),
+				Token::Break | Token::Dedent => ReadToken::Unget(token),
 				_ => ReadToken::MapTo((token, span)),
 			}
 		}
 	}) {
 		match token {
-			Token::Comment => continue,
 			Token::Indent => {
 				panic!("unexpected {token} at {span}");
 			}
@@ -102,13 +101,13 @@ fn parse_expr(input: &mut TokenStream, _level: usize, stop: Option<&'static str>
 
 fn parse_parenthesis(input: &mut TokenStream, left: (Token, Span), right: &'static str) -> Block {
 	let level = 0;
-	input.read_if(|x| x == &Token::LineBreak);
+	input.read_if(|x| x == &Token::Break);
 	let indented = input.read_if(|next| next == &Token::Indent);
 
 	let mut inner = Vec::new();
 	if indented {
 		loop {
-			input.read_if(|x| x == &Token::LineBreak);
+			input.read_if(|x| x == &Token::Break);
 			if input.read_if(|token| token == &Token::Dedent) {
 				break;
 			}

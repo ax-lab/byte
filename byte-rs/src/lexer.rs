@@ -12,6 +12,7 @@ pub use token_stream::*;
 
 pub enum LexerResult {
 	None,
+	Skip,
 	Token(Token),
 	Error(String),
 }
@@ -58,11 +59,11 @@ mod lex_symbol;
 
 pub fn read_token(input: &mut Reader) -> (LexerResult, Span) {
 	let config = Lazy::new(|| {
-		let space = lex_space::LexSpace(Token::None);
+		let space = lex_space::LexSpace;
 		let skip = space;
 
-		let comment = lex_comment::LexComment(Token::Comment);
-		let line_break = lex_line_break::LexLineBreak(Token::LineBreak);
+		let comment = lex_comment::LexComment;
+		let line_break = lex_line_break::LexLineBreak(Token::Break);
 		let identifier = lex_identifier::LexIdentifier(|s| Token::Identifier(s));
 		let string = lex_string::LexString(|s| Token::Literal(s));
 		let number = lex_number::LexNumber(|n| Token::Integer(n));
@@ -81,7 +82,7 @@ pub fn read_token(input: &mut Reader) -> (LexerResult, Span) {
 	let (res, pos) = loop {
 		if let Some(next) = input.read() {
 			match skip.read(next, input) {
-				LexerResult::Token(..) => {
+				LexerResult::Token(..) | LexerResult::Skip => {
 					pos = input.pos();
 				}
 				LexerResult::None => {

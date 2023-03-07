@@ -31,7 +31,6 @@ pub enum ParseResult {
 }
 
 pub fn parse_statement(input: &mut TokenStream) -> ParseResult {
-	input.skip_while(|token| matches!(token, Token::LineBreak));
 	input
 		.read(|input, token, span| {
 			let result = match token {
@@ -54,11 +53,28 @@ pub fn parse_statement(input: &mut TokenStream) -> ParseResult {
 			};
 			let result = if let ParseResult::None = result {
 				match parse_expression(input) {
-					ExprResult::Expr(expr) => ParseResult::Ok(Statement::Expr(expr)),
+					ExprResult::Expr(expr) => {
+						let (next, span) = input.read_pair();
+						if next != Token::Break {
+							ParseResult::Error(
+								span,
+								format!("expected end of expression, got {next}"),
+							)
+						} else {
+							ParseResult::Ok(Statement::Expr(expr))
+						}
+					}
 					ExprResult::Error(span, error) => ParseResult::Error(span, error),
 					ExprResult::None => {
-						let token = input.next_token();
-						ParseResult::Error(span, format!("expected expression, got {token:?}"))
+						if input.at_end() {
+							ParseResult::Error(
+								span,
+								format!("expected expression, got end of input"),
+							)
+						} else {
+							let (token, _) = input.next_token();
+							ParseResult::Error(span, format!("expected expression, got {token:?}"))
+						}
 					}
 				}
 			} else {
@@ -139,11 +155,9 @@ fn parse_indented_block(input: &mut TokenStream) -> ParseResult {
 		return ParseResult::Error(input.next_span(), "block ':' expected".into());
 	}
 
-	if !input.read_if(|token| matches!(token, Token::LineBreak)) {
+	if !input.read_if(|token| matches!(token, Token::Break)) {
 		return ParseResult::Error(input.next_span(), "end of line expected after ':'".into());
 	}
-
-	input.skip_while(|token| matches!(token, Token::LineBreak));
 
 	if !input.read_if(|token| matches!(token, Token::Indent)) {
 		return ParseResult::Error(input.next_span(), "indented block expected".into());
@@ -151,8 +165,6 @@ fn parse_indented_block(input: &mut TokenStream) -> ParseResult {
 
 	let mut block = Vec::new();
 	loop {
-		input.skip_while(|token| matches!(token, Token::LineBreak));
-
 		if input.read_if(|token| matches!(token, Token::Dedent)) {
 			break;
 		}
@@ -171,7 +183,7 @@ fn parse_indented_block(input: &mut TokenStream) -> ParseResult {
 fn parse_print(input: &mut TokenStream) -> ParseResult {
 	let mut expr_list = Vec::new();
 	loop {
-		if input.read_if(|token| matches!(token, Token::None | Token::LineBreak)) {
+		if input.read_if(|token| matches!(token, Token::Break)) {
 			let res = ParseResult::Ok(Statement::Print(expr_list));
 			break res;
 		}
@@ -217,7 +229,7 @@ fn parse_let(input: &mut TokenStream) -> ParseResult {
 
 fn parse_end(input: &mut TokenStream, result: ParseResult) -> ParseResult {
 	input.map_next(|token, span| match token {
-		Token::None | Token::LineBreak => result,
+		Token::Break => result,
 		_ => ParseResult::Error(span, "expected end of statement".into()),
 	})
 }

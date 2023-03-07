@@ -151,6 +151,9 @@ mod tests {
 				LexerResult::Error(error) => {
 					panic!("unexpected error at #{i}: {error} (consumed: `{text}`)")
 				}
+				LexerResult::Skip => {
+					panic!("expected token, got comment at #{i} (consumed: `{text}`)")
+				}
 				LexerResult::None => {
 					panic!("expected token, got none at #{i} (consumed: `{text}`)")
 				}

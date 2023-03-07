@@ -28,6 +28,13 @@ impl TokenStream {
 		self.reader.read_text(pos, end)
 	}
 
+	/// Read the next (token, span) pair.
+	pub fn read_pair(&mut self) -> (Token, Span) {
+		let out = self.tokens[self.index].clone();
+		self.shift();
+		out
+	}
+
 	/// Span for the next token in the input for use in compiler messages.
 	pub fn next_span(&mut self) -> Span {
 		self.tokens[self.index].1
@@ -38,6 +45,10 @@ impl TokenStream {
 		self.tokens[self.index].clone()
 	}
 
+	pub fn at_end(&self) -> bool {
+		self.index >= self.tokens.len()
+	}
+
 	/// Read the next token in the input and passes it to the given parser
 	/// function returning an [`Option`] result.
 	///
@@ -46,10 +57,10 @@ impl TokenStream {
 		&mut self,
 		parser: F,
 	) -> Option<V> {
-		let (token, span) = self.read_pair();
-		if let Token::None = token {
+		if self.at_end() {
 			None
 		} else {
+			let (token, span) = self.read_pair();
 			parser(self, token, span)
 		}
 	}
@@ -62,10 +73,10 @@ impl TokenStream {
 		&mut self,
 		consumer: F,
 	) -> Option<V> {
-		let (token, span) = self.read_pair();
-		if let Token::None = token {
+		if self.at_end() {
 			None
 		} else {
+			let (token, span) = self.read_pair();
 			match consumer(self, token, span) {
 				ReadToken::MapTo(value) => Some(value),
 				ReadToken::Unget(token) => {
@@ -88,22 +99,24 @@ impl TokenStream {
 	/// Similar to `map_next` but does not consume the token if the mapping
 	/// function returns [`None`].
 	pub fn try_map_next<V, F: FnOnce(&Token, Span) -> Option<V>>(&mut self, map: F) -> Option<V> {
-		let value = {
-			let next = &self.tokens[self.index];
-			let token = &next.0;
-			let span = next.1;
-			if let Token::None = token {
-				None
-			} else if let Some(value) = map(token, span) {
-				Some(value)
-			} else {
-				None
+		if self.at_end() {
+			None
+		} else {
+			let value = {
+				let next = &self.tokens[self.index];
+				let token = &next.0;
+				let span = next.1;
+				if let Some(value) = map(token, span) {
+					Some(value)
+				} else {
+					None
+				}
+			};
+			if value.is_some() {
+				self.shift();
 			}
-		};
-		if value.is_some() {
-			self.shift();
+			value
 		}
-		value
 	}
 
 	/// Consume the next token if it is a symbol and it has a mapping returned
@@ -125,26 +138,18 @@ impl TokenStream {
 	/// Returns `true` if the token was read or `false` if the predicate
 	/// was not true or at the end of input.
 	pub fn read_if<F: Fn(&Token) -> bool>(&mut self, predicate: F) -> bool {
-		let res = {
+		if self.at_end() {
+			false
+		} else {
 			let next = &self.tokens[self.index];
 			let token = &next.0;
-			if let Token::None = token {
-				false
-			} else if predicate(token) {
+			if predicate(token) {
+				self.shift();
 				true
 			} else {
 				false
 			}
-		};
-		if res {
-			self.shift();
 		}
-		res
-	}
-
-	/// Skip any number of tokens matching the given predicate.
-	pub fn skip_while<F: Fn(&Token) -> bool>(&mut self, predicate: F) {
-		while self.read_if(&predicate) {}
 	}
 
 	/// Read the next token if it is the specific symbol.
@@ -216,15 +221,8 @@ impl TokenStream {
 	//------------------------------------------------------------------------//
 
 	fn shift(&mut self) {
-		if self.index < self.tokens.len() - 1 {
-			self.index += 1;
-		}
-	}
-
-	pub fn read_pair(&mut self) -> (Token, Span) {
-		let out = self.tokens[self.index].clone();
-		self.shift();
-		out
+		assert!(self.index < self.tokens.len());
+		self.index += 1;
 	}
 }
 
@@ -243,9 +241,10 @@ fn read_all(input: &mut Reader) -> Vec<(Token, Span)> {
 
 		// read the next token
 		let (result, span) = super::read_token(input);
-		let token = match result {
-			LexerResult::Token(token) => token,
-			LexerResult::None => Token::None,
+		let (token, end, skip) = match result {
+			LexerResult::Token(token) => (token, false, false),
+			LexerResult::None => (Token::Break, true, false),
+			LexerResult::Skip => (Token::Symbol(""), false, true),
 			LexerResult::Error(error) => panic!("{error} at {span}"),
 		};
 
@@ -260,9 +259,8 @@ fn read_all(input: &mut Reader) -> Vec<(Token, Span)> {
 			(false, 0)
 		};
 
-		let need_indent =
-			(new_line && token != Token::LineBreak) || token == Token::None || closing;
-		let column = if token == Token::None {
+		let need_indent = (new_line && token != Token::Break) || end || closing;
+		let column = if end {
 			0
 		} else if closing {
 			closing_level
@@ -303,13 +301,12 @@ fn read_all(input: &mut Reader) -> Vec<(Token, Span)> {
 			parens.push_back((closing, level));
 		}
 
-		is_last = token == Token::None;
-
-		let skip = match token {
-			Token::Comment => true,
-			Token::LineBreak => is_empty,
-			_ => false,
-		};
+		is_last = end;
+		let skip = skip
+			|| match token {
+				Token::Break => is_empty || end,
+				_ => false,
+			};
 
 		if !skip {
 			is_empty = false;

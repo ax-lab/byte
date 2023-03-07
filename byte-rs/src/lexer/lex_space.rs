@@ -1,6 +1,6 @@
-use super::{Lexer, LexerResult, Reader, Token};
+use super::{Lexer, LexerResult, Reader};
 
-pub struct LexSpace(pub Token);
+pub struct LexSpace;
 
 impl Lexer for LexSpace {
 	fn read(&self, next: char, input: &mut Reader) -> LexerResult {
@@ -15,7 +15,7 @@ impl Lexer for LexSpace {
 					}
 				}
 				input.restore(pos);
-				LexerResult::Token(self.0.clone())
+				LexerResult::Skip
 			}
 
 			_ => LexerResult::None,

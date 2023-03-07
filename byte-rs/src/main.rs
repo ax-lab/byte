@@ -1,7 +1,7 @@
 use std::{collections::HashMap, env};
 
 use exec::{execute_expr, ResultValue};
-use lexer::{Token, TokenStream};
+use lexer::TokenStream;
 use parser::{parse_statement, Id, ParseResult, Statement};
 
 mod exec;
@@ -66,9 +66,8 @@ fn main() {
 				let mut input = TokenStream::new(source);
 				let mut program = Vec::new();
 				if list_tokens {
-					loop {
+					while !input.at_end() {
 						match input.read_pair() {
-							(Token::None, _) => break,
 							(token, span) => {
 								let pos = span.pos.offset;
 								let end = span.end.offset;
@@ -85,7 +84,7 @@ fn main() {
 					std::process::exit(0);
 				}
 
-				loop {
+				while !input.at_end() {
 					let next;
 					next = parse_statement(&mut input);
 					match next {
