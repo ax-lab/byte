@@ -1,10 +1,23 @@
-use std::{collections::VecDeque, rc::Rc};
+use std::collections::VecDeque;
 
 use super::{Input, Lex, LexerResult, Reader, Span, Token};
 
-pub struct LexStream {
-	reader: Reader,
-	tokens: Rc<Vec<Lex>>,
+pub struct LexSource {
+	pub reader: Reader,
+	pub tokens: Vec<(Token, Span)>,
+}
+
+impl LexSource {
+	pub fn new<T: Input + 'static>(input: T) -> LexSource {
+		let reader = Reader::from(input);
+		let tokens = read_all(reader.clone());
+		LexSource { reader, tokens }
+	}
+}
+
+#[derive(Clone)]
+pub struct LexStream<'a> {
+	source: &'a LexSource,
 	index: usize,
 }
 
@@ -13,35 +26,31 @@ pub enum Parse<T> {
 	None,
 }
 
-impl LexStream {
-	pub fn new<T: Input + 'static>(input: T) -> LexStream {
-		let reader = Reader::from(input);
-		let tokens = Rc::new(read_all(reader.clone()));
-		LexStream {
-			reader,
-			tokens,
-			index: 0,
-		}
+impl<'a> LexStream<'a> {
+	pub fn new(source: &'a LexSource) -> LexStream<'a> {
+		LexStream { source, index: 0 }
 	}
 
 	pub fn read_text(&self, pos: usize, end: usize) -> &str {
-		self.reader.read_text(pos, end)
+		self.source.reader.read_text(pos, end)
 	}
 
 	/// Read the next (token, span) pair.
 	pub fn read_pair(&mut self) -> Lex {
-		let out = self.tokens[self.index].clone();
-		self.shift();
-		out
+		let index = self.index;
+		if self.index < self.source.tokens.len() {
+			self.shift();
+		}
+		Lex::new(self.source, index)
 	}
 
 	/// Span for the next token in the input for use in compiler messages.
-	pub fn next(&mut self) -> &Lex {
-		&self.tokens[self.index]
+	pub fn next(&mut self) -> Lex {
+		Lex::new(self.source, self.index)
 	}
 
 	pub fn at_end(&self) -> bool {
-		self.index >= self.tokens.len()
+		self.index >= self.source.tokens.len()
 	}
 
 	/// Read the next token in the input and passes it to the given parser
@@ -52,11 +61,15 @@ impl LexStream {
 		&mut self,
 		parser: F,
 	) -> Option<V> {
-		if self.at_end() {
-			None
-		} else {
-			let Lex { token, span } = self.read_pair();
-			parser(self, token, span)
+		let mut cloned = self.clone();
+		match self.read_pair() {
+			Lex::None => None,
+			Lex::Next(lex) => {
+				cloned.index += 1;
+				let out = parser(&mut cloned, lex.token(), lex.span());
+				self.index = cloned.index;
+				out
+			}
 		}
 	}
 
@@ -68,16 +81,21 @@ impl LexStream {
 		&mut self,
 		consumer: F,
 	) -> Option<V> {
-		if self.at_end() {
-			None
-		} else {
-			let Lex { token, span } = self.read_pair();
-			match consumer(self, token, span) {
-				Parse::As(value) => Some(value),
-				Parse::None => {
-					self.unget();
-					None
-				}
+		let start = self.index;
+		let mut cloned = self.clone();
+		match self.read_pair() {
+			Lex::None => None,
+			Lex::Next(lex) => {
+				cloned.index += 1;
+				let out = match consumer(&mut cloned, lex.token(), lex.span()) {
+					Parse::As(value) => Some(value),
+					Parse::None => {
+						cloned.index = start;
+						None
+					}
+				};
+				self.index = cloned.index;
+				out
 			}
 		}
 	}
@@ -87,30 +105,32 @@ impl LexStream {
 	///
 	/// This will call the parser function even at the end of the input.
 	pub fn map_next<V, F: FnOnce(Token, Span) -> V>(&mut self, parser: F) -> V {
-		let Lex { token, span } = self.read_pair();
-		parser(token, span)
+		match self.read_pair() {
+			Lex::None => panic!("no next token in map_next"),
+			Lex::Next(lex) => parser(lex.token(), lex.span()),
+		}
 	}
 
 	/// Similar to `map_next` but does not consume the token if the mapping
 	/// function returns [`None`].
 	pub fn try_map_next<V, F: FnOnce(&Token, Span) -> Option<V>>(&mut self, map: F) -> Option<V> {
-		if self.at_end() {
-			None
-		} else {
-			let value = {
-				let next = &self.tokens[self.index];
-				let token = &next.token;
-				let span = next.span;
-				if let Some(value) = map(token, span) {
-					Some(value)
-				} else {
-					None
+		match self.next() {
+			Lex::None => None,
+			Lex::Next(lex) => {
+				let value = {
+					let token = lex.token();
+					let span = lex.span();
+					if let Some(value) = map(&token, span) {
+						Some(value)
+					} else {
+						None
+					}
+				};
+				if value.is_some() {
+					self.shift();
 				}
-			};
-			if value.is_some() {
-				self.shift();
+				value
 			}
-			value
 		}
 	}
 
@@ -133,16 +153,16 @@ impl LexStream {
 	/// Returns `true` if the token was read or `false` if the predicate
 	/// was not true or at the end of input.
 	pub fn read_if<F: Fn(&Token) -> bool>(&mut self, predicate: F) -> bool {
-		if self.at_end() {
-			false
-		} else {
-			let next = &self.tokens[self.index];
-			let token = &next.token;
-			if predicate(token) {
-				self.shift();
-				true
-			} else {
-				false
+		match self.next() {
+			Lex::None => false,
+			Lex::Next(lex) => {
+				let token = lex.token();
+				if predicate(&token) {
+					self.shift();
+					true
+				} else {
+					false
+				}
 			}
 		}
 	}
@@ -164,10 +184,10 @@ impl LexStream {
 	/// On success, returns None.
 	pub fn expect<E, F: FnOnce(&Token, Span) -> Option<E>>(&mut self, predicate: F) -> Option<E> {
 		let error = {
-			let next = &self.tokens[self.index];
-			let token = &next.token;
-			let span = next.span;
-			predicate(token, span)
+			let next = self.next();
+			let token = next.token();
+			let span = next.span();
+			predicate(&token, span)
 		};
 
 		if let Some(error) = error {
@@ -215,12 +235,12 @@ impl LexStream {
 	//------------------------------------------------------------------------//
 
 	fn shift(&mut self) {
-		assert!(self.index < self.tokens.len());
+		assert!(self.index < self.source.tokens.len());
 		self.index += 1;
 	}
 }
 
-fn read_all(mut input: Reader) -> Vec<Lex> {
+fn read_all(mut input: Reader) -> Vec<(Token, Span)> {
 	let mut tokens = Vec::new();
 	let mut indent = VecDeque::new();
 	let mut parens = VecDeque::new();
@@ -308,7 +328,4 @@ fn read_all(mut input: Reader) -> Vec<Lex> {
 		}
 	}
 	tokens
-		.into_iter()
-		.map(move |(token, span)| Lex { token, span })
-		.collect()
 }

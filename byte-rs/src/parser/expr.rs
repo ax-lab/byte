@@ -110,7 +110,7 @@ pub fn parse_expression(input: &mut LexStream) -> ExprResult {
 			ExprResult::None => {
 				return if ops.len() > 0 {
 					ExprResult::Error(
-						input.next().span,
+						input.next().span(),
 						"expected expression after operator".into(),
 					)
 				} else {
@@ -132,7 +132,7 @@ pub fn parse_expression(input: &mut LexStream) -> ExprResult {
 				ExprResult::Expr(expr) => expr,
 				ExprResult::None => {
 					return ExprResult::Error(
-						input.next().span,
+						input.next().span(),
 						"expected expression after ternary operator".into(),
 					)
 				}
@@ -195,7 +195,7 @@ fn parse_atom(input: &mut LexStream) -> ExprResult {
 							}
 						}
 						ExprResult::None => ExprResult::Error(
-							input.next().span,
+							input.next().span(),
 							"expression expected inside '()'".into(),
 						),
 						err @ ExprResult::Error(..) => err,

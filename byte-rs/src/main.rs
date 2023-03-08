@@ -1,7 +1,7 @@
 use std::{collections::HashMap, env};
 
 use exec::{execute_expr, ResultValue};
-use lexer::{Lex, LexStream};
+use lexer::{LexSource, LexStream};
 use parser::{parse_statement, Id, ParseResult, Statement};
 
 mod exec;
@@ -63,17 +63,18 @@ fn main() {
 	for file in files {
 		match source::open_file(&file) {
 			Ok(source) => {
-				let mut input = LexStream::new(source);
+				let source = LexSource::new(source);
+				let mut input = LexStream::new(&source);
 				let mut program = Vec::new();
 				if list_tokens {
 					while !input.at_end() {
-						match input.read_pair() {
-							Lex { token, span } => {
-								let pos = span.pos.offset;
-								let end = span.end.offset;
-								let text = input.read_text(pos, end);
-								println!("{span}: {:10}  =  {token:?}", format!("{text:?}"));
-							}
+						let next = input.read_pair();
+						{
+							let (token, span) = next.pair();
+							let pos = span.pos.offset;
+							let end = span.end.offset;
+							let text = input.read_text(pos, end);
+							println!("{span}: {:10}  =  {token:?}", format!("{text:?}"));
 						}
 					}
 					std::process::exit(0);

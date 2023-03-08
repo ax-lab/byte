@@ -1,4 +1,4 @@
-use crate::lexer::{Lex, LexStream, Parse, Span, Token};
+use crate::lexer::{LexStream, Parse, Span, Token};
 
 /// Display a list of blocks in the input TokenStream. This is used only
 /// for testing the tokenization.
@@ -115,10 +115,10 @@ fn parse_parenthesis(input: &mut LexStream, left: (Token, Span), right: &'static
 			match block {
 				Block::None => {
 					let next = input.next();
-					let token = &next.token;
+					let token = next.token();
 					return Block::Error(
 						format!("unexpected {token} in indented parenthesis"),
-						next.span,
+						next.span(),
 					);
 				}
 				error @ Block::Error(..) => return error,
@@ -135,11 +135,12 @@ fn parse_parenthesis(input: &mut LexStream, left: (Token, Span), right: &'static
 	}
 
 	if !input.read_if(|next| next.symbol() == Some(right)) {
-		let Lex { token, span } = input.next();
+		let next = input.next();
 		let (left, at) = left;
+		let token = next.token();
 		Block::Error(
 			format!("expected closing `{right}` for `{left}` at {at}, but got {token}"),
-			*span,
+			next.span(),
 		)
 	} else {
 		Block::Parenthesis(left.0.clone(), inner, Token::Symbol(right))

@@ -1,4 +1,4 @@
-use crate::lexer::{Lex, LexStream, Span, Token};
+use crate::lexer::{LexStream, Span, Token};
 
 mod blocks;
 pub use blocks::*;
@@ -53,7 +53,7 @@ pub fn parse_statement(input: &mut LexStream) -> ParseResult {
 			let result = if let ParseResult::None = result {
 				match parse_expression(input) {
 					ExprResult::Expr(expr) => {
-						let Lex { token, span } = input.read_pair();
+						let (token, span) = input.read_pair().pair();
 						if token != Token::Break {
 							ParseResult::Error(
 								span,
@@ -71,8 +71,8 @@ pub fn parse_statement(input: &mut LexStream) -> ParseResult {
 								format!("expected expression, got end of input"),
 							)
 						} else {
-							let Lex { token, span } = input.next();
-							ParseResult::Error(*span, format!("expected expression, got {token:?}"))
+							let (token, span) = input.read_pair().pair();
+							ParseResult::Error(span, format!("expected expression, got {token:?}"))
 						}
 					}
 				}
@@ -96,7 +96,7 @@ fn parse_if(input: &mut LexStream) -> ParseResult {
 		}
 		ExprResult::Error(span, error) => ParseResult::Error(span, error),
 		ExprResult::None => {
-			ParseResult::Error(input.next().span, "expression expected after 'if'".into())
+			ParseResult::Error(input.next().span(), "expression expected after 'if'".into())
 		}
 	}
 }
@@ -108,11 +108,14 @@ fn parse_for(input: &mut LexStream) -> ParseResult {
 	}) {
 		id
 	} else {
-		return ParseResult::Error(input.next().span, "identifier expected after 'for'".into());
+		return ParseResult::Error(
+			input.next().span(),
+			"identifier expected after 'for'".into(),
+		);
 	};
 
 	if !input.read_symbol("in") {
-		return ParseResult::Error(input.next().span, "for 'in' expected".into());
+		return ParseResult::Error(input.next().span(), "for 'in' expected".into());
 	}
 
 	let from = match parse_expression(input) {
@@ -120,14 +123,14 @@ fn parse_for(input: &mut LexStream) -> ParseResult {
 		ExprResult::Error(span, error) => return ParseResult::Error(span, error),
 		ExprResult::None => {
 			return ParseResult::Error(
-				input.next().span,
+				input.next().span(),
 				"expression expected after 'for in'".into(),
 			)
 		}
 	};
 
 	if !input.read_symbol("..") {
-		return ParseResult::Error(input.next().span, "for '..' expected".into());
+		return ParseResult::Error(input.next().span(), "for '..' expected".into());
 	}
 
 	let to = match parse_expression(input) {
@@ -135,7 +138,7 @@ fn parse_for(input: &mut LexStream) -> ParseResult {
 		ExprResult::Error(span, error) => return ParseResult::Error(span, error),
 		ExprResult::None => {
 			return ParseResult::Error(
-				input.next().span,
+				input.next().span(),
 				"expression expected after 'for in ..'".into(),
 			)
 		}
@@ -151,15 +154,15 @@ fn parse_for(input: &mut LexStream) -> ParseResult {
 
 fn parse_indented_block(input: &mut LexStream) -> ParseResult {
 	if !input.read_symbol(":") {
-		return ParseResult::Error(input.next().span, "block ':' expected".into());
+		return ParseResult::Error(input.next().span(), "block ':' expected".into());
 	}
 
 	if !input.read_if(|token| matches!(token, Token::Break)) {
-		return ParseResult::Error(input.next().span, "end of line expected after ':'".into());
+		return ParseResult::Error(input.next().span(), "end of line expected after ':'".into());
 	}
 
 	if !input.read_if(|token| matches!(token, Token::Indent)) {
-		return ParseResult::Error(input.next().span, "indented block expected".into());
+		return ParseResult::Error(input.next().span(), "indented block expected".into());
 	}
 
 	let mut block = Vec::new();
@@ -195,7 +198,7 @@ fn parse_print(input: &mut LexStream) -> ParseResult {
 			ExprResult::Expr(expr) => expr,
 			ExprResult::Error(span, error) => break ParseResult::Error(span, error),
 			ExprResult::None => {
-				break ParseResult::Error(input.next().span, "expression expected".into())
+				break ParseResult::Error(input.next().span(), "expression expected".into())
 			}
 		};
 		expr_list.push(expr);
@@ -209,11 +212,11 @@ fn parse_let(input: &mut LexStream) -> ParseResult {
 	}) {
 		Id(id)
 	} else {
-		return ParseResult::Error(input.next().span, "identifier expected".into());
+		return ParseResult::Error(input.next().span(), "identifier expected".into());
 	};
 
 	if !input.read_symbol("=") {
-		return ParseResult::Error(input.next().span, "expected '='".into());
+		return ParseResult::Error(input.next().span(), "expected '='".into());
 	}
 
 	match parse_expression(input) {
@@ -222,7 +225,7 @@ fn parse_let(input: &mut LexStream) -> ParseResult {
 			parse_end(input, res)
 		}
 		ExprResult::Error(span, error) => ParseResult::Error(span, error),
-		ExprResult::None => ParseResult::Error(input.next().span, "expression expected".into()),
+		ExprResult::None => ParseResult::Error(input.next().span(), "expression expected".into()),
 	}
 }
 
