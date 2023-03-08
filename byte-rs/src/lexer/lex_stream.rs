@@ -1,48 +1,43 @@
 use std::{collections::VecDeque, rc::Rc};
 
-use super::{Input, LexerResult, Reader, Span, Token};
+use super::{Input, Lex, LexerResult, Reader, Span, Token};
 
-pub struct TokenStream {
+pub struct LexStream {
 	reader: Reader,
-	tokens: Rc<Vec<(Token, Span)>>,
+	tokens: Rc<Vec<Lex>>,
 	index: usize,
 }
 
-pub enum ReadToken<T> {
-	MapTo(T),
-	Unget(Token),
+pub enum Parse<T> {
+	As(T),
+	None,
 }
 
-impl TokenStream {
-	pub fn new<T: Input + 'static>(input: T) -> TokenStream {
-		let mut reader = Reader::from(input);
-		let tokens = read_all(&mut reader);
-		TokenStream {
+impl LexStream {
+	pub fn new<T: Input + 'static>(input: T) -> LexStream {
+		let reader = Reader::from(input);
+		let tokens = Rc::new(read_all(reader.clone()));
+		LexStream {
 			reader,
-			tokens: Rc::new(tokens),
+			tokens,
 			index: 0,
 		}
 	}
 
-	pub fn read_text(&self, pos: usize, end: usize) -> String {
+	pub fn read_text(&self, pos: usize, end: usize) -> &str {
 		self.reader.read_text(pos, end)
 	}
 
 	/// Read the next (token, span) pair.
-	pub fn read_pair(&mut self) -> (Token, Span) {
+	pub fn read_pair(&mut self) -> Lex {
 		let out = self.tokens[self.index].clone();
 		self.shift();
 		out
 	}
 
 	/// Span for the next token in the input for use in compiler messages.
-	pub fn next_span(&mut self) -> Span {
-		self.tokens[self.index].1
-	}
-
-	/// Next token in the input for use in compiler messages.
-	pub fn next_token(&mut self) -> (Token, Span) {
-		self.tokens[self.index].clone()
+	pub fn next(&mut self) -> &Lex {
+		&self.tokens[self.index]
 	}
 
 	pub fn at_end(&self) -> bool {
@@ -53,14 +48,14 @@ impl TokenStream {
 	/// function returning an [`Option`] result.
 	///
 	/// At the end of the input, returns [`None`] without calling the parser.
-	pub fn read<V, F: FnOnce(&mut Self, Token, Span) -> Option<V>>(
+	pub fn parse<V, F: FnOnce(&mut Self, Token, Span) -> Option<V>>(
 		&mut self,
 		parser: F,
 	) -> Option<V> {
 		if self.at_end() {
 			None
 		} else {
-			let (token, span) = self.read_pair();
+			let Lex { token, span } = self.read_pair();
 			parser(self, token, span)
 		}
 	}
@@ -69,18 +64,18 @@ impl TokenStream {
 	///
 	/// This is similar to `read` except that it can "unread" the token
 	/// in case it does not match by returning [`ReadToken::Unget`].
-	pub fn try_read<V, F: FnOnce(&mut Self, Token, Span) -> ReadToken<V>>(
+	pub fn try_read<V, F: FnOnce(&mut Self, Token, Span) -> Parse<V>>(
 		&mut self,
 		consumer: F,
 	) -> Option<V> {
 		if self.at_end() {
 			None
 		} else {
-			let (token, span) = self.read_pair();
+			let Lex { token, span } = self.read_pair();
 			match consumer(self, token, span) {
-				ReadToken::MapTo(value) => Some(value),
-				ReadToken::Unget(token) => {
-					self.unget(token, span);
+				Parse::As(value) => Some(value),
+				Parse::None => {
+					self.unget();
 					None
 				}
 			}
@@ -92,7 +87,7 @@ impl TokenStream {
 	///
 	/// This will call the parser function even at the end of the input.
 	pub fn map_next<V, F: FnOnce(Token, Span) -> V>(&mut self, parser: F) -> V {
-		let (token, span) = self.read_pair();
+		let Lex { token, span } = self.read_pair();
 		parser(token, span)
 	}
 
@@ -104,8 +99,8 @@ impl TokenStream {
 		} else {
 			let value = {
 				let next = &self.tokens[self.index];
-				let token = &next.0;
-				let span = next.1;
+				let token = &next.token;
+				let span = next.span;
 				if let Some(value) = map(token, span) {
 					Some(value)
 				} else {
@@ -142,7 +137,7 @@ impl TokenStream {
 			false
 		} else {
 			let next = &self.tokens[self.index];
-			let token = &next.0;
+			let token = &next.token;
 			if predicate(token) {
 				self.shift();
 				true
@@ -170,8 +165,8 @@ impl TokenStream {
 	pub fn expect<E, F: FnOnce(&Token, Span) -> Option<E>>(&mut self, predicate: F) -> Option<E> {
 		let error = {
 			let next = &self.tokens[self.index];
-			let token = &next.0;
-			let span = next.1;
+			let token = &next.token;
+			let span = next.span;
 			predicate(token, span)
 		};
 
@@ -184,10 +179,9 @@ impl TokenStream {
 	}
 
 	/// Return a token to the stream to be read again.
-	pub fn unget(&mut self, _token: Token, span: Span) {
+	pub fn unget(&mut self) {
 		assert!(self.index > 0);
 		self.index -= 1;
-		assert!(self.next_span() == span);
 	}
 
 	//------------------------------------------------------------------------//
@@ -226,7 +220,7 @@ impl TokenStream {
 	}
 }
 
-fn read_all(input: &mut Reader) -> Vec<(Token, Span)> {
+fn read_all(mut input: Reader) -> Vec<Lex> {
 	let mut tokens = Vec::new();
 	let mut indent = VecDeque::new();
 	let mut parens = VecDeque::new();
@@ -240,7 +234,7 @@ fn read_all(input: &mut Reader) -> Vec<(Token, Span)> {
 		is_empty = is_empty || new_line;
 
 		// read the next token
-		let (result, span) = super::read_token(input);
+		let (result, span) = super::read_token(&mut input);
 		let (token, end, skip) = match result {
 			LexerResult::Token(token) => (token, false, false),
 			LexerResult::None => (Token::Break, true, false),
@@ -314,4 +308,7 @@ fn read_all(input: &mut Reader) -> Vec<(Token, Span)> {
 		}
 	}
 	tokens
+		.into_iter()
+		.map(move |(token, span)| Lex { token, span })
+		.collect()
 }

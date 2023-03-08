@@ -6,12 +6,12 @@ use super::Pos;
 /// Wrapper for an [Input] providing support for lexing.
 #[derive(Clone)]
 pub struct Reader {
-	inner: Rc<Box<dyn Input>>,
+	inner: Rc<Box<dyn Input + 'static>>,
 	pos: Pos,
 	was_cr: bool,
 }
 
-impl<T: Input + 'static> From<T> for Reader {
+impl<'a, T: Input + 'static> From<T> for Reader {
 	fn from(value: T) -> Self {
 		Reader {
 			inner: Rc::new(Box::new(value)),
@@ -21,9 +21,10 @@ impl<T: Input + 'static> From<T> for Reader {
 	}
 }
 
-impl Reader {
-	pub fn read_text(&self, pos: usize, end: usize) -> String {
-		self.inner.read_text(pos, end).to_string()
+impl<'a> Reader {
+	pub fn read_text(&self, pos: usize, end: usize) -> &str {
+		let inner = &self.inner;
+		inner.read_text(pos, end)
 	}
 
 	/// Return the current position for the reader.

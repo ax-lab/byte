@@ -1,3 +1,11 @@
+use super::Span;
+
+#[derive(Clone)]
+pub struct Lex {
+	pub token: Token,
+	pub span: Span,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Token {
 	Break,

@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
-use crate::lexer::ReadToken;
-use crate::lexer::{Input, Span, Token, TokenStream};
+use crate::lexer::Parse;
+use crate::lexer::{Input, LexStream, Span, Token};
 
 use super::operators::*;
 use super::ParseResult;
@@ -53,7 +53,7 @@ impl<T: Into<ExprResult>> AsResult for T {
 	}
 }
 
-pub fn parse_expression(input: &mut TokenStream) -> ExprResult {
+pub fn parse_expression(input: &mut LexStream) -> ExprResult {
 	let mut ops = VecDeque::new();
 	let mut values = VecDeque::new();
 
@@ -110,7 +110,7 @@ pub fn parse_expression(input: &mut TokenStream) -> ExprResult {
 			ExprResult::None => {
 				return if ops.len() > 0 {
 					ExprResult::Error(
-						input.next_span(),
+						input.next().span,
 						"expected expression after operator".into(),
 					)
 				} else {
@@ -132,7 +132,7 @@ pub fn parse_expression(input: &mut TokenStream) -> ExprResult {
 				ExprResult::Expr(expr) => expr,
 				ExprResult::None => {
 					return ExprResult::Error(
-						input.next_span(),
+						input.next().span,
 						"expected expression after ternary operator".into(),
 					)
 				}
@@ -167,7 +167,7 @@ pub fn parse_expression(input: &mut TokenStream) -> ExprResult {
 	}
 }
 
-fn parse_atom(input: &mut TokenStream) -> ExprResult {
+fn parse_atom(input: &mut LexStream) -> ExprResult {
 	input
 		.try_read(|input, token, span| {
 			let result = match token {
@@ -195,15 +195,15 @@ fn parse_atom(input: &mut TokenStream) -> ExprResult {
 							}
 						}
 						ExprResult::None => ExprResult::Error(
-							input.next_span(),
+							input.next().span,
 							"expression expected inside '()'".into(),
 						),
 						err @ ExprResult::Error(..) => err,
 					}
 				}
-				_ => return ReadToken::Unget(token),
+				_ => return Parse::None,
 			};
-			ReadToken::MapTo(result)
+			Parse::As(result)
 		})
 		.unwrap_or(ExprResult::None)
 }

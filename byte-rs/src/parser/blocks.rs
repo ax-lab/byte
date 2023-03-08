@@ -1,8 +1,8 @@
-use crate::lexer::{ReadToken, Span, Token, TokenStream};
+use crate::lexer::{Lex, LexStream, Parse, Span, Token};
 
 /// Display a list of blocks in the input TokenStream. This is used only
 /// for testing the tokenization.
-pub fn list_blocks(input: &mut TokenStream) {
+pub fn list_blocks(input: &mut LexStream) {
 	loop {
 		let block = parse_block(input);
 		match block {
@@ -25,11 +25,11 @@ enum Block {
 	Error(String, Span),
 }
 
-fn parse_block(input: &mut TokenStream) -> Block {
+fn parse_block(input: &mut LexStream) -> Block {
 	parse_line(input, 0, None)
 }
 
-fn parse_line(input: &mut TokenStream, level: usize, stop: Option<&'static str>) -> Block {
+fn parse_line(input: &mut LexStream, level: usize, stop: Option<&'static str>) -> Block {
 	let expr = parse_expr(input, level, stop);
 	if expr.len() == 0 {
 		Block::None
@@ -67,7 +67,7 @@ fn parse_line(input: &mut TokenStream, level: usize, stop: Option<&'static str>)
 	}
 }
 
-fn parse_expr(input: &mut TokenStream, _level: usize, stop: Option<&'static str>) -> Vec<Block> {
+fn parse_expr(input: &mut LexStream, _level: usize, stop: Option<&'static str>) -> Vec<Block> {
 	let mut expr = Vec::new();
 	let mut stopped = false;
 	while let Some((token, span)) = input.try_read(|_, token, span| {
@@ -77,11 +77,11 @@ fn parse_expr(input: &mut TokenStream, _level: usize, stop: Option<&'static str>
 			false
 		};
 		if stopped {
-			ReadToken::Unget(token)
+			Parse::None
 		} else {
 			match token {
-				Token::Break | Token::Dedent => ReadToken::Unget(token),
-				_ => ReadToken::MapTo((token, span)),
+				Token::Break | Token::Dedent => Parse::None,
+				_ => Parse::As((token, span)),
 			}
 		}
 	}) {
@@ -99,7 +99,7 @@ fn parse_expr(input: &mut TokenStream, _level: usize, stop: Option<&'static str>
 	expr
 }
 
-fn parse_parenthesis(input: &mut TokenStream, left: (Token, Span), right: &'static str) -> Block {
+fn parse_parenthesis(input: &mut LexStream, left: (Token, Span), right: &'static str) -> Block {
 	let level = 0;
 	input.read_if(|x| x == &Token::Break);
 	let indented = input.read_if(|next| next == &Token::Indent);
@@ -114,10 +114,11 @@ fn parse_parenthesis(input: &mut TokenStream, left: (Token, Span), right: &'stat
 			let block = parse_line(input, level, Some(right));
 			match block {
 				Block::None => {
-					let (token, span) = input.next_token();
+					let next = input.next();
+					let token = &next.token;
 					return Block::Error(
 						format!("unexpected {token} in indented parenthesis"),
-						span,
+						next.span,
 					);
 				}
 				error @ Block::Error(..) => return error,
@@ -134,14 +135,14 @@ fn parse_parenthesis(input: &mut TokenStream, left: (Token, Span), right: &'stat
 	}
 
 	if !input.read_if(|next| next.symbol() == Some(right)) {
-		let (next, span) = input.next_token();
+		let Lex { token, span } = input.next();
 		let (left, at) = left;
 		Block::Error(
-			format!("expected closing `{right}` for `{left}` at {at}, but got {next}"),
-			span,
+			format!("expected closing `{right}` for `{left}` at {at}, but got {token}"),
+			*span,
 		)
 	} else {
-		Block::Parenthesis(left.0, inner, Token::Symbol(right))
+		Block::Parenthesis(left.0.clone(), inner, Token::Symbol(right))
 	}
 }
 
