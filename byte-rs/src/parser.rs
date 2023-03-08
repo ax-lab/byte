@@ -31,6 +31,7 @@ pub enum ParseResult {
 }
 
 pub fn parse_statement(input: &mut LexStream) -> ParseResult {
+	let saved = *input;
 	input
 		.parse(|input, token, span| {
 			let result = match token {
@@ -40,20 +41,20 @@ pub fn parse_statement(input: &mut LexStream) -> ParseResult {
 					"for" => parse_for(input),
 					"if" => parse_if(input),
 					_ => {
-						input.unget();
+						*input = saved;
 						ParseResult::None
 					}
 				},
 
 				_ => {
-					input.unget();
+					*input = saved;
 					ParseResult::None
 				}
 			};
 			let result = if let ParseResult::None = result {
 				match parse_expression(input) {
 					ExprResult::Expr(expr) => {
-						let (token, span) = input.read_pair().pair();
+						let (token, span) = input.read().pair();
 						if token != Token::Break {
 							ParseResult::Error(
 								span,
@@ -71,7 +72,7 @@ pub fn parse_statement(input: &mut LexStream) -> ParseResult {
 								format!("expected expression, got end of input"),
 							)
 						} else {
-							let (token, span) = input.read_pair().pair();
+							let (token, span) = input.read().pair();
 							ParseResult::Error(span, format!("expected expression, got {token:?}"))
 						}
 					}

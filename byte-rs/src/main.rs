@@ -68,7 +68,7 @@ fn main() {
 				let mut program = Vec::new();
 				if list_tokens {
 					while !input.at_end() {
-						let next = input.read_pair();
+						let next = input.read();
 						{
 							let (token, span) = next.pair();
 							let pos = span.pos.offset;
