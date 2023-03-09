@@ -1,7 +1,7 @@
 use std::{collections::HashMap, env};
 
 use exec::{execute_expr, ResultValue};
-use lexer::{LexSource, LexStream};
+use lexer::{Lex, LexSource};
 use parser::{parse_statement, Id, ParseResult, Statement};
 
 mod exec;
@@ -64,31 +64,26 @@ fn main() {
 		match source::open_file(&file) {
 			Ok(source) => {
 				let source = LexSource::new(source);
-				let mut input = LexStream::new(&source);
-				let mut program = Vec::new();
+				let mut current = source.first();
 				if list_tokens {
-					while !input.at_end() {
-						let next = input.read();
-						{
-							let (token, span) = next.pair();
-							let pos = span.pos.offset;
-							let end = span.end.offset;
-							let text = input.read_text(pos, end);
-							println!("{span}: {:10}  =  {token:?}", format!("{text:?}"));
-						}
+					while let Lex::Some(lex) = current {
+						let (token, span, text) = lex.triple();
+						println!("{span}: {:10}  =  {token:?}", format!("{text:?}"));
+						current = current.next();
 					}
 					std::process::exit(0);
 				}
 
 				if list_blocks {
-					parser::list_blocks(&mut input);
+					parser::list_blocks(current);
 					std::process::exit(0);
 				}
 
-				while !input.at_end() {
-					let next;
-					next = parse_statement(&mut input);
-					match next {
+				let mut program = Vec::new();
+				while current.is_some() {
+					let (next, parsed) = parse_statement(current);
+					current = next;
+					match parsed {
 						ParseResult::Error(span, msg) => {
 							eprintln!("\n[compile error] {file}:{span}: {msg}\n");
 							if list_ast {
@@ -96,8 +91,8 @@ fn main() {
 							}
 							std::process::exit(2);
 						}
-						ParseResult::Ok(next) => {
-							program.push(next);
+						ParseResult::Ok(parsed) => {
+							program.push(parsed);
 						}
 						ParseResult::None => {
 							break;

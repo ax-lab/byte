@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use super::{Input, LexerResult, Reader, Span, Token};
+use super::{Input, LexerResult, Pos, Reader, Span, Token};
 
 /// Wraps the input reader and its list of tokens.
 pub struct LexSource {
@@ -13,6 +13,10 @@ impl LexSource {
 		let reader = Reader::from(input);
 		let tokens = read_all(reader.clone());
 		LexSource { reader, tokens }
+	}
+
+	pub fn first(&self) -> Lex {
+		Lex::new(self, 0)
 	}
 }
 
@@ -32,13 +36,33 @@ impl<'a> LexPosition<'a> {
 		self.source.tokens[self.index].0.clone()
 	}
 
-	fn next(mut self) -> Option<Self> {
+	pub fn token_ref(&self) -> &Token {
+		&self.source.tokens[self.index].0
+	}
+
+	pub fn pair(&self) -> (Token, Span) {
+		self.source.tokens[self.index].clone()
+	}
+
+	pub fn triple(&self) -> (Token, Span, &str) {
+		let pair = self.pair();
+		(pair.0, pair.1, self.text())
+	}
+
+	pub fn next(mut self) -> Lex<'a> {
 		if self.index < self.source.tokens.len() - 1 {
 			self.index += 1;
-			Some(self)
+			Lex::Some(self)
 		} else {
-			None
+			Lex::None(self.source)
 		}
+	}
+
+	pub fn text(&self) -> &str {
+		let span = self.span();
+		self.source
+			.reader
+			.read_text(span.pos.offset, span.end.offset)
 	}
 }
 
@@ -46,7 +70,21 @@ impl<'a> LexPosition<'a> {
 #[derive(Copy, Clone)]
 pub enum Lex<'a> {
 	Some(LexPosition<'a>),
-	None,
+	None(&'a LexSource),
+}
+
+impl<'a> std::fmt::Display for Lex<'a> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Lex::Some(value) => {
+				let token = value.token();
+				write!(f, "{token}")
+			}
+			Lex::None(..) => {
+				write!(f, "end of input")
+			}
+		}
+	}
 }
 
 impl<'a> Lex<'a> {
@@ -55,20 +93,57 @@ impl<'a> Lex<'a> {
 			let state = LexPosition { source, index };
 			Lex::Some(state)
 		} else {
-			Lex::None
+			Lex::None(source)
+		}
+	}
+
+	pub fn is_some(&self) -> bool {
+		match self {
+			Lex::Some(_) => true,
+			_ => false,
 		}
 	}
 
 	pub fn next(&self) -> Self {
 		match self {
-			Lex::Some(state) => {
-				if let Some(next) = state.next() {
-					Lex::Some(next)
+			Lex::Some(state) => state.next(),
+			Lex::None(source) => Lex::None(source),
+		}
+	}
+
+	pub fn token(&self) -> Option<Token> {
+		match self {
+			Lex::Some(lex) => Some(lex.token()),
+			Lex::None(..) => None,
+		}
+	}
+
+	pub fn token_ref(&self) -> Option<&Token> {
+		match self {
+			Lex::Some(lex) => Some(lex.token_ref()),
+			Lex::None(..) => None,
+		}
+	}
+
+	pub fn symbol(&self) -> Option<&str> {
+		if let Some(token) = self.token_ref() {
+			token.symbol()
+		} else {
+			None
+		}
+	}
+
+	pub fn span(&self) -> Span {
+		match self {
+			Lex::Some(state) => state.span(),
+			Lex::None(source) => {
+				let pos = if let Some(last) = source.tokens.last() {
+					last.1.end
 				} else {
-					Lex::None
-				}
+					Pos::default()
+				};
+				Span { pos, end: pos }
 			}
-			Lex::None => Lex::None,
 		}
 	}
 
@@ -82,243 +157,38 @@ impl<'a> Lex<'a> {
 					.reader
 					.read_text(span.pos.offset, span.end.offset)
 			}
-			Lex::None => "",
+			Lex::None(_) => "",
 		}
 	}
+}
 
-	pub fn token(&self) -> Token {
+// Read helpers.
+impl<'a> Lex<'a> {
+	/// Return the next token and true if the predicate matches the current
+	/// token.
+	pub fn next_if<F: Fn(Token) -> bool>(self, predicate: F) -> (Self, bool) {
 		match self {
-			Lex::Some(state) => state.token(),
-			_ => unreachable!(),
-		}
-	}
-
-	pub fn span(&self) -> Span {
-		match self {
-			Lex::Some(state) => state.span(),
-			_ => unreachable!(),
-		}
-	}
-
-	pub fn pair(&self) -> (Token, Span) {
-		(self.token(), self.span())
-	}
-}
-
-#[derive(Copy, Clone)]
-pub struct LexStream<'a> {
-	source: &'a LexSource,
-	next: Lex<'a>,
-}
-
-pub enum Parse<T> {
-	As(T),
-	None,
-}
-
-impl<'a> LexStream<'a> {
-	pub fn new(source: &'a LexSource) -> LexStream<'a> {
-		LexStream {
-			source,
-			next: Lex::new(source, 0),
-		}
-	}
-
-	pub fn read_text(&self, pos: usize, end: usize) -> &str {
-		self.source.reader.read_text(pos, end)
-	}
-
-	/// Read the next (token, span) pair.
-	pub fn read(&mut self) -> Lex {
-		let output = self.next;
-		self.shift();
-		output
-	}
-
-	/// Next token in the input. Should be used only for compiler messages.
-	pub fn next(&mut self) -> Lex {
-		self.next
-	}
-
-	pub fn at_end(&self) -> bool {
-		matches!(self.next, Lex::None)
-	}
-
-	/// Read the next token in the input and passes it to the given parser
-	/// function returning an [`Option`] result.
-	///
-	/// At the end of the input, returns [`None`] without calling the parser.
-	pub fn parse<V, F: FnOnce(&mut Self, Token, Span) -> Option<V>>(
-		&mut self,
-		parser: F,
-	) -> Option<V> {
-		match self.read() {
-			Lex::None => None,
+			Lex::None(_) => (self, false),
 			Lex::Some(lex) => {
 				let token = lex.token();
-				let span = lex.span();
-				let out = parser(self, token, span);
-				out
-			}
-		}
-	}
-
-	/// Try to read the next input passing it to the given parser function.
-	///
-	/// This is similar to `read` except that it can "unread" the token
-	/// in case it does not match by returning [`ReadToken::Unget`].
-	pub fn try_read<V, F: FnOnce(&mut Self, Token, Span) -> Parse<V>>(
-		&mut self,
-		consumer: F,
-	) -> Option<V> {
-		let saved = self.next;
-		match self.read() {
-			Lex::None => None,
-			Lex::Some(lex) => {
-				let token = lex.token();
-				let span = lex.span();
-				let out = match consumer(self, token, span) {
-					Parse::As(value) => Some(value),
-					Parse::None => {
-						self.next = saved;
-						None
-					}
-				};
-				out
-			}
-		}
-	}
-
-	/// Read the next token from the input and calls the parser function to
-	/// map it to a value.
-	///
-	/// This will call the parser function even at the end of the input.
-	pub fn map_next<V, F: FnOnce(Token, Span) -> V>(&mut self, parser: F) -> V {
-		match self.read() {
-			Lex::None => panic!("no next token in map_next"),
-			Lex::Some(lex) => parser(lex.token(), lex.span()),
-		}
-	}
-
-	/// Similar to `map_next` but does not consume the token if the mapping
-	/// function returns [`None`].
-	pub fn try_map_next<V, F: FnOnce(&Token, Span) -> Option<V>>(&mut self, map: F) -> Option<V> {
-		match self.next() {
-			Lex::None => None,
-			Lex::Some(lex) => {
-				let value = {
-					let token = lex.token();
-					let span = lex.span();
-					if let Some(value) = map(&token, span) {
-						Some(value)
-					} else {
-						None
-					}
-				};
-				if value.is_some() {
-					self.shift();
-				}
-				value
-			}
-		}
-	}
-
-	/// Consume the next token if it is a symbol and it has a mapping returned
-	/// by the given mapper function.
-	///
-	/// Returns the symbol mapping or None if not matched.
-	pub fn map_symbol<V, F: FnOnce(&str) -> Option<V>>(&mut self, mapper: F) -> Option<V> {
-		self.try_map_next(|token, _| {
-			if let Some(symbol) = token.symbol() {
-				mapper(symbol)
-			} else {
-				None
-			}
-		})
-	}
-
-	/// Read the next token if it matches the given predicate.
-	///
-	/// Returns `true` if the token was read or `false` if the predicate
-	/// was not true or at the end of input.
-	pub fn read_if<F: Fn(&Token) -> bool>(&mut self, predicate: F) -> bool {
-		match self.next() {
-			Lex::None => false,
-			Lex::Some(lex) => {
-				let token = lex.token();
-				if predicate(&token) {
-					self.shift();
-					true
+				if predicate(token) {
+					(self.next(), true)
 				} else {
-					false
+					(self, false)
 				}
 			}
 		}
 	}
 
 	/// Read the next token if it is the specific symbol.
-	pub fn read_symbol(&mut self, symbol: &str) -> bool {
-		self.read_if(|token| {
+	pub fn skip_symbol(self, symbol: &str) -> (Self, bool) {
+		self.next_if(|token| {
 			if let Some(next) = token.symbol() {
 				next == symbol
 			} else {
 				false
 			}
 		})
-	}
-
-	/// Validate the next token using the given predicate. If the predicate
-	/// returns an error, returns that error without consuming the token.
-	///
-	/// On success, returns None.
-	pub fn expect<E, F: FnOnce(&Token, Span) -> Option<E>>(&mut self, predicate: F) -> Option<E> {
-		let error = {
-			let next = self.next();
-			let token = next.token();
-			let span = next.span();
-			predicate(&token, span)
-		};
-
-		if let Some(error) = error {
-			Some(error)
-		} else {
-			self.shift();
-			None
-		}
-	}
-
-	//------------------------------------------------------------------------//
-	// Parsing helpers
-	//------------------------------------------------------------------------//
-
-	/// Helper for expecting a specific symbol token.
-	pub fn expect_symbol<E, P: FnOnce(Span) -> E>(&mut self, symbol: &str, error: P) -> Option<E> {
-		self.expect(|token, span| {
-			if let Some(actual) = token.symbol() {
-				if actual == symbol {
-					return None;
-				}
-			}
-			Some(error(span))
-		})
-	}
-
-	pub fn expect_dedent(&mut self) -> Option<(String, Span)> {
-		self.expect(|token, span| {
-			if let Token::Dedent = token {
-				None
-			} else {
-				Some((format!("expected dedent, got `{token}`"), span))
-			}
-		})
-	}
-
-	//------------------------------------------------------------------------//
-	// Internal methods
-	//------------------------------------------------------------------------//
-
-	fn shift(&mut self) {
-		self.next = self.next.next();
 	}
 }
 
