@@ -1,13 +1,15 @@
-mod lex_stream;
+mod lex;
 mod reader;
+mod source;
 mod token;
 
 use once_cell::unsync::Lazy;
 
 pub use super::input::*;
 
-pub use lex_stream::*;
+pub use lex::*;
 pub use reader::*;
+pub use source::*;
 pub use token::*;
 
 pub enum LexerResult {
