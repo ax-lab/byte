@@ -1,20 +1,16 @@
 use super::{Lexer, LexerResult, Reader, Token};
 
-pub struct LexIdentifier<F: Fn(String) -> Token>(pub F);
+pub struct LexIdentifier(pub Token);
 
-impl<F: Fn(String) -> Token> Lexer for LexIdentifier<F> {
+impl Lexer for LexIdentifier {
 	fn read(&self, next: char, input: &mut Reader) -> LexerResult {
 		match next {
 			'a'..='z' | 'A'..='Z' | '_' => {
 				let mut pos;
-				let mut id = String::new();
-				id.push(next);
 				loop {
 					pos = input.save();
 					match input.read() {
-						Some(char @ ('a'..='z' | 'A'..='Z' | '_' | '0'..='9')) => {
-							id.push(char);
-						}
+						Some('a'..='z' | 'A'..='Z' | '_' | '0'..='9') => {}
 						_ => {
 							input.restore(pos);
 							break;
@@ -22,7 +18,7 @@ impl<F: Fn(String) -> Token> Lexer for LexIdentifier<F> {
 					}
 				}
 
-				LexerResult::Token(self.0(id))
+				LexerResult::Token(self.0)
 			}
 
 			_ => LexerResult::None,

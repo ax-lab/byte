@@ -194,17 +194,21 @@ fn parse_atom(input: Lex) -> (Lex, ExprResult) {
 	};
 
 	match token {
-		Token::Identifier(id) => {
-			let atom = match id.as_str() {
+		Token::Identifier => {
+			let atom = match input.text() {
 				"null" => ExprAtom::Null,
 				"true" => ExprAtom::Boolean(true),
 				"false" => ExprAtom::Boolean(false),
-				_ => ExprAtom::Var(id),
+				id => ExprAtom::Var(id.into()),
 			};
 			(input.next(), atom.result())
 		}
 		Token::Integer(value) => (input.next(), ExprAtom::Integer(value).result()),
-		Token::Literal(text) => (input.next(), ExprAtom::Literal(text).result()),
+		Token::Literal(str) => {
+			let content = str.content_span();
+			let content = input.source().read_text(content);
+			(input.next(), ExprAtom::Literal(content.into()).result())
+		}
 		Token::Symbol("(") => {
 			let (input, expr) = parse_expression(input.next());
 			let (input, expr) = match expr {

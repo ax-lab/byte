@@ -64,8 +64,8 @@ pub fn read_token(input: &mut Reader) -> (LexerResult, Span) {
 
 		let comment = lex_comment::LexComment;
 		let line_break = lex_line_break::LexLineBreak(Token::Break);
-		let identifier = lex_identifier::LexIdentifier(|s| Token::Identifier(s));
-		let string = lex_string::LexString(|s| Token::Literal(s));
+		let identifier = lex_identifier::LexIdentifier(Token::Identifier);
+		let string = lex_string::LexLiteral(Token::Literal);
 		let number = lex_number::LexNumber(|n| Token::Integer(n));
 		let symbol = symbols();
 		let lexer = comment

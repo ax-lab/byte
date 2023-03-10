@@ -1,23 +1,32 @@
-use super::{Lexer, LexerResult, Reader, Token};
+use super::{Lexer, LexerResult, Reader, Span, Token};
 
-pub struct LexString<F: Fn(String) -> Token>(pub F);
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct LexString(pub Span);
 
-impl<F: Fn(String) -> Token> Lexer for LexString<F> {
+impl LexString {
+	pub fn content_span(&self) -> Span {
+		self.0
+	}
+}
+
+pub struct LexLiteral<F: Fn(LexString) -> Token>(pub F);
+
+impl<F: Fn(LexString) -> Token> Lexer for LexLiteral<F> {
 	fn read(&self, next: char, input: &mut Reader) -> LexerResult {
 		match next {
 			'\'' => {
-				let mut text = String::new();
+				let pos = input.pos();
 				loop {
+					let end = input.pos();
 					match input.read() {
 						Some('\'') => {
-							break LexerResult::Token(self.0(text));
+							let str = LexString(Span { pos, end });
+							break LexerResult::Token(self.0(str));
 						}
 
 						None => break LexerResult::Error("unclosed string literal".into()),
 
-						Some(char) => {
-							text.push(char);
-						}
+						Some(_) => {}
 					}
 				}
 			}

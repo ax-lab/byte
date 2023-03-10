@@ -36,8 +36,8 @@ pub fn parse_statement(input: Lex) -> (Lex, ParseResult) {
 		None => return (input, ParseResult::None),
 	};
 
-	if let Token::Identifier(id) = token {
-		match id.as_str() {
+	if let Token::Identifier = token {
+		match input.text() {
 			"print" => parse_print(input),
 			"let" | "const" => parse_let(input),
 			"for" => parse_for(input),
@@ -99,7 +99,7 @@ fn parse_if(input: Lex) -> (Lex, ParseResult) {
 fn parse_for(input: Lex) -> (Lex, ParseResult) {
 	let input = input.next(); // skip `for`
 	let (input, id) = match input.token() {
-		Some(Token::Identifier(id)) => (input.next(), id),
+		Some(Token::Identifier) => (input.next(), input.text().to_string()),
 		_ => {
 			return (
 				input,
@@ -246,7 +246,7 @@ fn parse_print(input: Lex) -> (Lex, ParseResult) {
 fn parse_let(input: Lex) -> (Lex, ParseResult) {
 	let input = input.next(); // skip `let`
 	let (input, id) = match input.token() {
-		Some(Token::Identifier(id)) => (input.next(), id),
+		Some(Token::Identifier) => (input.next(), input.text().to_string()),
 		_ => {
 			return (
 				input,
@@ -281,11 +281,11 @@ fn parse_let(input: Lex) -> (Lex, ParseResult) {
 fn assert_break(input: Lex, result: ParseResult) -> (Lex, ParseResult) {
 	match input.token() {
 		Some(Token::Break) | None => (input.next(), result),
-		Some(token) => (
+		Some(_) => (
 			input,
 			ParseResult::Error(
 				input.span(),
-				format!("expected end of statement, got {token}"),
+				format!("expected end of statement, got {input}"),
 			),
 		),
 	}

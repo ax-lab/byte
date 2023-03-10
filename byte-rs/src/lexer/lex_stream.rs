@@ -18,6 +18,10 @@ impl LexSource {
 	pub fn first(&self) -> Lex {
 		Lex::new(self, 0)
 	}
+
+	pub fn read_text(&self, span: Span) -> &str {
+		self.reader.read_text(span.pos.offset, span.end.offset)
+	}
 }
 
 /// Represents a valid token position in the source.
@@ -34,10 +38,6 @@ impl<'a> LexPosition<'a> {
 
 	pub fn token(&self) -> Token {
 		self.source.tokens[self.index].0.clone()
-	}
-
-	pub fn token_ref(&self) -> &Token {
-		&self.source.tokens[self.index].0
 	}
 
 	pub fn pair(&self) -> (Token, Span) {
@@ -78,7 +78,22 @@ impl<'a> std::fmt::Display for Lex<'a> {
 		match self {
 			Lex::Some(value) => {
 				let token = value.token();
-				write!(f, "{token}")
+				match token {
+					Token::Symbol(sym) => write!(f, "{sym}"),
+					Token::Integer(value) => write!(f, "{value}"),
+					Token::Literal(str) => {
+						let Span { pos, end } = str.content_span();
+						write!(
+							f,
+							"{:?}",
+							value.source.reader.read_text(pos.offset, end.offset)
+						)
+					}
+					Token::Identifier => {
+						write!(f, "{}", self.text())
+					}
+					_ => write!(f, "{token:?}"),
+				}
 			}
 			Lex::None(..) => {
 				write!(f, "end of input")
@@ -118,18 +133,21 @@ impl<'a> Lex<'a> {
 		}
 	}
 
-	pub fn token_ref(&self) -> Option<&Token> {
+	pub fn symbol(&self) -> Option<&str> {
 		match self {
-			Lex::Some(lex) => Some(lex.token_ref()),
-			Lex::None(..) => None,
+			Lex::Some(lex) => match lex.token() {
+				Token::Symbol(str) => Some(str),
+				Token::Identifier => Some(self.text()),
+				_ => None,
+			},
+			_ => None,
 		}
 	}
 
-	pub fn symbol(&self) -> Option<&str> {
-		if let Some(token) = self.token_ref() {
-			token.symbol()
-		} else {
-			None
+	pub fn source(&self) -> &LexSource {
+		match self {
+			Lex::Some(lex) => lex.source,
+			Lex::None(src) => src,
 		}
 	}
 
@@ -147,7 +165,6 @@ impl<'a> Lex<'a> {
 		}
 	}
 
-	#[allow(unused)]
 	pub fn text(&self) -> &str {
 		match self {
 			Lex::Some(state) => {
@@ -182,13 +199,11 @@ impl<'a> Lex<'a> {
 
 	/// Read the next token if it is the specific symbol.
 	pub fn skip_symbol(self, symbol: &str) -> (Self, bool) {
-		self.next_if(|token| {
-			if let Some(next) = token.symbol() {
-				next == symbol
-			} else {
-				false
-			}
-		})
+		if self.symbol() == Some(symbol) {
+			(self.next(), true)
+		} else {
+			(self, false)
+		}
 	}
 }
 
@@ -215,7 +230,12 @@ fn read_all(mut input: Reader) -> Vec<(Token, Span)> {
 		};
 
 		let (closing, closing_level) = if let Some(&(closing, level)) = parens.back() {
-			if Some(closing) == token.symbol() {
+			let symbol = match token {
+				Token::Symbol(symbol) => Some(symbol),
+				Token::Identifier => Some(input.read_text(span.pos.offset, span.end.offset)),
+				_ => None,
+			};
+			if Some(closing) == symbol {
 				parens.pop_back();
 				(true, level)
 			} else {

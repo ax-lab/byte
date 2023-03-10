@@ -22,14 +22,14 @@ pub fn list_blocks(mut input: Lex) {
 	}
 }
 
-enum Block {
+enum Block<'a> {
 	None,
-	Item(Token, Span),
+	Item(Lex<'a>),
 	Line {
-		expr: Vec<Block>,
-		next: Option<Vec<Block>>,
+		expr: Vec<Block<'a>>,
+		next: Option<Vec<Block<'a>>>,
 	},
-	Parenthesis(Token, Vec<Block>, Token),
+	Parenthesis(Lex<'a>, Vec<Block<'a>>, Lex<'a>),
 	Error(String, Span),
 }
 
@@ -37,7 +37,11 @@ fn parse_block(input: Lex) -> (Lex, Block) {
 	parse_line(input, 0, None)
 }
 
-fn parse_line<'a>(input: Lex<'a>, level: usize, stop: Option<&'static str>) -> (Lex<'a>, Block) {
+fn parse_line<'a>(
+	input: Lex<'a>,
+	level: usize,
+	stop: Option<&'static str>,
+) -> (Lex<'a>, Block<'a>) {
 	let (input, expr) = parse_expr(input, level, stop);
 	if expr.len() == 0 {
 		(input, Block::None)
@@ -81,7 +85,7 @@ fn parse_expr<'a>(
 	input: Lex<'a>,
 	_level: usize,
 	stop: Option<&'static str>,
-) -> (Lex<'a>, Vec<Block>) {
+) -> (Lex<'a>, Vec<Block<'a>>) {
 	let mut expr = Vec::new();
 	let mut input = input;
 	let input = loop {
@@ -96,14 +100,15 @@ fn parse_expr<'a>(
 			Some(Token::Symbol(sym)) if Some(sym) == stop => {
 				break input;
 			}
-			Some(token @ Token::Symbol("(")) => {
+			Some(Token::Symbol("(")) => {
+				let left = input;
 				let item;
 				input = input.next();
-				(input, item) = parse_parenthesis(input, (token, input.span()), ")");
+				(input, item) = parse_parenthesis(input, left, ")");
 				expr.push(item);
 			}
-			Some(token) => {
-				expr.push(Block::Item(token, input.span()));
+			Some(_) => {
+				expr.push(Block::Item(input));
 				input = input.next();
 			}
 			None => {
@@ -116,9 +121,9 @@ fn parse_expr<'a>(
 
 fn parse_parenthesis<'a>(
 	input: Lex<'a>,
-	left: (Token, Span),
+	left: Lex<'a>,
 	right: &'static str,
-) -> (Lex<'a>, Block) {
+) -> (Lex<'a>, Block<'a>) {
 	let level = 0;
 	let (input, _) = input.next_if(|x| x == Token::Break);
 	let (input, indented) = input.next_if(|next| next == Token::Indent);
@@ -142,7 +147,7 @@ fn parse_parenthesis<'a>(
 					return (
 						input,
 						Block::Error(
-							format!("unexpected `{input}` in indented {} parenthesis", left.1),
+							format!("unexpected `{input}` in indented {} parenthesis", left),
 							input.span(),
 						),
 					);
@@ -161,34 +166,36 @@ fn parse_parenthesis<'a>(
 		}
 	}
 
-	let (input, ok) = input.next_if(|next| next.symbol() == Some(right));
+	let lex_closing = input;
+	let (input, ok) = if right != "" {
+		input.skip_symbol(right)
+	} else {
+		(input, false)
+	};
 	if !ok {
-		let (left, at) = left;
+		let at = left.span();
 		let error = Block::Error(
-			format!("expected closing `{right}` for `{left}` at {at}, but got {input}"),
+			format!("expected closing `{right}` for {left} at {at}, but got {input}"),
 			input.span(),
 		);
 		(input, error)
 	} else {
-		(
-			input,
-			Block::Parenthesis(left.0, inner, Token::Symbol(right)),
-		)
+		(input, Block::Parenthesis(left, inner, lex_closing))
 	}
 }
 
-impl std::fmt::Display for Block {
+impl<'a> std::fmt::Display for Block<'a> {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		self.do_output(0, f)
 	}
 }
 
-impl Block {
+impl<'a> Block<'a> {
 	fn do_output(&self, level: usize, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Block::None => write!(f, "None"),
 			Block::Error(error, span) => write!(f, "Error({error} at {span}"),
-			Block::Item(token, _) => write!(f, "{token}"),
+			Block::Item(lex) => write!(f, "{lex}"),
 			Block::Parenthesis(left, inner, right) => {
 				write!(f, "P{left}")?;
 				if inner.len() > 0 {
