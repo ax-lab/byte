@@ -1,9 +1,9 @@
-use super::{Lexer, LexerResult, Reader};
+use super::{Cursor, Lexer, LexerResult};
 
 pub struct LexComment;
 
 impl Lexer for LexComment {
-	fn read(&self, next: char, input: &mut Reader) -> LexerResult {
+	fn read(&self, next: char, input: &mut Cursor) -> LexerResult {
 		match next {
 			'#' => {
 				let (multi, mut level) = if input.read_if('(') {
@@ -14,7 +14,7 @@ impl Lexer for LexComment {
 
 				let mut pos;
 				let putback = loop {
-					pos = input.save();
+					pos = *input;
 					match input.read() {
 						Some('\n' | '\r') if !multi => break true,
 						Some('(') if multi => {
@@ -31,7 +31,7 @@ impl Lexer for LexComment {
 					}
 				};
 				if putback {
-					input.restore(pos);
+					*input = pos;
 				}
 				LexerResult::Skip
 			}

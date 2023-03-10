@@ -4,7 +4,7 @@ use super::{LexPosition, LexSource, Pos, Span, Token};
 #[derive(Copy, Clone)]
 pub enum Lex<'a> {
 	Some(LexPosition<'a>),
-	None(&'a LexSource),
+	None(&'a LexSource<'a>),
 }
 
 impl<'a> std::fmt::Display for Lex<'a> {
@@ -20,7 +20,11 @@ impl<'a> std::fmt::Display for Lex<'a> {
 						write!(
 							f,
 							"{:?}",
-							value.source().reader.read_text(pos.offset, end.offset)
+							value
+								.source()
+								.reader
+								.source
+								.read_text(pos.offset, end.offset)
 						)
 					}
 					Token::Identifier => {
@@ -102,6 +106,7 @@ impl<'a> Lex<'a> {
 				state
 					.source()
 					.reader
+					.source
 					.read_text(span.pos.offset, span.end.offset)
 			}
 			Lex::None(_) => "",

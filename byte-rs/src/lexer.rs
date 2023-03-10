@@ -1,5 +1,5 @@
+mod cursor;
 mod lex;
-mod reader;
 mod source;
 mod token;
 
@@ -7,8 +7,8 @@ use once_cell::unsync::Lazy;
 
 pub use super::input::*;
 
+pub use cursor::*;
 pub use lex::*;
-pub use reader::*;
 pub use source::*;
 pub use token::*;
 
@@ -27,7 +27,7 @@ pub trait Lexer: Sized {
 	///
 	/// The input will advance to the end of the recognized token iff the
 	/// token is recognized.
-	fn read(&self, next: char, input: &mut Reader) -> LexerResult;
+	fn read(&self, next: char, input: &mut Cursor) -> LexerResult;
 
 	/// Creates a chained composite lexer.
 	fn or<B: Lexer>(self, other: B) -> LexOr<Self, B> {
@@ -41,7 +41,7 @@ pub struct LexOr<A: Lexer, B: Lexer> {
 }
 
 impl<A: Lexer, B: Lexer> Lexer for LexOr<A, B> {
-	fn read(&self, next: char, input: &mut Reader) -> LexerResult {
+	fn read(&self, next: char, input: &mut Cursor) -> LexerResult {
 		let res = self.a.read(next, input);
 		if let LexerResult::None = res {
 			self.b.read(next, input)
@@ -59,7 +59,7 @@ mod lex_space;
 mod lex_string;
 mod lex_symbol;
 
-pub fn read_token(input: &mut Reader) -> (LexerResult, Span) {
+pub fn read_token(input: &mut Cursor) -> (LexerResult, Span) {
 	let config = Lazy::new(|| {
 		let space = lex_space::LexSpace;
 		let skip = space;

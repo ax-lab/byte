@@ -1,4 +1,4 @@
-use super::{Lexer, LexerResult, Reader, Span, Token};
+use super::{Cursor, Lexer, LexerResult, Span, Token};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct LexString(pub Span);
@@ -12,7 +12,7 @@ impl LexString {
 pub struct LexLiteral<F: Fn(LexString) -> Token>(pub F);
 
 impl<F: Fn(LexString) -> Token> Lexer for LexLiteral<F> {
-	fn read(&self, next: char, input: &mut Reader) -> LexerResult {
+	fn read(&self, next: char, input: &mut Cursor) -> LexerResult {
 		match next {
 			'\'' => {
 				let pos = input.pos();

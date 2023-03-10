@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{Lexer, LexerResult, Reader, Token};
+use super::{Cursor, Lexer, LexerResult, Token};
 
 pub struct LexSymbol {
 	states: Vec<Entry>,
@@ -58,7 +58,7 @@ impl LexSymbol {
 }
 
 impl Lexer for LexSymbol {
-	fn read(&self, next: char, input: &mut Reader) -> LexerResult {
+	fn read(&self, next: char, input: &mut Cursor) -> LexerResult {
 		let state = self.get_next(0, next);
 		let (mut state, valid) = if let Some((state, valid)) = state {
 			(state, valid)
@@ -66,12 +66,12 @@ impl Lexer for LexSymbol {
 			return LexerResult::Error("invalid symbol".into());
 		};
 
-		let mut last_pos = input.save();
+		let mut last_pos = *input;
 		let mut valid = if valid { Some((last_pos, state)) } else { None };
 
 		while let Some(next) = input.read() {
 			if let Some((next, is_valid)) = self.get_next(state, next) {
-				(state, last_pos) = (next, input.save());
+				(state, last_pos) = (next, *input);
 				if is_valid {
 					valid = Some((last_pos, state));
 				}
@@ -80,7 +80,7 @@ impl Lexer for LexSymbol {
 			}
 		}
 		if let Some((pos, index)) = valid {
-			input.restore(pos);
+			*input = pos;
 			LexerResult::Token(self.states[index].value.clone().unwrap())
 		} else {
 			LexerResult::Error("invalid symbol".into())
@@ -135,13 +135,14 @@ mod tests {
 
 	fn check_symbols(symbols: &LexSymbol, input: &'static str, expected: &[Token]) {
 		use crate::lexer::tests::TestInput;
-		let mut input = Reader::from(TestInput::new(input));
+		let input = TestInput::new(input);
+		let mut input = Cursor::new(&input);
 		for (i, expected) in expected.iter().cloned().enumerate() {
 			let next = input.read().expect("unexpected end of input");
 			let pos = input.pos();
 			let next = symbols.read(next, &mut input);
 			let end = input.pos();
-			let text = input.read_text(pos.offset, end.offset);
+			let text = input.source.read_text(pos.offset, end.offset);
 			match next {
 				LexerResult::Token(actual) => assert_eq!(
 					actual, expected,

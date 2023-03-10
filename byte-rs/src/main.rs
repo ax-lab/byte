@@ -63,7 +63,7 @@ fn main() {
 	for file in files {
 		match source::open_file(&file) {
 			Ok(source) => {
-				let source = LexSource::new(source);
+				let source = LexSource::new(&source);
 				let mut current = source.first();
 				if list_tokens {
 					while let Lex::Some(lex) = current {

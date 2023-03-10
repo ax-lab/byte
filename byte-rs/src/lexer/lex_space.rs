@@ -1,20 +1,20 @@
-use super::{Lexer, LexerResult, Reader};
+use super::{Cursor, Lexer, LexerResult};
 
 pub struct LexSpace;
 
 impl Lexer for LexSpace {
-	fn read(&self, next: char, input: &mut Reader) -> LexerResult {
+	fn read(&self, next: char, input: &mut Cursor) -> LexerResult {
 		match next {
 			' ' | '\t' => {
 				let mut pos;
 				loop {
-					pos = input.save();
+					pos = *input;
 					match input.read() {
 						Some(' ' | '\t') => {}
 						_ => break,
 					}
 				}
-				input.restore(pos);
+				*input = pos;
 				LexerResult::Skip
 			}
 

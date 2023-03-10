@@ -1,16 +1,16 @@
 use std::collections::VecDeque;
 
-use super::{Input, Lex, LexerResult, Reader, Span, Token};
+use super::{Cursor, Input, Lex, LexerResult, Span, Token};
 
 /// Wraps the input reader and its list of tokens.
-pub struct LexSource {
-	pub reader: Reader,
+pub struct LexSource<'a> {
+	pub reader: Cursor<'a>,
 	pub tokens: Vec<(Token, Span)>,
 }
 
-impl LexSource {
-	pub fn new<T: Input + 'static>(input: T) -> LexSource {
-		let reader = Reader::from(input);
+impl<'a> LexSource<'a> {
+	pub fn new(input: &'a dyn Input) -> LexSource<'a> {
+		let reader = Cursor::new(input);
 		let tokens = read_all(reader.clone());
 		LexSource { reader, tokens }
 	}
@@ -20,7 +20,9 @@ impl LexSource {
 	}
 
 	pub fn read_text(&self, span: Span) -> &str {
-		self.reader.read_text(span.pos.offset, span.end.offset)
+		self.reader
+			.source
+			.read_text(span.pos.offset, span.end.offset)
 	}
 }
 
@@ -28,7 +30,7 @@ impl LexSource {
 #[derive(Copy, Clone)]
 pub struct LexPosition<'a> {
 	index: usize,
-	source: &'a LexSource,
+	source: &'a LexSource<'a>,
 }
 
 impl<'a> LexPosition<'a> {
@@ -70,11 +72,12 @@ impl<'a> LexPosition<'a> {
 		let span = self.span();
 		self.source
 			.reader
+			.source
 			.read_text(span.pos.offset, span.end.offset)
 	}
 }
 
-fn read_all(mut input: Reader) -> Vec<(Token, Span)> {
+fn read_all(mut input: Cursor) -> Vec<(Token, Span)> {
 	let mut tokens = Vec::new();
 	let mut indent = VecDeque::new();
 	let mut parens = VecDeque::new();
@@ -99,7 +102,7 @@ fn read_all(mut input: Reader) -> Vec<(Token, Span)> {
 		let (closing, closing_level) = if let Some(&(closing, level)) = parens.back() {
 			let symbol = match token {
 				Token::Symbol(symbol) => Some(symbol),
-				Token::Identifier => Some(input.read_text(span.pos.offset, span.end.offset)),
+				Token::Identifier => Some(input.source.read_text(span.pos.offset, span.end.offset)),
 				_ => None,
 			};
 			if Some(closing) == symbol {
