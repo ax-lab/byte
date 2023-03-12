@@ -1,10 +1,9 @@
 use std::collections::VecDeque;
 
-use crate::lexer::{Context, Input, Token};
-use crate::lexer::{Lex, Range};
+use crate::lexer::Range;
+use crate::lexer::{Context, Token};
 
 use super::operators::*;
-use super::ParseResult;
 
 #[derive(Debug)]
 pub enum ExprAtom {
@@ -40,7 +39,6 @@ pub enum Expr {
 	Unary(UnaryOp, Box<Expr>),
 	Binary(BinaryOp, Box<Expr>, Box<Expr>),
 	Ternary(TernaryOp, Box<Expr>, Box<Expr>, Box<Expr>),
-	List(ListOp, Vec<Expr>),
 }
 
 pub trait AsResult<'a> {

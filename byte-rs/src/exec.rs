@@ -201,6 +201,7 @@ fn execute_expr_ref(expr: &Expr, map: &mut HashMap<String, ResultValue>) -> Resu
 		Expr::Value(ExprAtom::Boolean(value)) => ResultValue::Boolean(*value),
 		Expr::Value(ExprAtom::Var(id)) => return Result::Ref(id.clone()),
 
+		#[allow(unused)]
 		expr => {
 			todo!("expression {expr:?}");
 		}

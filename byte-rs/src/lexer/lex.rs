@@ -1,7 +1,6 @@
 use super::{lex_string::LexString, Input, Range, Token};
 
 #[derive(Copy, Clone)]
-#[allow(unused)]
 pub struct Lex<'a> {
 	pub token: Token,
 	pub range: Range<'a>,

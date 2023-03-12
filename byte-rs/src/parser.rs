@@ -7,7 +7,6 @@ pub use blocks::*;
 mod operators;
 pub use operators::*;
 
-#[allow(unused)]
 mod expr;
 pub use expr::*;
 
