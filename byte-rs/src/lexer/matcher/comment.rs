@@ -1,8 +1,8 @@
 use super::{Cursor, Matcher, MatcherResult};
 
-pub struct LexComment;
+pub struct MatchComment;
 
-impl Matcher for LexComment {
+impl Matcher for MatchComment {
 	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
 		match next {
 			'#' => {

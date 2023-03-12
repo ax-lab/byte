@@ -186,8 +186,8 @@ fn parse_atom<'a>(input: &mut Context<'a>) -> ExprResult<'a> {
 			input.next();
 			ExprAtom::Integer(value).result()
 		}
-		Token::Literal(content) => {
-			let content = input.source().read_text(content.pos, content.end);
+		Token::Literal(pos, end) => {
+			let content = input.source().read_text(pos, end);
 			input.next();
 			ExprAtom::Literal(content.into()).result()
 		}

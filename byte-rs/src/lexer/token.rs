@@ -1,5 +1,3 @@
-use super::lex_string::LexString;
-
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Token {
 	None,
@@ -8,7 +6,7 @@ pub enum Token {
 	Dedent,
 	Identifier,
 	Integer(u64),
-	Literal(LexString),
+	Literal(usize, usize),
 	Symbol(&'static str),
 }
 

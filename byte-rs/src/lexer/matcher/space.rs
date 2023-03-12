@@ -1,8 +1,8 @@
-use super::{is_space, Cursor, Matcher, MatcherResult};
+use crate::lexer::{is_space, Cursor, Matcher, MatcherResult};
 
-pub struct LexSpace;
+pub struct MatchSpace;
 
-impl Matcher for LexSpace {
+impl Matcher for MatchSpace {
 	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
 		if is_space(next) {
 			let mut pos = *input;

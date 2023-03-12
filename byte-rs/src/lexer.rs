@@ -4,6 +4,9 @@ mod lex;
 mod span;
 mod token;
 
+pub mod matcher;
+pub use matcher::{Matcher, MatcherResult};
+
 use once_cell::unsync::Lazy;
 
 pub use super::input::*;
@@ -23,34 +26,6 @@ pub enum LexerResult {
 	Error(String),
 }
 
-#[derive(Debug)]
-pub enum MatcherResult {
-	None,
-	Skip,
-	Comment,
-	Token(Token),
-	Error(String),
-}
-
-pub trait Matcher {
-	/// Tries to read the next recognized token from the input.
-	///
-	/// Returns [`LexerResult::None`] if the next token is not recognized or
-	/// at the end of input.
-	///
-	/// The input will advance to the end of the recognized token iff the
-	/// token is recognized.
-	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult;
-}
-
-mod lex_comment;
-mod lex_identifier;
-mod lex_line_break;
-mod lex_number;
-mod lex_space;
-mod lex_string;
-mod lex_symbol;
-
 /// This is used for the lexer to determined what is a whitespace character.
 pub fn is_space(char: char) -> bool {
 	matches!(char, ' ' | '\t')
@@ -59,12 +34,12 @@ pub fn is_space(char: char) -> bool {
 pub fn read_token<'a>(input: &mut Cursor<'a>) -> (LexerResult, Span<'a>) {
 	let lexers = Lazy::new(|| {
 		let lexers: Vec<Box<dyn Matcher>> = vec![
-			Box::new(lex_space::LexSpace),
-			Box::new(lex_comment::LexComment),
-			Box::new(lex_line_break::LexLineBreak(Token::Break)),
-			Box::new(lex_identifier::LexIdentifier(Token::Identifier)),
-			Box::new(lex_string::LexLiteral(Token::Literal)),
-			Box::new(lex_number::LexNumber(|n| Token::Integer(n))),
+			Box::new(matcher::MatchSpace),
+			Box::new(matcher::MatchComment),
+			Box::new(matcher::MatchLineBreak(Token::Break)),
+			Box::new(matcher::MatchIdentifier(Token::Identifier)),
+			Box::new(matcher::MatchLiteral(|pos, end| Token::Literal(pos, end))),
+			Box::new(matcher::MatchNumber(|n| Token::Integer(n))),
 			Box::new(symbols()),
 		];
 		lexers
@@ -105,8 +80,8 @@ pub fn read_token<'a>(input: &mut Cursor<'a>) -> (LexerResult, Span<'a>) {
 	(result, Span { pos, end: *input })
 }
 
-fn symbols() -> lex_symbol::LexSymbol {
-	let mut sym = lex_symbol::LexSymbol::default();
+fn symbols() -> matcher::SymbolTable {
+	let mut sym = matcher::SymbolTable::default();
 	sym.add_symbol(",", Token::Symbol(","));
 	sym.add_symbol(";", Token::Symbol(";"));
 	sym.add_symbol("+", Token::Symbol("+"));

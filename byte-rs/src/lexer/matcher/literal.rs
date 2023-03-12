@@ -1,14 +1,8 @@
 use super::{Cursor, Matcher, MatcherResult, Token};
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct LexString {
-	pub pos: usize,
-	pub end: usize,
-}
+pub struct MatchLiteral<F: Fn(usize, usize) -> Token>(pub F);
 
-pub struct LexLiteral<F: Fn(LexString) -> Token>(pub F);
-
-impl<F: Fn(LexString) -> Token> Matcher for LexLiteral<F> {
+impl<F: Fn(usize, usize) -> Token> Matcher for MatchLiteral<F> {
 	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
 		match next {
 			'\'' => {
@@ -17,8 +11,7 @@ impl<F: Fn(LexString) -> Token> Matcher for LexLiteral<F> {
 					let end = input.offset;
 					match input.read() {
 						Some('\'') => {
-							let str = LexString { pos, end };
-							break MatcherResult::Token(self.0(str));
+							break MatcherResult::Token(self.0(pos, end));
 						}
 
 						None => break MatcherResult::Error("unclosed string literal".into()),

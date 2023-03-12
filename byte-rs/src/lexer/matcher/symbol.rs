@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use super::{Cursor, Matcher, MatcherResult, Token};
 
-pub struct LexSymbol {
+pub struct SymbolTable {
 	states: Vec<Entry>,
 }
 
-impl Default for LexSymbol {
+impl Default for SymbolTable {
 	fn default() -> Self {
-		let mut out = LexSymbol {
+		let mut out = SymbolTable {
 			states: Default::default(),
 		};
 		out.states.push(Entry {
@@ -24,7 +24,7 @@ struct Entry {
 	next: HashMap<char, usize>,
 }
 
-impl LexSymbol {
+impl SymbolTable {
 	pub fn add_symbol(&mut self, symbol: &'static str, value: Token) {
 		assert!(symbol.len() > 0);
 		let mut current = 0;
@@ -57,7 +57,7 @@ impl LexSymbol {
 	}
 }
 
-impl Matcher for LexSymbol {
+impl Matcher for SymbolTable {
 	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
 		let state = self.get_next(0, next);
 		let (mut state, valid) = if let Some((state, valid)) = state {
@@ -94,7 +94,7 @@ mod tests {
 
 	#[test]
 	fn lexer_should_parse_symbols() {
-		let mut lexer = LexSymbol::default();
+		let mut lexer = SymbolTable::default();
 		lexer.add_symbol("+", Token::Symbol("+"));
 		lexer.add_symbol("++", Token::Symbol("++"));
 		lexer.add_symbol(".", Token::Symbol("."));
@@ -133,7 +133,7 @@ mod tests {
 		);
 	}
 
-	fn check_symbols(symbols: &LexSymbol, input: &'static str, expected: &[Token]) {
+	fn check_symbols(symbols: &SymbolTable, input: &'static str, expected: &[Token]) {
 		use crate::lexer::tests::TestInput;
 		let input = TestInput::new(input);
 		let mut input = Cursor::new(&input);

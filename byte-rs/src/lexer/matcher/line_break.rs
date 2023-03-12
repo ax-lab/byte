@@ -1,8 +1,8 @@
 use super::{Cursor, Matcher, MatcherResult, Token};
 
-pub struct LexLineBreak(pub Token);
+pub struct MatchLineBreak(pub Token);
 
-impl Matcher for LexLineBreak {
+impl Matcher for MatchLineBreak {
 	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
 		match next {
 			'\r' => {

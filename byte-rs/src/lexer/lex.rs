@@ -1,4 +1,4 @@
-use super::{lex_string::LexString, Input, Span, Token};
+use super::{Input, Span, Token};
 
 #[derive(Copy, Clone)]
 pub struct Lex<'a> {
@@ -49,7 +49,7 @@ impl<'a> std::fmt::Display for Lex<'a> {
 			token => match token {
 				Token::Symbol(sym) => write!(f, "{sym}"),
 				Token::Integer(value) => write!(f, "{value}"),
-				Token::Literal(LexString { pos, end }) => {
+				Token::Literal(pos, end) => {
 					write!(f, "{:?}", self.source().read_text(pos, end))
 				}
 				Token::Identifier => {

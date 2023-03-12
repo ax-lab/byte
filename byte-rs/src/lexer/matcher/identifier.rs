@@ -1,8 +1,8 @@
 use super::{Cursor, Matcher, MatcherResult, Token};
 
-pub struct LexIdentifier(pub Token);
+pub struct MatchIdentifier(pub Token);
 
-impl Matcher for LexIdentifier {
+impl Matcher for MatchIdentifier {
 	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
 		match next {
 			'a'..='z' | 'A'..='Z' | '_' => {

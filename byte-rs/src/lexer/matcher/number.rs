@@ -1,8 +1,8 @@
 use super::{Cursor, Matcher, MatcherResult, Token};
 
-pub struct LexNumber<F: Fn(u64) -> Token>(pub F);
+pub struct MatchNumber<F: Fn(u64) -> Token>(pub F);
 
-impl<F: Fn(u64) -> Token> Matcher for LexNumber<F> {
+impl<F: Fn(u64) -> Token> Matcher for MatchNumber<F> {
 	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
 		match next {
 			'0'..='9' => {
