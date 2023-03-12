@@ -14,14 +14,25 @@ pub use lex::*;
 pub use range::*;
 pub use token::*;
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct Indent(pub usize);
+
 pub enum LexerResult {
 	None,
+	Token(Token, Indent),
+	Error(String),
+}
+
+#[derive(Debug)]
+pub enum MatcherResult {
+	None,
 	Skip,
+	Comment,
 	Token(Token),
 	Error(String),
 }
 
-pub trait Lexer: Sized {
+pub trait Matcher {
 	/// Tries to read the next recognized token from the input.
 	///
 	/// Returns [`LexerResult::None`] if the next token is not recognized or
@@ -29,28 +40,7 @@ pub trait Lexer: Sized {
 	///
 	/// The input will advance to the end of the recognized token iff the
 	/// token is recognized.
-	fn read(&self, next: char, input: &mut Cursor) -> LexerResult;
-
-	/// Creates a chained composite lexer.
-	fn or<B: Lexer>(self, other: B) -> LexOr<Self, B> {
-		LexOr { a: self, b: other }
-	}
-}
-
-pub struct LexOr<A: Lexer, B: Lexer> {
-	a: A,
-	b: B,
-}
-
-impl<A: Lexer, B: Lexer> Lexer for LexOr<A, B> {
-	fn read(&self, next: char, input: &mut Cursor) -> LexerResult {
-		let res = self.a.read(next, input);
-		if let LexerResult::None = res {
-			self.b.read(next, input)
-		} else {
-			res
-		}
-	}
+	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult;
 }
 
 mod lex_comment;
@@ -61,46 +51,58 @@ mod lex_space;
 mod lex_string;
 mod lex_symbol;
 
-pub fn read_token<'a>(input: &mut Cursor<'a>) -> (LexerResult, Range<'a>) {
-	let config = Lazy::new(|| {
-		let space = lex_space::LexSpace;
-		let skip = space;
+/// This is used for the lexer to determined what is a whitespace character.
+pub fn is_space(char: char) -> bool {
+	matches!(char, ' ' | '\t')
+}
 
-		let comment = lex_comment::LexComment;
-		let line_break = lex_line_break::LexLineBreak(Token::Break);
-		let identifier = lex_identifier::LexIdentifier(Token::Identifier);
-		let string = lex_string::LexLiteral(Token::Literal);
-		let number = lex_number::LexNumber(|n| Token::Integer(n));
-		let symbol = symbols();
-		let lexer = comment
-			.or(line_break)
-			.or(identifier)
-			.or(string)
-			.or(number)
-			.or(symbol);
-		(skip, lexer)
+pub fn read_token<'a>(input: &mut Cursor<'a>) -> (LexerResult, Range<'a>) {
+	let lexers = Lazy::new(|| {
+		let lexers: Vec<Box<dyn Matcher>> = vec![
+			Box::new(lex_space::LexSpace),
+			Box::new(lex_comment::LexComment),
+			Box::new(lex_line_break::LexLineBreak(Token::Break)),
+			Box::new(lex_identifier::LexIdentifier(Token::Identifier)),
+			Box::new(lex_string::LexLiteral(Token::Literal)),
+			Box::new(lex_number::LexNumber(|n| Token::Integer(n))),
+			Box::new(symbols()),
+		];
+		lexers
 	});
-	let (skip, lexer) = &*config;
 
 	let mut pos = *input;
-	let (res, pos) = loop {
+	let mut indent = Indent(pos.indent);
+	let result = 'main: loop {
 		if let Some(next) = input.read() {
-			match skip.read(next, input) {
-				LexerResult::Token(..) | LexerResult::Skip => {
-					pos = *input;
+			let start = *input;
+			let mut skipped = false;
+			for it in lexers.iter() {
+				*input = start;
+				match it.try_match(next, input) {
+					MatcherResult::None => continue,
+					MatcherResult::Error(error) => break 'main LexerResult::Error(error),
+					next @ (MatcherResult::Skip | MatcherResult::Comment) => {
+						pos = *input;
+						if let MatcherResult::Skip = next {
+							indent = Indent(pos.indent);
+						}
+						skipped = true;
+						break;
+					}
+					MatcherResult::Token(token) => {
+						break 'main LexerResult::Token(token, indent);
+					}
 				}
-				LexerResult::None => {
-					let res = lexer.read(next, input);
-					break (res, pos);
-				}
-				LexerResult::Error(error) => break (LexerResult::Error(error), pos),
+			}
+			if !skipped {
+				break LexerResult::Error(format!("invalid token"));
 			}
 		} else {
-			break (LexerResult::None, pos);
+			break LexerResult::None;
 		}
 	};
 
-	(res, Range { pos, end: *input })
+	(result, Range { pos, end: *input })
 }
 
 fn symbols() -> lex_symbol::LexSymbol {

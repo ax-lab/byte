@@ -1,24 +1,22 @@
-use super::{Cursor, Lexer, LexerResult};
+use super::{is_space, Cursor, Matcher, MatcherResult};
 
 pub struct LexSpace;
 
-impl Lexer for LexSpace {
-	fn read(&self, next: char, input: &mut Cursor) -> LexerResult {
-		match next {
-			' ' | '\t' => {
-				let mut pos;
-				loop {
+impl Matcher for LexSpace {
+	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
+		if is_space(next) {
+			let mut pos = *input;
+			while let Some(next) = input.read() {
+				if is_space(next) {
 					pos = *input;
-					match input.read() {
-						Some(' ' | '\t') => {}
-						_ => break,
-					}
+				} else {
+					break;
 				}
-				*input = pos;
-				LexerResult::Skip
 			}
-
-			_ => LexerResult::None,
+			*input = pos;
+			MatcherResult::Skip
+		} else {
+			MatcherResult::None
 		}
 	}
 }

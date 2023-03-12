@@ -1,9 +1,9 @@
-use super::{Cursor, Lexer, LexerResult, Token};
+use super::{Cursor, Matcher, MatcherResult, Token};
 
 pub struct LexIdentifier(pub Token);
 
-impl Lexer for LexIdentifier {
-	fn read(&self, next: char, input: &mut Cursor) -> LexerResult {
+impl Matcher for LexIdentifier {
+	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
 		match next {
 			'a'..='z' | 'A'..='Z' | '_' => {
 				let mut pos;
@@ -18,10 +18,10 @@ impl Lexer for LexIdentifier {
 					}
 				}
 
-				LexerResult::Token(self.0)
+				MatcherResult::Token(self.0)
 			}
 
-			_ => LexerResult::None,
+			_ => MatcherResult::None,
 		}
 	}
 }

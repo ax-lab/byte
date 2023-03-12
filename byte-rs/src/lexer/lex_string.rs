@@ -1,4 +1,4 @@
-use super::{Cursor, Lexer, LexerResult, Token};
+use super::{Cursor, Matcher, MatcherResult, Token};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct LexString {
@@ -8,8 +8,8 @@ pub struct LexString {
 
 pub struct LexLiteral<F: Fn(LexString) -> Token>(pub F);
 
-impl<F: Fn(LexString) -> Token> Lexer for LexLiteral<F> {
-	fn read(&self, next: char, input: &mut Cursor) -> LexerResult {
+impl<F: Fn(LexString) -> Token> Matcher for LexLiteral<F> {
+	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
 		match next {
 			'\'' => {
 				let pos = input.offset;
@@ -18,17 +18,17 @@ impl<F: Fn(LexString) -> Token> Lexer for LexLiteral<F> {
 					match input.read() {
 						Some('\'') => {
 							let str = LexString { pos, end };
-							break LexerResult::Token(self.0(str));
+							break MatcherResult::Token(self.0(str));
 						}
 
-						None => break LexerResult::Error("unclosed string literal".into()),
+						None => break MatcherResult::Error("unclosed string literal".into()),
 
 						Some(_) => {}
 					}
 				}
 			}
 
-			_ => LexerResult::None,
+			_ => MatcherResult::None,
 		}
 	}
 }

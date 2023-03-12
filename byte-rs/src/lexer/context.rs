@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use super::{Cursor, Input, Lex, LexerResult, Range, Token};
+use super::{Cursor, Indent, Input, Lex, LexerResult, Range, Token};
 
 /// Holds the lexer state at a particular point in the input and provides
 /// methods for consuming tokens.
@@ -108,10 +108,9 @@ impl<'a> State<'a> {
 
 			// read the next token
 			let (result, span) = super::read_token(input);
-			let (token, end, skip) = match result {
-				LexerResult::Token(token) => (token, false, false),
-				LexerResult::None => (Token::Break, true, false),
-				LexerResult::Skip => (Token::Symbol(""), false, true),
+			let (token, end, indent) = match result {
+				LexerResult::Token(token, Indent(indent)) => (token, false, indent),
+				LexerResult::None => (Token::Break, true, 0),
 				LexerResult::Error(error) => panic!("{error} at {span}"),
 			};
 
@@ -121,19 +120,18 @@ impl<'a> State<'a> {
 			}
 
 			let need_indent = (new_line && token != Token::Break) || end;
-			let column = if end { 0 } else { span.pos.column };
 
 			// check if we need indent or dedent tokens by comparing the first token level
 			if need_indent {
 				let level = self.indent_level();
-				if column > level {
+				if indent > level {
 					let span = Range {
 						pos: start,
 						end: span.pos,
 					};
 					self.indent(span);
 				} else {
-					while column < self.indent_level() {
+					while indent < self.indent_level() {
 						self.dedent(Range {
 							pos: start,
 							end: span.pos,
@@ -145,11 +143,10 @@ impl<'a> State<'a> {
 			if let Some(_) = token.get_closing() {
 				self.open_paren(token, span);
 			} else {
-				let skip = skip
-					|| match token {
-						Token::Break => new_line || empty || end,
-						_ => false,
-					};
+				let skip = match token {
+					Token::Break => new_line || empty || end,
+					_ => false,
+				};
 
 				if !skip {
 					self.tokens.push((token, span, 0));

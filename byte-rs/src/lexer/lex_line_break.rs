@@ -1,18 +1,18 @@
-use super::{Cursor, Lexer, LexerResult, Token};
+use super::{Cursor, Matcher, MatcherResult, Token};
 
 pub struct LexLineBreak(pub Token);
 
-impl Lexer for LexLineBreak {
-	fn read(&self, next: char, input: &mut Cursor) -> LexerResult {
+impl Matcher for LexLineBreak {
+	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
 		match next {
 			'\r' => {
 				input.read_if('\n');
-				LexerResult::Token(self.0.clone())
+				MatcherResult::Token(self.0.clone())
 			}
 
-			'\n' => LexerResult::Token(self.0.clone()),
+			'\n' => MatcherResult::Token(self.0.clone()),
 
-			_ => LexerResult::None,
+			_ => MatcherResult::None,
 		}
 	}
 }

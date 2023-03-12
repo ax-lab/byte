@@ -1,4 +1,4 @@
-use super::Input;
+use super::{is_space, Input};
 
 /// Indexes a position in an [Input] and provides methods for consuming it.
 ///
@@ -10,6 +10,7 @@ pub struct Cursor<'a> {
 	pub source: &'a dyn Input,
 	pub line: usize,
 	pub column: usize,
+	pub indent: usize,
 	pub offset: usize,
 
 	was_cr: bool,
@@ -22,6 +23,7 @@ impl<'a> Cursor<'a> {
 			line: 0,
 			column: 0,
 			offset: 0,
+			indent: 0,
 			was_cr: false,
 		}
 	}
@@ -53,18 +55,26 @@ impl<'a> Cursor<'a> {
 	}
 
 	fn advance(&mut self, next: char, offset: usize) {
+		let is_indent = self.indent == self.column;
 		match next {
-			'\n' => {
-				if !self.was_cr {
+			'\n' | '\r' => {
+				if next != '\n' || !self.was_cr {
 					self.line += 1;
 					self.column = 0;
+					self.indent = 0;
 				}
 			}
 			'\t' => {
 				self.column += 4 - (self.column % 4);
+				if is_indent {
+					self.indent = self.column;
+				}
 			}
 			_ => {
 				self.column += 1;
+				if is_space(next) && is_indent {
+					self.indent = self.column;
+				}
 			}
 		}
 		self.offset = offset;
@@ -99,6 +109,7 @@ impl<'a> std::fmt::Debug for Cursor<'a> {
 			.field("source", &format_args!("{:?}", &self.source as *const _))
 			.field("line", &self.line)
 			.field("column", &self.column)
+			.field("indent", &self.indent)
 			.field("offset", &self.offset)
 			.field("was_cr", &self.was_cr)
 			.finish()

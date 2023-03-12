@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{Cursor, Lexer, LexerResult, Token};
+use super::{Cursor, Matcher, MatcherResult, Token};
 
 pub struct LexSymbol {
 	states: Vec<Entry>,
@@ -57,13 +57,13 @@ impl LexSymbol {
 	}
 }
 
-impl Lexer for LexSymbol {
-	fn read(&self, next: char, input: &mut Cursor) -> LexerResult {
+impl Matcher for LexSymbol {
+	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
 		let state = self.get_next(0, next);
 		let (mut state, valid) = if let Some((state, valid)) = state {
 			(state, valid)
 		} else {
-			return LexerResult::Error("invalid symbol".into());
+			return MatcherResult::Error("invalid symbol".into());
 		};
 
 		let mut last_pos = *input;
@@ -81,9 +81,9 @@ impl Lexer for LexSymbol {
 		}
 		if let Some((pos, index)) = valid {
 			*input = pos;
-			LexerResult::Token(self.states[index].value.clone().unwrap())
+			MatcherResult::Token(self.states[index].value.clone().unwrap())
 		} else {
-			LexerResult::Error("invalid symbol".into())
+			MatcherResult::Error("invalid symbol".into())
 		}
 	}
 }
@@ -140,23 +140,20 @@ mod tests {
 		for (i, expected) in expected.iter().cloned().enumerate() {
 			let next = input.read().expect("unexpected end of input");
 			let pos = input.offset;
-			let next = symbols.read(next, &mut input);
+			let next = symbols.try_match(next, &mut input);
 			let end = input.offset;
 			let text = input.source.read_text(pos, end);
 			match next {
-				LexerResult::Token(actual) => assert_eq!(
+				MatcherResult::Token(actual) => assert_eq!(
 					actual, expected,
 					"unexpected symbol {:?} from `{}` at #{} (expected {:?})",
 					actual, text, i, expected,
 				),
-				LexerResult::Error(error) => {
+				MatcherResult::Error(error) => {
 					panic!("unexpected error at #{i}: {error} (consumed: `{text}`)")
 				}
-				LexerResult::Skip => {
-					panic!("expected token, got comment at #{i} (consumed: `{text}`)")
-				}
-				LexerResult::None => {
-					panic!("expected token, got none at #{i} (consumed: `{text}`)")
+				result => {
+					panic!("expected token, got {result:?} at #{i} (consumed: `{text}`)")
 				}
 			}
 		}

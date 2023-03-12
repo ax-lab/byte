@@ -1,9 +1,9 @@
-use super::{Cursor, Lexer, LexerResult};
+use super::{Cursor, Matcher, MatcherResult};
 
 pub struct LexComment;
 
-impl Lexer for LexComment {
-	fn read(&self, next: char, input: &mut Cursor) -> LexerResult {
+impl Matcher for LexComment {
+	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
 		match next {
 			'#' => {
 				let (multi, mut level) = if input.read_if('(') {
@@ -33,10 +33,10 @@ impl Lexer for LexComment {
 				if putback {
 					*input = pos;
 				}
-				LexerResult::Skip
+				MatcherResult::Comment
 			}
 
-			_ => LexerResult::None,
+			_ => MatcherResult::None,
 		}
 	}
 }
