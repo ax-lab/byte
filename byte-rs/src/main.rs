@@ -1,7 +1,7 @@
 use std::{collections::HashMap, env};
 
 use exec::{execute_expr, ResultValue};
-use lexer::{Lex, LexSource};
+use lexer::Context;
 use parser::{parse_statement, Id, ParseResult, Statement};
 
 mod exec;
@@ -63,26 +63,24 @@ fn main() {
 	for file in files {
 		match source::open_file(&file) {
 			Ok(source) => {
-				let source = LexSource::new(&source);
-				let mut current = source.first();
+				let mut context = Context::new(&source);
 				if list_tokens {
-					while let Lex::Some(lex) = current {
-						let (token, span, text) = lex.triple();
+					while context.value.is_some() {
+						let (token, span, text) = context.triple();
 						println!("{span}: {:10}  =  {token:?}", format!("{text:?}"));
-						current = current.next();
+						context.next();
 					}
 					std::process::exit(0);
 				}
 
 				if list_blocks {
-					parser::list_blocks(current);
+					parser::list_blocks(context);
 					std::process::exit(0);
 				}
 
 				let mut program = Vec::new();
-				while current.is_some() {
-					let (next, parsed) = parse_statement(current);
-					current = next;
+				while context.value.is_some() {
+					let parsed = parse_statement(&mut context);
 					match parsed {
 						ParseResult::Error(span, msg) => {
 							eprintln!("\n[compile error] {file}:{span}: {msg}\n");

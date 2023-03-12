@@ -1,15 +1,17 @@
+mod context;
 mod cursor;
 mod lex;
-mod source;
+mod range;
 mod token;
 
 use once_cell::unsync::Lazy;
 
 pub use super::input::*;
 
+pub use context::*;
 pub use cursor::*;
 pub use lex::*;
-pub use source::*;
+pub use range::*;
 pub use token::*;
 
 pub enum LexerResult {
@@ -59,7 +61,7 @@ mod lex_space;
 mod lex_string;
 mod lex_symbol;
 
-pub fn read_token(input: &mut Cursor) -> (LexerResult, Span) {
+pub fn read_token<'a>(input: &mut Cursor<'a>) -> (LexerResult, Range<'a>) {
 	let config = Lazy::new(|| {
 		let space = lex_space::LexSpace;
 		let skip = space;
@@ -80,12 +82,12 @@ pub fn read_token(input: &mut Cursor) -> (LexerResult, Span) {
 	});
 	let (skip, lexer) = &*config;
 
-	let mut pos = input.pos();
+	let mut pos = *input;
 	let (res, pos) = loop {
 		if let Some(next) = input.read() {
 			match skip.read(next, input) {
 				LexerResult::Token(..) | LexerResult::Skip => {
-					pos = input.pos();
+					pos = *input;
 				}
 				LexerResult::None => {
 					let res = lexer.read(next, input);
@@ -98,13 +100,7 @@ pub fn read_token(input: &mut Cursor) -> (LexerResult, Span) {
 		}
 	};
 
-	(
-		res,
-		Span {
-			pos,
-			end: input.pos(),
-		},
-	)
+	(res, Range { pos, end: *input })
 }
 
 fn symbols() -> lex_symbol::LexSymbol {

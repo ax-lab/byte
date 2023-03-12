@@ -1,7 +1,11 @@
 use super::Input;
 use super::Pos;
 
-/// Indexes a position and provides methods for consuming an [Input] text.
+/// Indexes a position in an [Input] and provides methods for consuming it.
+///
+/// This type is designed to have lightweight copy semantics which allows for
+/// easily saving a position and backtracking to it. It also holds a reference
+/// to the source, allowing easy access to the source text.
 #[derive(Clone, Copy)]
 pub struct Cursor<'a> {
 	pub source: &'a dyn Input,
@@ -96,5 +100,17 @@ impl<'a> std::fmt::Display for Cursor<'a> {
 		let line = self.line + 1;
 		let column = self.column + 1;
 		write!(f, "{line:03},{column:02}")
+	}
+}
+
+impl<'a> std::fmt::Debug for Cursor<'a> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("Cursor")
+			.field("source", &format_args!("{:?}", &self.source as *const _))
+			.field("line", &self.line)
+			.field("column", &self.column)
+			.field("offset", &self.offset)
+			.field("was_cr", &self.was_cr)
+			.finish()
 	}
 }

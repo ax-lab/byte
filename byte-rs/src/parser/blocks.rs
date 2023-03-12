@@ -1,15 +1,10 @@
-use crate::{
-	input::Span,
-	lexer::{Lex, Token},
-};
+use crate::lexer::{Context, Lex, Range, Token};
 
 /// Display a list of blocks in the input TokenStream. This is used only
 /// for testing the tokenization.
-pub fn list_blocks(mut input: Lex) {
+pub fn list_blocks<'a>(mut input: Context<'a>) {
 	loop {
-		let block;
-		(input, block) = parse_block(input);
-		match block {
+		match parse_block(&mut input) {
 			Block::None => break,
 			Block::Error(error, span) => {
 				println!("Error: {error} at {span}");
@@ -30,157 +25,132 @@ enum Block<'a> {
 		next: Option<Vec<Block<'a>>>,
 	},
 	Parenthesis(Lex<'a>, Vec<Block<'a>>, Lex<'a>),
-	Error(String, Span),
+	Error(String, Range<'a>),
 }
 
-fn parse_block(input: Lex) -> (Lex, Block) {
+fn parse_block<'a>(input: &mut Context<'a>) -> Block<'a> {
 	parse_line(input, 0, None)
 }
 
-fn parse_line<'a>(
-	input: Lex<'a>,
-	level: usize,
-	stop: Option<&'static str>,
-) -> (Lex<'a>, Block<'a>) {
-	let (input, expr) = parse_expr(input, level, stop);
+fn parse_line<'a>(input: &mut Context<'a>, level: usize, stop: Option<&'static str>) -> Block<'a> {
+	let expr = parse_expr(input, level, stop);
 	if expr.len() == 0 {
-		(input, Block::None)
+		Block::None
 	} else {
-		let (input, _) = input.next_if(|x| x == Token::Break);
-		let (input, cont) = input.next_if(|token| matches!(token, Token::Indent));
-
+		input.next_if(|value| value.token == Token::Break);
 		// read indented continuation
-		let (input, next) = if cont {
+		let next = if input.next_if(|value| matches!(value.token, Token::Indent)) {
 			let mut next = Vec::new();
-			let mut input = input;
 			loop {
-				let line;
-				(input, line) = parse_line(input, level, stop);
-				match line {
+				match parse_line(input, level, stop) {
 					Block::None => break,
-					error @ Block::Error(..) => return (input, error),
+					error @ Block::Error(..) => return error,
 					line => next.push(line),
 				}
 			}
 
-			let (input, ok) = input.next_if(|x| matches!(x, Token::Dedent));
-			if !ok {
-				return (
-					input,
-					Block::Error(format!("dedent expected, got {input}"), input.span()),
+			if !input.next_if(|value| matches!(value.token, Token::Dedent)) {
+				return Block::Error(
+					format!("dedent expected, got {}", input.value),
+					input.range(),
 				);
 			}
 
-			let next = if next.len() > 0 { Some(next) } else { None };
-			(input, next)
+			if next.len() > 0 {
+				Some(next)
+			} else {
+				None
+			}
 		} else {
-			(input, None)
+			None
 		};
-		let result = Block::Line { expr, next };
-		(input, result)
+		Block::Line { expr, next }
 	}
 }
 
 fn parse_expr<'a>(
-	input: Lex<'a>,
+	input: &mut Context<'a>,
 	_level: usize,
 	stop: Option<&'static str>,
-) -> (Lex<'a>, Vec<Block<'a>>) {
+) -> Vec<Block<'a>> {
 	let mut expr = Vec::new();
-	let mut input = input;
-	let input = loop {
+	loop {
 		match input.token() {
-			Some(Token::Indent) => {
-				let span = input.span();
-				panic!("unexpected {input} at {span}");
+			Token::Indent => {
+				panic!("unexpected {} at {}", input.value, input.range());
 			}
-			Some(Token::Break | Token::Dedent) => {
-				break input;
+			Token::Break | Token::Dedent => {
+				break expr;
 			}
-			Some(Token::Symbol(sym)) if Some(sym) == stop => {
-				break input;
+			Token::Symbol(sym) if Some(sym) == stop => {
+				break expr;
 			}
-			Some(Token::Symbol("(")) => {
-				let left = input;
-				let item;
-				input = input.next();
-				(input, item) = parse_parenthesis(input, left, ")");
+			Token::Symbol("(") => {
+				let left = input.value;
+				input.next();
+				let item = parse_parenthesis(input, left, ")");
 				expr.push(item);
 			}
-			Some(_) => {
-				expr.push(Block::Item(input));
-				input = input.next();
+			Token::None => {
+				break expr;
 			}
-			None => {
-				break input;
+			_ => {
+				expr.push(Block::Item(input.value));
+				input.next();
 			}
 		}
-	};
-	(input, expr)
+	}
 }
 
-fn parse_parenthesis<'a>(
-	input: Lex<'a>,
-	left: Lex<'a>,
-	right: &'static str,
-) -> (Lex<'a>, Block<'a>) {
+fn parse_parenthesis<'a>(input: &mut Context<'a>, left: Lex<'a>, right: &'static str) -> Block<'a> {
 	let level = 0;
-	let (input, _) = input.next_if(|x| x == Token::Break);
-	let (input, indented) = input.next_if(|next| next == Token::Indent);
+	input.next_if(|x| x.token == Token::Break);
+	let indented = input.next_if(|x| x.token == Token::Indent);
 
 	let mut inner = Vec::new();
-	let mut input = input;
 	if indented {
 		loop {
-			(input, _) = input.next_if(|x| x == Token::Break);
+			input.next_if(|x| x.token == Token::Break);
 
-			let dedent;
-			(input, dedent) = input.next_if(|token| token == Token::Dedent);
-			if dedent {
+			if input.next_if(|x| x.token == Token::Dedent) {
 				break;
 			}
 
-			let block;
-			(input, block) = parse_line(input, level, Some(right));
-			match block {
+			match parse_line(input, level, Some(right)) {
 				Block::None => {
-					return (
-						input,
-						Block::Error(
-							format!("unexpected `{input}` in indented {} parenthesis", left),
-							input.span(),
+					return Block::Error(
+						format!(
+							"unexpected `{}` in indented {} parenthesis",
+							input.value, left
 						),
+						input.range(),
 					);
 				}
-				error @ Block::Error(..) => return (input, error),
+				error @ Block::Error(..) => return error,
 				block => inner.push(block),
 			}
 		}
 	} else {
-		let block;
-		(input, block) = parse_line(input, level, Some(right));
+		let block = parse_line(input, level, Some(right));
 		match block {
 			Block::None => {}
-			error @ Block::Error(..) => return (input, error),
+			error @ Block::Error(..) => return error,
 			block => inner.push(block),
 		}
 	}
 
-	let lex_closing = input;
-	let (input, ok) = if right != "" {
-		input.skip_symbol(right)
+	let lex_closing = input.value;
+	if !(right != "" && input.skip_symbol(right)) {
+		let at = left.range;
+		Block::Error(
+			format!(
+				"expected closing `{right}` for {left} at {at}, but got {}",
+				input.value
+			),
+			input.range(),
+		)
 	} else {
-		(input, false)
-	};
-	if !ok {
-		let at = left.span();
-		let error = Block::Error(
-			format!("expected closing `{right}` for {left} at {at}, but got {input}"),
-			input.span(),
-		);
-		(input, error)
-	} else {
-		(input, Block::Parenthesis(left, inner, lex_closing))
+		Block::Parenthesis(left, inner, lex_closing)
 	}
 }
 

@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
-use crate::lexer::Lex;
-use crate::lexer::{Input, Span, Token};
+use crate::lexer::{Context, Input, Span, Token};
+use crate::lexer::{Lex, Range};
 
 use super::operators::*;
 use super::ParseResult;
@@ -16,19 +16,19 @@ pub enum ExprAtom {
 }
 
 #[derive(Debug)]
-pub enum ExprResult {
+pub enum ExprResult<'a> {
 	None,
-	Error(Span, String),
+	Error(Range<'a>, String),
 	Expr(Expr),
 }
 
-impl From<Expr> for ExprResult {
+impl<'a> From<Expr> for ExprResult<'a> {
 	fn from(expr: Expr) -> Self {
 		ExprResult::Expr(expr)
 	}
 }
 
-impl From<ExprAtom> for ExprResult {
+impl<'a> From<ExprAtom> for ExprResult<'a> {
 	fn from(atom: ExprAtom) -> Self {
 		ExprResult::Expr(Expr::Value(atom))
 	}
@@ -43,17 +43,17 @@ pub enum Expr {
 	List(ListOp, Vec<Expr>),
 }
 
-pub trait AsResult {
-	fn result(self) -> ExprResult;
+pub trait AsResult<'a> {
+	fn result(self) -> ExprResult<'a>;
 }
 
-impl<T: Into<ExprResult>> AsResult for T {
-	fn result(self) -> ExprResult {
+impl<'a, T: Into<ExprResult<'a>>> AsResult<'a> for T {
+	fn result(self) -> ExprResult<'a> {
 		self.into()
 	}
 }
 
-pub fn parse_expression(input: Lex) -> (Lex, ExprResult) {
+pub fn parse_expression<'a>(input: &mut Context<'a>) -> ExprResult<'a> {
 	let mut ops = VecDeque::new();
 	let mut values = VecDeque::new();
 
@@ -95,79 +95,64 @@ pub fn parse_expression(input: Lex) -> (Lex, ExprResult) {
 		ops.push_back(op);
 	};
 
-	let mut input = input;
 	loop {
-		while let Some(op) = input.symbol().and_then(|next| UnaryOp::get_prefix(next)) {
+		while let Some(op) = input
+			.value
+			.symbol()
+			.and_then(|next| UnaryOp::get_prefix(next))
+		{
 			// the unary operator doesn't affect other operators on the stack
 			// because it binds forward to the next operator
 			let op = Operator::Unary(op);
 			ops.push_back(op);
-			input = input.next();
+			input.next();
 		}
 
-		input = match parse_atom(input) {
-			(input, expr) => {
-				match expr {
-					ExprResult::Expr(expr) => {
-						values.push_back(expr);
-					}
-					ExprResult::None => {
-						return if ops.len() > 0 {
-							(
-								input,
-								ExprResult::Error(
-									input.span(),
-									"expected expression after operator".into(),
-								),
-							)
-						} else {
-							break;
-						};
-					}
-					err @ ExprResult::Error(..) => return (input, err),
-				}
-				input
+		match parse_atom(input) {
+			ExprResult::Expr(expr) => {
+				values.push_back(expr);
 			}
+			ExprResult::None => {
+				return if ops.len() > 0 {
+					ExprResult::Error(input.range(), "expected expression after operator".into())
+				} else {
+					break;
+				};
+			}
+			err @ ExprResult::Error(..) => return err,
 		};
 
 		// TODO: posfix operators (always pop themselves)
 
 		// Ternary and binary operators work similarly, but the ternary will
 		// parse the middle expression as parenthesized.
-		input = if let Some((op, end)) = input.symbol().and_then(|next| TernaryOp::get(next)) {
-			let input = input.next();
+		if let Some((op, end)) = input.value.symbol().and_then(|next| TernaryOp::get(next)) {
+			input.next();
 			let op = Operator::Ternary(op);
 			push_op(op, &mut ops, &mut values);
 
-			let (input, expr) = match parse_expression(input) {
-				(input, expr) => match expr {
-					ExprResult::Expr(expr) => (input, expr),
-					ExprResult::None => {
-						return (
-							input,
-							ExprResult::Error(
-								input.span(),
-								"expected expression after ternary operator".into(),
-							),
-						)
-					}
-					err @ ExprResult::Error(..) => return (input, err),
-				},
+			let expr = match parse_expression(input) {
+				ExprResult::Expr(expr) => expr,
+				ExprResult::None => {
+					return ExprResult::Error(
+						input.range(),
+						"expected expression after ternary operator".into(),
+					);
+				}
+				err @ ExprResult::Error(..) => return err,
 			};
 			values.push_back(expr);
 
-			let (input, ok) = input.skip_symbol(end);
-			if !ok {
-				return (
-					input,
-					ExprResult::Error(input.span(), format!("expected ternary operator '{end}'")),
+			if !input.skip_symbol(end) {
+				return ExprResult::Error(
+					input.range(),
+					format!("expected ternary operator '{end}'"),
 				);
 			}
-			input
-		} else if let Some(op) = input.symbol().and_then(|next| BinaryOp::get(next)) {
+		} else if let Some(op) = input.value.symbol().and_then(|next| BinaryOp::get(next)) {
 			let op = Operator::Binary(op);
 			push_op(op, &mut ops, &mut values);
-			input.next()
+			input.next();
 		} else {
 			break;
 		}
@@ -179,58 +164,55 @@ pub fn parse_expression(input: Lex) -> (Lex, ExprResult) {
 	}
 
 	if values.len() == 0 {
-		(input, ExprResult::None)
+		ExprResult::None
 	} else {
 		assert!(values.len() == 1);
 		let expr = values.pop_back().unwrap();
-		(input, ExprResult::Expr(expr))
+		ExprResult::Expr(expr)
 	}
 }
 
-fn parse_atom(input: Lex) -> (Lex, ExprResult) {
-	let (token, span) = match input {
-		Lex::Some(state) => state.pair(),
-		_ => return (input, ExprResult::None),
-	};
-
-	match token {
+fn parse_atom<'a>(input: &mut Context<'a>) -> ExprResult<'a> {
+	match input.token() {
 		Token::Identifier => {
-			let atom = match input.text() {
+			let atom = match input.value.text() {
 				"null" => ExprAtom::Null,
 				"true" => ExprAtom::Boolean(true),
 				"false" => ExprAtom::Boolean(false),
 				id => ExprAtom::Var(id.into()),
 			};
-			(input.next(), atom.result())
+			input.next();
+			atom.result()
 		}
-		Token::Integer(value) => (input.next(), ExprAtom::Integer(value).result()),
+		Token::Integer(value) => {
+			input.next();
+			ExprAtom::Integer(value).result()
+		}
 		Token::Literal(str) => {
 			let content = str.content_span();
-			let content = input.source().read_text(content);
-			(input.next(), ExprAtom::Literal(content.into()).result())
+			let content = input
+				.pos()
+				.source
+				.read_text(content.pos.offset, content.end.offset);
+			input.next();
+			ExprAtom::Literal(content.into()).result()
 		}
 		Token::Symbol("(") => {
-			let (input, expr) = parse_expression(input.next());
-			let (input, expr) = match expr {
+			input.next();
+			match parse_expression(input) {
 				ExprResult::Expr(expr) => {
-					let (input, ok) = input.skip_symbol(")");
-					if !ok {
-						(
-							input,
-							ExprResult::Error(input.span(), "expected `)`".into()),
-						)
+					if !input.skip_symbol(")") {
+						ExprResult::Error(input.range(), "expected `)`".into())
 					} else {
-						(input, ExprResult::Expr(expr))
+						ExprResult::Expr(expr)
 					}
 				}
-				ExprResult::None => (
-					input,
-					ExprResult::Error(input.span(), "expression expected inside '()'".into()),
-				),
-				err @ ExprResult::Error(..) => (input, err),
-			};
-			(input, expr)
+				ExprResult::None => {
+					ExprResult::Error(input.range(), "expression expected inside '()'".into())
+				}
+				err @ ExprResult::Error(..) => err,
+			}
 		}
-		_ => return (input, ExprResult::None),
+		_ => return ExprResult::None,
 	}
 }

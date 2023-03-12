@@ -1,4 +1,4 @@
-use crate::lexer::{Lex, Span, Token};
+use crate::lexer::{Context, Range, Token};
 
 mod blocks;
 pub use blocks::*;
@@ -24,269 +24,190 @@ pub enum Statement {
 	Expr(Expr),
 }
 
-pub enum ParseResult {
+pub enum ParseResult<'a> {
 	Ok(Statement),
-	Error(Span, String),
+	Error(Range<'a>, String),
 	None,
 }
 
-pub fn parse_statement(input: Lex) -> (Lex, ParseResult) {
-	let token = match input.token() {
-		Some(token) => token,
-		None => return (input, ParseResult::None),
-	};
-
-	if let Token::Identifier = token {
-		match input.text() {
+pub fn parse_statement<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
+	match input.token() {
+		Token::None => ParseResult::None,
+		Token::Identifier => match input.value.text() {
 			"print" => parse_print(input),
 			"let" | "const" => parse_let(input),
 			"for" => parse_for(input),
 			"if" => parse_if(input),
 			_ => parse_statement_expr(input),
-		}
-	} else {
-		parse_statement_expr(input)
-	}
-}
-
-fn parse_statement_expr(input: Lex) -> (Lex, ParseResult) {
-	match parse_expression(input) {
-		(input, expr) => match expr {
-			ExprResult::Expr(expr) => assert_break(input, ParseResult::Ok(Statement::Expr(expr))),
-			ExprResult::Error(span, error) => (input, ParseResult::Error(span, error)),
-			ExprResult::None => match input {
-				Lex::None(..) => (
-					input,
-					ParseResult::Error(
-						input.span(),
-						format!("expected expression, got end of input"),
-					),
-				),
-				Lex::Some(lex) => {
-					let (token, span) = lex.pair();
-					(
-						input,
-						ParseResult::Error(span, format!("expected expression, got {token:?}")),
-					)
-				}
-			},
 		},
+		_ => parse_statement_expr(input),
 	}
 }
 
-fn parse_if(input: Lex) -> (Lex, ParseResult) {
-	let input = input.next(); // skip `if`
+fn parse_statement_expr<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 	match parse_expression(input) {
-		(input, expr) => match expr {
-			ExprResult::Expr(expr) => {
-				let (input, block) = parse_indented_block(input);
-				let block = if let ParseResult::Ok(block) = block {
-					ParseResult::Ok(Statement::If(expr, block.into()))
-				} else {
-					block
-				};
-				(input, block)
-			}
-			ExprResult::Error(span, error) => (input, ParseResult::Error(span, error)),
-			ExprResult::None => (
-				input,
-				ParseResult::Error(input.span(), "expression expected after 'if'".into()),
+		ExprResult::Expr(expr) => assert_break(input, ParseResult::Ok(Statement::Expr(expr))),
+		ExprResult::Error(span, error) => ParseResult::Error(span, error),
+		ExprResult::None => match input.token() {
+			Token::None => ParseResult::Error(
+				input.range(),
+				format!("expected expression, got end of input"),
 			),
+			token => {
+				ParseResult::Error(input.range(), format!("expected expression, got {token:?}"))
+			}
 		},
 	}
 }
 
-fn parse_for(input: Lex) -> (Lex, ParseResult) {
-	let input = input.next(); // skip `for`
-	let (input, id) = match input.token() {
-		Some(Token::Identifier) => (input.next(), input.text().to_string()),
-		_ => {
-			return (
-				input,
-				ParseResult::Error(input.span(), "identifier expected after 'for'".into()),
-			)
+fn parse_if<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
+	input.next(); // skip `if`
+	match parse_expression(input) {
+		ExprResult::Expr(expr) => {
+			let block = parse_indented_block(input);
+			if let ParseResult::Ok(block) = block {
+				ParseResult::Ok(Statement::If(expr, block.into()))
+			} else {
+				block
+			}
+		}
+		ExprResult::Error(span, error) => ParseResult::Error(span, error),
+		ExprResult::None => {
+			ParseResult::Error(input.range(), "expression expected after 'if'".into())
+		}
+	}
+}
+
+fn parse_for<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
+	input.next(); // skip `for`
+	let id = match input.token() {
+		Token::Identifier => {
+			let id = input.value.text().to_string();
+			input.next();
+			id
+		}
+		_ => return ParseResult::Error(input.range(), "identifier expected after 'for'".into()),
+	};
+
+	if !input.skip_symbol("in") {
+		return ParseResult::Error(input.range(), "for 'in' expected".into());
+	}
+
+	let from = match parse_expression(input) {
+		ExprResult::Expr(expr) => expr,
+		ExprResult::Error(span, error) => return ParseResult::Error(span, error),
+		ExprResult::None => {
+			return ParseResult::Error(input.range(), "expression expected after 'for in'".into());
 		}
 	};
 
-	let (input, ok) = input.skip_symbol("in");
-	if !ok {
-		return (
-			input,
-			ParseResult::Error(input.span(), "for 'in' expected".into()),
-		);
+	if !input.skip_symbol("..") {
+		return ParseResult::Error(input.range(), "for '..' expected".into());
 	}
 
-	let (input, from) = match parse_expression(input) {
-		(input, expr) => match expr {
-			ExprResult::Expr(expr) => (input, expr),
-			ExprResult::Error(span, error) => return (input, ParseResult::Error(span, error)),
-			ExprResult::None => {
-				return (
-					input,
-					ParseResult::Error(input.span(), "expression expected after 'for in'".into()),
-				)
-			}
-		},
+	let to = match parse_expression(input) {
+		ExprResult::Expr(expr) => expr,
+		ExprResult::Error(span, error) => return ParseResult::Error(span, error),
+		ExprResult::None => {
+			return ParseResult::Error(
+				input.range(),
+				"expression expected after 'for in ..'".into(),
+			);
+		}
 	};
 
-	let (input, ok) = input.skip_symbol("..");
-	if !ok {
-		return (
-			input,
-			ParseResult::Error(input.span(), "for '..' expected".into()),
-		);
-	}
-
-	let (input, to) = match parse_expression(input) {
-		(input, expr) => match expr {
-			ExprResult::Expr(expr) => (input, expr),
-			ExprResult::Error(span, error) => return (input, ParseResult::Error(span, error)),
-			ExprResult::None => {
-				return (
-					input,
-					ParseResult::Error(
-						input.span(),
-						"expression expected after 'for in ..'".into(),
-					),
-				)
-			}
-		},
-	};
-
-	let (input, block) = parse_indented_block(input);
+	let block = parse_indented_block(input);
 	if let ParseResult::Ok(block) = block {
-		(
-			input,
-			ParseResult::Ok(Statement::For(Id(id), from, to, block.into())),
-		)
+		ParseResult::Ok(Statement::For(Id(id), from, to, block.into()))
 	} else {
-		(input, block)
+		block
 	}
 }
 
-fn parse_indented_block(input: Lex) -> (Lex, ParseResult) {
-	let (input, ok) = input.skip_symbol(":");
-	if !ok {
-		return (
-			input,
-			ParseResult::Error(input.span(), "block ':' expected".into()),
-		);
+fn parse_indented_block<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
+	if !input.skip_symbol(":") {
+		return ParseResult::Error(input.range(), "block ':' expected".into());
 	}
 
-	let (input, ok) = input.next_if(|token| matches!(token, Token::Break));
-	if !ok {
-		return (
-			input,
-			ParseResult::Error(input.span(), "end of line expected after ':'".into()),
-		);
+	if !input.next_if(|value| matches!(value.token, Token::Break | Token::None)) {
+		return ParseResult::Error(input.range(), "end of line expected after ':'".into());
 	}
 
-	let (input, ok) = input.next_if(|token| matches!(token, Token::Indent));
-	if !ok {
-		return (
-			input,
-			ParseResult::Error(input.span(), "indented block expected".into()),
-		);
+	if !input.next_if(|value| matches!(value.token, Token::Indent)) {
+		return ParseResult::Error(input.range(), "indented block expected".into());
 	}
 
 	let mut block = Vec::new();
-	let mut input = input;
-	loop {
-		let ok;
-		(input, ok) = input.next_if(|token| matches!(token, Token::Dedent));
-		if ok {
-			break;
-		}
-
-		let statement;
-		(input, statement) = parse_statement(input);
+	while !input.next_if(|value| matches!(value.token, Token::Dedent)) {
+		let statement = parse_statement(input);
 		if let ParseResult::Ok(statement) = statement {
 			block.push(statement);
 		} else {
-			return (input, statement);
+			return statement;
 		}
 	}
 
-	(input, ParseResult::Ok(Statement::Block(block)))
+	ParseResult::Ok(Statement::Block(block))
 }
 
-fn parse_print(input: Lex) -> (Lex, ParseResult) {
-	let input = input.next(); // skip `print`
+fn parse_print<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
+	input.next(); // skip `print`
 	let mut expr_list = Vec::new();
-	let mut input = input;
 	loop {
-		let ok;
-		(input, ok) = input.next_if(|token| matches!(token, Token::Break));
-		if ok {
+		if input.next_if(|x| matches!(x.token, Token::Break | Token::None)) {
 			let res = ParseResult::Ok(Statement::Print(expr_list));
-			break (input, res);
+			break res;
 		}
 
 		if expr_list.len() > 0 {
-			(input, _) = input.next_if(|token| matches!(token, Token::Symbol(",")));
+			input.next_if(|x| matches!(x.token, Token::Symbol(",")));
 		}
 
-		let expr;
-		(input, expr) = match parse_expression(input) {
-			(input, expr) => match expr {
-				ExprResult::Expr(expr) => (input, expr),
-				ExprResult::Error(span, error) => break (input, ParseResult::Error(span, error)),
-				ExprResult::None => {
-					break (
-						input,
-						ParseResult::Error(input.span(), "expression expected".into()),
-					);
-				}
-			},
+		let expr = match parse_expression(input) {
+			ExprResult::Expr(expr) => expr,
+			ExprResult::Error(span, error) => break ParseResult::Error(span, error),
+			ExprResult::None => {
+				break ParseResult::Error(input.range(), "expression expected in print".into());
+			}
 		};
 		expr_list.push(expr);
 	}
 }
 
-fn parse_let(input: Lex) -> (Lex, ParseResult) {
-	let input = input.next(); // skip `let`
-	let (input, id) = match input.token() {
-		Some(Token::Identifier) => (input.next(), input.text().to_string()),
-		_ => {
-			return (
-				input,
-				ParseResult::Error(input.span(), "identifier expected".into()),
-			)
+fn parse_let<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
+	input.next(); // skip `let`
+	let id = match input.token() {
+		Token::Identifier => {
+			let id = input.value.text().to_string();
+			input.next();
+			id
 		}
+		_ => return ParseResult::Error(input.range(), "identifier expected".into()),
 	};
 
-	let (input, ok) = input.skip_symbol("=");
-	if !ok {
-		return (
-			input,
-			ParseResult::Error(input.span(), "expected '='".into()),
-		);
+	if !input.skip_symbol("=") {
+		return ParseResult::Error(input.range(), "expected '='".into());
 	}
 
 	match parse_expression(input) {
-		(input, expr) => match expr {
-			ExprResult::Expr(expr) => {
-				let res = ParseResult::Ok(Statement::Let(Id(id), expr));
-				assert_break(input, res)
-			}
-			ExprResult::Error(span, error) => (input, ParseResult::Error(span, error)),
-			ExprResult::None => (
-				input,
-				ParseResult::Error(input.span(), "expression expected".into()),
-			),
-		},
+		ExprResult::Expr(expr) => {
+			let res = ParseResult::Ok(Statement::Let(Id(id), expr));
+			assert_break(input, res)
+		}
+		ExprResult::Error(span, error) => ParseResult::Error(span, error),
+		ExprResult::None => ParseResult::Error(input.range(), "expression expected in let".into()),
 	}
 }
 
-fn assert_break(input: Lex, result: ParseResult) -> (Lex, ParseResult) {
+fn assert_break<'a>(input: &mut Context<'a>, result: ParseResult<'a>) -> ParseResult<'a> {
 	match input.token() {
-		Some(Token::Break) | None => (input.next(), result),
-		Some(_) => (
-			input,
-			ParseResult::Error(
-				input.span(),
-				format!("expected end of statement, got {input}"),
-			),
+		Token::Break | Token::None => {
+			input.next();
+			result
+		}
+		_ => ParseResult::Error(
+			input.range(),
+			format!("expected end of statement, got {}", input.value),
 		),
 	}
 }
