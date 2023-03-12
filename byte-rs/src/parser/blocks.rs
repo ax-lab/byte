@@ -1,4 +1,4 @@
-use crate::lexer::{Context, Lex, Range, Token};
+use crate::lexer::{Context, Lex, Span, Token};
 
 /// Display a list of blocks in the input TokenStream. This is used only
 /// for testing the tokenization.
@@ -25,7 +25,7 @@ enum Block<'a> {
 		next: Option<Vec<Block<'a>>>,
 	},
 	Parenthesis(Lex<'a>, Vec<Block<'a>>, Lex<'a>),
-	Error(String, Range<'a>),
+	Error(String, Span<'a>),
 }
 
 fn parse_block<'a>(input: &mut Context<'a>) -> Block<'a> {
@@ -52,7 +52,7 @@ fn parse_line<'a>(input: &mut Context<'a>, level: usize, stop: Option<&'static s
 			if !input.next_if(|value| matches!(value.token, Token::Dedent)) {
 				return Block::Error(
 					format!("dedent expected, got {}", input.value),
-					input.range(),
+					input.span(),
 				);
 			}
 
@@ -77,7 +77,7 @@ fn parse_expr<'a>(
 	loop {
 		match input.token() {
 			Token::Indent => {
-				panic!("unexpected {} at {}", input.value, input.range());
+				panic!("unexpected {} at {}", input.value, input.span());
 			}
 			Token::Break | Token::Dedent => {
 				break expr;
@@ -123,7 +123,7 @@ fn parse_parenthesis<'a>(input: &mut Context<'a>, left: Lex<'a>, right: &'static
 							"unexpected `{}` in indented {} parenthesis",
 							input.value, left
 						),
-						input.range(),
+						input.span(),
 					);
 				}
 				error @ Block::Error(..) => return error,
@@ -141,13 +141,13 @@ fn parse_parenthesis<'a>(input: &mut Context<'a>, left: Lex<'a>, right: &'static
 
 	let lex_closing = input.value;
 	if !(right != "" && input.skip_symbol(right)) {
-		let at = left.range;
+		let at = left.span;
 		Block::Error(
 			format!(
 				"expected closing `{right}` for {left} at {at}, but got {}",
 				input.value
 			),
-			input.range(),
+			input.span(),
 		)
 	} else {
 		Block::Parenthesis(left, inner, lex_closing)

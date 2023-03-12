@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::lexer::Range;
+use crate::lexer::Span;
 use crate::lexer::{Context, Token};
 
 use super::operators::*;
@@ -17,7 +17,7 @@ pub enum ExprAtom {
 #[derive(Debug)]
 pub enum ExprResult<'a> {
 	None,
-	Error(Range<'a>, String),
+	Error(Span<'a>, String),
 	Expr(Expr),
 }
 
@@ -112,7 +112,7 @@ pub fn parse_expression<'a>(input: &mut Context<'a>) -> ExprResult<'a> {
 			}
 			ExprResult::None => {
 				return if ops.len() > 0 {
-					ExprResult::Error(input.range(), "expected expression after operator".into())
+					ExprResult::Error(input.span(), "expected expression after operator".into())
 				} else {
 					break;
 				};
@@ -133,7 +133,7 @@ pub fn parse_expression<'a>(input: &mut Context<'a>) -> ExprResult<'a> {
 				ExprResult::Expr(expr) => expr,
 				ExprResult::None => {
 					return ExprResult::Error(
-						input.range(),
+						input.span(),
 						"expected expression after ternary operator".into(),
 					);
 				}
@@ -143,7 +143,7 @@ pub fn parse_expression<'a>(input: &mut Context<'a>) -> ExprResult<'a> {
 
 			if !input.skip_symbol(end) {
 				return ExprResult::Error(
-					input.range(),
+					input.span(),
 					format!("expected ternary operator '{end}'"),
 				);
 			}
@@ -196,13 +196,13 @@ fn parse_atom<'a>(input: &mut Context<'a>) -> ExprResult<'a> {
 			match parse_expression(input) {
 				ExprResult::Expr(expr) => {
 					if !input.skip_symbol(")") {
-						ExprResult::Error(input.range(), "expected `)`".into())
+						ExprResult::Error(input.span(), "expected `)`".into())
 					} else {
 						ExprResult::Expr(expr)
 					}
 				}
 				ExprResult::None => {
-					ExprResult::Error(input.range(), "expression expected inside '()'".into())
+					ExprResult::Error(input.span(), "expression expected inside '()'".into())
 				}
 				err @ ExprResult::Error(..) => err,
 			}

@@ -1,9 +1,9 @@
-use super::{lex_string::LexString, Input, Range, Token};
+use super::{lex_string::LexString, Input, Span, Token};
 
 #[derive(Copy, Clone)]
 pub struct Lex<'a> {
 	pub token: Token,
-	pub range: Range<'a>,
+	pub span: Span<'a>,
 }
 
 impl<'a> Lex<'a> {
@@ -23,11 +23,11 @@ impl<'a> Lex<'a> {
 	}
 
 	pub fn source(&self) -> &'a dyn Input {
-		self.range.pos.source
+		self.span.pos.source
 	}
 
 	pub fn text(&self) -> &str {
-		self.range.text()
+		self.span.text()
 	}
 }
 
@@ -35,7 +35,7 @@ impl<'a> std::fmt::Debug for Lex<'a> {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.debug_struct("Lexeme")
 			.field("token", &self.token)
-			.field("range", &self.range)
+			.field("span", &self.span)
 			.finish()
 	}
 }

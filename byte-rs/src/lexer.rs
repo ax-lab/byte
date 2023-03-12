@@ -1,7 +1,7 @@
 mod context;
 mod cursor;
 mod lex;
-mod range;
+mod span;
 mod token;
 
 use once_cell::unsync::Lazy;
@@ -11,7 +11,7 @@ pub use super::input::*;
 pub use context::*;
 pub use cursor::*;
 pub use lex::*;
-pub use range::*;
+pub use span::*;
 pub use token::*;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -56,7 +56,7 @@ pub fn is_space(char: char) -> bool {
 	matches!(char, ' ' | '\t')
 }
 
-pub fn read_token<'a>(input: &mut Cursor<'a>) -> (LexerResult, Range<'a>) {
+pub fn read_token<'a>(input: &mut Cursor<'a>) -> (LexerResult, Span<'a>) {
 	let lexers = Lazy::new(|| {
 		let lexers: Vec<Box<dyn Matcher>> = vec![
 			Box::new(lex_space::LexSpace),
@@ -102,7 +102,7 @@ pub fn read_token<'a>(input: &mut Cursor<'a>) -> (LexerResult, Range<'a>) {
 		}
 	};
 
-	(result, Range { pos, end: *input })
+	(result, Span { pos, end: *input })
 }
 
 fn symbols() -> lex_symbol::LexSymbol {

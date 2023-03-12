@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use super::{Cursor, Indent, Input, Lex, LexerResult, Range, Token};
+use super::{Cursor, Indent, Input, Lex, LexerResult, Span, Token};
 
 /// Holds the lexer state at a particular point in the input and provides
 /// methods for consuming tokens.
@@ -41,12 +41,12 @@ impl<'a> Context<'a> {
 		self.value.token
 	}
 
-	pub fn range(&self) -> Range<'a> {
-		self.value.range
+	pub fn span(&self) -> Span<'a> {
+		self.value.span
 	}
 
-	pub fn triple(&self) -> (Token, Range<'a>, &str) {
-		(self.value.token, self.value.range, self.value.range.text())
+	pub fn triple(&self) -> (Token, Span<'a>, &str) {
+		(self.value.token, self.value.span, self.value.span.text())
 	}
 
 	pub fn next(&mut self) {
@@ -75,7 +75,7 @@ impl<'a> Context<'a> {
 }
 
 struct State<'a> {
-	pub tokens: Vec<(Token, Range<'a>, usize)>,
+	pub tokens: Vec<(Token, Span<'a>, usize)>,
 	cursor: Cursor<'a>,
 	last: usize,
 }
@@ -85,16 +85,16 @@ impl<'a> State<'a> {
 		while index >= self.tokens.len() {
 			if !self.fill_next() {
 				let token = Token::None;
-				let range = Range {
+				let span = Span {
 					pos: self.cursor,
 					end: self.cursor,
 				};
-				return Lex { token, range };
+				return Lex { token, span };
 			}
 		}
 		Lex {
 			token: self.tokens[index].0,
-			range: self.tokens[index].1,
+			span: self.tokens[index].1,
 		}
 	}
 
@@ -125,14 +125,14 @@ impl<'a> State<'a> {
 			if need_indent {
 				let level = self.indent_level();
 				if indent > level {
-					let span = Range {
+					let span = Span {
 						pos: start,
 						end: span.pos,
 					};
 					self.indent(span);
 				} else {
 					while indent < self.indent_level() {
-						self.dedent(Range {
+						self.dedent(Span {
 							pos: start,
 							end: span.pos,
 						});
@@ -161,8 +161,8 @@ impl<'a> State<'a> {
 		self.tokens.len() > start_count
 	}
 
-	fn indent(&mut self, range: Range<'a>) {
-		self.tokens.push((Token::Indent, range, self.last));
+	fn indent(&mut self, span: Span<'a>) {
+		self.tokens.push((Token::Indent, span, self.last));
 		self.last = self.tokens.len();
 	}
 
@@ -178,12 +178,12 @@ impl<'a> State<'a> {
 		0
 	}
 
-	fn dedent(&mut self, range: Range<'a>) {
+	fn dedent(&mut self, span: Span<'a>) {
 		let expected = if self.last > 0 {
 			let previous = &self.tokens[self.last - 1];
 			if let Token::Indent = previous.0 {
 				self.last = previous.2;
-				self.tokens.push((Token::Dedent, range, 0));
+				self.tokens.push((Token::Dedent, span, 0));
 				true
 			} else {
 				false
@@ -192,35 +192,35 @@ impl<'a> State<'a> {
 			false
 		};
 		if !expected {
-			panic!("error: unexpected Dedent at {range}");
+			panic!("error: unexpected Dedent at {span}");
 		}
 	}
 
-	fn open_paren(&mut self, token: Token, range: Range<'a>) {
-		self.tokens.push((token, range, self.last));
+	fn open_paren(&mut self, token: Token, span: Span<'a>) {
+		self.tokens.push((token, span, self.last));
 		self.last = self.tokens.len();
 	}
 
-	fn close_paren(&mut self, token: Token, range: Range<'a>, symbol: &'static str) {
+	fn close_paren(&mut self, token: Token, span: Span<'a>, symbol: &'static str) {
 		while self.last > 0 {
 			let previous = &self.tokens[self.last - 1];
 			self.last = previous.2;
 
 			match previous.0 {
 				Token::Indent => {
-					self.tokens.push((Token::Dedent, range, 0));
+					self.tokens.push((Token::Dedent, span, 0));
 				}
 
 				left if left.get_closing() == Some(symbol) => {
-					self.tokens.push((token, range, 0));
-					if self.indent_level() > range.pos.column {
-						panic!("error: unexpected Dedent before {symbol} at {range}");
+					self.tokens.push((token, span, 0));
+					if self.indent_level() > span.pos.column {
+						panic!("error: unexpected Dedent before {symbol} at {span}");
 					}
 					break;
 				}
 
 				_ => {
-					panic!("error: unexpected closing {symbol} at {range}");
+					panic!("error: unexpected closing {symbol} at {span}");
 				}
 			}
 		}

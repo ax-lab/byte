@@ -1,4 +1,4 @@
-use crate::lexer::{Context, Range, Token};
+use crate::lexer::{Context, Span, Token};
 
 mod blocks;
 pub use blocks::*;
@@ -25,7 +25,7 @@ pub enum Statement {
 
 pub enum ParseResult<'a> {
 	Ok(Statement),
-	Error(Range<'a>, String),
+	Error(Span<'a>, String),
 	None,
 }
 
@@ -49,11 +49,11 @@ fn parse_statement_expr<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 		ExprResult::Error(span, error) => ParseResult::Error(span, error),
 		ExprResult::None => match input.token() {
 			Token::None => ParseResult::Error(
-				input.range(),
+				input.span(),
 				format!("expected expression, got end of input"),
 			),
 			token => {
-				ParseResult::Error(input.range(), format!("expected expression, got {token:?}"))
+				ParseResult::Error(input.span(), format!("expected expression, got {token:?}"))
 			}
 		},
 	}
@@ -72,7 +72,7 @@ fn parse_if<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 		}
 		ExprResult::Error(span, error) => ParseResult::Error(span, error),
 		ExprResult::None => {
-			ParseResult::Error(input.range(), "expression expected after 'if'".into())
+			ParseResult::Error(input.span(), "expression expected after 'if'".into())
 		}
 	}
 }
@@ -85,23 +85,23 @@ fn parse_for<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 			input.next();
 			id
 		}
-		_ => return ParseResult::Error(input.range(), "identifier expected after 'for'".into()),
+		_ => return ParseResult::Error(input.span(), "identifier expected after 'for'".into()),
 	};
 
 	if !input.skip_symbol("in") {
-		return ParseResult::Error(input.range(), "for 'in' expected".into());
+		return ParseResult::Error(input.span(), "for 'in' expected".into());
 	}
 
 	let from = match parse_expression(input) {
 		ExprResult::Expr(expr) => expr,
 		ExprResult::Error(span, error) => return ParseResult::Error(span, error),
 		ExprResult::None => {
-			return ParseResult::Error(input.range(), "expression expected after 'for in'".into());
+			return ParseResult::Error(input.span(), "expression expected after 'for in'".into());
 		}
 	};
 
 	if !input.skip_symbol("..") {
-		return ParseResult::Error(input.range(), "for '..' expected".into());
+		return ParseResult::Error(input.span(), "for '..' expected".into());
 	}
 
 	let to = match parse_expression(input) {
@@ -109,7 +109,7 @@ fn parse_for<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 		ExprResult::Error(span, error) => return ParseResult::Error(span, error),
 		ExprResult::None => {
 			return ParseResult::Error(
-				input.range(),
+				input.span(),
 				"expression expected after 'for in ..'".into(),
 			);
 		}
@@ -125,15 +125,15 @@ fn parse_for<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 
 fn parse_indented_block<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 	if !input.skip_symbol(":") {
-		return ParseResult::Error(input.range(), "block ':' expected".into());
+		return ParseResult::Error(input.span(), "block ':' expected".into());
 	}
 
 	if !input.next_if(|value| matches!(value.token, Token::Break | Token::None)) {
-		return ParseResult::Error(input.range(), "end of line expected after ':'".into());
+		return ParseResult::Error(input.span(), "end of line expected after ':'".into());
 	}
 
 	if !input.next_if(|value| matches!(value.token, Token::Indent)) {
-		return ParseResult::Error(input.range(), "indented block expected".into());
+		return ParseResult::Error(input.span(), "indented block expected".into());
 	}
 
 	let mut block = Vec::new();
@@ -166,7 +166,7 @@ fn parse_print<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 			ExprResult::Expr(expr) => expr,
 			ExprResult::Error(span, error) => break ParseResult::Error(span, error),
 			ExprResult::None => {
-				break ParseResult::Error(input.range(), "expression expected in print".into());
+				break ParseResult::Error(input.span(), "expression expected in print".into());
 			}
 		};
 		expr_list.push(expr);
@@ -181,11 +181,11 @@ fn parse_let<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 			input.next();
 			id
 		}
-		_ => return ParseResult::Error(input.range(), "identifier expected".into()),
+		_ => return ParseResult::Error(input.span(), "identifier expected".into()),
 	};
 
 	if !input.skip_symbol("=") {
-		return ParseResult::Error(input.range(), "expected '='".into());
+		return ParseResult::Error(input.span(), "expected '='".into());
 	}
 
 	match parse_expression(input) {
@@ -194,7 +194,7 @@ fn parse_let<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 			assert_break(input, res)
 		}
 		ExprResult::Error(span, error) => ParseResult::Error(span, error),
-		ExprResult::None => ParseResult::Error(input.range(), "expression expected in let".into()),
+		ExprResult::None => ParseResult::Error(input.span(), "expression expected in let".into()),
 	}
 }
 
@@ -205,7 +205,7 @@ fn assert_break<'a>(input: &mut Context<'a>, result: ParseResult<'a>) -> ParseRe
 			result
 		}
 		_ => ParseResult::Error(
-			input.range(),
+			input.span(),
 			format!("expected end of statement, got {}", input.value),
 		),
 	}
