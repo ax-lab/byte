@@ -1,4 +1,4 @@
-use super::{Input, Range, Span, Token};
+use super::{lex_string::LexString, Input, Range, Token};
 
 #[derive(Copy, Clone)]
 #[allow(unused)]
@@ -50,9 +50,8 @@ impl<'a> std::fmt::Display for Lex<'a> {
 			token => match token {
 				Token::Symbol(sym) => write!(f, "{sym}"),
 				Token::Integer(value) => write!(f, "{value}"),
-				Token::Literal(str) => {
-					let Span { pos, end } = str.content_span();
-					write!(f, "{:?}", self.source().read_text(pos.offset, end.offset))
+				Token::Literal(LexString { pos, end }) => {
+					write!(f, "{:?}", self.source().read_text(pos, end))
 				}
 				Token::Identifier => {
 					write!(f, "{}", self.text())

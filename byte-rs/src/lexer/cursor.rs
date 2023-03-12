@@ -1,5 +1,4 @@
 use super::Input;
-use super::Pos;
 
 /// Indexes a position in an [Input] and provides methods for consuming it.
 ///
@@ -24,15 +23,6 @@ impl<'a> Cursor<'a> {
 			column: 0,
 			offset: 0,
 			was_cr: false,
-		}
-	}
-
-	/// Return the current position for the reader.
-	pub fn pos(&self) -> Pos {
-		Pos {
-			line: self.line,
-			column: self.column,
-			offset: self.offset,
 		}
 	}
 

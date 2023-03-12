@@ -139,10 +139,10 @@ mod tests {
 		let mut input = Cursor::new(&input);
 		for (i, expected) in expected.iter().cloned().enumerate() {
 			let next = input.read().expect("unexpected end of input");
-			let pos = input.pos();
+			let pos = input.offset;
 			let next = symbols.read(next, &mut input);
-			let end = input.pos();
-			let text = input.source.read_text(pos.offset, end.offset);
+			let end = input.offset;
+			let text = input.source.read_text(pos, end);
 			match next {
 				LexerResult::Token(actual) => assert_eq!(
 					actual, expected,

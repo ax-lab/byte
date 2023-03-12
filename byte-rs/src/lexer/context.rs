@@ -33,8 +33,8 @@ impl<'a> Context<'a> {
 		out
 	}
 
-	pub fn pos(&self) -> Cursor<'a> {
-		self.state.borrow().cursor
+	pub fn source(&self) -> &'a dyn Input {
+		self.state.borrow().cursor.source
 	}
 
 	pub fn token(&self) -> Token {

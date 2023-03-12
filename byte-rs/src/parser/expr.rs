@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::lexer::{Context, Input, Span, Token};
+use crate::lexer::{Context, Input, Token};
 use crate::lexer::{Lex, Range};
 
 use super::operators::*;
@@ -188,12 +188,8 @@ fn parse_atom<'a>(input: &mut Context<'a>) -> ExprResult<'a> {
 			input.next();
 			ExprAtom::Integer(value).result()
 		}
-		Token::Literal(str) => {
-			let content = str.content_span();
-			let content = input
-				.pos()
-				.source
-				.read_text(content.pos.offset, content.end.offset);
+		Token::Literal(content) => {
+			let content = input.source().read_text(content.pos, content.end);
 			input.next();
 			ExprAtom::Literal(content.into()).result()
 		}
