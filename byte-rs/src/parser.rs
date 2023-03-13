@@ -32,7 +32,7 @@ pub enum ParseResult<'a> {
 pub fn parse_statement<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 	match input.token() {
 		Token::None => ParseResult::None,
-		Token::Identifier => match input.value.text() {
+		Token::Identifier => match input.value().text() {
 			"print" => parse_print(input),
 			"let" | "const" => parse_let(input),
 			"for" => parse_for(input),
@@ -81,7 +81,7 @@ fn parse_for<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 	input.next(); // skip `for`
 	let id = match input.token() {
 		Token::Identifier => {
-			let id = input.value.text().to_string();
+			let id = input.value().text().to_string();
 			input.next();
 			id
 		}
@@ -177,7 +177,7 @@ fn parse_let<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 	input.next(); // skip `let`
 	let id = match input.token() {
 		Token::Identifier => {
-			let id = input.value.text().to_string();
+			let id = input.value().text().to_string();
 			input.next();
 			id
 		}
@@ -206,7 +206,7 @@ fn assert_break<'a>(input: &mut Context<'a>, result: ParseResult<'a>) -> ParseRe
 		}
 		_ => ParseResult::Error(
 			input.span(),
-			format!("expected end of statement, got {}", input.value),
+			format!("expected end of statement, got {}", input.value()),
 		),
 	}
 }

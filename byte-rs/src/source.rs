@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::lexer::Input;
+use crate::Input;
 
 pub struct SourceFile {
 	path: String,

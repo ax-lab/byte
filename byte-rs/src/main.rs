@@ -1,11 +1,12 @@
 use std::{collections::HashMap, env};
 
 use exec::{execute_expr, ResultValue};
-use lexer::Context;
 use parser::{parse_statement, Id, ParseResult, Statement};
 
-mod exec;
 mod input;
+use input::Input;
+
+mod exec;
 mod lexer;
 mod parser;
 mod source;
@@ -63,10 +64,12 @@ fn main() {
 	for file in files {
 		match source::open_file(&file) {
 			Ok(source) => {
-				let mut context = Context::new(&source);
+				let mut context = lexer::open(&source);
 				if list_tokens {
-					while context.value.is_some() {
-						let (token, span, text) = context.triple();
+					while context.value().is_some() {
+						let token = context.token();
+						let span = context.span();
+						let text = span.text();
 						println!("{span}: {:10}  =  {token:?}", format!("{text:?}"));
 						context.next();
 					}
@@ -79,7 +82,7 @@ fn main() {
 				}
 
 				let mut program = Vec::new();
-				while context.value.is_some() {
+				while context.value().is_some() {
 					let parsed = parse_statement(&mut context);
 					match parsed {
 						ParseResult::Error(span, msg) => {

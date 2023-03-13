@@ -1,8 +1,9 @@
 use super::{Cursor, Matcher, MatcherResult, Token};
 
-pub struct MatchLiteral<F: Fn(usize, usize) -> Token>(pub F);
+#[derive(Copy, Clone)]
+pub struct MatchLiteral;
 
-impl<F: Fn(usize, usize) -> Token> Matcher for MatchLiteral<F> {
+impl Matcher for MatchLiteral {
 	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
 		match next {
 			'\'' => {
@@ -11,7 +12,7 @@ impl<F: Fn(usize, usize) -> Token> Matcher for MatchLiteral<F> {
 					let end = input.offset;
 					match input.read() {
 						Some('\'') => {
-							break MatcherResult::Token(self.0(pos, end));
+							break MatcherResult::Token(Token::Literal(pos, end));
 						}
 
 						None => break MatcherResult::Error("unclosed string literal".into()),
@@ -23,5 +24,9 @@ impl<F: Fn(usize, usize) -> Token> Matcher for MatchLiteral<F> {
 
 			_ => MatcherResult::None,
 		}
+	}
+
+	fn clone_box(&self) -> Box<dyn Matcher> {
+		Box::new(self.clone())
 	}
 }

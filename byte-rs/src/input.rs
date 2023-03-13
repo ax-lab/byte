@@ -7,3 +7,13 @@ pub trait Input {
 		unsafe { std::str::from_utf8_unchecked(self.read(pos, end)) }
 	}
 }
+
+impl Input for &str {
+	fn len(&self) -> usize {
+		str::len(self)
+	}
+
+	fn read(&self, pos: usize, end: usize) -> &[u8] {
+		&self.as_bytes()[pos..end]
+	}
+}

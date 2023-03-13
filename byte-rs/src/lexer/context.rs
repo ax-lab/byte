@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use super::{Cursor, Indent, Input, Lex, LexerResult, Span, Token};
+use super::{Config, Cursor, Indent, Input, Lex, LexerResult, Matcher, Span, Token};
 
 /// Holds the lexer state at a particular point in the input and provides
 /// methods for consuming tokens.
@@ -12,55 +12,76 @@ use super::{Cursor, Indent, Input, Lex, LexerResult, Span, Token};
 /// take effect going forward in the lexing.
 #[derive(Clone)]
 pub struct Context<'a> {
-	pub value: Lex<'a>,
 	state: Rc<RefCell<State<'a>>>,
+	config: Rc<Config>,
 	index: usize,
 }
 
 impl<'a> Context<'a> {
-	pub fn new(source: &'a dyn Input) -> Self {
-		let cursor = Cursor::new(source);
-		let mut state = State {
-			tokens: Vec::new(),
-			cursor,
-			last: 0,
+	pub fn new(source: &'a dyn Input, config: Config) -> Self {
+		let state = State {
+			source,
+			entries: Vec::new(),
 		};
 		let out = Context {
-			value: state.get_index(0),
 			state: Rc::new(state.into()),
+			config: Rc::new(config),
 			index: 0,
 		};
 		out
 	}
 
+	pub fn value(&self) -> Lex<'a> {
+		let mut state = self.state.borrow_mut();
+		state.get_index(&self.config, self.index)
+	}
+
+	#[allow(unused)]
+	pub fn add_symbol(&mut self, symbol: &'static str, token: Token) {
+		Rc::make_mut(&mut self.config).add_symbol(symbol, token);
+		self.trim_state();
+	}
+
+	#[allow(unused)]
+	pub fn add_matcher(&mut self, matcher: Box<dyn Matcher>) {
+		Rc::make_mut(&mut self.config).add_matcher(matcher);
+		self.trim_state();
+	}
+
+	fn trim_state(&mut self) {
+		let new_length = self.index;
+		if Rc::strong_count(&self.state) > 1 {
+			let mut new_state = self.state.borrow().clone();
+			new_state.entries.truncate(new_length);
+			self.state = Rc::new(new_state.into());
+		} else {
+			let mut state = self.state.borrow_mut();
+			state.entries.truncate(new_length);
+		}
+	}
+
 	pub fn source(&self) -> &'a dyn Input {
-		self.state.borrow().cursor.source
+		self.state.borrow().source
 	}
 
 	pub fn token(&self) -> Token {
-		self.value.token
+		self.value().token
 	}
 
 	pub fn span(&self) -> Span<'a> {
-		self.value.span
-	}
-
-	pub fn triple(&self) -> (Token, Span<'a>, &str) {
-		(self.value.token, self.value.span, self.value.span.text())
+		self.value().span
 	}
 
 	pub fn next(&mut self) {
-		let mut state = self.state.borrow_mut();
-		if !self.value.token.is_none() {
+		if !self.token().is_none() {
 			self.index += 1;
-			self.value = state.get_index(self.index);
 		}
 	}
 
 	/// Return the next token and true if the predicate matches the current
 	/// token.
 	pub fn next_if<F: Fn(Lex) -> bool>(&mut self, predicate: F) -> bool {
-		if predicate(self.value) {
+		if predicate(self.value()) {
 			self.next();
 			true
 		} else {
@@ -74,40 +95,58 @@ impl<'a> Context<'a> {
 	}
 }
 
+#[derive(Clone)]
+struct Entry<'a> {
+	token: Token,
+	span: Span<'a>,
+	prev: Option<usize>,
+	head: Option<usize>,
+}
+
+#[derive(Clone)]
 struct State<'a> {
-	pub tokens: Vec<(Token, Span<'a>, usize)>,
-	cursor: Cursor<'a>,
-	last: usize,
+	entries: Vec<Entry<'a>>,
+	source: &'a dyn Input,
 }
 
 impl<'a> State<'a> {
-	pub fn get_index(&mut self, index: usize) -> Lex<'a> {
-		while index >= self.tokens.len() {
-			if !self.fill_next() {
+	pub fn pos(&self) -> Cursor<'a> {
+		self.entries
+			.last()
+			.map(|x| x.span.end)
+			.unwrap_or(Cursor::new(self.source))
+	}
+
+	pub fn head(&self) -> Option<usize> {
+		self.entries.last().map(|x| x.head).unwrap_or_default()
+	}
+
+	pub fn get_index(&mut self, config: &Config, index: usize) -> Lex<'a> {
+		while index >= self.entries.len() {
+			if !self.fill_next(config) {
 				let token = Token::None;
-				let span = Span {
-					pos: self.cursor,
-					end: self.cursor,
-				};
+				let pos = self.pos();
+				let span = Span { pos: pos, end: pos };
 				return Lex { token, span };
 			}
 		}
 		Lex {
-			token: self.tokens[index].0,
-			span: self.tokens[index].1,
+			token: self.entries[index].token,
+			span: self.entries[index].span,
 		}
 	}
 
-	fn fill_next(&mut self) -> bool {
-		let start_count = self.tokens.len();
-		let empty = self.cursor.column == 0;
+	fn fill_next(&mut self, config: &Config) -> bool {
+		let start_count = self.entries.len();
+		let mut cursor = self.pos();
+		let empty = cursor.column == 0;
 		loop {
-			let new_line = self.cursor.column == 0;
-			let start = self.cursor;
-			let input = &mut self.cursor;
+			let new_line = cursor.column == 0;
+			let start = cursor;
+			let input = &mut cursor;
 
 			// read the next token
-			let (result, span) = super::read_token(input);
+			let (result, span) = super::read_token(config, input);
 			let (token, end, indent) = match result {
 				LexerResult::Token(token, Indent(indent)) => (token, false, indent),
 				LexerResult::None => (Token::Break, true, 0),
@@ -149,7 +188,13 @@ impl<'a> State<'a> {
 				};
 
 				if !skip {
-					self.tokens.push((token, span, 0));
+					let head = self.head().map(|x| &self.entries[x]);
+					self.entries.push(Entry {
+						token,
+						span,
+						prev: head.map(|x| x.prev).unwrap_or_default(),
+						head: head.map(|x| x.head).unwrap_or_default(),
+					});
 					break;
 				}
 			}
@@ -158,32 +203,40 @@ impl<'a> State<'a> {
 				break;
 			}
 		}
-		self.tokens.len() > start_count
+		self.entries.len() > start_count
 	}
 
 	fn indent(&mut self, span: Span<'a>) {
-		self.tokens.push((Token::Indent, span, self.last));
-		self.last = self.tokens.len();
+		self.entries.push(Entry {
+			token: Token::Indent,
+			span,
+			prev: self.head(),
+			head: Some(self.entries.len()),
+		});
 	}
 
 	fn indent_level(&self) -> usize {
-		let mut last = self.last;
-		while last > 0 {
-			let previous = &self.tokens[last - 1];
-			last = previous.2;
-			if let Token::Indent = previous.0 {
-				return previous.1.end.column;
+		let mut current = self.head();
+		while let Some(index) = current {
+			let head = &self.entries[index];
+			current = head.prev;
+			if let Token::Indent = head.token {
+				return head.span.end.column;
 			}
 		}
 		0
 	}
 
 	fn dedent(&mut self, span: Span<'a>) {
-		let expected = if self.last > 0 {
-			let previous = &self.tokens[self.last - 1];
-			if let Token::Indent = previous.0 {
-				self.last = previous.2;
-				self.tokens.push((Token::Dedent, span, 0));
+		let expected = if let Some(index) = self.head() {
+			let head = &self.entries[index];
+			if let Token::Indent = head.token {
+				self.entries.push(Entry {
+					token: Token::Dedent,
+					span,
+					prev: head.prev.map(|x| self.entries[x].prev).unwrap_or_default(),
+					head: head.prev,
+				});
 				true
 			} else {
 				false
@@ -197,22 +250,38 @@ impl<'a> State<'a> {
 	}
 
 	fn open_paren(&mut self, token: Token, span: Span<'a>) {
-		self.tokens.push((token, span, self.last));
-		self.last = self.tokens.len();
+		let head = self.head();
+		self.entries.push(Entry {
+			token,
+			span,
+			prev: head,
+			head: Some(self.entries.len()),
+		});
 	}
 
 	fn close_paren(&mut self, token: Token, span: Span<'a>, symbol: &'static str) {
-		while self.last > 0 {
-			let previous = &self.tokens[self.last - 1];
-			self.last = previous.2;
+		let mut current = self.head();
+		while let Some(index) = current {
+			let head = &self.entries[index];
+			current = head.prev;
 
-			match previous.0 {
+			match head.token {
 				Token::Indent => {
-					self.tokens.push((Token::Dedent, span, 0));
+					self.entries.push(Entry {
+						token: Token::Dedent,
+						span,
+						prev: current.map(|x| self.entries[x].prev).unwrap_or_default(),
+						head: head.prev,
+					});
 				}
 
 				left if left.get_closing() == Some(symbol) => {
-					self.tokens.push((token, span, 0));
+					self.entries.push(Entry {
+						token,
+						span,
+						prev: current.map(|x| self.entries[x].prev).unwrap_or_default(),
+						head: head.prev,
+					});
 					if self.indent_level() > span.pos.column {
 						panic!("error: unexpected Dedent before {symbol} at {span}");
 					}

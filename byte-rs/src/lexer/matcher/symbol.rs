@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use super::{Cursor, Matcher, MatcherResult, Token};
 
+#[derive(Clone)]
 pub struct SymbolTable {
 	states: Vec<Entry>,
 }
@@ -19,6 +20,7 @@ impl Default for SymbolTable {
 	}
 }
 
+#[derive(Clone)]
 struct Entry {
 	value: Option<Token>,
 	next: HashMap<char, usize>,
@@ -57,9 +59,21 @@ impl SymbolTable {
 	}
 }
 
-impl Matcher for SymbolTable {
+#[derive(Clone)]
+pub struct MatchSymbol {
+	symbols: Rc<SymbolTable>,
+}
+
+impl MatchSymbol {
+	pub fn new(symbols: Rc<SymbolTable>) -> Self {
+		MatchSymbol { symbols }
+	}
+}
+
+impl Matcher for MatchSymbol {
 	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
-		let state = self.get_next(0, next);
+		let symbols = &self.symbols;
+		let state = symbols.get_next(0, next);
 		let (mut state, valid) = if let Some((state, valid)) = state {
 			(state, valid)
 		} else {
@@ -70,7 +84,7 @@ impl Matcher for SymbolTable {
 		let mut valid = if valid { Some((last_pos, state)) } else { None };
 
 		while let Some(next) = input.read() {
-			if let Some((next, is_valid)) = self.get_next(state, next) {
+			if let Some((next, is_valid)) = symbols.get_next(state, next) {
 				(state, last_pos) = (next, *input);
 				if is_valid {
 					valid = Some((last_pos, state));
@@ -81,10 +95,14 @@ impl Matcher for SymbolTable {
 		}
 		if let Some((pos, index)) = valid {
 			*input = pos;
-			MatcherResult::Token(self.states[index].value.clone().unwrap())
+			MatcherResult::Token(symbols.states[index].value.clone().unwrap())
 		} else {
 			MatcherResult::Error("invalid symbol".into())
 		}
+	}
+
+	fn clone_box(&self) -> Box<dyn Matcher> {
+		Box::new(self.clone())
 	}
 }
 
@@ -94,25 +112,27 @@ mod tests {
 
 	#[test]
 	fn lexer_should_parse_symbols() {
-		let mut lexer = SymbolTable::default();
-		lexer.add_symbol("+", Token::Symbol("+"));
-		lexer.add_symbol("++", Token::Symbol("++"));
-		lexer.add_symbol(".", Token::Symbol("."));
-		lexer.add_symbol("..", Token::Symbol(".."));
-		lexer.add_symbol("...", Token::Symbol("..."));
-		lexer.add_symbol(">", Token::Symbol(">"));
-		lexer.add_symbol(">>>>", Token::Symbol("arrow"));
+		let mut sym = SymbolTable::default();
+		sym.add_symbol("+", Token::Symbol("+"));
+		sym.add_symbol("++", Token::Symbol("++"));
+		sym.add_symbol(".", Token::Symbol("."));
+		sym.add_symbol("..", Token::Symbol(".."));
+		sym.add_symbol("...", Token::Symbol("..."));
+		sym.add_symbol(">", Token::Symbol(">"));
+		sym.add_symbol(">>>>", Token::Symbol("arrow"));
 
-		check_symbols(&lexer, "", &[]);
-		check_symbols(&lexer, "+", &[Token::Symbol("+")]);
-		check_symbols(&lexer, "++", &[Token::Symbol("++")]);
-		check_symbols(&lexer, "+++", &[Token::Symbol("++"), Token::Symbol("+")]);
-		check_symbols(&lexer, ".", &[Token::Symbol(".")]);
-		check_symbols(&lexer, "..", &[Token::Symbol("..")]);
-		check_symbols(&lexer, "...", &[Token::Symbol("...")]);
-		check_symbols(&lexer, "....", &[Token::Symbol("..."), Token::Symbol(".")]);
+		let sym = MatchSymbol::new(Rc::new(sym.into()));
+		let sym = &sym;
+		check_symbols(sym, "", &[]);
+		check_symbols(sym, "+", &[Token::Symbol("+")]);
+		check_symbols(sym, "++", &[Token::Symbol("++")]);
+		check_symbols(sym, "+++", &[Token::Symbol("++"), Token::Symbol("+")]);
+		check_symbols(sym, ".", &[Token::Symbol(".")]);
+		check_symbols(sym, "..", &[Token::Symbol("..")]);
+		check_symbols(sym, "...", &[Token::Symbol("...")]);
+		check_symbols(sym, "....", &[Token::Symbol("..."), Token::Symbol(".")]);
 		check_symbols(
-			&lexer,
+			sym,
 			".....+",
 			&[
 				Token::Symbol("..."),
@@ -121,21 +141,19 @@ mod tests {
 			],
 		);
 		check_symbols(
-			&lexer,
+			sym,
 			">>>",
 			&[Token::Symbol(">"), Token::Symbol(">"), Token::Symbol(">")],
 		);
-		check_symbols(&lexer, ">>>>", &[Token::Symbol("arrow")]);
+		check_symbols(sym, ">>>>", &[Token::Symbol("arrow")]);
 		check_symbols(
-			&lexer,
+			sym,
 			">>>>>>>>",
 			&[Token::Symbol("arrow"), Token::Symbol("arrow")],
 		);
 	}
 
-	fn check_symbols(symbols: &SymbolTable, input: &'static str, expected: &[Token]) {
-		use crate::lexer::tests::TestInput;
-		let input = TestInput::new(input);
+	fn check_symbols(symbols: &MatchSymbol, input: &'static str, expected: &[Token]) {
 		let mut input = Cursor::new(&input);
 		for (i, expected) in expected.iter().cloned().enumerate() {
 			let next = input.read().expect("unexpected end of input");

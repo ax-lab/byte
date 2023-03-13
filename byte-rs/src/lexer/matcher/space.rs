@@ -1,5 +1,6 @@
 use crate::lexer::{is_space, Cursor, Matcher, MatcherResult};
 
+#[derive(Copy, Clone)]
 pub struct MatchSpace;
 
 impl Matcher for MatchSpace {
@@ -18,5 +19,9 @@ impl Matcher for MatchSpace {
 		} else {
 			MatcherResult::None
 		}
+	}
+
+	fn clone_box(&self) -> Box<dyn Matcher> {
+		Box::new(self.clone())
 	}
 }

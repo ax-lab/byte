@@ -14,7 +14,7 @@ pub use line_break::MatchLineBreak;
 pub use literal::MatchLiteral;
 pub use number::MatchNumber;
 pub use space::MatchSpace;
-pub use symbol::SymbolTable;
+pub use symbol::{MatchSymbol, SymbolTable};
 
 pub trait Matcher {
 	/// Tries to read the next recognized token from the input.
@@ -25,6 +25,8 @@ pub trait Matcher {
 	/// The input will advance to the end of the recognized token iff the
 	/// token is recognized.
 	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult;
+
+	fn clone_box(&self) -> Box<dyn Matcher>;
 }
 
 #[derive(Debug)]

@@ -1,5 +1,6 @@
 use super::{Cursor, Matcher, MatcherResult};
 
+#[derive(Copy, Clone)]
 pub struct MatchComment;
 
 impl Matcher for MatchComment {
@@ -38,5 +39,9 @@ impl Matcher for MatchComment {
 
 			_ => MatcherResult::None,
 		}
+	}
+
+	fn clone_box(&self) -> Box<dyn Matcher> {
+		Box::new(self.clone())
 	}
 }

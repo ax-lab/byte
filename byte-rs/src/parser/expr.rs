@@ -95,7 +95,7 @@ pub fn parse_expression<'a>(input: &mut Context<'a>) -> ExprResult<'a> {
 
 	loop {
 		while let Some(op) = input
-			.value
+			.value()
 			.symbol()
 			.and_then(|next| UnaryOp::get_prefix(next))
 		{
@@ -124,7 +124,7 @@ pub fn parse_expression<'a>(input: &mut Context<'a>) -> ExprResult<'a> {
 
 		// Ternary and binary operators work similarly, but the ternary will
 		// parse the middle expression as parenthesized.
-		if let Some((op, end)) = input.value.symbol().and_then(|next| TernaryOp::get(next)) {
+		if let Some((op, end)) = input.value().symbol().and_then(|next| TernaryOp::get(next)) {
 			input.next();
 			let op = Operator::Ternary(op);
 			push_op(op, &mut ops, &mut values);
@@ -147,7 +147,7 @@ pub fn parse_expression<'a>(input: &mut Context<'a>) -> ExprResult<'a> {
 					format!("expected ternary operator '{end}'"),
 				);
 			}
-		} else if let Some(op) = input.value.symbol().and_then(|next| BinaryOp::get(next)) {
+		} else if let Some(op) = input.value().symbol().and_then(|next| BinaryOp::get(next)) {
 			let op = Operator::Binary(op);
 			push_op(op, &mut ops, &mut values);
 			input.next();
@@ -173,7 +173,7 @@ pub fn parse_expression<'a>(input: &mut Context<'a>) -> ExprResult<'a> {
 fn parse_atom<'a>(input: &mut Context<'a>) -> ExprResult<'a> {
 	match input.token() {
 		Token::Identifier => {
-			let atom = match input.value.text() {
+			let atom = match input.value().text() {
 				"null" => ExprAtom::Null,
 				"true" => ExprAtom::Boolean(true),
 				"false" => ExprAtom::Boolean(false),

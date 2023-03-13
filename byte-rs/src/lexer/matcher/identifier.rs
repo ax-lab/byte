@@ -1,5 +1,6 @@
 use super::{Cursor, Matcher, MatcherResult, Token};
 
+#[derive(Copy, Clone)]
 pub struct MatchIdentifier(pub Token);
 
 impl Matcher for MatchIdentifier {
@@ -23,5 +24,9 @@ impl Matcher for MatchIdentifier {
 
 			_ => MatcherResult::None,
 		}
+	}
+
+	fn clone_box(&self) -> Box<dyn Matcher> {
+		Box::new(self.clone())
 	}
 }
