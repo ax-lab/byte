@@ -1,3 +1,5 @@
+use crate::lexer::LexerError;
+
 use super::{Cursor, Matcher, MatcherResult, Token};
 
 #[derive(Copy, Clone)]
@@ -15,7 +17,7 @@ impl Matcher for MatchLiteral {
 							break MatcherResult::Token(Token::Literal(pos, end));
 						}
 
-						None => break MatcherResult::Error("unclosed string literal".into()),
+						None => break MatcherResult::Error(LexerError::UnclosedLiteral),
 
 						Some(_) => {}
 					}

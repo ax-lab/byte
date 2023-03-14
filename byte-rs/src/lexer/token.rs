@@ -1,6 +1,7 @@
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Token {
 	None,
+	Invalid,
 	Break,
 	Indent,
 	Dedent,

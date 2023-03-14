@@ -1,4 +1,4 @@
-use super::{Cursor, Token};
+use super::{Cursor, LexerError, Token};
 
 mod comment;
 mod identifier;
@@ -35,5 +35,5 @@ pub enum MatcherResult {
 	Skip,
 	Comment,
 	Token(Token),
-	Error(String),
+	Error(LexerError),
 }

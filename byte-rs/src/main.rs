@@ -1,10 +1,14 @@
 use std::{collections::HashMap, env};
 
 use exec::{execute_expr, ResultValue};
+use lexer::Context;
 use parser::{parse_statement, Id, ParseResult, Statement};
 
 mod input;
 use input::Input;
+
+mod error;
+pub use error::*;
 
 mod exec;
 mod lexer;
@@ -73,11 +77,13 @@ fn main() {
 						println!("{span}: {:10}  =  {token:?}", format!("{text:?}"));
 						context.next();
 					}
+					print_errors(&context);
 					std::process::exit(0);
 				}
 
 				if list_blocks {
-					parser::list_blocks(context);
+					parser::list_blocks(&mut context);
+					print_errors(&context);
 					std::process::exit(0);
 				}
 
@@ -86,7 +92,9 @@ fn main() {
 					let parsed = parse_statement(&mut context);
 					match parsed {
 						ParseResult::Error(span, msg) => {
-							eprintln!("\n[compile error] {file}:{span}: {msg}\n");
+							eprintln!("\nIn {file}:{span}:\n\n    error parsing: {msg}");
+							print_errors(&context);
+							eprintln!();
 							if list_ast {
 								break;
 							}
@@ -100,6 +108,8 @@ fn main() {
 						}
 					}
 				}
+
+				print_errors(&context);
 
 				if list_ast {
 					for (i, it) in program.into_iter().enumerate() {
@@ -115,6 +125,17 @@ fn main() {
 				std::process::exit(1);
 			}
 		}
+	}
+}
+
+fn print_errors(ctx: &Context) {
+	let mut has_errors = false;
+	for it in ctx.errors() {
+		if !has_errors {
+			eprintln!("\n---- Errors ----\n");
+			has_errors = true;
+		}
+		eprintln!("    error: {it} at {}", it.span());
 	}
 }
 

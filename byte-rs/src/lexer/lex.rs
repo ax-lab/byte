@@ -33,7 +33,7 @@ impl<'a> Lex<'a> {
 
 impl<'a> std::fmt::Debug for Lex<'a> {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.debug_struct("Lexeme")
+		f.debug_struct("Lex")
 			.field("token", &self.token)
 			.field("span", &self.span)
 			.finish()
@@ -45,6 +45,9 @@ impl<'a> std::fmt::Display for Lex<'a> {
 		match self.token {
 			Token::None => {
 				write!(f, "end of input")
+			}
+			Token::Invalid => {
+				write!(f, "invalid token")
 			}
 			token => match token {
 				Token::Symbol(sym) => write!(f, "{sym}"),

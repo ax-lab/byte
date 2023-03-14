@@ -2,9 +2,9 @@ use crate::lexer::{Context, Lex, Span, Token};
 
 /// Display a list of blocks in the input TokenStream. This is used only
 /// for testing the tokenization.
-pub fn list_blocks<'a>(mut input: Context<'a>) {
+pub fn list_blocks<'a>(input: &mut Context<'a>) {
 	loop {
-		match parse_block(&mut input) {
+		match parse_block(input) {
 			Block::None => break,
 			Block::Error(error, span) => {
 				println!("Error: {error} at {span}");

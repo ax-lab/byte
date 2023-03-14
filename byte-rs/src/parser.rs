@@ -47,15 +47,10 @@ fn parse_statement_expr<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 	match parse_expression(input) {
 		ExprResult::Expr(expr) => assert_break(input, ParseResult::Ok(Statement::Expr(expr))),
 		ExprResult::Error(span, error) => ParseResult::Error(span, error),
-		ExprResult::None => match input.token() {
-			Token::None => ParseResult::Error(
-				input.span(),
-				format!("expected expression, got end of input"),
-			),
-			token => {
-				ParseResult::Error(input.span(), format!("expected expression, got {token:?}"))
-			}
-		},
+		ExprResult::None => {
+			let value = input.value();
+			ParseResult::Error(input.span(), format!("expected expression, got {value}"))
+		}
 	}
 }
 

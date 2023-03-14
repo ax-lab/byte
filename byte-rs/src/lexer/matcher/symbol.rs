@@ -1,5 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
+use crate::lexer::LexerError;
+
 use super::{Cursor, Matcher, MatcherResult, Token};
 
 #[derive(Clone)]
@@ -77,7 +79,7 @@ impl Matcher for MatchSymbol {
 		let (mut state, valid) = if let Some((state, valid)) = state {
 			(state, valid)
 		} else {
-			return MatcherResult::Error("invalid symbol".into());
+			return MatcherResult::Error(LexerError::InvalidSymbol);
 		};
 
 		let mut last_pos = *input;
@@ -97,7 +99,7 @@ impl Matcher for MatchSymbol {
 			*input = pos;
 			MatcherResult::Token(symbols.states[index].value.clone().unwrap())
 		} else {
-			MatcherResult::Error("invalid symbol".into())
+			MatcherResult::Error(LexerError::InvalidSymbol)
 		}
 	}
 

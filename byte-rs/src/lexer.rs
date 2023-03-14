@@ -24,7 +24,36 @@ pub struct Indent(pub usize);
 pub enum LexerResult {
 	None,
 	Token(Token, Indent),
-	Error(String),
+	Error(LexerError),
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum LexerError {
+	InvalidSymbol,
+	InvalidToken,
+	UnclosedLiteral,
+}
+
+impl LexerError {
+	pub fn output(&self, f: &mut std::fmt::Formatter<'_>, span: Span<'_>) -> std::fmt::Result {
+		write!(f, "{self}")?;
+		match self {
+			LexerError::InvalidSymbol => write!(f, " `{}`", span.text())?,
+			LexerError::InvalidToken => {}
+			LexerError::UnclosedLiteral => {}
+		};
+		Ok(())
+	}
+}
+
+impl std::fmt::Display for LexerError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			LexerError::InvalidSymbol => write!(f, "invalid symbol"),
+			LexerError::InvalidToken => write!(f, "invalid token"),
+			LexerError::UnclosedLiteral => write!(f, "unclosed string literal"),
+		}
+	}
 }
 
 /// This is used for the lexer to determined what is a whitespace character.
@@ -68,7 +97,34 @@ fn read_token<'a>(config: &Config, input: &mut Cursor<'a>) -> (LexerResult, Span
 
 #[cfg(test)]
 mod tests {
+	use crate::Error;
+
 	use super::*;
+
+	#[test]
+	fn lexer_with_invalid_symbol_should_generate_error() {
+		let mut ctx = open(&"+¶");
+		let a = ctx.clone();
+
+		assert_eq!(ctx.token(), Token::Symbol("+"));
+		ctx.next();
+		assert!(ctx.errors().len() == 0);
+		let b = ctx.clone();
+
+		assert_eq!(ctx.token(), Token::Invalid);
+
+		let errors = ctx.errors();
+		assert!(errors.len() == 1);
+		assert!(a.errors().len() == 0);
+		assert!(b.errors().len() == 0);
+		let err = errors[0].clone();
+		assert!(matches!(err, Error::Lexer(..)));
+		let span = err.span();
+		assert_eq!(span.pos.line, 0);
+		assert_eq!(span.end.line, 0);
+		assert_eq!(span.pos.column, 1);
+		assert_eq!(span.end.column, 2);
+	}
 
 	#[test]
 	fn lexer_should_parse_symbols() {

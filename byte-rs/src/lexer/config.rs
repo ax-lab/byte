@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use super::{
 	matcher::{MatchSymbol, SymbolTable},
-	Cursor, Indent, LexerResult, Matcher, MatcherResult, Span, Token,
+	Cursor, Indent, LexerError, LexerResult, Matcher, MatcherResult, Span, Token,
 };
 
 #[derive(Default)]
@@ -64,7 +64,7 @@ impl Config {
 					}
 				}
 				if !skipped {
-					break LexerResult::Error(format!("invalid token"));
+					break LexerResult::Error(LexerError::InvalidToken);
 				}
 			} else {
 				break LexerResult::None;
