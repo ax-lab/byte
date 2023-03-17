@@ -3,7 +3,7 @@ use std::{
 	rc::Rc,
 };
 
-use crate::{Error, Result};
+use crate::{Error, Pos, Result};
 
 use super::{Config, Cursor, Indent, Input, Lex, LexerResult, Matcher, Span, Token};
 
@@ -38,6 +38,15 @@ impl<'a> Context<'a> {
 			errors: Default::default(),
 		};
 		out
+	}
+
+	pub fn pos(&self) -> Pos {
+		let cursor = self.state.borrow().cur();
+		Pos {
+			line: cursor.line,
+			column: cursor.column,
+			offset: cursor.offset,
+		}
 	}
 
 	pub fn errors(&self) -> Vec<Error<'a>> {
@@ -154,7 +163,7 @@ struct State<'a> {
 }
 
 impl<'a> State<'a> {
-	pub fn pos(&self) -> Cursor<'a> {
+	pub fn cur(&self) -> Cursor<'a> {
 		self.entries
 			.last()
 			.map(|x| x.span.end)
@@ -169,7 +178,7 @@ impl<'a> State<'a> {
 		while index >= self.entries.len() {
 			if !self.fill_next(config)? {
 				let token = Token::None;
-				let pos = self.pos();
+				let pos = self.cur();
 				let span = Span { pos: pos, end: pos };
 				return Ok(Lex { token, span });
 			}
@@ -182,7 +191,7 @@ impl<'a> State<'a> {
 
 	fn fill_next(&mut self, config: &Config) -> Result<'a, bool> {
 		let start_count = self.entries.len();
-		let mut cursor = self.pos();
+		let mut cursor = self.cur();
 		let empty = cursor.column == 0;
 		loop {
 			let new_line = cursor.column == 0;

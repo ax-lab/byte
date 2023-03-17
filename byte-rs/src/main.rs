@@ -10,10 +10,18 @@ use input::Input;
 mod error;
 pub use error::*;
 
+mod eval;
 mod exec;
 mod lexer;
 mod parser;
 mod source;
+
+#[derive(Copy, Clone, Debug)]
+pub struct Pos {
+	pub line: usize,
+	pub column: usize,
+	pub offset: usize,
+}
 
 fn main() {
 	let mut done = false;
@@ -21,7 +29,14 @@ fn main() {
 	let mut list_tokens = false;
 	let mut list_ast = false;
 	let mut list_blocks = false;
+	let mut eval_list = Vec::new();
+	let mut next_is_eval = false;
 	for arg in env::args().skip(1) {
+		if next_is_eval {
+			next_is_eval = false;
+			eval_list.push(arg);
+			continue;
+		}
 		done = done
 			|| match arg.as_str() {
 				"--version" | "-v" => {
@@ -44,6 +59,10 @@ fn main() {
 					list_blocks = true;
 					false
 				}
+				"--eval" => {
+					next_is_eval = true;
+					false
+				}
 				_ => {
 					files.push(arg);
 					false
@@ -55,7 +74,7 @@ fn main() {
 		return;
 	}
 
-	if files.len() != 1 {
+	if files.len() != 1 && eval_list.len() == 0 {
 		print_usage();
 		if files.len() != 0 {
 			eprintln!("[error] specify a single file\n");
@@ -63,6 +82,13 @@ fn main() {
 			eprintln!("[error] no arguments given\n");
 		}
 		std::process::exit(1);
+	}
+
+	for it in eval_list.into_iter() {
+		let text = it.as_str();
+		let context = lexer::open(&text);
+		let result = eval::run(context);
+		println!("{result}");
 	}
 
 	for file in files {
@@ -86,45 +112,48 @@ fn main() {
 					print_errors(&context);
 					std::process::exit(0);
 				}
-
-				let mut program = Vec::new();
-				while context.value().is_some() {
-					let parsed = parse_statement(&mut context);
-					match parsed {
-						ParseResult::Error(span, msg) => {
-							eprintln!("\nIn {file}:{span}:\n\n    error parsing: {msg}");
-							print_errors(&context);
-							eprintln!();
-							if list_ast {
-								break;
-							}
-							std::process::exit(2);
-						}
-						ParseResult::Ok(parsed) => {
-							program.push(parsed);
-						}
-						ParseResult::None => {
-							break;
-						}
-					}
-				}
-
-				print_errors(&context);
-
-				if list_ast {
-					for (i, it) in program.into_iter().enumerate() {
-						println!("\n{i:03} = {it:#?}");
-					}
-					println!();
-				} else {
-					execute(program);
-				}
+				execute_file(&mut context, file.as_str(), list_ast);
 			}
 			Err(msg) => {
 				eprintln!("\n[error] open file: {msg}\n");
 				std::process::exit(1);
 			}
 		}
+	}
+}
+
+fn execute_file(context: &mut Context, file: &str, list_ast: bool) {
+	let mut program = Vec::new();
+	while context.value().is_some() {
+		let parsed = parse_statement(context);
+		match parsed {
+			ParseResult::Error(span, msg) => {
+				eprintln!("\nIn {file}:{span}:\n\n    error parsing: {msg}");
+				print_errors(&context);
+				eprintln!();
+				if list_ast {
+					break;
+				}
+				std::process::exit(2);
+			}
+			ParseResult::Ok(parsed) => {
+				program.push(parsed);
+			}
+			ParseResult::None => {
+				break;
+			}
+		}
+	}
+
+	print_errors(context);
+
+	if list_ast {
+		for (i, it) in program.into_iter().enumerate() {
+			println!("\n{i:03} = {it:#?}");
+		}
+		println!();
+	} else {
+		execute(program);
 	}
 }
 
