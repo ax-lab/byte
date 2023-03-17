@@ -1,15 +1,15 @@
-use crate::lexer::Context;
+use crate::lexer::Stream;
 use crate::lexer::Token;
 
 use super::node::*;
 use super::State;
 
-pub fn parse_node<'a>(input: &mut Context<'a>, state: &mut State) -> Node {
+pub fn parse_node<'a>(input: &mut Stream<'a>, state: &mut State) -> Node {
 	let node = parse_atom(input, state);
 	node
 }
 
-fn parse_atom(input: &mut Context, _state: &mut State) -> Node {
+fn parse_atom(input: &mut Stream, _state: &mut State) -> Node {
 	let pos = input.pos();
 	let value = match input.token() {
 		Token::Invalid => NodeValue::Invalid,

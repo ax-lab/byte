@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::lexer::Span;
-use crate::lexer::{Context, Token};
+use crate::lexer::{Stream, Token};
 
 use super::operators::*;
 
@@ -51,7 +51,7 @@ impl<'a, T: Into<ExprResult<'a>>> AsResult<'a> for T {
 	}
 }
 
-pub fn parse_expression<'a>(input: &mut Context<'a>) -> ExprResult<'a> {
+pub fn parse_expression<'a>(input: &mut Stream<'a>) -> ExprResult<'a> {
 	let mut ops = VecDeque::new();
 	let mut values = VecDeque::new();
 
@@ -170,7 +170,7 @@ pub fn parse_expression<'a>(input: &mut Context<'a>) -> ExprResult<'a> {
 	}
 }
 
-fn parse_atom<'a>(input: &mut Context<'a>) -> ExprResult<'a> {
+fn parse_atom<'a>(input: &mut Stream<'a>) -> ExprResult<'a> {
 	match input.token() {
 		Token::Identifier => {
 			let atom = match input.value().text() {

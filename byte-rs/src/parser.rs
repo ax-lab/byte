@@ -1,4 +1,4 @@
-use crate::lexer::{Context, Span, Token};
+use crate::lexer::{Span, Stream, Token};
 
 mod blocks;
 pub use blocks::*;
@@ -29,7 +29,7 @@ pub enum ParseResult<'a> {
 	None,
 }
 
-pub fn parse_statement<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
+pub fn parse_statement<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
 	match input.token() {
 		Token::None => ParseResult::None,
 		Token::Identifier => match input.value().text() {
@@ -43,7 +43,7 @@ pub fn parse_statement<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 	}
 }
 
-fn parse_statement_expr<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
+fn parse_statement_expr<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
 	match parse_expression(input) {
 		ExprResult::Expr(expr) => assert_break(input, ParseResult::Ok(Statement::Expr(expr))),
 		ExprResult::Error(span, error) => ParseResult::Error(span, error),
@@ -54,7 +54,7 @@ fn parse_statement_expr<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 	}
 }
 
-fn parse_if<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
+fn parse_if<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
 	input.next(); // skip `if`
 	match parse_expression(input) {
 		ExprResult::Expr(expr) => {
@@ -72,7 +72,7 @@ fn parse_if<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 	}
 }
 
-fn parse_for<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
+fn parse_for<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
 	input.next(); // skip `for`
 	let id = match input.token() {
 		Token::Identifier => {
@@ -118,7 +118,7 @@ fn parse_for<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 	}
 }
 
-fn parse_indented_block<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
+fn parse_indented_block<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
 	if !input.skip_symbol(":") {
 		return ParseResult::Error(input.span(), "block ':' expected".into());
 	}
@@ -144,7 +144,7 @@ fn parse_indented_block<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 	ParseResult::Ok(Statement::Block(block))
 }
 
-fn parse_print<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
+fn parse_print<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
 	input.next(); // skip `print`
 	let mut expr_list = Vec::new();
 	loop {
@@ -168,7 +168,7 @@ fn parse_print<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 	}
 }
 
-fn parse_let<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
+fn parse_let<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
 	input.next(); // skip `let`
 	let id = match input.token() {
 		Token::Identifier => {
@@ -193,7 +193,7 @@ fn parse_let<'a>(input: &mut Context<'a>) -> ParseResult<'a> {
 	}
 }
 
-fn assert_break<'a>(input: &mut Context<'a>, result: ParseResult<'a>) -> ParseResult<'a> {
+fn assert_break<'a>(input: &mut Stream<'a>, result: ParseResult<'a>) -> ParseResult<'a> {
 	match input.token() {
 		Token::Break | Token::None => {
 			input.next();

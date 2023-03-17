@@ -1,4 +1,4 @@
-use crate::lexer::Context;
+use crate::lexer::Stream;
 
 mod error;
 pub use error::*;
@@ -54,7 +54,7 @@ impl std::fmt::Display for Result {
 	}
 }
 
-pub fn run(mut input: Context) -> Result {
+pub fn run(mut input: Stream) -> Result {
 	let mut state = State::new();
 	let mut program = Vec::new();
 	while input.value().is_some() && state.is_valid() {

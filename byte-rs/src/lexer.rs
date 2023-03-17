@@ -1,7 +1,7 @@
-mod context;
 mod cursor;
 mod lex;
 mod span;
+mod stream;
 mod token;
 
 mod config;
@@ -12,10 +12,10 @@ pub use matcher::{Matcher, MatcherResult};
 
 use crate::Input;
 
-pub use context::*;
 pub use cursor::*;
 pub use lex::*;
 pub use span::*;
+pub use stream::*;
 pub use token::*;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -61,7 +61,7 @@ pub fn is_space(char: char) -> bool {
 	matches!(char, ' ' | '\t')
 }
 
-pub fn open(input: &dyn Input) -> Context {
+pub fn open(input: &dyn Input) -> Stream {
 	let mut cfg = Config::default();
 	cfg.add_matcher(Box::new(matcher::MatchSpace));
 	cfg.add_matcher(Box::new(matcher::MatchComment));
@@ -87,7 +87,7 @@ pub fn open(input: &dyn Input) -> Context {
 	cfg.add_symbol(".", Token::Symbol("."));
 	cfg.add_symbol("..", Token::Symbol(".."));
 
-	let out = Context::new(input, cfg);
+	let out = Stream::new(input, cfg);
 	out
 }
 

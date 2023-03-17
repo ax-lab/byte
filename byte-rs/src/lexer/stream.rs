@@ -16,7 +16,7 @@ use super::{Config, Cursor, Indent, Input, Lex, LexerResult, Matcher, Span, Toke
 /// The context can also be configured during the lexing process, which will
 /// take effect going forward in the lexing.
 #[derive(Clone)]
-pub struct Context<'a> {
+pub struct Stream<'a> {
 	state: Rc<RefCell<State<'a>>>,
 	config: Rc<Config>,
 	index: usize,
@@ -24,13 +24,13 @@ pub struct Context<'a> {
 	errors: RefCell<Rc<Vec<Error<'a>>>>,
 }
 
-impl<'a> Context<'a> {
+impl<'a> Stream<'a> {
 	pub fn new(source: &'a dyn Input, config: Config) -> Self {
 		let state = State {
 			source,
 			entries: Vec::new(),
 		};
-		let out = Context {
+		let out = Stream {
 			state: Rc::new(state.into()),
 			config: Rc::new(config),
 			index: 0,

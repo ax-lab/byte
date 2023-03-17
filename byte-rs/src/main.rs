@@ -1,7 +1,7 @@
 use std::{collections::HashMap, env};
 
 use exec::{execute_expr, ResultValue};
-use lexer::Context;
+use lexer::Stream;
 use parser::{parse_statement, Id, ParseResult, Statement};
 
 mod input;
@@ -122,7 +122,7 @@ fn main() {
 	}
 }
 
-fn execute_file(context: &mut Context, file: &str, list_ast: bool) {
+fn execute_file(context: &mut Stream, file: &str, list_ast: bool) {
 	let mut program = Vec::new();
 	while context.value().is_some() {
 		let parsed = parse_statement(context);
@@ -157,7 +157,7 @@ fn execute_file(context: &mut Context, file: &str, list_ast: bool) {
 	}
 }
 
-fn print_errors(ctx: &Context) {
+fn print_errors(ctx: &Stream) {
 	let mut has_errors = false;
 	for it in ctx.errors() {
 		if !has_errors {

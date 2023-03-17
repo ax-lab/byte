@@ -1,8 +1,8 @@
-use crate::lexer::{Context, Lex, Span, Token};
+use crate::lexer::{Lex, Span, Stream, Token};
 
 /// Display a list of blocks in the input TokenStream. This is used only
 /// for testing the tokenization.
-pub fn list_blocks<'a>(input: &mut Context<'a>) {
+pub fn list_blocks<'a>(input: &mut Stream<'a>) {
 	loop {
 		match parse_block(input) {
 			Block::None => break,
@@ -28,11 +28,11 @@ enum Block<'a> {
 	Error(String, Span<'a>),
 }
 
-fn parse_block<'a>(input: &mut Context<'a>) -> Block<'a> {
+fn parse_block<'a>(input: &mut Stream<'a>) -> Block<'a> {
 	parse_line(input, 0, None)
 }
 
-fn parse_line<'a>(input: &mut Context<'a>, level: usize, stop: Option<&'static str>) -> Block<'a> {
+fn parse_line<'a>(input: &mut Stream<'a>, level: usize, stop: Option<&'static str>) -> Block<'a> {
 	let expr = parse_expr(input, level, stop);
 	if expr.len() == 0 {
 		Block::None
@@ -69,7 +69,7 @@ fn parse_line<'a>(input: &mut Context<'a>, level: usize, stop: Option<&'static s
 }
 
 fn parse_expr<'a>(
-	input: &mut Context<'a>,
+	input: &mut Stream<'a>,
 	_level: usize,
 	stop: Option<&'static str>,
 ) -> Vec<Block<'a>> {
@@ -102,7 +102,7 @@ fn parse_expr<'a>(
 	}
 }
 
-fn parse_parenthesis<'a>(input: &mut Context<'a>, left: Lex<'a>, right: &'static str) -> Block<'a> {
+fn parse_parenthesis<'a>(input: &mut Stream<'a>, left: Lex<'a>, right: &'static str) -> Block<'a> {
 	let level = 0;
 	input.next_if(|x| x.token == Token::Break);
 	let indented = input.next_if(|x| x.token == Token::Indent);
