@@ -14,6 +14,16 @@ impl<'a> Lex<'a> {
 		}
 	}
 
+	pub fn as_none(&self) -> Lex<'a> {
+		Lex {
+			token: Token::None,
+			span: Span {
+				pos: self.span.pos,
+				end: self.span.pos,
+			},
+		}
+	}
+
 	pub fn symbol(&self) -> Option<&str> {
 		match self.token {
 			Token::Symbol(str) => Some(str),

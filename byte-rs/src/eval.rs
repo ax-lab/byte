@@ -1,4 +1,4 @@
-use crate::lexer::Stream;
+use crate::lexer::{Stream, Token};
 
 mod context;
 pub use context::*;
@@ -58,9 +58,18 @@ pub fn run(input: Stream) -> Result {
 	let mut context = Context::new(input.clone());
 	let mut program = Vec::new();
 	while context.has_some() && context.is_valid() {
-		let expr = parser::parse_node(&mut context);
-		let node = resolve_macro(&mut context, expr);
+		let mut line = context.scope_line_with_break(";");
+		let expr = parser::parse_node(&mut line);
+		let node = resolve_macro(&mut line, expr);
 		program.push(node);
+
+		context = line.pop_scope();
+		if context.token() == Token::Symbol(";") {
+			context.next();
+		}
+		if context.token() == Token::Break {
+			context.next();
+		}
 	}
 
 	let (program, errors) = context.finish(program);
