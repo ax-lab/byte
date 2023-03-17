@@ -1,10 +1,18 @@
-use crate::Pos;
+use crate::lexer::{Cursor, Span};
 
 #[derive(Clone, Debug)]
-pub struct Node {
-	pub pos: Pos,
-	pub end: Pos,
-	pub val: NodeValue,
+pub struct Node<'a> {
+	pub span: Span<'a>,
+	pub value: NodeValue,
+}
+
+impl<'a> Node<'a> {
+	pub fn new(pos: Cursor<'a>, end: Cursor<'a>, value: NodeValue) -> Self {
+		Node {
+			span: Span { pos, end },
+			value,
+		}
+	}
 }
 
 #[derive(Clone, Debug)]

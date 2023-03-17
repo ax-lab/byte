@@ -1,7 +1,7 @@
 use crate::lexer::Stream;
 
-mod error;
-pub use error::*;
+mod context;
+pub use context::*;
 
 mod node;
 pub use node::*;
@@ -11,7 +11,7 @@ mod parser;
 #[derive(Clone, Debug)]
 pub enum Result {
 	None,
-	Fatal(Error),
+	Fatal(String),
 	Value(Value),
 }
 
@@ -54,21 +54,25 @@ impl std::fmt::Display for Result {
 	}
 }
 
-pub fn run(mut input: Stream) -> Result {
-	let mut state = State::new();
+pub fn run(input: Stream) -> Result {
+	let mut context = Context::new(input.clone());
 	let mut program = Vec::new();
-	while input.value().is_some() && state.is_valid() {
-		let expr = parser::parse_node(&mut input, &mut state);
-		let node = resolve_macro(&mut state, expr);
+	while context.has_some() && context.is_valid() {
+		let expr = parser::parse_node(&mut context);
+		let node = resolve_macro(&mut context, expr);
 		program.push(node);
 	}
 
-	let (program, errors) = state.finish(program);
+	let (program, errors) = context.finish(program);
 	if errors.len() > 0 {
 		eprintln!();
 		for it in errors.into_iter() {
-			eprintln!("error: {it}");
+			let name = input.source().name();
+			let span = it.span();
+			eprintln!("error: at {name}:{span} -- {it}");
 		}
+		eprintln!();
+		std::process::exit(1);
 	}
 
 	let mut runtime = Runtime::new();
@@ -84,9 +88,9 @@ pub fn run(mut input: Stream) -> Result {
 }
 
 fn execute(_rt: &mut Runtime, node: Node) -> Result {
-	match node.val {
+	match node.value {
 		NodeValue::None => Result::None,
-		NodeValue::Invalid => Result::Fatal(Error::InvalidNode),
+		NodeValue::Invalid => Result::Fatal(format!("invalid node")),
 		NodeValue::Atom(value) => Result::Value(match value {
 			Atom::Bool(value) => Value::Bool(value),
 			Atom::Integer(value) => Value::Integer(value),
@@ -94,22 +98,6 @@ fn execute(_rt: &mut Runtime, node: Node) -> Result {
 			Atom::String(value) => Value::String(value),
 			Atom::Id(..) => todo!(),
 		}),
-	}
-}
-
-pub struct State {}
-
-impl State {
-	fn new() -> Self {
-		State {}
-	}
-
-	fn finish(self, program: Vec<Node>) -> (Vec<Node>, Vec<Error>) {
-		(program, Vec::new())
-	}
-
-	fn is_valid(&self) -> bool {
-		true
 	}
 }
 
@@ -121,6 +109,6 @@ impl Runtime {
 	}
 }
 
-fn resolve_macro(_input: &mut State, expr: Node) -> Node {
+fn resolve_macro<'a>(_input: &mut Context, expr: Node<'a>) -> Node<'a> {
 	expr
 }

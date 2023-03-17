@@ -3,7 +3,7 @@ use std::{
 	rc::Rc,
 };
 
-use crate::{Error, Pos, Result};
+use crate::{Error, Result};
 
 use super::{Config, Cursor, Indent, Input, Lex, LexerResult, Matcher, Span, Token};
 
@@ -40,18 +40,23 @@ impl<'a> Stream<'a> {
 		out
 	}
 
-	pub fn pos(&self) -> Pos {
-		let cursor = self.state.borrow().cur();
-		Pos {
-			line: cursor.line,
-			column: cursor.column,
-			offset: cursor.offset,
-		}
+	pub fn pos(&self) -> Cursor<'a> {
+		self.state.borrow().cur()
 	}
 
 	pub fn errors(&self) -> Vec<Error<'a>> {
 		let errors = self.errors.borrow();
 		(**errors).clone()
+	}
+
+	pub fn add_error(&mut self, error: Error<'a>) {
+		self.do_add_error(error);
+	}
+
+	fn do_add_error(&self, error: Error<'a>) {
+		let mut errors = self.errors.borrow_mut();
+		let errors = Rc::make_mut(&mut errors);
+		errors.push(error);
 	}
 
 	pub fn value(&self) -> Lex<'a> {
@@ -64,9 +69,7 @@ impl<'a> Stream<'a> {
 					Ok(value) => value,
 					Err(error) => {
 						let span = error.span();
-						let mut errors = self.errors.borrow_mut();
-						let errors = Rc::make_mut(&mut errors);
-						errors.push(error);
+						self.do_add_error(error);
 						Lex {
 							token: Token::Invalid,
 							span,

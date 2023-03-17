@@ -23,6 +23,10 @@ impl Input for SourceFile {
 	fn read(&self, pos: usize, end: usize) -> &[u8] {
 		&self.data[pos..end]
 	}
+
+	fn name(&self) -> &str {
+		self.path.as_str()
+	}
 }
 
 impl std::fmt::Display for SourceFile {

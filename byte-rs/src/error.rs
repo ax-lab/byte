@@ -1,4 +1,4 @@
-use crate::lexer::{LexerError, Span};
+use crate::lexer::{Lex, LexerError, Span};
 
 pub type Result<'a, T> = std::result::Result<T, Error<'a>>;
 
@@ -8,6 +8,7 @@ pub enum Error<'a> {
 	Dedent(Span<'a>),
 	ClosingSymbol(&'static str, Span<'a>),
 	ClosingDedent(&'static str, Span<'a>),
+	ExpectedEnd(Lex<'a>),
 }
 
 impl<'a> Error<'a> {
@@ -17,6 +18,7 @@ impl<'a> Error<'a> {
 			Error::Dedent(span) => span,
 			Error::ClosingSymbol(_, span) => span,
 			Error::ClosingDedent(_, span) => span,
+			Error::ExpectedEnd(lex) => lex.span,
 		}
 	}
 }
@@ -34,6 +36,7 @@ impl<'a> std::fmt::Display for Error<'a> {
 			Error::Dedent(..) => write!(f, "unexpected dedent"),
 			Error::ClosingSymbol(sym, ..) => write!(f, "unexpected closing `{sym}`"),
 			Error::ClosingDedent(sym, ..) => write!(f, "unexpected dedent before closing `{sym}`"),
+			Error::ExpectedEnd(sym) => write!(f, "expected end, got `{sym}`"),
 		}
 	}
 }

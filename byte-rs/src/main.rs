@@ -16,13 +16,6 @@ mod lexer;
 mod parser;
 mod source;
 
-#[derive(Copy, Clone, Debug)]
-pub struct Pos {
-	pub line: usize,
-	pub column: usize,
-	pub offset: usize,
-}
-
 fn main() {
 	let mut done = false;
 	let mut files = Vec::new();

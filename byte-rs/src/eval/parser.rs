@@ -1,35 +1,35 @@
-use crate::lexer::Stream;
 use crate::lexer::Token;
 
 use super::node::*;
-use super::State;
+use super::Context;
 
-pub fn parse_node<'a>(input: &mut Stream<'a>, state: &mut State) -> Node {
-	let node = parse_atom(input, state);
+pub fn parse_node<'a>(context: &mut Context<'a>) -> Node<'a> {
+	let node = parse_atom(context);
+	context.check_end();
 	node
 }
 
-fn parse_atom(input: &mut Stream, _state: &mut State) -> Node {
-	let pos = input.pos();
-	let value = match input.token() {
+fn parse_atom<'a>(context: &mut Context<'a>) -> Node<'a> {
+	let pos = context.pos();
+	let value = match context.token() {
 		Token::Invalid => NodeValue::Invalid,
 		Token::Identifier => {
-			let value = match input.value().text() {
+			let value = match context.lex().text() {
 				"null" => Atom::Null.as_value(),
 				"true" => Atom::Bool(true).as_value(),
 				"false" => Atom::Bool(false).as_value(),
 				id => Atom::Id(id.into()).as_value(),
 			};
-			input.next();
+			context.next();
 			value
 		}
 		Token::Integer(value) => {
-			input.next();
+			context.next();
 			Atom::Integer(value).as_value()
 		}
 		Token::Literal(pos, end) => {
-			let content = input.source().read_text(pos, end);
-			input.next();
+			let content = context.source().read_text(pos, end);
+			context.next();
 			Atom::String(content.into()).as_value()
 		}
 		// Token::Symbol("(") => {
@@ -50,10 +50,6 @@ fn parse_atom(input: &mut Stream, _state: &mut State) -> Node {
 		// }
 		_ => NodeValue::None,
 	};
-	let end = input.pos();
-	Node {
-		pos,
-		end,
-		val: value,
-	}
+	let end = context.pos();
+	Node::new(pos, end, value)
 }
