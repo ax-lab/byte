@@ -72,6 +72,8 @@ pub fn open(input: &dyn Input) -> Stream {
 
 	cfg.add_symbol(",", Token::Symbol(","));
 	cfg.add_symbol(";", Token::Symbol(";"));
+	cfg.add_symbol("++", Token::Symbol("++"));
+	cfg.add_symbol("--", Token::Symbol("--"));
 	cfg.add_symbol("+", Token::Symbol("+"));
 	cfg.add_symbol("-", Token::Symbol("-"));
 	cfg.add_symbol("*", Token::Symbol("*"));

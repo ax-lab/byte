@@ -15,7 +15,10 @@ impl Runtime {
 	}
 
 	pub fn get(&self, name: &str) -> Value {
-		self.vars.get(name).cloned().unwrap_or_default()
+		self.vars
+			.get(name)
+			.cloned()
+			.unwrap_or_else(|| panic!("variable {name} not defined"))
 	}
 
 	#[allow(unused)]
