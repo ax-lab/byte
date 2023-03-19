@@ -6,7 +6,12 @@ pub use context::*;
 mod node;
 pub use node::*;
 
+mod operator;
+pub use operator::*;
+
 mod parser;
+
+pub use super::runtime::*;
 
 #[derive(Clone, Debug)]
 pub enum Result {
@@ -15,27 +20,7 @@ pub enum Result {
 	Value(Value),
 }
 
-#[derive(Clone, Debug)]
-pub enum Value {
-	Null,
-	Bool(bool),
-	Integer(u64),
-	String(String),
-}
-
-impl std::fmt::Display for Value {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			Value::Null => write!(f, "null"),
-			Value::Bool(true) => write!(f, "true"),
-			Value::Bool(false) => write!(f, "false"),
-			Value::Integer(val) => write!(f, "{val}"),
-			Value::String(val) => write!(f, "{val}"),
-		}
-	}
-}
-
-impl Result {
+impl<'a> Result {
 	fn is_final(&self) -> bool {
 		match self {
 			Result::Fatal(..) => true,
@@ -44,7 +29,7 @@ impl Result {
 	}
 }
 
-impl std::fmt::Display for Result {
+impl<'a> std::fmt::Display for Result {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Result::None => Ok(()),
@@ -96,25 +81,73 @@ pub fn run(input: Stream) -> Result {
 	result
 }
 
-fn execute(_rt: &mut Runtime, node: Node) -> Result {
+fn execute(rt: &mut Runtime, node: Node) -> Result {
 	match node.value {
 		NodeValue::None => Result::None,
 		NodeValue::Invalid => Result::Fatal(format!("invalid node")),
-		NodeValue::Atom(value) => Result::Value(match value {
-			Atom::Bool(value) => Value::Bool(value),
-			Atom::Integer(value) => Value::Integer(value),
-			Atom::Null => Value::Null,
-			Atom::String(value) => Value::String(value),
-			Atom::Id(..) => todo!(),
-		}),
+		NodeValue::Expr(expr) => Result::Value(execute_expr(rt, expr)),
 	}
 }
 
-struct Runtime {}
-
-impl Runtime {
-	fn new() -> Self {
-		Runtime {}
+fn execute_expr<'a>(rt: &mut Runtime, expr: Expr) -> Value {
+	match expr {
+		Expr::Unary(op, a) => {
+			let a = execute_expr(rt, *a);
+			match op {
+				OpUnary::Minus => a.op_minus(),
+				OpUnary::Plus => a.op_plus(),
+				OpUnary::Not => a.op_not(),
+				OpUnary::Negate => a.op_negate(),
+				OpUnary::PreIncrement => a.op_pre_increment(),
+				OpUnary::PreDecrement => a.op_pre_decrement(),
+				OpUnary::PosIncrement => a.op_pos_increment(),
+				OpUnary::PosDecrement => a.op_pos_decrement(),
+			}
+		}
+		Expr::Binary(op, a, b) => {
+			let a = execute_expr(rt, *a);
+			let b = move || execute_expr(rt, *b);
+			match op {
+				OpBinary::Add => a.op_add(b()),
+				OpBinary::Sub => a.op_sub(b()),
+				OpBinary::Mul => a.op_mul(b()),
+				OpBinary::Div => a.op_div(b()),
+				OpBinary::Mod => a.op_mod(b()),
+				OpBinary::Equal => a.op_equal(b()),
+				OpBinary::Assign => a.op_assign(b()),
+				OpBinary::And => {
+					if a.to_bool() {
+						b().clone()
+					} else {
+						a.clone()
+					}
+				}
+				OpBinary::Or => {
+					if a.to_bool() {
+						a.clone()
+					} else {
+						b().clone()
+					}
+				}
+			}
+		}
+		Expr::Ternary(op, a, b, c) => match op {
+			OpTernary::Conditional => {
+				let a = execute_expr(rt, *a);
+				if a.to_bool() {
+					execute_expr(rt, *b)
+				} else {
+					execute_expr(rt, *c)
+				}
+			}
+		},
+		Expr::Value(atom) => match atom {
+			Atom::Bool(value) => Value::Bool(value),
+			Atom::Integer(value) => Value::Integer(value as i128),
+			Atom::Null => Value::Null,
+			Atom::String(value) => Value::String(value),
+			Atom::Id(var) => rt.get(var.as_str()),
+		},
 	}
 }
 

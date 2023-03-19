@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use crate::{
 	input::Input,
-	lexer::{Cursor, Lex, Stream, Token},
+	lexer::{Cursor, Lex, Span, Stream, Token},
 	Error,
 };
 
@@ -28,12 +28,16 @@ impl<'a> Context<'a> {
 		}
 	}
 
+	pub fn add_error(&mut self, error: Error<'a>) {
+		self.input.add_error(error);
+	}
+
 	pub fn finish(self, program: Vec<Node>) -> (Vec<Node>, Vec<Error<'a>>) {
 		(program, self.input.errors())
 	}
 
 	pub fn is_valid(&self) -> bool {
-		true
+		!self.input.has_errors()
 	}
 
 	fn scope(&self) -> Scope {
@@ -80,6 +84,10 @@ impl<'a> Context<'a> {
 		next
 	}
 
+	pub fn span(&self) -> Span<'a> {
+		self.lex().span
+	}
+
 	pub fn next(&mut self) {
 		if self.lex().is_some() {
 			self.input.next();
@@ -103,6 +111,14 @@ impl<'a> Context<'a> {
 			false
 		} else {
 			true
+		}
+	}
+
+	pub fn skip_symbol(&mut self, symbol: &str) -> bool {
+		if !self.lex().is_some() {
+			false
+		} else {
+			self.input.skip_symbol(symbol)
 		}
 	}
 }

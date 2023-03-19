@@ -14,6 +14,7 @@ mod eval;
 mod exec;
 mod lexer;
 mod parser;
+mod runtime;
 mod source;
 
 fn main() {

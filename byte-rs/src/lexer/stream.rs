@@ -44,6 +44,10 @@ impl<'a> Stream<'a> {
 		self.state.borrow().cur()
 	}
 
+	pub fn has_errors(&self) -> bool {
+		self.errors.borrow().len() > 0
+	}
+
 	pub fn errors(&self) -> Vec<Error<'a>> {
 		let errors = self.errors.borrow();
 		(**errors).clone()
