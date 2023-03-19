@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{cell::Cell, collections::VecDeque};
 
 use crate::{
 	input::Input,
@@ -12,15 +12,17 @@ use super::{
 };
 
 #[derive(Copy, Clone)]
-enum Scope {
+enum Scope<'a> {
 	Root,
 	Line(Option<&'static str>),
+	Parenthesized(Span<'a>, &'static str, &'static str),
 }
 
 #[derive(Clone)]
 pub struct Context<'a> {
 	input: Stream<'a>,
-	scope: VecDeque<Scope>,
+	scope: VecDeque<Scope<'a>>,
+	current: Cell<Option<Lex<'a>>>,
 }
 
 impl<'a> Context<'a> {
@@ -28,10 +30,11 @@ impl<'a> Context<'a> {
 		Context {
 			input,
 			scope: Default::default(),
+			current: Cell::new(None),
 		}
 	}
 
-	pub fn add_error(&mut self, error: Error<'a>) {
+	pub fn add_error(&self, error: Error<'a>) {
 		self.input.add_error(error);
 	}
 
@@ -47,19 +50,35 @@ impl<'a> Context<'a> {
 		self.scope.front().copied().unwrap_or(Scope::Root)
 	}
 
-	#[allow(unused)]
-	pub fn scope_line(mut self) -> Self {
-		self.scope.push_front(Scope::Line(None));
+	pub fn scope_parenthesized(mut self, left: &'static str, right: &'static str) -> Self {
+		self.scope
+			.push_front(Scope::Parenthesized(self.span(), left, right));
+		if !self.skip_symbol(left) {
+			panic!(
+				"parenthesis for scope does not match (expected {left}, got {})",
+				self.lex()
+			);
+		}
 		self
 	}
 
-	pub fn scope_line_with_break(mut self, with_break: &'static str) -> Self {
+	pub fn scope_line(mut self, with_break: &'static str) -> Self {
 		self.scope.push_front(Scope::Line(Some(with_break)));
+		self.clear_cached();
 		self
 	}
 
 	pub fn pop_scope(mut self) -> Self {
-		self.scope.pop_front().expect("no scope to pop");
+		let scope = self.scope.pop_front().expect("no scope to pop");
+		self.clear_cached();
+		if let Scope::Parenthesized(span, left, right) = scope {
+			if !self.skip_symbol(right) {
+				self.add_error(
+					Error::ExpectedSymbol(right, self.span())
+						.at(format!("opening `{left}` at {span}")),
+				);
+			}
+		}
 		self
 	}
 
@@ -83,6 +102,10 @@ impl<'a> Context<'a> {
 	}
 
 	pub fn lex(&self) -> Lex<'a> {
+		if let Some(value) = self.current.get() {
+			return value;
+		}
+
 		let next = self.input.value();
 		let next = match self.scope() {
 			Scope::Root => next,
@@ -91,7 +114,12 @@ impl<'a> Context<'a> {
 				Token::Break => next.as_none(),
 				_ => next,
 			},
+			Scope::Parenthesized(_, _, right) => match next.token {
+				Token::Symbol(sym) if sym == right => next.as_none(),
+				_ => next,
+			},
 		};
+		self.current.set(Some(next));
 		next
 	}
 
@@ -102,6 +130,7 @@ impl<'a> Context<'a> {
 	pub fn next(&mut self) {
 		if self.lex().is_some() {
 			self.input.next();
+			self.clear_cached();
 		}
 	}
 
@@ -111,6 +140,10 @@ impl<'a> Context<'a> {
 
 	pub fn has_some(&self) -> bool {
 		self.lex().is_some()
+	}
+
+	fn clear_cached(&self) {
+		self.current.set(None)
 	}
 }
 
@@ -129,7 +162,12 @@ impl<'a> Context<'a> {
 		if !self.lex().is_some() {
 			false
 		} else {
-			self.input.skip_symbol(symbol)
+			if self.input.skip_symbol(symbol) {
+				self.clear_cached();
+				true
+			} else {
+				false
+			}
 		}
 	}
 }
@@ -159,7 +197,7 @@ mod tests {
 		let context = Context::new(lexer::open(&input));
 
 		// line scope should stop at the line break
-		let mut sub = context.scope_line();
+		let mut sub = context.scope_line("");
 		assert_eq!(sub.token(), Token::Symbol("+"));
 		sub.next();
 		assert_eq!(sub.token(), Token::None);
@@ -173,7 +211,7 @@ mod tests {
 		context.next();
 
 		// next line scope
-		let mut sub = context.scope_line();
+		let mut sub = context.scope_line("");
 		assert_eq!(sub.token(), Token::Symbol("-"));
 		sub.next();
 		assert_eq!(sub.token(), Token::None);
@@ -187,7 +225,7 @@ mod tests {
 		assert_eq!(context.token(), Token::Break);
 
 		// create a line scope right at the end
-		let sub = context.scope_line();
+		let sub = context.scope_line("");
 		assert_eq!(sub.token(), Token::None);
 
 		// and pop it
@@ -205,7 +243,7 @@ mod tests {
 		let context = Context::new(lexer::open(&input));
 
 		// line scope should stop at the line break
-		let mut sub = context.scope_line_with_break(";");
+		let mut sub = context.scope_line(";");
 		assert_eq!(sub.token(), Token::Symbol("+"));
 		sub.next();
 		assert_eq!(sub.token(), Token::None);
@@ -216,7 +254,7 @@ mod tests {
 		context.next();
 
 		// next line scope
-		let mut sub = context.scope_line_with_break(";");
+		let mut sub = context.scope_line(";");
 		assert_eq!(sub.token(), Token::Symbol("-"));
 		sub.next();
 		assert_eq!(sub.token(), Token::None);
@@ -226,7 +264,7 @@ mod tests {
 		assert_eq!(context.token(), Token::Break);
 		context.next();
 
-		let mut sub = context.scope_line_with_break(";");
+		let mut sub = context.scope_line(";");
 		assert_eq!(sub.token(), Token::Integer(1));
 		sub.next();
 		assert_eq!(sub.token(), Token::None);
@@ -237,5 +275,31 @@ mod tests {
 		assert_eq!(context.token(), Token::Integer(2));
 		context.next();
 		assert_eq!(context.token(), Token::None);
+	}
+
+	#[test]
+	fn line_scope_parenthesis() {
+		let input = "(1 2) 3";
+
+		let context = Context::new(lexer::open(&input));
+		assert_eq!(context.token(), Token::Symbol("("));
+
+		let mut sub = context.scope_parenthesized("(", ")");
+		assert_eq!(sub.token(), Token::Integer(1));
+		sub.next();
+
+		assert_eq!(sub.token(), Token::Integer(2));
+		sub.next();
+
+		assert_eq!(sub.token(), Token::None);
+		sub.next();
+		assert_eq!(sub.token(), Token::None);
+
+		let mut context = sub.pop_scope();
+		assert_eq!(context.token(), Token::Integer(3));
+		context.next();
+		assert_eq!(context.token(), Token::None);
+
+		assert!(context.is_valid());
 	}
 }

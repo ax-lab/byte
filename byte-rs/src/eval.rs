@@ -45,7 +45,7 @@ pub fn run(input: Stream) -> Result {
 	let mut context = Context::new(input.clone());
 	let mut program = Vec::new();
 	while context.has_some() && context.is_valid() {
-		let mut line = context.scope_line_with_break(";");
+		let mut line = context.scope_line(";");
 		let expr = parser::parse_node(&mut line);
 		let node = resolve_macro(&mut line, expr);
 		program.push(node);

@@ -53,11 +53,7 @@ impl<'a> Stream<'a> {
 		(**errors).clone()
 	}
 
-	pub fn add_error(&mut self, error: Error<'a>) {
-		self.do_add_error(error);
-	}
-
-	fn do_add_error(&self, error: Error<'a>) {
+	pub fn add_error(&self, error: Error<'a>) {
 		let mut errors = self.errors.borrow_mut();
 		let errors = Rc::make_mut(&mut errors);
 		errors.push(error);
@@ -73,7 +69,7 @@ impl<'a> Stream<'a> {
 					Ok(value) => value,
 					Err(error) => {
 						let span = error.span();
-						self.do_add_error(error);
+						self.add_error(error);
 						Lex {
 							token: Token::Invalid,
 							span,

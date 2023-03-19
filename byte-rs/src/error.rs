@@ -11,7 +11,7 @@ pub enum Error<'a> {
 	ExpectedEnd(Lex<'a>),
 	ExpectedExpression(Span<'a>),
 	ExpectedSymbol(&'static str, Span<'a>),
-	At(&'static str, Box<Error<'a>>),
+	At(String, Box<Error<'a>>),
 }
 
 impl<'a> Error<'a> {
@@ -28,8 +28,8 @@ impl<'a> Error<'a> {
 		}
 	}
 
-	pub fn at(self, context: &'static str) -> Error<'a> {
-		Error::At(context, self.into())
+	pub fn at<T: Into<String>>(self, context: T) -> Error<'a> {
+		Error::At(context.into(), self.into())
 	}
 }
 

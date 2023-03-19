@@ -167,22 +167,21 @@ fn parse_atom<'a>(context: &mut Context<'a>) -> Node<'a> {
 			context.next();
 			Atom::String(content.into()).as_value()
 		}
-		// Token::Symbol("(") => {
-		// 	context.next();
-		// 	match parse_node(context, state) {
-		// 		ExprResult::Expr(expr) => {
-		// 			if !context.skip_symbol(")") {
-		// 				ExprResult::Error(context.span(), "expected `)`".into())
-		// 			} else {
-		// 				ExprResult::Expr(expr)
-		// 			}
-		// 		}
-		// 		ExprResult::None => {
-		// 			ExprResult::Error(context.span(), "expression expected inside '()'".into())
-		// 		}
-		// 		err @ ExprResult::Error(..) => err,
-		// 	}
-		// }
+		Token::Symbol("(") => {
+			*context = context.clone().scope_parenthesized("(", ")");
+			let next = parse_node(context);
+			*context = context.clone().pop_scope();
+			match next.value {
+				NodeValue::Invalid => return next,
+				NodeValue::None => {
+					if context.is_valid() {
+						context.add_error(Error::ExpectedExpression(context.span()));
+					}
+					NodeValue::Invalid
+				}
+				next => next,
+			}
+		}
 		_ => NodeValue::None,
 	};
 	let end = context.pos();
