@@ -13,6 +13,8 @@ mod parser;
 
 pub use super::runtime::*;
 
+mod macros;
+
 #[derive(Clone, Debug)]
 pub enum Result {
 	None,

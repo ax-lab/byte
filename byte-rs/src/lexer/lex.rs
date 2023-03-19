@@ -36,7 +36,7 @@ impl<'a> Lex<'a> {
 		self.span.pos.source
 	}
 
-	pub fn text(&self) -> &str {
+	pub fn text(&self) -> &'a str {
 		self.span.text()
 	}
 }

@@ -6,7 +6,10 @@ use crate::{
 	Error,
 };
 
-use super::Node;
+use super::{
+	macros::{self, Macro},
+	Node,
+};
 
 #[derive(Copy, Clone)]
 enum Scope {
@@ -58,6 +61,14 @@ impl<'a> Context<'a> {
 	pub fn pop_scope(mut self) -> Self {
 		self.scope.pop_front().expect("no scope to pop");
 		self
+	}
+
+	pub fn get_macro(&self, name: &str) -> Option<Box<dyn Macro>> {
+		if name == "add1" {
+			Some(Box::new(macros::AddOne))
+		} else {
+			None
+		}
 	}
 }
 

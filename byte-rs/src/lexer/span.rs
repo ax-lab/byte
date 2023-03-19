@@ -7,7 +7,7 @@ pub struct Span<'a> {
 }
 
 impl<'a> Span<'a> {
-	pub fn text(&self) -> &str {
+	pub fn text(&self) -> &'a str {
 		self.pos.source.read_text(self.pos.offset, self.end.offset)
 	}
 }

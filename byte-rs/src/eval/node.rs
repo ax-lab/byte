@@ -1,6 +1,9 @@
-use crate::lexer::{Cursor, Span};
+use crate::{
+	lexer::{Cursor, Span},
+	Error,
+};
 
-use super::{OpBinary, OpTernary, OpUnary};
+use super::{Context, OpBinary, OpTernary, OpUnary};
 
 #[derive(Clone, Debug)]
 pub struct Node<'a> {
@@ -13,6 +16,17 @@ impl<'a> Node<'a> {
 		Node {
 			span: Span { pos, end },
 			value,
+		}
+	}
+
+	pub fn as_expression(self, context: &mut Context<'a>) -> Result<Expr, Node<'a>> {
+		match self.value {
+			NodeValue::Expr(expr) => Ok(expr),
+			NodeValue::Invalid => Err(self),
+			NodeValue::None => {
+				context.add_error(Error::ExpectedExpression(context.span()));
+				Err(NodeValue::Invalid.at_pos(context.pos()))
+			}
 		}
 	}
 }
@@ -37,6 +51,10 @@ impl NodeValue {
 			span: Span { pos, end: pos },
 			value: self,
 		}
+	}
+
+	pub fn at_span<'a>(self, span: Span<'a>) -> Node<'a> {
+		Node { span, value: self }
 	}
 }
 

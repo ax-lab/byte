@@ -146,7 +146,14 @@ fn parse_atom<'a>(context: &mut Context<'a>) -> Node<'a> {
 				"null" => Atom::Null.as_value(),
 				"true" => Atom::Bool(true).as_value(),
 				"false" => Atom::Bool(false).as_value(),
-				id => Atom::Id(id.into()).as_value(),
+				id => {
+					if let Some(parser) = context.get_macro(id) {
+						context.next();
+						return parser.parse(context);
+					} else {
+						Atom::Id(id.into()).as_value()
+					}
+				}
 			};
 			context.next();
 			value
