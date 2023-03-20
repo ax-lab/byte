@@ -1,6 +1,6 @@
 use crate::{lexer::Token, Error};
 
-use super::{parser::parse_expression, Context, Node, NodeValue};
+use super::{parser::parse_expression, Context, Expr, Node, NodeKind};
 
 /// Trait for low-level syntax macros operating during the parsing stage.
 pub trait Macro {
@@ -25,23 +25,22 @@ impl Macro for Let {
 		};
 
 		let value = if context.at_end() {
-			NodeValue::Let(id, None)
+			NodeKind::Expr(Expr::Let(id, None))
 		} else {
 			if !context.skip_symbol("=") {
 				context.add_error(Error::ExpectedSymbol("=", context.span()).at("let declaration"));
-				NodeValue::Invalid
+				NodeKind::Invalid
 			} else {
 				let expr = parse_expression(context);
 				match expr.value {
-					NodeValue::Expr(expr) => NodeValue::Let(id, Some(expr)),
-					NodeValue::None => {
+					NodeKind::Expr(expr) => NodeKind::Expr(Expr::Let(id, Some(expr.into()))),
+					NodeKind::None => {
 						context.add_error(
 							Error::ExpectedExpression(context.span()).at("let declaration"),
 						);
-						NodeValue::Invalid
+						NodeKind::Invalid
 					}
-					NodeValue::Invalid => NodeValue::Invalid,
-					_ => unreachable!(),
+					NodeKind::Invalid => NodeKind::Invalid,
 				}
 			}
 		};

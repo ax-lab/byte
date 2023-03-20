@@ -14,12 +14,12 @@ use super::{Context, OpBinary, OpTernary, OpUnary};
 /// program output
 #[derive(Clone, Debug)]
 pub struct Node<'a> {
-	pub value: NodeValue,
+	pub value: NodeKind,
 	pub span: Span<'a>,
 }
 
 impl<'a> Node<'a> {
-	pub fn new(pos: Cursor<'a>, end: Cursor<'a>, value: NodeValue) -> Self {
+	pub fn new(pos: Cursor<'a>, end: Cursor<'a>, value: NodeKind) -> Self {
 		Node {
 			span: Span { pos, end },
 			value,
@@ -29,25 +29,24 @@ impl<'a> Node<'a> {
 	#[allow(unused)]
 	pub fn as_expression(self, context: &mut Context<'a>) -> Result<Expr, Node<'a>> {
 		match self.value {
-			NodeValue::Expr(expr) => Ok(expr),
-			NodeValue::Invalid => Err(self),
-			NodeValue::None | NodeValue::Let(..) => {
+			NodeKind::Expr(expr) => Ok(expr),
+			NodeKind::Invalid => Err(self),
+			NodeKind::None => {
 				context.add_error(Error::ExpectedExpression(context.span()));
-				Err(NodeValue::Invalid.at_pos(context.pos()))
+				Err(NodeKind::Invalid.at_pos(context.pos()))
 			}
 		}
 	}
 }
 
 #[derive(Clone, Debug)]
-pub enum NodeValue {
+pub enum NodeKind {
 	None,
 	Invalid,
 	Expr(Expr),
-	Let(String, Option<Expr>),
 }
 
-impl NodeValue {
+impl NodeKind {
 	pub fn at<'a>(self, pos: Cursor<'a>, end: Cursor<'a>) -> Node<'a> {
 		Node {
 			span: Span { pos, end },
@@ -74,6 +73,7 @@ pub enum Expr {
 	Unary(OpUnary, Box<Expr>),
 	Binary(OpBinary, Box<Expr>, Box<Expr>),
 	Ternary(OpTernary, Box<Expr>, Box<Expr>, Box<Expr>),
+	Let(String, Option<Box<Expr>>),
 }
 
 #[derive(Clone, Debug)]
@@ -86,7 +86,7 @@ pub enum Atom {
 }
 
 impl Atom {
-	pub fn as_value(self) -> NodeValue {
-		NodeValue::Expr(Expr::Value(self))
+	pub fn as_value(self) -> NodeKind {
+		NodeKind::Expr(Expr::Value(self))
 	}
 }

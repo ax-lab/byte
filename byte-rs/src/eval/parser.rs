@@ -73,26 +73,18 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 
 		let atom = parse_atom(context);
 		match atom.value {
-			NodeValue::Expr(expr) => {
+			NodeKind::Expr(expr) => {
 				values.push_back(expr);
 			}
-			NodeValue::None => {
+			NodeKind::None => {
 				return if ops.len() > 0 {
 					context.add_error(Error::ExpectedExpression(context.span()));
-					NodeValue::Invalid.at(pos, context.pos())
+					NodeKind::Invalid.at(pos, context.pos())
 				} else {
 					break;
 				};
 			}
-			NodeValue::Invalid => return NodeValue::Invalid.at(pos, context.pos()),
-			_ => {
-				return if ops.len() > 0 {
-					context.add_error(Error::ExpectedExpression(atom.span));
-					NodeValue::Invalid.at(pos, context.pos())
-				} else {
-					atom
-				}
-			}
+			NodeKind::Invalid => return NodeKind::Invalid.at(pos, context.pos()),
 		};
 
 		// TODO: posfix operators (always pop themselves)
@@ -106,21 +98,21 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 
 			let expr = parse_expression(context);
 			let expr = match expr.value {
-				NodeValue::Expr(expr) => expr,
-				NodeValue::None | NodeValue::Let(..) => {
+				NodeKind::Expr(expr) => expr,
+				NodeKind::None => {
 					context.add_error(
 						Error::ExpectedExpression(context.span()).at("ternary operator"),
 					);
-					return NodeValue::Invalid.at(pos, context.pos());
+					return NodeKind::Invalid.at(pos, context.pos());
 				}
-				NodeValue::Invalid => return NodeValue::Invalid.at(pos, context.pos()),
+				NodeKind::Invalid => return NodeKind::Invalid.at(pos, context.pos()),
 			};
 			values.push_back(expr);
 
 			if !context.skip_symbol(end) {
 				context
 					.add_error(Error::ExpectedSymbol(end, context.span()).at("ternary operator"));
-				return NodeValue::Invalid.at(pos, context.pos());
+				return NodeKind::Invalid.at(pos, context.pos());
 			}
 		} else if let Some(op) = context.lex().symbol().and_then(|next| OpBinary::get(next)) {
 			let op = Op::Binary(op);
@@ -137,18 +129,18 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 	}
 
 	if values.len() == 0 {
-		NodeValue::None.at_pos(pos)
+		NodeKind::None.at_pos(pos)
 	} else {
 		assert!(values.len() == 1);
 		let expr = values.pop_back().unwrap();
-		NodeValue::Expr(expr).at(pos, context.pos())
+		NodeKind::Expr(expr).at(pos, context.pos())
 	}
 }
 
 fn parse_atom<'a>(context: &mut Context<'a>) -> Node<'a> {
 	let pos = context.pos();
 	let value = match context.token() {
-		Token::Invalid => NodeValue::Invalid,
+		Token::Invalid => NodeKind::Invalid,
 		Token::Identifier => {
 			let value = match context.lex().text() {
 				"null" => Atom::Null.as_value(),
@@ -182,17 +174,17 @@ fn parse_atom<'a>(context: &mut Context<'a>) -> Node<'a> {
 			let next = parse_node(context);
 			*context = context.clone().pop_scope();
 			match next.value {
-				NodeValue::Invalid => return next,
-				NodeValue::None => {
+				NodeKind::Invalid => return next,
+				NodeKind::None => {
 					if context.is_valid() {
 						context.add_error(Error::ExpectedExpression(context.span()));
 					}
-					NodeValue::Invalid
+					NodeKind::Invalid
 				}
 				next => next,
 			}
 		}
-		_ => NodeValue::None,
+		_ => NodeKind::None,
 	};
 	let end = context.pos();
 	Node::new(pos, end, value)

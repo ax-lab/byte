@@ -85,23 +85,23 @@ pub fn run(input: Stream) -> Result {
 
 fn execute(rt: &mut Runtime, node: Node) -> Result {
 	match node.value {
-		NodeValue::None => Result::None,
-		NodeValue::Invalid => Result::Fatal(format!("invalid node")),
-		NodeValue::Expr(expr) => Result::Value(execute_expr(rt, expr)),
-		NodeValue::Let(id, expr) => {
-			let value = if let Some(expr) = expr {
-				execute_expr(rt, expr)
-			} else {
-				Value::Null
-			};
-			rt.set(id.as_str(), value.clone());
-			Result::Value(value)
-		}
+		NodeKind::None => Result::None,
+		NodeKind::Invalid => Result::Fatal(format!("invalid node")),
+		NodeKind::Expr(expr) => Result::Value(execute_expr(rt, expr)),
 	}
 }
 
 fn execute_expr<'a>(rt: &mut Runtime, expr: Expr) -> Value {
 	match expr {
+		Expr::Let(id, expr) => {
+			let value = if let Some(expr) = expr {
+				execute_expr(rt, *expr)
+			} else {
+				Value::Null
+			};
+			rt.set(id.as_str(), value.clone());
+			value
+		}
 		Expr::Unary(op, a) => {
 			let a = execute_expr(rt, *a);
 			match op {
