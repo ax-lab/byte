@@ -85,6 +85,14 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 				};
 			}
 			NodeValue::Invalid => return NodeValue::Invalid.at(pos, context.pos()),
+			_ => {
+				return if ops.len() > 0 {
+					context.add_error(Error::ExpectedExpression(atom.span));
+					NodeValue::Invalid.at(pos, context.pos())
+				} else {
+					atom
+				}
+			}
 		};
 
 		// TODO: posfix operators (always pop themselves)
@@ -99,7 +107,7 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 			let expr = parse_expression(context);
 			let expr = match expr.value {
 				NodeValue::Expr(expr) => expr,
-				NodeValue::None => {
+				NodeValue::None | NodeValue::Let(..) => {
 					context.add_error(
 						Error::ExpectedExpression(context.span()).at("ternary operator"),
 					);
@@ -147,12 +155,14 @@ fn parse_atom<'a>(context: &mut Context<'a>) -> Node<'a> {
 				"true" => Atom::Bool(true).as_value(),
 				"false" => Atom::Bool(false).as_value(),
 				id => {
+					let saved = context.clone();
 					if let Some(parser) = context.get_macro(id) {
-						context.next();
-						return parser.parse(context);
-					} else {
-						Atom::Id(id.into()).as_value()
+						if let Some(result) = parser.parse(context) {
+							return result;
+						}
 					}
+					*context = saved;
+					Atom::Id(id.into()).as_value()
 				}
 			};
 			context.next();

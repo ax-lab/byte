@@ -88,6 +88,15 @@ fn execute(rt: &mut Runtime, node: Node) -> Result {
 		NodeValue::None => Result::None,
 		NodeValue::Invalid => Result::Fatal(format!("invalid node")),
 		NodeValue::Expr(expr) => Result::Value(execute_expr(rt, expr)),
+		NodeValue::Let(id, expr) => {
+			let value = if let Some(expr) = expr {
+				execute_expr(rt, expr)
+			} else {
+				Value::Null
+			};
+			rt.set(id.as_str(), value.clone());
+			Result::Value(value)
+		}
 	}
 }
 

@@ -83,8 +83,8 @@ impl<'a> Context<'a> {
 	}
 
 	pub fn get_macro(&self, name: &str) -> Option<Box<dyn Macro>> {
-		if name == "add1" {
-			Some(Box::new(macros::AddOne))
+		if name == "let" || name == "const" {
+			Some(Box::new(macros::Let))
 		} else {
 			None
 		}
@@ -136,6 +136,10 @@ impl<'a> Context<'a> {
 
 	pub fn token(&self) -> Token {
 		self.lex().token
+	}
+
+	pub fn at_end(&self) -> bool {
+		!self.has_some()
 	}
 
 	pub fn has_some(&self) -> bool {

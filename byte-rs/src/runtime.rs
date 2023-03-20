@@ -21,7 +21,6 @@ impl Runtime {
 			.unwrap_or_else(|| panic!("variable {name} not defined"))
 	}
 
-	#[allow(unused)]
 	pub fn set(&mut self, name: &str, value: Value) -> Option<Value> {
 		if let Some(entry) = self.vars.get_mut(name) {
 			let previous = std::mem::replace(entry, value);

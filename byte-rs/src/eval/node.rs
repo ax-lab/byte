@@ -5,6 +5,13 @@ use crate::{
 
 use super::{Context, OpBinary, OpTernary, OpUnary};
 
+/// Represents a syntactic structure in the source code.
+///
+/// Nodes either map 1:1 to expressions in the source or are parsed through
+/// syntax macros.
+///
+/// After parsing, a Node is evaluated and the result is the actual compiled
+/// program output
 #[derive(Clone, Debug)]
 pub struct Node<'a> {
 	pub value: NodeValue,
@@ -19,11 +26,12 @@ impl<'a> Node<'a> {
 		}
 	}
 
+	#[allow(unused)]
 	pub fn as_expression(self, context: &mut Context<'a>) -> Result<Expr, Node<'a>> {
 		match self.value {
 			NodeValue::Expr(expr) => Ok(expr),
 			NodeValue::Invalid => Err(self),
-			NodeValue::None => {
+			NodeValue::None | NodeValue::Let(..) => {
 				context.add_error(Error::ExpectedExpression(context.span()));
 				Err(NodeValue::Invalid.at_pos(context.pos()))
 			}
@@ -36,6 +44,7 @@ pub enum NodeValue {
 	None,
 	Invalid,
 	Expr(Expr),
+	Let(String, Option<Expr>),
 }
 
 impl NodeValue {
@@ -53,6 +62,7 @@ impl NodeValue {
 		}
 	}
 
+	#[allow(unused)]
 	pub fn at_span<'a>(self, span: Span<'a>) -> Node<'a> {
 		Node { span, value: self }
 	}
