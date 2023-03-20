@@ -84,16 +84,16 @@ pub fn run(input: Stream) -> Result {
 }
 
 fn execute(rt: &mut Runtime, node: Node) -> Result {
-	match node.value {
-		NodeKind::None => Result::None,
-		NodeKind::Invalid => Result::Fatal(format!("invalid node")),
-		NodeKind::Expr(expr) => Result::Value(execute_expr(rt, expr)),
+	match node {
+		Node::None(..) => Result::None,
+		Node::Invalid(span) => Result::Fatal(format!("invalid node at {span}")),
+		Node::Some(expr, ..) => Result::Value(execute_expr(rt, expr)),
 	}
 }
 
-fn execute_expr<'a>(rt: &mut Runtime, expr: Expr) -> Value {
+fn execute_expr<'a>(rt: &mut Runtime, expr: NodeKind) -> Value {
 	match expr {
-		Expr::Let(id, expr) => {
+		NodeKind::Let(id, expr) => {
 			let value = if let Some(expr) = expr {
 				execute_expr(rt, *expr)
 			} else {
@@ -102,7 +102,7 @@ fn execute_expr<'a>(rt: &mut Runtime, expr: Expr) -> Value {
 			rt.set(id.as_str(), value.clone());
 			value
 		}
-		Expr::Unary(op, a) => {
+		NodeKind::Unary(op, a) => {
 			let a = execute_expr(rt, *a);
 			match op {
 				OpUnary::Minus => a.op_minus(),
@@ -115,7 +115,7 @@ fn execute_expr<'a>(rt: &mut Runtime, expr: Expr) -> Value {
 				OpUnary::PosDecrement => a.op_pos_decrement(),
 			}
 		}
-		Expr::Binary(op, a, b) => {
+		NodeKind::Binary(op, a, b) => {
 			let a = execute_expr(rt, *a);
 			let b = move || execute_expr(rt, *b);
 			match op {
@@ -142,7 +142,7 @@ fn execute_expr<'a>(rt: &mut Runtime, expr: Expr) -> Value {
 				}
 			}
 		}
-		Expr::Ternary(op, a, b, c) => match op {
+		NodeKind::Ternary(op, a, b, c) => match op {
 			OpTernary::Conditional => {
 				let a = execute_expr(rt, *a);
 				if a.to_bool() {
@@ -152,7 +152,7 @@ fn execute_expr<'a>(rt: &mut Runtime, expr: Expr) -> Value {
 				}
 			}
 		},
-		Expr::Value(atom) => match atom {
+		NodeKind::Atom(atom) => match atom {
 			Atom::Bool(value) => Value::Bool(value),
 			Atom::Integer(value) => Value::Integer(value as i128),
 			Atom::Null => Value::Null,

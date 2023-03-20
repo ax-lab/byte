@@ -1,9 +1,6 @@
-use crate::{
-	lexer::{Cursor, Span},
-	Error,
-};
+use crate::lexer::{Cursor, Span};
 
-use super::{Context, OpBinary, OpTernary, OpUnary};
+use super::{OpBinary, OpTernary, OpUnary};
 
 /// Represents a syntactic structure in the source code.
 ///
@@ -13,67 +10,33 @@ use super::{Context, OpBinary, OpTernary, OpUnary};
 /// After parsing, a Node is evaluated and the result is the actual compiled
 /// program output
 #[derive(Clone, Debug)]
-pub struct Node<'a> {
-	pub value: NodeKind,
-	pub span: Span<'a>,
+pub enum Node<'a> {
+	None(Cursor<'a>),
+	Invalid(Span<'a>),
+	Some(NodeKind, Span<'a>),
 }
 
 impl<'a> Node<'a> {
-	pub fn new(pos: Cursor<'a>, end: Cursor<'a>, value: NodeKind) -> Self {
-		Node {
-			span: Span { pos, end },
-			value,
-		}
-	}
-
 	#[allow(unused)]
-	pub fn as_expression(self, context: &mut Context<'a>) -> Result<Expr, Node<'a>> {
-		match self.value {
-			NodeKind::Expr(expr) => Ok(expr),
-			NodeKind::Invalid => Err(self),
-			NodeKind::None => {
-				context.add_error(Error::ExpectedExpression(context.span()));
-				Err(NodeKind::Invalid.at_pos(context.pos()))
-			}
+	pub fn span(&self) -> Span<'a> {
+		match self {
+			Node::None(cur) => Span {
+				pos: *cur,
+				end: *cur,
+			},
+			Node::Invalid(span) => *span,
+			Node::Some(_, span) => *span,
 		}
 	}
 }
 
 #[derive(Clone, Debug)]
 pub enum NodeKind {
-	None,
-	Invalid,
-	Expr(Expr),
-}
-
-impl NodeKind {
-	pub fn at<'a>(self, pos: Cursor<'a>, end: Cursor<'a>) -> Node<'a> {
-		Node {
-			span: Span { pos, end },
-			value: self,
-		}
-	}
-
-	pub fn at_pos<'a>(self, pos: Cursor<'a>) -> Node<'a> {
-		Node {
-			span: Span { pos, end: pos },
-			value: self,
-		}
-	}
-
-	#[allow(unused)]
-	pub fn at_span<'a>(self, span: Span<'a>) -> Node<'a> {
-		Node { span, value: self }
-	}
-}
-
-#[derive(Clone, Debug)]
-pub enum Expr {
-	Value(Atom),
-	Unary(OpUnary, Box<Expr>),
-	Binary(OpBinary, Box<Expr>, Box<Expr>),
-	Ternary(OpTernary, Box<Expr>, Box<Expr>, Box<Expr>),
-	Let(String, Option<Box<Expr>>),
+	Atom(Atom),
+	Unary(OpUnary, Box<NodeKind>),
+	Binary(OpBinary, Box<NodeKind>, Box<NodeKind>),
+	Ternary(OpTernary, Box<NodeKind>, Box<NodeKind>, Box<NodeKind>),
+	Let(String, Option<Box<NodeKind>>),
 }
 
 #[derive(Clone, Debug)]
@@ -87,6 +50,6 @@ pub enum Atom {
 
 impl Atom {
 	pub fn as_value(self) -> NodeKind {
-		NodeKind::Expr(Expr::Value(self))
+		NodeKind::Atom(self)
 	}
 }

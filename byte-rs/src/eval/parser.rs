@@ -22,32 +22,32 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 	let mut values = VecDeque::new();
 
 	// pop a single operation from the stack
-	let pop_stack = |ops: &mut VecDeque<Op>, values: &mut VecDeque<Expr>| {
+	let pop_stack = |ops: &mut VecDeque<Op>, values: &mut VecDeque<NodeKind>| {
 		let op = ops.pop_back().unwrap();
 		match op {
 			Op::Unary(op) => {
 				let expr = values.pop_back().unwrap();
-				let expr = Expr::Unary(op, expr.into());
+				let expr = NodeKind::Unary(op, expr.into());
 				values.push_back(expr);
 			}
 			Op::Binary(op) => {
 				let rhs = values.pop_back().unwrap();
 				let lhs = values.pop_back().unwrap();
-				let expr = Expr::Binary(op, lhs.into(), rhs.into());
+				let expr = NodeKind::Binary(op, lhs.into(), rhs.into());
 				values.push_back(expr);
 			}
 			Op::Ternary(op) => {
 				let c = values.pop_back().unwrap();
 				let b = values.pop_back().unwrap();
 				let a = values.pop_back().unwrap();
-				let expr = Expr::Ternary(op, a.into(), b.into(), c.into());
+				let expr = NodeKind::Ternary(op, a.into(), b.into(), c.into());
 				values.push_back(expr);
 			}
 		}
 	};
 
 	// push an operator onto the stack, popping operations with higher precedence
-	let push_op = |op: Op, ops: &mut VecDeque<Op>, values: &mut VecDeque<Expr>| {
+	let push_op = |op: Op, ops: &mut VecDeque<Op>, values: &mut VecDeque<NodeKind>| {
 		while let Some(top) = ops.back() {
 			if top < &op {
 				pop_stack(ops, values);
@@ -71,20 +71,19 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 			context.next();
 		}
 
-		let atom = parse_atom(context);
-		match atom.value {
-			NodeKind::Expr(expr) => {
+		match parse_atom(context) {
+			Node::Some(expr, ..) => {
 				values.push_back(expr);
 			}
-			NodeKind::None => {
+			Node::None(..) => {
 				return if ops.len() > 0 {
 					context.add_error(Error::ExpectedExpression(context.span()));
-					NodeKind::Invalid.at(pos, context.pos())
+					Node::Invalid(context.from(pos))
 				} else {
 					break;
 				};
 			}
-			NodeKind::Invalid => return NodeKind::Invalid.at(pos, context.pos()),
+			Node::Invalid(span) => return Node::Invalid(span),
 		};
 
 		// TODO: posfix operators (always pop themselves)
@@ -96,23 +95,22 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 			let op = Op::Ternary(op);
 			push_op(op, &mut ops, &mut values);
 
-			let expr = parse_expression(context);
-			let expr = match expr.value {
-				NodeKind::Expr(expr) => expr,
-				NodeKind::None => {
+			let expr = match parse_expression(context) {
+				Node::Some(expr, ..) => expr,
+				Node::None(..) => {
 					context.add_error(
 						Error::ExpectedExpression(context.span()).at("ternary operator"),
 					);
-					return NodeKind::Invalid.at(pos, context.pos());
+					return Node::Invalid(context.from(pos));
 				}
-				NodeKind::Invalid => return NodeKind::Invalid.at(pos, context.pos()),
+				Node::Invalid(..) => return Node::Invalid(context.from(pos)),
 			};
 			values.push_back(expr);
 
 			if !context.skip_symbol(end) {
 				context
 					.add_error(Error::ExpectedSymbol(end, context.span()).at("ternary operator"));
-				return NodeKind::Invalid.at(pos, context.pos());
+				return Node::Invalid(context.from(pos));
 			}
 		} else if let Some(op) = context.lex().symbol().and_then(|next| OpBinary::get(next)) {
 			let op = Op::Binary(op);
@@ -129,18 +127,18 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 	}
 
 	if values.len() == 0 {
-		NodeKind::None.at_pos(pos)
+		Node::None(pos)
 	} else {
 		assert!(values.len() == 1);
 		let expr = values.pop_back().unwrap();
-		NodeKind::Expr(expr).at(pos, context.pos())
+		Node::Some(expr, context.from(pos))
 	}
 }
 
 fn parse_atom<'a>(context: &mut Context<'a>) -> Node<'a> {
 	let pos = context.pos();
 	let value = match context.token() {
-		Token::Invalid => NodeKind::Invalid,
+		Token::Invalid => return Node::Invalid(context.span()),
 		Token::Identifier => {
 			let value = match context.lex().text() {
 				"null" => Atom::Null.as_value(),
@@ -173,19 +171,18 @@ fn parse_atom<'a>(context: &mut Context<'a>) -> Node<'a> {
 			*context = context.clone().scope_parenthesized("(", ")");
 			let next = parse_node(context);
 			*context = context.clone().pop_scope();
-			match next.value {
-				NodeKind::Invalid => return next,
-				NodeKind::None => {
+			match next {
+				Node::Invalid(..) => return next,
+				Node::None(..) => {
 					if context.is_valid() {
 						context.add_error(Error::ExpectedExpression(context.span()));
 					}
-					NodeKind::Invalid
+					return Node::Invalid(context.from(pos));
 				}
-				next => next,
+				Node::Some(expr, ..) => expr,
 			}
 		}
-		_ => NodeKind::None,
+		_ => return Node::None(pos),
 	};
-	let end = context.pos();
-	Node::new(pos, end, value)
+	Node::Some(value, context.from(pos))
 }

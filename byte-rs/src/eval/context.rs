@@ -94,7 +94,14 @@ impl<'a> Context<'a> {
 // Lexing
 impl<'a> Context<'a> {
 	pub fn pos(&self) -> Cursor<'a> {
-		self.input.pos()
+		self.lex().span.pos
+	}
+
+	pub fn from(&self, pos: Cursor<'a>) -> Span<'a> {
+		Span {
+			pos,
+			end: self.pos(),
+		}
 	}
 
 	pub fn source(&self) -> &'a dyn Input {

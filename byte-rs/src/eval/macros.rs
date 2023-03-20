@@ -1,6 +1,6 @@
 use crate::{lexer::Token, Error};
 
-use super::{parser::parse_expression, Context, Expr, Node, NodeKind};
+use super::{parser::parse_expression, Context, Node, NodeKind};
 
 /// Trait for low-level syntax macros operating during the parsing stage.
 pub trait Macro {
@@ -25,26 +25,28 @@ impl Macro for Let {
 		};
 
 		let value = if context.at_end() {
-			NodeKind::Expr(Expr::Let(id, None))
+			Node::Some(NodeKind::Let(id, None), context.from(pos))
 		} else {
 			if !context.skip_symbol("=") {
 				context.add_error(Error::ExpectedSymbol("=", context.span()).at("let declaration"));
-				NodeKind::Invalid
+				Node::Invalid(context.span())
 			} else {
 				let expr = parse_expression(context);
-				match expr.value {
-					NodeKind::Expr(expr) => NodeKind::Expr(Expr::Let(id, Some(expr.into()))),
-					NodeKind::None => {
+				match expr {
+					Node::Some(expr, ..) => {
+						Node::Some(NodeKind::Let(id, Some(expr.into())), context.from(pos))
+					}
+					Node::None(..) => {
 						context.add_error(
 							Error::ExpectedExpression(context.span()).at("let declaration"),
 						);
-						NodeKind::Invalid
+						Node::Invalid(context.from(pos))
 					}
-					NodeKind::Invalid => NodeKind::Invalid,
+					Node::Invalid(span) => Node::Invalid(span),
 				}
 			}
 		};
 
-		Some(value.at(pos, context.pos()))
+		Some(value)
 	}
 }

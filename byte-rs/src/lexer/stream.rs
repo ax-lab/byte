@@ -40,10 +40,6 @@ impl<'a> Stream<'a> {
 		out
 	}
 
-	pub fn pos(&self) -> Cursor<'a> {
-		self.state.borrow().cur()
-	}
-
 	pub fn has_errors(&self) -> bool {
 		self.errors.borrow().len() > 0
 	}
