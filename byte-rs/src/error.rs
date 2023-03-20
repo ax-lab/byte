@@ -4,6 +4,7 @@ pub type Result<'a, T> = std::result::Result<T, Error<'a>>;
 
 #[derive(Clone, Debug)]
 pub enum Error<'a> {
+	At(String, Box<Error<'a>>),
 	Lexer(LexerError, Span<'a>),
 	Dedent(Span<'a>),
 	ClosingSymbol(&'static str, Span<'a>),
@@ -11,12 +12,13 @@ pub enum Error<'a> {
 	ExpectedEnd(Lex<'a>),
 	ExpectedExpression(Span<'a>),
 	ExpectedSymbol(&'static str, Span<'a>),
-	At(String, Box<Error<'a>>),
+	InvalidToken(Span<'a>),
 }
 
 impl<'a> Error<'a> {
 	pub fn span(&self) -> Span<'a> {
 		match self {
+			Error::At(_, err) => err.span(),
 			Error::Lexer(_, span) => *span,
 			Error::Dedent(span) => *span,
 			Error::ClosingSymbol(_, span) => *span,
@@ -24,7 +26,7 @@ impl<'a> Error<'a> {
 			Error::ExpectedEnd(lex) => lex.span,
 			Error::ExpectedExpression(span) => *span,
 			Error::ExpectedSymbol(_, span) => *span,
-			Error::At(_, err) => err.span(),
+			Error::InvalidToken(span) => *span,
 		}
 	}
 
@@ -50,6 +52,7 @@ impl<'a> std::fmt::Display for Error<'a> {
 			Error::ExpectedEnd(sym) => write!(f, "expected end, got `{sym}`"),
 			Error::ExpectedExpression(..) => write!(f, "expression expected"),
 			Error::ExpectedSymbol(sym, ..) => write!(f, "expected `{sym}`"),
+			Error::InvalidToken(..) => write!(f, "invalid token, parsing failed"),
 		}
 	}
 }

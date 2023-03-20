@@ -77,8 +77,7 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 			}
 			Node::None(..) => {
 				return if ops.len() > 0 {
-					context.add_error(Error::ExpectedExpression(context.span()));
-					Node::Invalid(context.from(pos))
+					Node::Invalid(Error::ExpectedExpression(context.span()))
 				} else {
 					break;
 				};
@@ -98,19 +97,18 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 			let expr = match parse_expression(context) {
 				Node::Some(expr, ..) => expr,
 				Node::None(..) => {
-					context.add_error(
+					return Node::Invalid(
 						Error::ExpectedExpression(context.span()).at("ternary operator"),
 					);
-					return Node::Invalid(context.from(pos));
 				}
-				Node::Invalid(..) => return Node::Invalid(context.from(pos)),
+				Node::Invalid(error) => return Node::Invalid(error),
 			};
 			values.push_back(expr);
 
 			if !context.skip_symbol(end) {
-				context
-					.add_error(Error::ExpectedSymbol(end, context.span()).at("ternary operator"));
-				return Node::Invalid(context.from(pos));
+				return Node::Invalid(
+					Error::ExpectedSymbol(end, context.span()).at("ternary operator"),
+				);
 			}
 		} else if let Some(op) = context.lex().symbol().and_then(|next| OpBinary::get(next)) {
 			let op = Op::Binary(op);
@@ -138,7 +136,7 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 fn parse_atom<'a>(context: &mut Context<'a>) -> Node<'a> {
 	let pos = context.pos();
 	let value = match context.token() {
-		Token::Invalid => return Node::Invalid(context.span()),
+		Token::Invalid => return Node::Invalid(Error::InvalidToken(context.span())),
 		Token::Identifier => {
 			let value = match context.lex().text() {
 				"null" => Atom::Null.as_value(),
@@ -172,12 +170,9 @@ fn parse_atom<'a>(context: &mut Context<'a>) -> Node<'a> {
 			let next = parse_node(context);
 			*context = context.clone().pop_scope();
 			match next {
-				Node::Invalid(..) => return next,
+				Node::Invalid(error) => return Node::Invalid(error),
 				Node::None(..) => {
-					if context.is_valid() {
-						context.add_error(Error::ExpectedExpression(context.span()));
-					}
-					return Node::Invalid(context.from(pos));
+					return Node::Invalid(Error::ExpectedExpression(context.span()));
 				}
 				Node::Some(expr, ..) => expr,
 			}

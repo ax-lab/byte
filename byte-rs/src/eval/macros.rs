@@ -28,20 +28,16 @@ impl Macro for Let {
 			Node::Some(NodeKind::Let(id, None), context.from(pos))
 		} else {
 			if !context.skip_symbol("=") {
-				context.add_error(Error::ExpectedSymbol("=", context.span()).at("let declaration"));
-				Node::Invalid(context.span())
+				Node::Invalid(Error::ExpectedSymbol("=", context.span()).at("let declaration"))
 			} else {
 				let expr = parse_expression(context);
 				match expr {
 					Node::Some(expr, ..) => {
 						Node::Some(NodeKind::Let(id, Some(expr.into())), context.from(pos))
 					}
-					Node::None(..) => {
-						context.add_error(
-							Error::ExpectedExpression(context.span()).at("let declaration"),
-						);
-						Node::Invalid(context.from(pos))
-					}
+					Node::None(..) => Node::Invalid(
+						Error::ExpectedExpression(context.span()).at("let declaration"),
+					),
 					Node::Invalid(span) => Node::Invalid(span),
 				}
 			}

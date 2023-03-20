@@ -8,7 +8,7 @@ use crate::{
 
 use super::{
 	macros::{self, Macro},
-	Node,
+	NodeKind,
 };
 
 #[derive(Copy, Clone)]
@@ -38,7 +38,7 @@ impl<'a> Context<'a> {
 		self.input.add_error(error);
 	}
 
-	pub fn finish(self, program: Vec<Node>) -> (Vec<Node>, Vec<Error<'a>>) {
+	pub fn finish(self, program: Vec<NodeKind>) -> (Vec<NodeKind>, Vec<Error<'a>>) {
 		(program, self.input.errors())
 	}
 

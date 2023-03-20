@@ -16,6 +16,7 @@ pub use super::runtime::*;
 mod macros;
 
 #[derive(Clone, Debug)]
+#[allow(unused)]
 pub enum Result {
 	None,
 	Fatal(String),
@@ -46,11 +47,26 @@ pub fn run(input: Stream) -> Result {
 	let mut program = Vec::new();
 	while context.has_some() && context.is_valid() {
 		let mut line = context.scope_line(";");
-		let expr = parser::parse_node(&mut line);
-		let node = resolve_macro(&mut line, expr);
+		let node = parser::parse_node(&mut line);
+		context = line.pop_scope();
+
+		let node = if let Node::Some(..) = node {
+			resolve_macro(&mut context, node)
+		} else {
+			node
+		};
+		let node = match node {
+			Node::Invalid(error) => {
+				context.add_error(error);
+				break;
+			}
+			Node::None(pos) => {
+				panic!("unsupported expression at {pos}");
+			}
+			Node::Some(value, ..) => value,
+		};
 		program.push(node);
 
-		context = line.pop_scope();
 		if context.token() == Token::Symbol(";") {
 			context.next();
 		}
@@ -83,12 +99,8 @@ pub fn run(input: Stream) -> Result {
 	result
 }
 
-fn execute(rt: &mut Runtime, node: Node) -> Result {
-	match node {
-		Node::None(..) => Result::None,
-		Node::Invalid(span) => Result::Fatal(format!("invalid node at {span}")),
-		Node::Some(expr, ..) => Result::Value(execute_expr(rt, expr)),
-	}
+fn execute(rt: &mut Runtime, node: NodeKind) -> Result {
+	Result::Value(execute_expr(rt, node))
 }
 
 fn execute_expr<'a>(rt: &mut Runtime, expr: NodeKind) -> Value {

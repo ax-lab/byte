@@ -1,4 +1,7 @@
-use crate::lexer::{Cursor, Span};
+use crate::{
+	lexer::{Cursor, Span},
+	Error,
+};
 
 use super::{OpBinary, OpTernary, OpUnary};
 
@@ -12,7 +15,7 @@ use super::{OpBinary, OpTernary, OpUnary};
 #[derive(Clone, Debug)]
 pub enum Node<'a> {
 	None(Cursor<'a>),
-	Invalid(Span<'a>),
+	Invalid(Error<'a>),
 	Some(NodeKind, Span<'a>),
 }
 
@@ -24,7 +27,7 @@ impl<'a> Node<'a> {
 				pos: *cur,
 				end: *cur,
 			},
-			Node::Invalid(span) => *span,
+			Node::Invalid(error) => error.span(),
 			Node::Some(_, span) => *span,
 		}
 	}
