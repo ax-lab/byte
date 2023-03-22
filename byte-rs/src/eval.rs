@@ -15,6 +15,9 @@ pub use super::runtime::*;
 
 mod macros;
 
+#[allow(unused)]
+pub mod scope;
+
 #[derive(Clone, Debug)]
 #[allow(unused)]
 pub enum Result {
