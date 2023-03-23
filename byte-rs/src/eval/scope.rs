@@ -3,10 +3,10 @@ use crate::{
 	Error,
 };
 
-pub enum Action {
+pub enum Action<'a> {
 	None,
 	EnterChild {
-		scope: Box<dyn Scope>,
+		scope: Box<dyn Scope<'a>>,
 		isolated: bool,
 	},
 }
@@ -22,18 +22,18 @@ pub enum Stop<'a> {
 	Error(Error<'a>),
 }
 
-pub trait Scope {
-	fn check_action(&mut self, input: &mut Stream) -> Action;
-	fn check_filter(&mut self, input: &Stream) -> Filter;
-	fn leave<'a>(&self, input: &Stream<'a>) -> Stop<'a>;
+pub trait Scope<'a> {
+	fn check_action(&mut self, input: &mut Stream<'a>) -> Action<'a>;
+	fn check_filter(&mut self, input: &Stream<'a>) -> Filter;
+	fn leave(&self, input: &Stream<'a>) -> Stop<'a>;
 }
 
-pub enum Scoped {
+pub enum Scoped<'a> {
 	Root,
 	Child {
 		isolated: bool,
-		scope: Box<dyn Scope>,
-		parent: Option<Box<Scoped>>,
+		scope: Box<dyn Scope<'a>>,
+		parent: Option<Box<Scoped<'a>>>,
 	},
 }
 
@@ -43,14 +43,14 @@ pub enum LexResult<'a> {
 	Error(Error<'a>),
 }
 
-impl Default for Scoped {
+impl<'a> Default for Scoped<'a> {
 	fn default() -> Self {
 		Scoped::Root
 	}
 }
 
-impl Scoped {
-	pub fn next<'a>(&mut self, input: &mut Stream<'a>) -> LexResult<'a> {
+impl<'a> Scoped<'a> {
+	pub fn next(&mut self, input: &mut Stream<'a>) -> LexResult<'a> {
 		loop {
 			match self {
 				// the root scope just reads the next value without filtering
@@ -136,7 +136,7 @@ impl Scoped {
 		}
 	}
 
-	fn check_filter(&mut self, input: &Stream) -> Filter {
+	fn check_filter(&mut self, input: &Stream<'a>) -> Filter {
 		match self {
 			Scoped::Root => Filter::No,
 			Scoped::Child {
@@ -162,14 +162,14 @@ struct ScopeIndented {
 	level: usize,
 }
 
-impl ScopeIndented {
-	fn new() -> Box<dyn Scope> {
+impl<'a> ScopeIndented {
+	fn new() -> Box<dyn Scope<'a>> {
 		Box::new(ScopeIndented { level: 0 })
 	}
 }
 
-impl Scope for ScopeIndented {
-	fn check_action(&mut self, input: &mut Stream) -> Action {
+impl<'a> Scope<'a> for ScopeIndented {
+	fn check_action(&mut self, input: &mut Stream<'a>) -> Action<'a> {
 		Action::None
 	}
 
@@ -208,7 +208,7 @@ impl Scope for ScopeIndented {
 		}
 	}
 
-	fn leave<'a>(&self, input: &Stream<'a>) -> Stop<'a> {
+	fn leave(&self, input: &Stream<'a>) -> Stop<'a> {
 		if self.level > 0 {
 			panic!(
 				"lexer generated unbalanced indentation for {}",
@@ -223,14 +223,14 @@ struct ScopeLine {
 	ended: bool,
 }
 
-impl ScopeLine {
-	fn new() -> Box<dyn Scope> {
+impl<'a> ScopeLine {
+	fn new() -> Box<dyn Scope<'a>> {
 		Box::new(ScopeLine { ended: false })
 	}
 }
 
-impl Scope for ScopeLine {
-	fn check_action(&mut self, input: &mut Stream) -> Action {
+impl<'a> Scope<'a> for ScopeLine {
+	fn check_action(&mut self, input: &mut Stream<'a>) -> Action<'a> {
 		if input.token() == Token::Break {
 			input.next();
 			if input.token() == Token::Indent {
@@ -255,7 +255,67 @@ impl Scope for ScopeLine {
 		}
 	}
 
-	fn leave<'a>(&self, input: &Stream<'a>) -> Stop<'a> {
+	fn leave(&self, input: &Stream<'a>) -> Stop<'a> {
 		Stop::Ok
+	}
+}
+
+struct ScopeParenthesized<'a> {
+	open: bool,
+	err: Option<Error<'a>>,
+	lex: Lex<'a>,
+	sta: &'static str,
+	end: &'static str,
+}
+
+impl<'a> Scope<'a> for ScopeParenthesized<'a> {
+	fn check_action(&mut self, input: &mut Stream<'a>) -> Action<'a> {
+		Action::None
+	}
+
+	fn check_filter(&mut self, input: &Stream<'a>) -> Filter {
+		if !self.open {
+			self.open = true;
+			let sta = self.sta;
+			let cur = input.value();
+			assert_eq!(
+				cur.symbol(),
+				Some(self.sta),
+				"parenthesis for scope does not match (expected {sta}, got {cur})"
+			);
+			Filter::Skip
+		} else if input.value().symbol() == Some(self.end) {
+			self.open = false;
+			Filter::Stop { skip: true }
+		} else {
+			match input.token() {
+				Token::Break => {
+					let mut input = input.clone();
+					input.next();
+					if input.token() != Token::Indent {
+						self.err = Some(Error::ExpectedIndent(input.span()));
+						Filter::Stop { skip: false }
+					} else {
+						Filter::Skip
+					}
+				}
+				_ => Filter::No,
+			}
+		}
+	}
+
+	fn leave(&self, input: &Stream<'a>) -> Stop<'a> {
+		if self.open {
+			let left = self.lex;
+			let next = input.value();
+			Stop::Error(
+				Error::ExpectedSymbol(self.end, next.span)
+					.at(format!("opening `{left}` at {}", left.span)),
+			)
+		} else if let Some(err) = &self.err {
+			Stop::Error(err.clone())
+		} else {
+			Stop::Ok
+		}
 	}
 }

@@ -12,6 +12,7 @@ pub enum Error<'a> {
 	ExpectedEnd(Lex<'a>),
 	ExpectedExpression(Span<'a>),
 	ExpectedSymbol(&'static str, Span<'a>),
+	ExpectedIndent(Span<'a>),
 	InvalidToken(Span<'a>),
 }
 
@@ -26,6 +27,7 @@ impl<'a> Error<'a> {
 			Error::ExpectedEnd(lex) => lex.span,
 			Error::ExpectedExpression(span) => *span,
 			Error::ExpectedSymbol(_, span) => *span,
+			Error::ExpectedIndent(span) => *span,
 			Error::InvalidToken(span) => *span,
 		}
 	}
@@ -52,6 +54,7 @@ impl<'a> std::fmt::Display for Error<'a> {
 			Error::ExpectedEnd(sym) => write!(f, "expected end, got `{sym}`"),
 			Error::ExpectedExpression(..) => write!(f, "expression expected"),
 			Error::ExpectedSymbol(sym, ..) => write!(f, "expected `{sym}`"),
+			Error::ExpectedIndent(..) => write!(f, "expected indented line"),
 			Error::InvalidToken(..) => write!(f, "invalid token, parsing failed"),
 		}
 	}
