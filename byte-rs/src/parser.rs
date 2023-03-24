@@ -123,16 +123,16 @@ fn parse_indented_block<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
 		return ParseResult::Error(input.span(), "block ':' expected".into());
 	}
 
-	if !input.next_if(|value| matches!(value.token, Token::Break | Token::None)) {
+	if !input.next_if(&|value| matches!(value.token, Token::Break | Token::None)) {
 		return ParseResult::Error(input.span(), "end of line expected after ':'".into());
 	}
 
-	if !input.next_if(|value| matches!(value.token, Token::Indent)) {
+	if !input.next_if(&|value| matches!(value.token, Token::Indent)) {
 		return ParseResult::Error(input.span(), "indented block expected".into());
 	}
 
 	let mut block = Vec::new();
-	while !input.next_if(|value| matches!(value.token, Token::Dedent)) {
+	while !input.next_if(&|value| matches!(value.token, Token::Dedent)) {
 		let statement = parse_statement(input);
 		if let ParseResult::Ok(statement) = statement {
 			block.push(statement);
@@ -148,13 +148,13 @@ fn parse_print<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
 	input.next(); // skip `print`
 	let mut expr_list = Vec::new();
 	loop {
-		if input.next_if(|x| matches!(x.token, Token::Break | Token::None)) {
+		if input.next_if(&|x| matches!(x.token, Token::Break | Token::None)) {
 			let res = ParseResult::Ok(Statement::Print(expr_list));
 			break res;
 		}
 
 		if expr_list.len() > 0 {
-			input.next_if(|x| matches!(x.token, Token::Symbol(",")));
+			input.next_if(&|x| matches!(x.token, Token::Symbol(",")));
 		}
 
 		let expr = match parse_expression(input) {

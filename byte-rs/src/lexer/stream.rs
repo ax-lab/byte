@@ -8,6 +8,8 @@ use crate::{Error, Result};
 use super::{Config, Cursor, Indent, Input, Lex, LexerResult, Matcher, Span, Token};
 
 pub trait LexStream<'a> {
+	fn copy(&self) -> Box<dyn LexStream<'a> + 'a>;
+
 	fn source(&self) -> &'a dyn Input;
 
 	fn value(&self) -> Lex<'a>;
@@ -29,7 +31,7 @@ pub trait LexStream<'a> {
 
 	/// Return the next token and true if the predicate matches the current
 	/// token.
-	fn next_if<F: Fn(Lex) -> bool>(&mut self, predicate: F) -> bool {
+	fn next_if(&mut self, predicate: &dyn Fn(Lex) -> bool) -> bool {
 		if predicate(self.value()) {
 			self.next();
 			true
@@ -40,7 +42,7 @@ pub trait LexStream<'a> {
 
 	/// Read the next token if it is the specific symbol.
 	fn skip_symbol(&mut self, symbol: &str) -> bool {
-		self.next_if(|value| value.symbol() == Some(symbol))
+		self.next_if(&|value| value.symbol() == Some(symbol))
 	}
 }
 
@@ -62,6 +64,10 @@ pub struct Stream<'a> {
 }
 
 impl<'a> LexStream<'a> for Stream<'a> {
+	fn copy(&self) -> Box<dyn LexStream<'a> + 'a> {
+		Box::new(self.clone())
+	}
+
 	fn has_errors(&self) -> bool {
 		self.errors.borrow().len() > 0
 	}

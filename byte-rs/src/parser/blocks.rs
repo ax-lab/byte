@@ -37,9 +37,9 @@ fn parse_line<'a>(input: &mut Stream<'a>, level: usize, stop: Option<&'static st
 	if expr.len() == 0 {
 		Block::None
 	} else {
-		input.next_if(|value| value.token == Token::Break);
+		input.next_if(&|value| value.token == Token::Break);
 		// read indented continuation
-		let next = if input.next_if(|value| matches!(value.token, Token::Indent)) {
+		let next = if input.next_if(&|value| matches!(value.token, Token::Indent)) {
 			let mut next = Vec::new();
 			loop {
 				match parse_line(input, level, stop) {
@@ -49,7 +49,7 @@ fn parse_line<'a>(input: &mut Stream<'a>, level: usize, stop: Option<&'static st
 				}
 			}
 
-			if !input.next_if(|value| matches!(value.token, Token::Dedent)) {
+			if !input.next_if(&|value| matches!(value.token, Token::Dedent)) {
 				return Block::Error(
 					format!("dedent expected, got {}", input.value()),
 					input.span(),
@@ -104,15 +104,15 @@ fn parse_expr<'a>(
 
 fn parse_parenthesis<'a>(input: &mut Stream<'a>, left: Lex<'a>, right: &'static str) -> Block<'a> {
 	let level = 0;
-	input.next_if(|x| x.token == Token::Break);
-	let indented = input.next_if(|x| x.token == Token::Indent);
+	input.next_if(&|x| x.token == Token::Break);
+	let indented = input.next_if(&|x| x.token == Token::Indent);
 
 	let mut inner = Vec::new();
 	if indented {
 		loop {
-			input.next_if(|x| x.token == Token::Break);
+			input.next_if(&|x| x.token == Token::Break);
 
-			if input.next_if(|x| x.token == Token::Dedent) {
+			if input.next_if(&|x| x.token == Token::Dedent) {
 				break;
 			}
 
