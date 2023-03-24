@@ -7,6 +7,43 @@ use crate::{Error, Result};
 
 use super::{Config, Cursor, Indent, Input, Lex, LexerResult, Matcher, Span, Token};
 
+pub trait LexStream<'a> {
+	fn source(&self) -> &'a dyn Input;
+
+	fn value(&self) -> Lex<'a>;
+	fn next(&mut self);
+
+	fn errors(&self) -> Vec<Error<'a>>;
+	fn add_error(&self, error: Error<'a>);
+	fn has_errors(&self) -> bool;
+
+	fn token(&self) -> Token {
+		self.value().token
+	}
+
+	fn span(&self) -> Span<'a> {
+		self.value().span
+	}
+
+	//----[ Reader helpers ]--------------------------------------------------//
+
+	/// Return the next token and true if the predicate matches the current
+	/// token.
+	fn next_if<F: Fn(Lex) -> bool>(&mut self, predicate: F) -> bool {
+		if predicate(self.value()) {
+			self.next();
+			true
+		} else {
+			false
+		}
+	}
+
+	/// Read the next token if it is the specific symbol.
+	fn skip_symbol(&mut self, symbol: &str) -> bool {
+		self.next_if(|value| value.symbol() == Some(symbol))
+	}
+}
+
 /// Holds the lexer state at a particular point in the input and provides
 /// methods for consuming tokens.
 ///
@@ -24,38 +61,23 @@ pub struct Stream<'a> {
 	errors: RefCell<Rc<Vec<Error<'a>>>>,
 }
 
-impl<'a> Stream<'a> {
-	pub fn new(source: &'a dyn Input, config: Config) -> Self {
-		let state = State {
-			source,
-			entries: Vec::new(),
-		};
-		let out = Stream {
-			state: Rc::new(state.into()),
-			config: Rc::new(config),
-			index: 0,
-			current: Cell::new(None),
-			errors: Default::default(),
-		};
-		out
-	}
-
-	pub fn has_errors(&self) -> bool {
+impl<'a> LexStream<'a> for Stream<'a> {
+	fn has_errors(&self) -> bool {
 		self.errors.borrow().len() > 0
 	}
 
-	pub fn errors(&self) -> Vec<Error<'a>> {
+	fn errors(&self) -> Vec<Error<'a>> {
 		let errors = self.errors.borrow();
 		(**errors).clone()
 	}
 
-	pub fn add_error(&self, error: Error<'a>) {
+	fn add_error(&self, error: Error<'a>) {
 		let mut errors = self.errors.borrow_mut();
 		let errors = Rc::make_mut(&mut errors);
 		errors.push(error);
 	}
 
-	pub fn value(&self) -> Lex<'a> {
+	fn value(&self) -> Lex<'a> {
 		match self.current.get() {
 			Some(value) => value,
 			None => {
@@ -78,41 +100,32 @@ impl<'a> Stream<'a> {
 		}
 	}
 
-	pub fn source(&self) -> &'a dyn Input {
+	fn source(&self) -> &'a dyn Input {
 		self.state.borrow().source
 	}
 
-	pub fn next(&mut self) {
+	fn next(&mut self) {
 		if !self.token().is_none() {
 			self.index += 1;
 			self.current.set(None);
 		}
 	}
+}
 
-	pub fn token(&self) -> Token {
-		self.value().token
-	}
-
-	pub fn span(&self) -> Span<'a> {
-		self.value().span
-	}
-
-	//----[ Reader helpers ]--------------------------------------------------//
-
-	/// Return the next token and true if the predicate matches the current
-	/// token.
-	pub fn next_if<F: Fn(Lex) -> bool>(&mut self, predicate: F) -> bool {
-		if predicate(self.value()) {
-			self.next();
-			true
-		} else {
-			false
-		}
-	}
-
-	/// Read the next token if it is the specific symbol.
-	pub fn skip_symbol(&mut self, symbol: &str) -> bool {
-		self.next_if(|value| value.symbol() == Some(symbol))
+impl<'a> Stream<'a> {
+	pub fn new(source: &'a dyn Input, config: Config) -> Self {
+		let state = State {
+			source,
+			entries: Vec::new(),
+		};
+		let out = Stream {
+			state: Rc::new(state.into()),
+			config: Rc::new(config),
+			index: 0,
+			current: Cell::new(None),
+			errors: Default::default(),
+		};
+		out
 	}
 
 	//----[ Configuration ]---------------------------------------------------//

@@ -1,4 +1,4 @@
-use crate::lexer::{Stream, Token};
+use crate::lexer::{LexStream, Stream, Token};
 
 mod context;
 pub use context::*;

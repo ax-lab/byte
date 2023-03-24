@@ -1,7 +1,7 @@
 use std::{collections::HashMap, env};
 
 use exec::{execute_expr, ResultValue};
-use lexer::Stream;
+use lexer::{LexStream, Stream};
 use parser::{parse_statement, Id, ParseResult, Statement};
 
 mod input;

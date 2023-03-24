@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 
 use crate::{
-	lexer::{Lex, Stream, Token},
+	lexer::{Lex, LexStream, Stream, Token},
 	Error,
 };
 

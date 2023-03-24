@@ -2,7 +2,7 @@ use std::{cell::Cell, collections::VecDeque};
 
 use crate::{
 	input::Input,
-	lexer::{Cursor, Lex, Span, Stream, Token},
+	lexer::{Cursor, Lex, LexStream, Span, Stream, Token},
 	Error,
 };
 

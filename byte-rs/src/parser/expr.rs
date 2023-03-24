@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::lexer::Span;
-use crate::lexer::{Stream, Token};
+use crate::lexer::{LexStream, Stream, Token};
 
 use super::operators::*;
 

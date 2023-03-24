@@ -1,4 +1,4 @@
-use crate::lexer::{Lex, Span, Stream, Token};
+use crate::lexer::{Lex, LexStream, Span, Stream, Token};
 
 /// Display a list of blocks in the input TokenStream. This is used only
 /// for testing the tokenization.

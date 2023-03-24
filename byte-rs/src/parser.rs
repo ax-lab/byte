@@ -1,4 +1,4 @@
-use crate::lexer::{Span, Stream, Token};
+use crate::lexer::{LexStream, Span, Stream, Token};
 
 mod blocks;
 pub use blocks::*;
