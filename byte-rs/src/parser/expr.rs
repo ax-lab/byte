@@ -95,7 +95,7 @@ pub fn parse_expression<'a>(input: &mut Stream<'a>) -> ExprResult<'a> {
 
 	loop {
 		while let Some(op) = input
-			.value()
+			.next()
 			.symbol()
 			.and_then(|next| UnaryOp::get_prefix(next))
 		{
@@ -103,7 +103,7 @@ pub fn parse_expression<'a>(input: &mut Stream<'a>) -> ExprResult<'a> {
 			// because it binds forward to the next operator
 			let op = Operator::Unary(op);
 			ops.push_back(op);
-			input.next();
+			input.advance();
 		}
 
 		match parse_atom(input) {
@@ -124,8 +124,8 @@ pub fn parse_expression<'a>(input: &mut Stream<'a>) -> ExprResult<'a> {
 
 		// Ternary and binary operators work similarly, but the ternary will
 		// parse the middle expression as parenthesized.
-		if let Some((op, end)) = input.value().symbol().and_then(|next| TernaryOp::get(next)) {
-			input.next();
+		if let Some((op, end)) = input.next().symbol().and_then(|next| TernaryOp::get(next)) {
+			input.advance();
 			let op = Operator::Ternary(op);
 			push_op(op, &mut ops, &mut values);
 
@@ -147,10 +147,10 @@ pub fn parse_expression<'a>(input: &mut Stream<'a>) -> ExprResult<'a> {
 					format!("expected ternary operator '{end}'"),
 				);
 			}
-		} else if let Some(op) = input.value().symbol().and_then(|next| BinaryOp::get(next)) {
+		} else if let Some(op) = input.next().symbol().and_then(|next| BinaryOp::get(next)) {
 			let op = Operator::Binary(op);
 			push_op(op, &mut ops, &mut values);
-			input.next();
+			input.advance();
 		} else {
 			break;
 		}
@@ -173,26 +173,26 @@ pub fn parse_expression<'a>(input: &mut Stream<'a>) -> ExprResult<'a> {
 fn parse_atom<'a>(input: &mut Stream<'a>) -> ExprResult<'a> {
 	match input.token() {
 		Token::Identifier => {
-			let atom = match input.value().text() {
+			let atom = match input.next().text() {
 				"null" => ExprAtom::Null,
 				"true" => ExprAtom::Boolean(true),
 				"false" => ExprAtom::Boolean(false),
 				id => ExprAtom::Var(id.into()),
 			};
-			input.next();
+			input.advance();
 			atom.result()
 		}
 		Token::Integer(value) => {
-			input.next();
+			input.advance();
 			ExprAtom::Integer(value).result()
 		}
 		Token::Literal(pos, end) => {
 			let content = input.source().read_text(pos, end);
-			input.next();
+			input.advance();
 			ExprAtom::Literal(content.into()).result()
 		}
 		Token::Symbol("(") => {
-			input.next();
+			input.advance();
 			match parse_expression(input) {
 				ExprResult::Expr(expr) => {
 					if !input.skip_symbol(")") {

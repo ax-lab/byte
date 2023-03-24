@@ -34,7 +34,7 @@ impl<'a> Context<'a> {
 		}
 	}
 
-	pub fn add_error(&self, error: Error<'a>) {
+	pub fn add_error(&mut self, error: Error<'a>) {
 		self.input.add_error(error);
 	}
 
@@ -113,7 +113,7 @@ impl<'a> Context<'a> {
 			return value;
 		}
 
-		let next = self.input.value();
+		let next = self.input.next();
 		let next = match self.scope() {
 			Scope::Root => next,
 			Scope::Line(with_break) => match next.token {
@@ -136,7 +136,7 @@ impl<'a> Context<'a> {
 
 	pub fn next(&mut self) {
 		if self.lex().is_some() {
-			self.input.next();
+			self.input.advance();
 			self.clear_cached();
 		}
 	}

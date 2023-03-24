@@ -12,19 +12,19 @@ pub trait LexStream<'a> {
 
 	fn source(&self) -> &'a dyn Input;
 
-	fn value(&self) -> Lex<'a>;
-	fn next(&mut self);
+	fn next(&self) -> Lex<'a>;
+	fn advance(&mut self);
 
+	fn add_error(&mut self, error: Error<'a>);
 	fn errors(&self) -> Vec<Error<'a>>;
-	fn add_error(&self, error: Error<'a>);
 	fn has_errors(&self) -> bool;
 
 	fn token(&self) -> Token {
-		self.value().token
+		self.next().token
 	}
 
 	fn span(&self) -> Span<'a> {
-		self.value().span
+		self.next().span
 	}
 
 	//----[ Reader helpers ]--------------------------------------------------//
@@ -32,8 +32,8 @@ pub trait LexStream<'a> {
 	/// Return the next token and true if the predicate matches the current
 	/// token.
 	fn next_if(&mut self, predicate: &dyn Fn(Lex) -> bool) -> bool {
-		if predicate(self.value()) {
-			self.next();
+		if predicate(self.next()) {
+			self.advance();
 			true
 		} else {
 			false
@@ -59,7 +59,10 @@ pub struct Stream<'a> {
 	state: Rc<RefCell<State<'a>>>,
 	config: Rc<Config>,
 	index: usize,
+
 	current: Cell<Option<Lex<'a>>>,
+	current_error: RefCell<Option<Error<'a>>>,
+
 	errors: RefCell<Rc<Vec<Error<'a>>>>,
 }
 
@@ -69,21 +72,25 @@ impl<'a> LexStream<'a> for Stream<'a> {
 	}
 
 	fn has_errors(&self) -> bool {
-		self.errors.borrow().len() > 0
+		self.errors.borrow().len() > 0 || self.current_error.borrow().is_some()
 	}
 
 	fn errors(&self) -> Vec<Error<'a>> {
 		let errors = self.errors.borrow();
-		(**errors).clone()
+		let mut errors = (**errors).clone();
+		if let Some(error) = &*self.current_error.borrow() {
+			errors.push(error.clone());
+		}
+		errors
 	}
 
-	fn add_error(&self, error: Error<'a>) {
+	fn add_error(&mut self, error: Error<'a>) {
 		let mut errors = self.errors.borrow_mut();
 		let errors = Rc::make_mut(&mut errors);
 		errors.push(error);
 	}
 
-	fn value(&self) -> Lex<'a> {
+	fn next(&self) -> Lex<'a> {
 		match self.current.get() {
 			Some(value) => value,
 			None => {
@@ -93,7 +100,8 @@ impl<'a> LexStream<'a> for Stream<'a> {
 					Ok(value) => value,
 					Err(error) => {
 						let span = error.span();
-						self.add_error(error);
+						let old_error = self.current_error.replace(Some(error));
+						assert!(old_error.is_none());
 						Lex {
 							token: Token::Invalid,
 							span,
@@ -110,10 +118,13 @@ impl<'a> LexStream<'a> for Stream<'a> {
 		self.state.borrow().source
 	}
 
-	fn next(&mut self) {
+	fn advance(&mut self) {
 		if !self.token().is_none() {
 			self.index += 1;
 			self.current.set(None);
+			if let Some(error) = self.current_error.replace(None) {
+				self.add_error(error);
+			}
 		}
 	}
 }
@@ -129,6 +140,7 @@ impl<'a> Stream<'a> {
 			config: Rc::new(config),
 			index: 0,
 			current: Cell::new(None),
+			current_error: RefCell::new(None),
 			errors: Default::default(),
 		};
 		out
@@ -151,6 +163,7 @@ impl<'a> Stream<'a> {
 	fn trim_state(&mut self) {
 		let new_length = self.index;
 		self.current.set(None);
+		self.current_error.replace(None);
 		if Rc::strong_count(&self.state) > 1 {
 			let mut new_state = self.state.borrow().clone();
 			new_state.entries.truncate(new_length);

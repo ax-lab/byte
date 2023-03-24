@@ -90,12 +90,12 @@ fn main() {
 			Ok(source) => {
 				let mut context = lexer::open(&source);
 				if list_tokens {
-					while context.value().is_some() {
+					while context.next().is_some() {
 						let token = context.token();
 						let span = context.span();
 						let text = span.text();
 						println!("{span}: {:10}  =  {token:?}", format!("{text:?}"));
-						context.next();
+						context.advance();
 					}
 					print_errors(&context);
 					std::process::exit(0);
@@ -118,7 +118,7 @@ fn main() {
 
 fn execute_file(context: &mut Stream, file: &str, list_ast: bool) {
 	let mut program = Vec::new();
-	while context.value().is_some() {
+	while context.next().is_some() {
 		let parsed = parse_statement(context);
 		match parsed {
 			ParseResult::Error(span, msg) => {

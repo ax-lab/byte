@@ -32,7 +32,7 @@ pub enum ParseResult<'a> {
 pub fn parse_statement<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
 	match input.token() {
 		Token::None => ParseResult::None,
-		Token::Identifier => match input.value().text() {
+		Token::Identifier => match input.next().text() {
 			"print" => parse_print(input),
 			"let" | "const" => parse_let(input),
 			"for" => parse_for(input),
@@ -48,14 +48,14 @@ fn parse_statement_expr<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
 		ExprResult::Expr(expr) => assert_break(input, ParseResult::Ok(Statement::Expr(expr))),
 		ExprResult::Error(span, error) => ParseResult::Error(span, error),
 		ExprResult::None => {
-			let value = input.value();
+			let value = input.next();
 			ParseResult::Error(input.span(), format!("expected expression, got {value}"))
 		}
 	}
 }
 
 fn parse_if<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
-	input.next(); // skip `if`
+	input.advance(); // skip `if`
 	match parse_expression(input) {
 		ExprResult::Expr(expr) => {
 			let block = parse_indented_block(input);
@@ -73,11 +73,11 @@ fn parse_if<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
 }
 
 fn parse_for<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
-	input.next(); // skip `for`
+	input.advance(); // skip `for`
 	let id = match input.token() {
 		Token::Identifier => {
-			let id = input.value().text().to_string();
-			input.next();
+			let id = input.next().text().to_string();
+			input.advance();
 			id
 		}
 		_ => return ParseResult::Error(input.span(), "identifier expected after 'for'".into()),
@@ -145,7 +145,7 @@ fn parse_indented_block<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
 }
 
 fn parse_print<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
-	input.next(); // skip `print`
+	input.advance(); // skip `print`
 	let mut expr_list = Vec::new();
 	loop {
 		if input.next_if(&|x| matches!(x.token, Token::Break | Token::None)) {
@@ -169,11 +169,11 @@ fn parse_print<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
 }
 
 fn parse_let<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
-	input.next(); // skip `let`
+	input.advance(); // skip `let`
 	let id = match input.token() {
 		Token::Identifier => {
-			let id = input.value().text().to_string();
-			input.next();
+			let id = input.next().text().to_string();
+			input.advance();
 			id
 		}
 		_ => return ParseResult::Error(input.span(), "identifier expected".into()),
@@ -196,12 +196,12 @@ fn parse_let<'a>(input: &mut Stream<'a>) -> ParseResult<'a> {
 fn assert_break<'a>(input: &mut Stream<'a>, result: ParseResult<'a>) -> ParseResult<'a> {
 	match input.token() {
 		Token::Break | Token::None => {
-			input.next();
+			input.advance();
 			result
 		}
 		_ => ParseResult::Error(
 			input.span(),
-			format!("expected end of statement, got {}", input.value()),
+			format!("expected end of statement, got {}", input.next()),
 		),
 	}
 }

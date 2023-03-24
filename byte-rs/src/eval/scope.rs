@@ -91,7 +91,7 @@ impl<'a> Scoped<'a> {
 			match self {
 				// the root scope just reads the next value without filtering
 				Scoped::Root => {
-					let next = input.value();
+					let next = input.next();
 					return LexResult::Ok(next);
 				}
 
@@ -106,7 +106,7 @@ impl<'a> Scoped<'a> {
 							match parent.check_filter(input) {
 								Filter::No => {}
 								Filter::Skip => {
-									input.next();
+									input.advance();
 									continue;
 								}
 								Filter::Stop { .. } => {
@@ -116,26 +116,26 @@ impl<'a> Scoped<'a> {
 						}
 					}
 
-					stopped = stopped || input.value().is_none();
+					stopped = stopped || input.next().is_none();
 
 					// check the current scope action
 					match scope.check_action(input) {
 						Action::None => {
-							let next = input.value();
+							let next = input.next();
 							let skip = match scope.check_filter(input) {
 								Filter::No => false,
 								Filter::Skip => true,
 								Filter::Stop { skip } => {
 									stopped = true;
 									if skip {
-										input.next();
+										input.advance();
 									}
 									false
 								}
 							};
 							if !stopped {
 								if skip {
-									input.next();
+									input.advance();
 								} else {
 									return LexResult::Ok(next);
 								}
@@ -160,7 +160,7 @@ impl<'a> Scoped<'a> {
 							let parent = std::mem::take(&mut **parent);
 							std::mem::replace(self, parent);
 						} else {
-							return LexResult::Ok(input.value().as_none());
+							return LexResult::Ok(input.next().as_none());
 						}
 					}
 				}
@@ -231,7 +231,7 @@ impl<'a> Scope<'a> for ScopeIndented {
 			Token::Break => {
 				if self.level == 1 {
 					let mut input = input.copy();
-					input.next();
+					input.advance();
 					if input.token() == Token::Dedent {
 						Filter::Skip // strip break before last dedent
 					} else {
@@ -281,7 +281,7 @@ impl<'a> Scope<'a> for ScopeLine {
 
 	fn check_action(&mut self, input: &mut dyn LexStream<'a>) -> Action<'a> {
 		if input.token() == Token::Break {
-			input.next();
+			input.advance();
 			if input.token() == Token::Indent {
 				Action::EnterChild {
 					scope: ScopeIndented::new(),
@@ -336,21 +336,21 @@ impl<'a> Scope<'a> for ScopeParenthesized<'a> {
 		if !self.open {
 			self.open = true;
 			let sta = self.sta;
-			let cur = input.value();
+			let cur = input.next();
 			assert_eq!(
 				cur.symbol(),
 				Some(self.sta),
 				"parenthesis for scope does not match (expected {sta}, got {cur})"
 			);
 			Filter::Skip
-		} else if input.value().symbol() == Some(self.end) {
+		} else if input.next().symbol() == Some(self.end) {
 			self.open = false;
 			Filter::Stop { skip: true }
 		} else {
 			match input.token() {
 				Token::Break => {
 					let mut input = input.copy();
-					input.next();
+					input.advance();
 					if input.token() != Token::Indent {
 						self.err = Some(Error::ExpectedIndent(input.span()));
 						Filter::Stop { skip: false }
@@ -366,7 +366,7 @@ impl<'a> Scope<'a> for ScopeParenthesized<'a> {
 	fn leave(&self, input: &dyn LexStream<'a>) -> Stop<'a> {
 		if self.open {
 			let left = self.lex;
-			let next = input.value();
+			let next = input.next();
 			Stop::Error(
 				Error::ExpectedSymbol(self.end, next.span)
 					.at(format!("opening `{left}` at {}", left.span)),
@@ -429,7 +429,7 @@ impl<'a> LexStream<'a> for ScopedStream<'a> {
 		self.input().source()
 	}
 
-	fn value(&self) -> Lex<'a> {
+	fn next(&self) -> Lex<'a> {
 		if let Some(next) = self.next.get() {
 			next
 		} else {
@@ -439,7 +439,7 @@ impl<'a> LexStream<'a> for ScopedStream<'a> {
 				LexResult::Ok(next) => next,
 				LexResult::Error(error) => {
 					input.add_error(error);
-					input.value().as_none()
+					input.next().as_none()
 				}
 			};
 			self.next.set(Some(next));
@@ -447,10 +447,10 @@ impl<'a> LexStream<'a> for ScopedStream<'a> {
 		}
 	}
 
-	fn next(&mut self) {
+	fn advance(&mut self) {
 		let mut state = self.state.borrow_mut();
 		let mut input = &mut state.0;
-		input.next();
+		input.advance();
 		self.next.set(None);
 	}
 
@@ -458,7 +458,7 @@ impl<'a> LexStream<'a> for ScopedStream<'a> {
 		self.input().errors()
 	}
 
-	fn add_error(&self, error: Error<'a>) {
+	fn add_error(&mut self, error: Error<'a>) {
 		self.input_mut().add_error(error)
 	}
 
@@ -478,17 +478,17 @@ mod tests {
 		let input = lexer::open(&"1 2 3");
 		let mut input = ScopedStream::new(input);
 
-		assert_eq!(input.value().token, Token::Integer(1));
-		input.next();
+		assert_eq!(input.next().token, Token::Integer(1));
+		input.advance();
 
-		assert_eq!(input.value().token, Token::Integer(2));
-		input.next();
+		assert_eq!(input.next().token, Token::Integer(2));
+		input.advance();
 
-		assert_eq!(input.value().token, Token::Integer(3));
-		assert_eq!(input.value().token, Token::Integer(3));
-		input.next();
+		assert_eq!(input.next().token, Token::Integer(3));
+		assert_eq!(input.next().token, Token::Integer(3));
+		input.advance();
 
-		assert_eq!(input.value().token, Token::None);
+		assert_eq!(input.next().token, Token::None);
 	}
 
 	#[test]
@@ -497,22 +497,22 @@ mod tests {
 		let mut a = ScopedStream::new(input);
 		let mut b = a.clone();
 
-		assert_eq!(a.value().token, Token::Integer(1));
+		assert_eq!(a.next().token, Token::Integer(1));
 
 		let mut c = a.clone();
-		assert_eq!(c.value().token, Token::Integer(1));
-		c.next();
-		assert_eq!(c.value().token, Token::Integer(2));
-		assert_eq!(b.value().token, Token::Integer(1));
-		assert_eq!(a.value().token, Token::Integer(1));
+		assert_eq!(c.next().token, Token::Integer(1));
+		c.advance();
+		assert_eq!(c.next().token, Token::Integer(2));
+		assert_eq!(b.next().token, Token::Integer(1));
+		assert_eq!(a.next().token, Token::Integer(1));
 
-		a.next();
-		assert_eq!(a.value().token, Token::Integer(2));
-		assert_eq!(b.value().token, Token::Integer(1));
+		a.advance();
+		assert_eq!(a.next().token, Token::Integer(2));
+		assert_eq!(b.next().token, Token::Integer(1));
 
-		b.next();
-		assert_eq!(a.value().token, Token::Integer(2));
-		assert_eq!(b.value().token, Token::Integer(2));
-		assert_eq!(c.value().token, Token::Integer(2));
+		b.advance();
+		assert_eq!(a.next().token, Token::Integer(2));
+		assert_eq!(b.next().token, Token::Integer(2));
+		assert_eq!(c.next().token, Token::Integer(2));
 	}
 }

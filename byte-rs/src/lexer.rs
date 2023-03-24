@@ -109,7 +109,7 @@ mod tests {
 		let a = ctx.clone();
 
 		assert_eq!(ctx.token(), Token::Symbol("+"));
-		ctx.next();
+		ctx.advance();
 		assert!(ctx.errors().len() == 0);
 		let b = ctx.clone();
 
@@ -132,39 +132,39 @@ mod tests {
 	fn lexer_should_parse_symbols() {
 		let mut ctx = open(&"+ - / *");
 		assert_eq!(ctx.token(), Token::Symbol("+"));
-		ctx.next();
+		ctx.advance();
 
 		assert_eq!(ctx.token(), Token::Symbol("-"));
-		ctx.next();
+		ctx.advance();
 
 		assert_eq!(ctx.token(), Token::Symbol("/"));
-		ctx.next();
+		ctx.advance();
 
 		assert_eq!(ctx.token(), Token::Symbol("*"));
-		ctx.next();
+		ctx.advance();
 	}
 
 	#[test]
 	fn lexer_should_configure_symbols() {
 		let mut ctx = open(&"+ - /// *** ^^^");
 		assert_eq!(ctx.token(), Token::Symbol("+"));
-		ctx.next();
+		ctx.advance();
 
 		assert_eq!(ctx.token(), Token::Symbol("-"));
-		ctx.next();
+		ctx.advance();
 
 		ctx.add_symbol("///", Token::Symbol("div"));
 		ctx.add_symbol("***", Token::Symbol("pow"));
 		ctx.add_symbol("^^^", Token::Symbol("car"));
 
 		assert_eq!(ctx.token(), Token::Symbol("div"));
-		ctx.next();
+		ctx.advance();
 
 		assert_eq!(ctx.token(), Token::Symbol("pow"));
-		ctx.next();
+		ctx.advance();
 
 		assert_eq!(ctx.token(), Token::Symbol("car"));
-		ctx.next();
+		ctx.advance();
 	}
 
 	#[test]
@@ -174,9 +174,9 @@ mod tests {
 		// read some symbols before changing the configuration to make sure
 		// it doesn't apply retroactively
 		assert_eq!(ctx.token(), Token::Symbol("/"));
-		ctx.next();
+		ctx.advance();
 		assert_eq!(ctx.token(), Token::Symbol("/"));
-		ctx.next();
+		ctx.advance();
 
 		// save the context before customizing symbols
 		let mut saved1 = ctx.clone();
@@ -187,13 +187,13 @@ mod tests {
 
 		// make sure the symbol is applied going forward from the next token
 		assert_eq!(ctx.token(), Token::Symbol("div"));
-		ctx.next();
+		ctx.advance();
 		assert_eq!(ctx.token(), Token::Symbol("div"));
-		ctx.next();
+		ctx.advance();
 
 		// check the end of input
 		assert_eq!(ctx.token(), Token::Symbol("."));
-		ctx.next();
+		ctx.advance();
 		assert_eq!(ctx.token(), Token::None);
 
 		// the original clone should have no concept of the new symbol
@@ -205,24 +205,24 @@ mod tests {
 
 		// make sure the other clone can be customized
 		assert_eq!(other.token(), Token::Symbol("other_div"));
-		other.next();
+		other.advance();
 		assert_eq!(other.token(), Token::Symbol("other_div"));
-		other.next();
+		other.advance();
 		assert_eq!(other.token(), Token::Symbol("."));
-		other.next();
+		other.advance();
 		assert_eq!(other.token(), Token::None);
 
 		// again, the original copy should have no concept of any customization
 		assert_eq!(saved1.token(), Token::Symbol("/"));
-		saved1.next();
+		saved1.advance();
 		assert_eq!(saved1.token(), Token::Symbol("/"));
-		saved1.next();
+		saved1.advance();
 		assert_eq!(saved1.token(), Token::Symbol("/"));
-		saved1.next();
+		saved1.advance();
 		assert_eq!(saved1.token(), Token::Symbol("/"));
-		saved1.next();
+		saved1.advance();
 		assert_eq!(saved1.token(), Token::Symbol("."));
-		saved1.next();
+		saved1.advance();
 		assert_eq!(saved1.token(), Token::None);
 
 		// add multiple symbols in a row to exercise any single-owner code path
@@ -231,11 +231,11 @@ mod tests {
 		saved2.add_symbol("///", Token::Symbol("div3"));
 
 		assert_eq!(saved2.token(), Token::Symbol("div3"));
-		saved2.next();
+		saved2.advance();
 		assert_eq!(saved2.token(), Token::Symbol("div1")); // also tests overwriting symbols
-		saved2.next();
+		saved2.advance();
 		assert_eq!(saved2.token(), Token::Symbol("."));
-		saved2.next();
+		saved2.advance();
 		assert_eq!(saved2.token(), Token::None);
 	}
 }

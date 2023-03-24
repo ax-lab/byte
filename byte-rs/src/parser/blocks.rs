@@ -51,7 +51,7 @@ fn parse_line<'a>(input: &mut Stream<'a>, level: usize, stop: Option<&'static st
 
 			if !input.next_if(&|value| matches!(value.token, Token::Dedent)) {
 				return Block::Error(
-					format!("dedent expected, got {}", input.value()),
+					format!("dedent expected, got {}", input.next()),
 					input.span(),
 				);
 			}
@@ -77,7 +77,7 @@ fn parse_expr<'a>(
 	loop {
 		match input.token() {
 			Token::Indent => {
-				panic!("unexpected {} at {}", input.value(), input.span());
+				panic!("unexpected {} at {}", input.next(), input.span());
 			}
 			Token::Break | Token::Dedent => {
 				break expr;
@@ -86,8 +86,8 @@ fn parse_expr<'a>(
 				break expr;
 			}
 			Token::Symbol("(") => {
-				let left = input.value();
-				input.next();
+				let left = input.next();
+				input.advance();
 				let item = parse_parenthesis(input, left, ")");
 				expr.push(item);
 			}
@@ -95,8 +95,8 @@ fn parse_expr<'a>(
 				break expr;
 			}
 			_ => {
-				expr.push(Block::Item(input.value()));
-				input.next();
+				expr.push(Block::Item(input.next()));
+				input.advance();
 			}
 		}
 	}
@@ -121,7 +121,7 @@ fn parse_parenthesis<'a>(input: &mut Stream<'a>, left: Lex<'a>, right: &'static 
 					return Block::Error(
 						format!(
 							"unexpected `{}` in indented {} parenthesis",
-							input.value(),
+							input.next(),
 							left
 						),
 						input.span(),
@@ -140,13 +140,13 @@ fn parse_parenthesis<'a>(input: &mut Stream<'a>, left: Lex<'a>, right: &'static 
 		}
 	}
 
-	let lex_closing = input.value();
+	let lex_closing = input.next();
 	if !(right != "" && input.skip_symbol(right)) {
 		let at = left.span;
 		Block::Error(
 			format!(
 				"expected closing `{right}` for {left} at {at}, but got {}",
-				input.value()
+				input.next()
 			),
 			input.span(),
 		)
