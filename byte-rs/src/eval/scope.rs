@@ -1,40 +1,47 @@
-use std::cell::{Cell, Ref, RefCell, RefMut};
+use std::{
+	cell::{Cell, Ref, RefCell, RefMut},
+	collections::VecDeque,
+};
 
 use crate::{
 	lexer::{Lex, LexStream, Stream, Token},
 	Error,
 };
 
-pub enum Action<'a> {
-	None,
-	EnterChild {
-		scope: Box<dyn Scope<'a> + 'a>,
-		mode: ChildMode,
-	},
-}
-
-pub enum Filter {
-	No,
+/// Scope actions at a given input position.
+#[derive(Copy, Clone)]
+pub enum Action {
+	/// Output the current token.
+	Output,
+	/// Skip the current token.
 	Skip,
-	Stop { skip: bool },
-}
-
-pub enum Stop<'a> {
-	Ok,
-	Error(Error<'a>),
+	/// End the current scope, not including the current token.
+	Stop,
+	/// Skip the current token and end the current scope.
+	SkipAndStop,
 }
 
 pub trait Scope<'a> {
 	fn copy(&self) -> Box<dyn Scope<'a> + 'a>;
-	fn check_action(&mut self, input: &mut dyn LexStream<'a>) -> Action<'a>;
-	fn check_filter(&mut self, input: &dyn LexStream<'a>) -> Filter;
-	fn leave(&self, input: &dyn LexStream<'a>) -> Stop<'a>;
+
+	/// Apply the scope to the current input stream position.
+	///
+	/// This is called when the scope is first applied to an input stream and
+	/// each time the input advances to the next token.
+	///
+	/// Returns the action relative to the current input token.
+	fn apply(&mut self, input: &dyn LexStream<'a>) -> Action;
+
+	fn leave(&self, input: &dyn LexStream<'a>) -> Option<Error<'a>> {
+		None
+	}
 }
 
 pub enum Scoped<'a> {
 	Root,
 	Child {
 		mode: ChildMode,
+		last: Option<(Lex<'a>, Action)>,
 		scope: Box<dyn Scope<'a> + 'a>,
 		parent: Option<Box<Scoped<'a>>>,
 	},
@@ -62,21 +69,17 @@ impl<'a> Clone for Scoped<'a> {
 			Self::Root => Self::Root,
 			Self::Child {
 				mode,
+				last,
 				scope,
 				parent,
 			} => Self::Child {
 				mode: mode.clone(),
+				last: last.clone(),
 				scope: scope.copy(),
 				parent: parent.clone(),
 			},
 		}
 	}
-}
-
-#[derive(Clone, Debug)]
-pub enum LexResult<'a> {
-	Ok(Lex<'a>),
-	Error(Error<'a>),
 }
 
 impl<'a> Default for Scoped<'a> {
@@ -86,116 +89,203 @@ impl<'a> Default for Scoped<'a> {
 }
 
 impl<'a> Scoped<'a> {
-	pub fn next(&mut self, input: &mut dyn LexStream<'a>) -> LexResult<'a> {
-		loop {
-			match self {
-				// the root scope just reads the next value without filtering
-				Scoped::Root => {
+	pub fn apply(&mut self, input: &dyn LexStream<'a>) -> Action {
+		match self {
+			Scoped::Root => Action::Output,
+			Scoped::Child {
+				mode,
+				last,
+				scope,
+				parent,
+			} => {
+				// avoid applying the same position twice to the scope
+				if let Some((lex, result)) = last {
 					let next = input.next();
-					return LexResult::Ok(next);
+					if lex.span == next.span && lex.token == next.token {
+						return *result;
+					}
 				}
 
-				Scoped::Child {
-					mode,
-					scope,
-					parent,
-				} => {
-					let mut stopped = false;
-					if !mode.is_override() {
-						if let Some(parent) = parent {
-							match parent.check_filter(input) {
-								Filter::No => {}
-								Filter::Skip => {
-									input.advance();
-									continue;
-								}
-								Filter::Stop { .. } => {
-									stopped = true;
-								}
-							}
-						}
-					}
-
-					stopped = stopped || input.next().is_none();
-
-					// check the current scope action
-					match scope.check_action(input) {
-						Action::None => {
-							let next = input.next();
-							let skip = match scope.check_filter(input) {
-								Filter::No => false,
-								Filter::Skip => true,
-								Filter::Stop { skip } => {
-									stopped = true;
-									if skip {
-										input.advance();
-									}
-									false
-								}
-							};
-							if !stopped {
-								if skip {
-									input.advance();
-								} else {
-									return LexResult::Ok(next);
-								}
-							}
-						}
-						Action::EnterChild { scope, mode } => {
-							let current = std::mem::take(self);
-							*self = Scoped::Child {
-								mode,
-								scope,
-								parent: Some(current.into()),
-							};
-							continue;
-						}
-					}
-
-					if stopped {
-						if let Stop::Error(error) = scope.leave(input) {
-							return LexResult::Error(error);
-						}
-						if let Some(parent) = parent {
-							let parent = std::mem::take(&mut **parent);
-							std::mem::replace(self, parent);
-						} else {
-							return LexResult::Ok(input.next().as_none());
+				if !mode.is_override() {
+					if let Some(parent) = parent.as_mut() {
+						match parent.apply(input) {
+							Action::Output => {}
+							Action::Skip => return Action::Skip,
+							action @ Action::Stop | action @ Action::SkipAndStop => return action,
 						}
 					}
 				}
+
+				scope.apply(input)
 			}
 		}
 	}
 
-	fn enter(&mut self, scope: Box<dyn Scope<'a>>, mode: ChildMode) {
+	pub fn enter(&mut self, scope: Box<dyn Scope<'a> + 'a>, mode: ChildMode) {
 		let me = std::mem::take(self);
 		*self = Scoped::Child {
 			mode,
+			last: None,
 			scope: scope,
 			parent: Some(Box::new(me)),
 		};
 	}
 
-	fn check_filter(&mut self, input: &dyn LexStream<'a>) -> Filter {
+	pub fn leave(&mut self, input: &dyn LexStream<'a>) -> Option<Error<'a>> {
 		match self {
-			Scoped::Root => Filter::No,
-			Scoped::Child {
-				mode,
-				scope,
-				parent,
-			} => {
-				if !mode.is_override() {
-					if let Some(parent) = parent {
-						match parent.check_filter(input) {
-							Filter::No => {}
-							filter @ (Filter::Skip | Filter::Stop { .. }) => return filter,
-						}
-					}
+			Scoped::Root => panic!("trying to leave root scope"),
+			Scoped::Child { scope, parent, .. } => {
+				if let Some(parent) = parent {
+					let parent = std::mem::take(&mut *parent);
+					let result = scope.leave(input);
+					std::mem::replace(self, *parent);
+					result
+				} else {
+					panic!("trying to leave scope without a parent");
 				}
-				scope.check_filter(input)
 			}
 		}
+	}
+}
+
+pub struct ScopedStream<'a> {
+	input: RefCell<Box<dyn LexStream<'a> + 'a>>,
+	scope: RefCell<(Scoped<'a>)>,
+	next: Cell<Option<Lex<'a>>>,
+	done: Cell<bool>,
+}
+
+impl<'a> ScopedStream<'a> {
+	pub fn new<T: LexStream<'a> + 'a>(input: T) -> ScopedStream<'a> {
+		ScopedStream {
+			input: RefCell::new(Box::new(input)),
+			scope: RefCell::new(Scoped::Root),
+			next: Cell::new(None),
+			done: Cell::new(false),
+		}
+	}
+
+	pub fn enter_parenthesis(&mut self) {
+		let scope = ScopeParenthesized::new();
+		self.enter(Box::new(scope), ChildMode::Override);
+	}
+
+	pub fn enter(&mut self, scope: Box<dyn Scope<'a> + 'a>, mode: ChildMode) {
+		self.scope.borrow_mut().enter(scope, mode);
+		self.apply_scope();
+		self.next.set(None);
+	}
+
+	pub fn leave(&mut self) {
+		let result = {
+			let mut scope = self.scope.borrow_mut();
+			let input = self.input();
+			scope.leave(&*input)
+		};
+		if let Some(error) = result {
+			self.add_error(error);
+		}
+		self.next.set(None);
+		self.done.set(false);
+	}
+
+	pub fn input(&self) -> Ref<dyn LexStream<'a>> {
+		let input = self.input.borrow();
+		Ref::map(input, |x| &**x)
+	}
+
+	pub fn input_mut(&self) -> RefMut<dyn LexStream<'a>> {
+		let input = self.input.borrow_mut();
+		RefMut::map(input, |x| &mut **x)
+	}
+
+	fn apply_scope(&self) {
+		if self.done.get() {
+			return;
+		}
+
+		let stopped = {
+			let mut input = self.input_mut();
+			let mut scope = self.scope.borrow_mut();
+			let mut stopped = false;
+			while !stopped {
+				match scope.apply(&*input) {
+					Action::Output => {
+						break;
+					}
+					Action::Skip => {
+						input.advance();
+					}
+					Action::Stop => {
+						stopped = true;
+					}
+					Action::SkipAndStop => {
+						input.advance();
+						stopped = true;
+					}
+				}
+			}
+			stopped
+		};
+		self.done.set(stopped);
+	}
+}
+
+impl<'a> Clone for ScopedStream<'a> {
+	fn clone(&self) -> Self {
+		Self {
+			input: RefCell::new(self.input().copy()),
+			scope: RefCell::new(self.scope.borrow().clone()),
+			next: self.next.clone(),
+			done: self.done.clone(),
+		}
+	}
+}
+
+impl<'a> LexStream<'a> for ScopedStream<'a> {
+	fn copy(&self) -> Box<dyn LexStream<'a> + 'a> {
+		Box::new(self.clone())
+	}
+
+	fn source(&self) -> &'a dyn crate::input::Input {
+		self.input().source()
+	}
+
+	fn next(&self) -> Lex<'a> {
+		if let Some(next) = self.next.get() {
+			next
+		} else {
+			self.apply_scope();
+			let input = self.input();
+			let next = if self.done.get() {
+				input.next().as_none()
+			} else {
+				input.next()
+			};
+			self.next.set(Some(next));
+			next
+		}
+	}
+
+	fn advance(&mut self) {
+		if self.done.get() {
+			return;
+		}
+		let mut input = self.input_mut();
+		input.advance();
+		self.next.set(None);
+	}
+
+	fn errors(&self) -> Vec<Error<'a>> {
+		self.input().errors()
+	}
+
+	fn add_error(&mut self, error: Error<'a>) {
+		self.input_mut().add_error(error)
+	}
+
+	fn has_errors(&self) -> bool {
+		self.input().has_errors()
 	}
 }
 
@@ -214,256 +304,171 @@ impl<'a> Scope<'a> for ScopeIndented {
 		Box::new(ScopeIndented { level: self.level })
 	}
 
-	fn check_action(&mut self, input: &mut dyn LexStream<'a>) -> Action<'a> {
-		Action::None
-	}
-
-	fn check_filter(&mut self, input: &dyn LexStream<'a>) -> Filter {
-		match input.token() {
+	fn apply(&mut self, input: &dyn LexStream<'a>) -> Action {
+		if self.level == 0 {
+			if input.token() != Token::Indent {
+				panic!("indented scope expected an Indent at {}", input.span());
+			}
+			self.level += 1;
+			return Action::Skip;
+		}
+		let next = input.next();
+		match next.token {
 			Token::Indent => {
 				self.level += 1;
-				if self.level == 1 {
-					Filter::Skip // skip first indent
-				} else {
-					Filter::No
-				}
-			}
-			Token::Break => {
-				if self.level == 1 {
-					let mut input = input.copy();
-					input.advance();
-					if input.token() == Token::Dedent {
-						Filter::Skip // strip break before last dedent
-					} else {
-						Filter::No
-					}
-				} else {
-					Filter::No
-				}
+				Action::Output
 			}
 			Token::Dedent => {
 				self.level -= 1;
 				if self.level == 0 {
-					Filter::Stop { skip: true }
+					Action::SkipAndStop
 				} else {
-					Filter::No
+					Action::Output
 				}
 			}
-			_ => Filter::No,
+			Token::Break => {
+				if self.level == 1 {
+					// trim the line break before the final dedent
+					let mut input = input.copy();
+					input.advance();
+					if input.token() == Token::Dedent {
+						Action::Skip
+					} else {
+						Action::Output
+					}
+				} else {
+					Action::Output
+				}
+			}
+			_ => Action::Output,
 		}
 	}
 
-	fn leave(&self, input: &dyn LexStream<'a>) -> Stop<'a> {
+	fn leave(&self, input: &dyn LexStream<'a>) -> Option<Error<'a>> {
 		if self.level > 0 {
 			panic!(
 				"lexer generated unbalanced indentation for {}",
 				input.span()
 			)
 		}
-		Stop::Ok
+		None
 	}
 }
 
 struct ScopeLine {
 	ended: bool,
+	level: usize,
 }
 
 impl<'a> ScopeLine {
 	fn new() -> Box<dyn Scope<'a> + 'a> {
-		Box::new(ScopeLine { ended: false })
+		Box::new(ScopeLine {
+			ended: false,
+			level: 0,
+		})
 	}
 }
 
 impl<'a> Scope<'a> for ScopeLine {
 	fn copy(&self) -> Box<dyn Scope<'a> + 'a> {
-		Box::new(ScopeLine { ended: self.ended })
+		Box::new(ScopeLine {
+			ended: self.ended,
+			level: self.level,
+		})
 	}
 
-	fn check_action(&mut self, input: &mut dyn LexStream<'a>) -> Action<'a> {
-		if input.token() == Token::Break {
-			input.advance();
-			if input.token() == Token::Indent {
-				Action::EnterChild {
-					scope: ScopeIndented::new(),
-					mode: ChildMode::Override,
-				}
-			} else {
-				self.ended = true;
-				Action::None
-			}
-		} else {
-			Action::None
-		}
-	}
-
-	fn check_filter(&mut self, input: &dyn LexStream<'a>) -> Filter {
+	fn apply(&mut self, input: &dyn LexStream<'a>) -> Action {
 		if self.ended {
-			Filter::Stop { skip: false }
-		} else {
-			Filter::No
+			return Action::Stop;
 		}
-	}
 
-	fn leave(&self, input: &dyn LexStream<'a>) -> Stop<'a> {
-		Stop::Ok
+		match input.token() {
+			Token::Indent => {
+				self.level += 1;
+				Action::Output
+			}
+			Token::Dedent => {
+				self.level -= 1;
+				if self.level == 0 {
+					self.ended = true;
+				}
+				Action::Output
+			}
+			Token::Break => {
+				if self.level == 0 {
+					let mut input = input.copy();
+					input.advance();
+					if input.token() == Token::Indent {
+						Action::Skip
+					} else {
+						Action::SkipAndStop
+					}
+				} else {
+					Action::SkipAndStop
+				}
+			}
+			_ => Action::Output,
+		}
 	}
 }
 
 struct ScopeParenthesized<'a> {
-	open: bool,
-	err: Option<Error<'a>>,
-	lex: Lex<'a>,
-	sta: &'static str,
-	end: &'static str,
+	open: VecDeque<Lex<'a>>,
+}
+
+impl<'a> ScopeParenthesized<'a> {
+	fn new() -> Self {
+		ScopeParenthesized {
+			open: Default::default(),
+		}
+	}
 }
 
 impl<'a> Scope<'a> for ScopeParenthesized<'a> {
 	fn copy(&self) -> Box<dyn Scope<'a> + 'a> {
 		Box::new(ScopeParenthesized::<'a> {
-			open: self.open,
-			err: self.err.clone(),
-			lex: self.lex,
-			sta: self.sta,
-			end: self.end,
+			open: self.open.clone(),
 		})
 	}
 
-	fn check_action(&mut self, input: &mut dyn LexStream<'a>) -> Action<'a> {
-		Action::None
-	}
-
-	fn check_filter(&mut self, input: &dyn LexStream<'a>) -> Filter {
-		if !self.open {
-			self.open = true;
-			let sta = self.sta;
-			let cur = input.next();
-			assert_eq!(
-				cur.symbol(),
-				Some(self.sta),
-				"parenthesis for scope does not match (expected {sta}, got {cur})"
-			);
-			Filter::Skip
-		} else if input.next().symbol() == Some(self.end) {
-			self.open = false;
-			Filter::Stop { skip: true }
-		} else {
-			match input.token() {
-				Token::Break => {
-					let mut input = input.copy();
-					input.advance();
-					if input.token() != Token::Indent {
-						self.err = Some(Error::ExpectedIndent(input.span()));
-						Filter::Stop { skip: false }
-					} else {
-						Filter::Skip
-					}
+	fn apply(&mut self, input: &dyn LexStream<'a>) -> Action {
+		if let Some(open) = self.open.front() {
+			if input.next().symbol() == open.token.get_closing() {
+				self.open.pop_front();
+				if self.open.len() == 0 {
+					Action::Stop
+				} else {
+					Action::Output
 				}
-				_ => Filter::No,
+			} else {
+				if let Some(opening) = input.token().get_closing() {
+					self.open.push_front(input.next());
+				}
+				Action::Output
 			}
-		}
-	}
-
-	fn leave(&self, input: &dyn LexStream<'a>) -> Stop<'a> {
-		if self.open {
-			let left = self.lex;
+		} else {
 			let next = input.next();
-			Stop::Error(
-				Error::ExpectedSymbol(self.end, next.span)
-					.at(format!("opening `{left}` at {}", left.span)),
+			assert!(
+				next.token.get_closing().is_some(),
+				"scope does not start at a valid parenthesized symbol (got {next} at {})",
+				next.span
+			);
+			self.open.push_front(next);
+			Action::Skip
+		}
+	}
+
+	fn leave(&self, input: &dyn LexStream<'a>) -> Option<Error<'a>> {
+		if let Some(open) = self.open.front() {
+			let next = input.next();
+			let end = open.token.get_closing().unwrap();
+			Some(
+				Error::ExpectedSymbol(end, next.span)
+					.at(format!("opening `{open}` at {}", open.span)),
 			)
-		} else if let Some(err) = &self.err {
-			Stop::Error(err.clone())
 		} else {
-			Stop::Ok
+			None
 		}
-	}
-}
-
-pub struct ScopedStream<'a> {
-	state: RefCell<(Box<dyn LexStream<'a> + 'a>, Scoped<'a>)>,
-	next: Cell<Option<Lex<'a>>>,
-}
-
-impl<'a> ScopedStream<'a> {
-	pub fn new<T: LexStream<'a> + 'a>(input: T) -> ScopedStream<'a> {
-		ScopedStream {
-			state: RefCell::new((Box::new(input), Scoped::Root)),
-			next: Cell::new(None),
-		}
-	}
-
-	pub fn enter<T: Scope<'a>>(&mut self, new_scope: T, isolated: bool) {
-		let new_scope = Box::new(new_scope);
-		let mut state = self.state.borrow_mut();
-		let (_, scope) = &mut *state;
-	}
-
-	pub fn input(&self) -> Ref<dyn LexStream<'a>> {
-		let input = self.state.borrow();
-		Ref::map(input, |x| &*x.0)
-	}
-
-	pub fn input_mut(&self) -> RefMut<dyn LexStream<'a>> {
-		let input = self.state.borrow_mut();
-		RefMut::map(input, |x| &mut *x.0)
-	}
-}
-
-impl<'a> Clone for ScopedStream<'a> {
-	fn clone(&self) -> Self {
-		let (input, scope) = &*self.state.borrow();
-
-		Self {
-			state: RefCell::new((input.copy(), scope.clone())),
-			next: self.next.clone(),
-		}
-	}
-}
-
-impl<'a> LexStream<'a> for ScopedStream<'a> {
-	fn copy(&self) -> Box<dyn LexStream<'a> + 'a> {
-		Box::new(self.clone())
-	}
-
-	fn source(&self) -> &'a dyn crate::input::Input {
-		self.input().source()
-	}
-
-	fn next(&self) -> Lex<'a> {
-		if let Some(next) = self.next.get() {
-			next
-		} else {
-			let mut state = self.state.borrow_mut();
-			let (input, scope) = &mut *state;
-			let next = match scope.next(&mut **input) {
-				LexResult::Ok(next) => next,
-				LexResult::Error(error) => {
-					input.add_error(error);
-					input.next().as_none()
-				}
-			};
-			self.next.set(Some(next));
-			next
-		}
-	}
-
-	fn advance(&mut self) {
-		let mut state = self.state.borrow_mut();
-		let mut input = &mut state.0;
-		input.advance();
-		self.next.set(None);
-	}
-
-	fn errors(&self) -> Vec<Error<'a>> {
-		self.input().errors()
-	}
-
-	fn add_error(&mut self, error: Error<'a>) {
-		self.input_mut().add_error(error)
-	}
-
-	fn has_errors(&self) -> bool {
-		self.input().has_errors()
 	}
 }
 
@@ -514,5 +519,31 @@ mod tests {
 		assert_eq!(a.next().token, Token::Integer(2));
 		assert_eq!(b.next().token, Token::Integer(2));
 		assert_eq!(c.next().token, Token::Integer(2));
+	}
+
+	#[test]
+	fn scoped_stream_scope() {
+		let input = lexer::open(&"1 (2 3) 4");
+		let mut input = ScopedStream::new(input);
+
+		assert_eq!(input.token(), Token::Integer(1));
+		input.advance();
+		assert_eq!(input.token(), Token::Symbol("("));
+
+		input.enter_parenthesis();
+
+		assert_eq!(input.token(), Token::Integer(2));
+		input.advance();
+
+		assert_eq!(input.token(), Token::Integer(3));
+		input.advance();
+
+		assert_eq!(input.token(), Token::None);
+		input.leave();
+
+		assert_eq!(input.token(), Token::Symbol(")"));
+		input.advance();
+
+		assert_eq!(input.token(), Token::Integer(4));
 	}
 }

@@ -1,6 +1,6 @@
 use super::{Input, Span, Token};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Lex<'a> {
 	pub token: Token,
 	pub span: Span<'a>,
