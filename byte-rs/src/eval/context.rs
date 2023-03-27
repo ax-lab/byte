@@ -83,11 +83,12 @@ impl<'a> Context<'a> {
 	}
 
 	pub fn get_macro(&self, name: &str) -> Option<Box<dyn Macro>> {
-		if name == "let" || name == "const" {
-			Some(Box::new(macros::Let))
-		} else {
-			None
-		}
+		let out: Box<dyn Macro> = match name {
+			"let" | "const" => Box::new(macros::Let),
+			"print" => Box::new(macros::Print),
+			_ => return None,
+		};
+		Some(out)
 	}
 }
 

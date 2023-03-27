@@ -117,6 +117,17 @@ fn execute_expr<'a>(rt: &mut Runtime, expr: NodeKind) -> Value {
 			rt.set(id.as_str(), value.clone());
 			value
 		}
+		NodeKind::Print(list) => {
+			for (i, expr) in list.into_iter().enumerate() {
+				let res = execute_expr(rt, expr);
+				if i > 0 {
+					print!(" ");
+				}
+				print!("{res}");
+			}
+			println!();
+			Value::Null
+		}
 		NodeKind::Unary(op, a) => {
 			let a = execute_expr(rt, *a);
 			match op {

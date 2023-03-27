@@ -40,6 +40,7 @@ pub enum NodeKind {
 	Binary(OpBinary, Box<NodeKind>, Box<NodeKind>),
 	Ternary(OpTernary, Box<NodeKind>, Box<NodeKind>, Box<NodeKind>),
 	Let(String, Option<Box<NodeKind>>),
+	Print(Vec<NodeKind>),
 }
 
 #[derive(Clone, Debug)]
