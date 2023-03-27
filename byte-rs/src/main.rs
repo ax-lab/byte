@@ -106,7 +106,11 @@ fn main() {
 					print_errors(&context);
 					std::process::exit(0);
 				}
-				execute_file(&mut context, file.as_str(), list_ast);
+				if list_ast {
+					execute_file(&mut context, file.as_str(), list_ast);
+				} else {
+					eval::run(context);
+				}
 			}
 			Err(msg) => {
 				eprintln!("\n[error] open file: {msg}\n");

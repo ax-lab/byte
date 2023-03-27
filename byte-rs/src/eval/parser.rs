@@ -1,14 +1,71 @@
 use std::collections::VecDeque;
 
+use crate::lexer::LexStream;
 use crate::lexer::Token;
 use crate::Error;
 
 use super::node::*;
+use super::resolve_macro;
 use super::Context;
 use super::Op;
 use super::OpBinary;
 use super::OpTernary;
 use super::OpUnary;
+
+pub fn parse_indented_block<'a>(context: &mut Context<'a>) -> Node<'a> {
+	let pos = context.pos();
+
+	if !context.skip_symbol(":") {
+		return Node::None(context.pos());
+	}
+
+	let ok = context.token() == Token::Break;
+	let ok = if ok {
+		context.next();
+		context.token() == Token::Indent
+	} else {
+		false
+	};
+	if !ok {
+		let error = Error::ExpectedIndent(context.span());
+		return Node::Invalid(error);
+	}
+	context.next();
+
+	let mut block = Vec::new();
+	while context.token() != Token::Dedent {
+		let line = parse_line(context);
+		let node = match line {
+			Node::Invalid(error) => {
+				context.add_error(error);
+				break;
+			}
+			Node::None(..) => {
+				let error = Error::ExpectedExpression(context.span()).at("indented block");
+				return Node::Invalid(error);
+			}
+			Node::Some(value, ..) => value,
+		};
+		block.push(node);
+	}
+	context.next();
+
+	let node = NodeKind::Block(block);
+	Node::Some(node, context.from(pos))
+}
+
+pub fn parse_line<'a>(context: &mut Context<'a>) -> Node<'a> {
+	context.scope_to_line_with_break(";");
+	let node = parse_node(context);
+	context.leave_scope();
+
+	let node = if let Node::Some(..) = node {
+		resolve_macro(context, node)
+	} else {
+		node
+	};
+	node
+}
 
 pub fn parse_node<'a>(context: &mut Context<'a>) -> Node<'a> {
 	let node = parse_expression(context);
@@ -60,7 +117,7 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 
 	loop {
 		while let Some(op) = context
-			.lex()
+			.next()
 			.symbol()
 			.and_then(|next| OpUnary::get_prefix(next))
 		{
@@ -68,7 +125,7 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 			// because it binds forward to the next operator
 			let op = Op::Unary(op);
 			ops.push_back(op);
-			context.next();
+			context.advance();
 		}
 
 		match parse_atom(context) {
@@ -89,8 +146,12 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 
 		// Ternary and binary operators work similarly, but the ternary will
 		// parse the middle expression as parenthesized.
-		if let Some((op, end)) = context.lex().symbol().and_then(|next| OpTernary::get(next)) {
-			context.next();
+		if let Some((op, end)) = context
+			.next()
+			.symbol()
+			.and_then(|next| OpTernary::get(next))
+		{
+			context.advance();
 			let op = Op::Ternary(op);
 			push_op(op, &mut ops, &mut values);
 
@@ -110,10 +171,10 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 					Error::ExpectedSymbol(end, context.span()).at("ternary operator"),
 				);
 			}
-		} else if let Some(op) = context.lex().symbol().and_then(|next| OpBinary::get(next)) {
+		} else if let Some(op) = context.next().symbol().and_then(|next| OpBinary::get(next)) {
 			let op = Op::Binary(op);
 			push_op(op, &mut ops, &mut values);
-			context.next();
+			context.advance();
 		} else {
 			break;
 		}
@@ -138,7 +199,7 @@ fn parse_atom<'a>(context: &mut Context<'a>) -> Node<'a> {
 	let value = match context.token() {
 		Token::Invalid => return Node::Invalid(Error::InvalidToken(context.span())),
 		Token::Identifier => {
-			let value = match context.lex().text() {
+			let value = match context.next().text() {
 				"null" => Atom::Null.as_value(),
 				"true" => Atom::Bool(true).as_value(),
 				"false" => Atom::Bool(false).as_value(),
@@ -153,22 +214,22 @@ fn parse_atom<'a>(context: &mut Context<'a>) -> Node<'a> {
 					Atom::Id(id.into()).as_value()
 				}
 			};
-			context.next();
+			context.advance();
 			value
 		}
 		Token::Integer(value) => {
-			context.next();
+			context.advance();
 			Atom::Integer(value).as_value()
 		}
 		Token::Literal(pos, end) => {
 			let content = context.source().read_text(pos, end);
-			context.next();
+			context.advance();
 			Atom::String(content.into()).as_value()
 		}
 		Token::Symbol("(") => {
-			*context = context.clone().scope_parenthesized("(", ")");
+			context.scope_to_parenthesis();
 			let next = parse_node(context);
-			*context = context.clone().pop_scope();
+			context.leave_scope();
 			match next {
 				Node::Invalid(error) => return Node::Invalid(error),
 				Node::None(..) => {

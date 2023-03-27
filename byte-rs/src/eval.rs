@@ -11,6 +11,8 @@ pub use operator::*;
 
 mod parser;
 
+use self::parser::parse_line;
+
 pub use super::runtime::*;
 
 mod macros;
@@ -49,15 +51,7 @@ pub fn run(input: Stream) -> Result {
 	let mut context = Context::new(input.clone());
 	let mut program = Vec::new();
 	while context.has_some() && context.is_valid() {
-		let mut line = context.scope_line(";");
-		let node = parser::parse_node(&mut line);
-		context = line.pop_scope();
-
-		let node = if let Node::Some(..) = node {
-			resolve_macro(&mut context, node)
-		} else {
-			node
-		};
+		let node = parse_line(&mut context);
 		let node = match node {
 			Node::Invalid(error) => {
 				context.add_error(error);
@@ -71,10 +65,10 @@ pub fn run(input: Stream) -> Result {
 		program.push(node);
 
 		if context.token() == Token::Symbol(";") {
-			context.next();
+			context.advance();
 		}
 		if context.token() == Token::Break {
-			context.next();
+			context.advance();
 		}
 	}
 
@@ -118,15 +112,35 @@ fn execute_expr<'a>(rt: &mut Runtime, expr: NodeKind) -> Value {
 			value
 		}
 		NodeKind::Print(list) => {
-			for (i, expr) in list.into_iter().enumerate() {
+			let mut has_output = false;
+			for expr in list.into_iter() {
 				let res = execute_expr(rt, expr);
-				if i > 0 {
+				if let Value::None = res {
+					continue;
+				}
+				if has_output {
 					print!(" ");
 				}
 				print!("{res}");
+				has_output = true;
 			}
 			println!();
-			Value::Null
+			Value::None
+		}
+		NodeKind::Block(list) => {
+			let mut res = Value::Null;
+			for expr in list.into_iter() {
+				res = execute_expr(rt, expr);
+			}
+			res
+		}
+		NodeKind::If { expr, block } => {
+			let value = execute_expr(rt, *expr);
+			if value.to_bool() {
+				execute_expr(rt, *block)
+			} else {
+				Value::None
+			}
 		}
 		NodeKind::Unary(op, a) => {
 			let a = execute_expr(rt, *a);

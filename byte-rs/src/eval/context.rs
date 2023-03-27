@@ -1,36 +1,24 @@
-use std::{cell::Cell, collections::VecDeque};
-
 use crate::{
 	input::Input,
-	lexer::{Cursor, Lex, LexStream, Span, Stream, Token},
+	lexer::{Lex, LexStream, Stream},
 	Error,
 };
 
 use super::{
 	macros::{self, Macro},
+	scope::{ChildMode, ScopeLine, ScopeParenthesized, ScopedStream},
 	NodeKind,
 };
 
-#[derive(Copy, Clone)]
-enum Scope<'a> {
-	Root,
-	Line(Option<&'static str>),
-	Parenthesized(Span<'a>, &'static str, &'static str),
-}
-
 #[derive(Clone)]
 pub struct Context<'a> {
-	input: Stream<'a>,
-	scope: VecDeque<Scope<'a>>,
-	current: Cell<Option<Lex<'a>>>,
+	input: ScopedStream<'a>,
 }
 
 impl<'a> Context<'a> {
 	pub fn new(input: Stream<'a>) -> Self {
 		Context {
-			input,
-			scope: Default::default(),
-			current: Cell::new(None),
+			input: ScopedStream::new(input),
 		}
 	}
 
@@ -43,151 +31,74 @@ impl<'a> Context<'a> {
 	}
 
 	pub fn is_valid(&self) -> bool {
-		!self.input.has_errors()
-	}
-
-	fn scope(&self) -> Scope {
-		self.scope.front().copied().unwrap_or(Scope::Root)
-	}
-
-	pub fn scope_parenthesized(mut self, left: &'static str, right: &'static str) -> Self {
-		self.scope
-			.push_front(Scope::Parenthesized(self.span(), left, right));
-		if !self.skip_symbol(left) {
-			panic!(
-				"parenthesis for scope does not match (expected {left}, got {})",
-				self.lex()
-			);
-		}
-		self
-	}
-
-	pub fn scope_line(mut self, with_break: &'static str) -> Self {
-		self.scope.push_front(Scope::Line(Some(with_break)));
-		self.clear_cached();
-		self
-	}
-
-	pub fn pop_scope(mut self) -> Self {
-		let scope = self.scope.pop_front().expect("no scope to pop");
-		self.clear_cached();
-		if let Scope::Parenthesized(span, left, right) = scope {
-			if !self.skip_symbol(right) {
-				self.add_error(
-					Error::ExpectedSymbol(right, self.span())
-						.at(format!("opening `{left}` at {span}")),
-				);
-			}
-		}
-		self
+		!self.has_errors()
 	}
 
 	pub fn get_macro(&self, name: &str) -> Option<Box<dyn Macro>> {
 		let out: Box<dyn Macro> = match name {
 			"let" | "const" => Box::new(macros::Let),
 			"print" => Box::new(macros::Print),
+			"if" => Box::new(macros::If),
+			"for" => Box::new(macros::For),
 			_ => return None,
 		};
 		Some(out)
 	}
+
+	#[allow(unused)]
+	pub fn scope_to_line(&mut self) {
+		self.input.enter(ScopeLine::new(), ChildMode::Secondary);
+	}
+
+	pub fn scope_to_line_with_break(&mut self, split: &'static str) {
+		self.input
+			.enter(ScopeLine::new_with_break(split), ChildMode::Secondary);
+	}
+
+	pub fn scope_to_parenthesis(&mut self) {
+		self.input
+			.enter(ScopeParenthesized::new(), ChildMode::Override);
+	}
+
+	pub fn leave_scope(&mut self) {
+		self.input.leave();
+	}
 }
 
-// Lexing
-impl<'a> Context<'a> {
-	pub fn pos(&self) -> Cursor<'a> {
-		self.lex().span.pos
+impl<'a> LexStream<'a> for Context<'a> {
+	fn copy(&self) -> Box<dyn LexStream<'a> + 'a> {
+		Box::new(self.clone())
 	}
 
-	pub fn from(&self, pos: Cursor<'a>) -> Span<'a> {
-		Span {
-			pos,
-			end: self.pos(),
-		}
-	}
-
-	pub fn source(&self) -> &'a dyn Input {
+	fn source(&self) -> &'a dyn Input {
 		self.input.source()
 	}
 
-	pub fn lex(&self) -> Lex<'a> {
-		if let Some(value) = self.current.get() {
-			return value;
-		}
-
-		let next = self.input.next();
-		let next = match self.scope() {
-			Scope::Root => next,
-			Scope::Line(with_break) => match next.token {
-				Token::Symbol(sym) if Some(sym) == with_break => next.as_none(),
-				Token::Break => next.as_none(),
-				_ => next,
-			},
-			Scope::Parenthesized(_, _, right) => match next.token {
-				Token::Symbol(sym) if sym == right => next.as_none(),
-				_ => next,
-			},
-		};
-		self.current.set(Some(next));
-		next
+	fn next(&self) -> Lex<'a> {
+		self.input.next()
 	}
 
-	pub fn span(&self) -> Span<'a> {
-		self.lex().span
+	fn advance(&mut self) {
+		self.input.advance()
 	}
 
-	pub fn next(&mut self) {
-		if self.lex().is_some() {
-			self.input.advance();
-			self.clear_cached();
-		}
+	fn add_error(&mut self, error: Error<'a>) {
+		self.input.add_error(error)
 	}
 
-	pub fn token(&self) -> Token {
-		self.lex().token
+	fn errors(&self) -> Vec<Error<'a>> {
+		self.input.errors()
 	}
 
-	pub fn at_end(&self) -> bool {
-		!self.has_some()
-	}
-
-	pub fn has_some(&self) -> bool {
-		self.lex().is_some()
-	}
-
-	fn clear_cached(&self) {
-		self.current.set(None)
-	}
-}
-
-// Parsing helpers
-impl<'a> Context<'a> {
-	pub fn check_end(&mut self) -> bool {
-		if self.has_some() {
-			self.input.add_error(Error::ExpectedEnd(self.lex()));
-			false
-		} else {
-			true
-		}
-	}
-
-	pub fn skip_symbol(&mut self, symbol: &str) -> bool {
-		if !self.lex().is_some() {
-			false
-		} else {
-			if self.input.skip_symbol(symbol) {
-				self.clear_cached();
-				true
-			} else {
-				false
-			}
-		}
+	fn has_errors(&self) -> bool {
+		self.input.has_errors()
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::lexer;
+	use crate::lexer::{self, Token};
 
 	#[test]
 	fn root_scope() {
@@ -195,10 +106,10 @@ mod tests {
 		let mut context = Context::new(lexer::open(&input));
 
 		assert_eq!(context.token(), Token::Symbol("+"));
-		context.next();
+		context.advance();
 
 		assert_eq!(context.token(), Token::Symbol("-"));
-		context.next();
+		context.advance();
 
 		assert_eq!(context.token(), Token::None);
 	}
@@ -206,86 +117,77 @@ mod tests {
 	#[test]
 	fn line_scope() {
 		let input = "+\n-\n*\n.";
-		let context = Context::new(lexer::open(&input));
+		let mut context = Context::new(lexer::open(&input));
 
 		// line scope should stop at the line break
-		let mut sub = context.scope_line("");
-		assert_eq!(sub.token(), Token::Symbol("+"));
-		sub.next();
-		assert_eq!(sub.token(), Token::None);
-		sub.next();
-		assert_eq!(sub.token(), Token::None);
-		sub.next();
+		context.scope_to_line();
+		assert_eq!(context.token(), Token::Symbol("+"));
+		context.advance();
+		assert_eq!(context.token(), Token::None);
+		context.advance();
+		assert_eq!(context.token(), Token::None);
+		context.advance();
 
 		// once the scope is back to root, the break can be read
-		let mut context = sub.pop_scope();
-		assert_eq!(context.token(), Token::Break);
-		context.next();
+		context.leave_scope();
+		assert_eq!(context.token(), Token::Symbol("-"));
 
 		// next line scope
-		let mut sub = context.scope_line("");
-		assert_eq!(sub.token(), Token::Symbol("-"));
-		sub.next();
-		assert_eq!(sub.token(), Token::None);
+		context.scope_to_line();
+		assert_eq!(context.token(), Token::Symbol("-"));
+		context.advance();
+		assert_eq!(context.token(), Token::None);
 
 		// back to root
-		let mut context = sub.pop_scope();
-		assert_eq!(context.token(), Token::Break);
-		context.next();
+		context.leave_scope();
 		assert_eq!(context.token(), Token::Symbol("*"));
-		context.next();
+		context.advance();
 		assert_eq!(context.token(), Token::Break);
 
 		// create a line scope right at the end
-		let sub = context.scope_line("");
-		assert_eq!(sub.token(), Token::None);
+		context.scope_to_line();
+		assert_eq!(context.token(), Token::None);
 
 		// and pop it
-		let mut context = sub.pop_scope();
-		assert_eq!(context.token(), Token::Break);
-		context.next();
+		context.leave_scope();
 		assert_eq!(context.token(), Token::Symbol("."));
-		context.next();
+		context.advance();
 		assert_eq!(context.token(), Token::None);
 	}
 
 	#[test]
 	fn line_scope_with_break() {
 		let input = "+;-\n1; 2";
-		let context = Context::new(lexer::open(&input));
+		let mut context = Context::new(lexer::open(&input));
 
 		// line scope should stop at the line break
-		let mut sub = context.scope_line(";");
-		assert_eq!(sub.token(), Token::Symbol("+"));
-		sub.next();
-		assert_eq!(sub.token(), Token::None);
+		context.scope_to_line_with_break(";");
+		assert_eq!(context.token(), Token::Symbol("+"));
+		context.advance();
+		assert_eq!(context.token(), Token::None);
 
 		// once the scope is back to root, the break can be read
-		let mut context = sub.pop_scope();
-		assert_eq!(context.token(), Token::Symbol(";"));
-		context.next();
+		context.leave_scope();
+		assert_eq!(context.token(), Token::Symbol("-"));
 
 		// next line scope
-		let mut sub = context.scope_line(";");
-		assert_eq!(sub.token(), Token::Symbol("-"));
-		sub.next();
-		assert_eq!(sub.token(), Token::None);
+		context.scope_to_line_with_break(";");
+		assert_eq!(context.token(), Token::Symbol("-"));
+		context.advance();
+		assert_eq!(context.token(), Token::None);
 
 		// back to root
-		let mut context = sub.pop_scope();
-		assert_eq!(context.token(), Token::Break);
-		context.next();
+		context.leave_scope();
+		assert_eq!(context.token(), Token::Integer(1));
 
-		let mut sub = context.scope_line(";");
-		assert_eq!(sub.token(), Token::Integer(1));
-		sub.next();
-		assert_eq!(sub.token(), Token::None);
+		context.scope_to_line_with_break(";");
+		assert_eq!(context.token(), Token::Integer(1));
+		context.advance();
+		assert_eq!(context.token(), Token::None);
 
-		let mut context = sub.pop_scope();
-		assert_eq!(context.token(), Token::Symbol(";"));
-		context.next();
+		context.leave_scope();
 		assert_eq!(context.token(), Token::Integer(2));
-		context.next();
+		context.advance();
 		assert_eq!(context.token(), Token::None);
 	}
 
@@ -293,23 +195,23 @@ mod tests {
 	fn line_scope_parenthesis() {
 		let input = "(1 2) 3";
 
-		let context = Context::new(lexer::open(&input));
+		let mut context = Context::new(lexer::open(&input));
 		assert_eq!(context.token(), Token::Symbol("("));
 
-		let mut sub = context.scope_parenthesized("(", ")");
-		assert_eq!(sub.token(), Token::Integer(1));
-		sub.next();
+		context.scope_to_parenthesis();
+		assert_eq!(context.token(), Token::Integer(1));
+		context.advance();
 
-		assert_eq!(sub.token(), Token::Integer(2));
-		sub.next();
+		assert_eq!(context.token(), Token::Integer(2));
+		context.advance();
 
-		assert_eq!(sub.token(), Token::None);
-		sub.next();
-		assert_eq!(sub.token(), Token::None);
+		assert_eq!(context.token(), Token::None);
+		context.advance();
+		assert_eq!(context.token(), Token::None);
 
-		let mut context = sub.pop_scope();
+		context.leave_scope();
 		assert_eq!(context.token(), Token::Integer(3));
-		context.next();
+		context.advance();
 		assert_eq!(context.token(), Token::None);
 
 		assert!(context.is_valid());

@@ -29,6 +29,25 @@ pub trait LexStream<'a> {
 
 	//----[ Reader helpers ]--------------------------------------------------//
 
+	fn at_end(&self) -> bool {
+		!self.has_some()
+	}
+
+	fn has_some(&self) -> bool {
+		self.next().is_some()
+	}
+
+	fn pos(&self) -> Cursor<'a> {
+		self.next().span.pos
+	}
+
+	fn from(&self, pos: Cursor<'a>) -> Span<'a> {
+		Span {
+			pos,
+			end: self.pos(),
+		}
+	}
+
 	/// Return the next token and true if the predicate matches the current
 	/// token.
 	fn next_if(&mut self, predicate: &dyn Fn(Lex) -> bool) -> bool {
@@ -43,6 +62,15 @@ pub trait LexStream<'a> {
 	/// Read the next token if it is the specific symbol.
 	fn skip_symbol(&mut self, symbol: &str) -> bool {
 		self.next_if(&|value| value.symbol() == Some(symbol))
+	}
+
+	fn check_end(&mut self) -> bool {
+		if self.has_some() {
+			self.add_error(Error::ExpectedEnd(self.next()));
+			false
+		} else {
+			true
+		}
 	}
 }
 

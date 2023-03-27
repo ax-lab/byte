@@ -165,11 +165,6 @@ impl<'a> ScopedStream<'a> {
 		}
 	}
 
-	pub fn enter_parenthesis(&mut self) {
-		let scope = ScopeParenthesized::new();
-		self.enter(Box::new(scope), ChildMode::Override);
-	}
-
 	pub fn enter(&mut self, scope: Box<dyn Scope<'a> + 'a>, mode: ChildMode) {
 		self.scope.borrow_mut().enter(scope, mode);
 		self.apply_scope();
@@ -289,12 +284,12 @@ impl<'a> LexStream<'a> for ScopedStream<'a> {
 	}
 }
 
-struct ScopeIndented {
+pub struct ScopeIndented {
 	level: usize,
 }
 
 impl<'a> ScopeIndented {
-	fn new() -> Box<dyn Scope<'a> + 'a> {
+	pub fn new() -> Box<dyn Scope<'a> + 'a> {
 		Box::new(ScopeIndented { level: 0 })
 	}
 }
@@ -355,16 +350,26 @@ impl<'a> Scope<'a> for ScopeIndented {
 	}
 }
 
-struct ScopeLine {
+pub struct ScopeLine {
 	ended: bool,
 	level: usize,
+	split: Option<&'static str>,
 }
 
 impl<'a> ScopeLine {
-	fn new() -> Box<dyn Scope<'a> + 'a> {
+	pub fn new() -> Box<dyn Scope<'a> + 'a> {
 		Box::new(ScopeLine {
 			ended: false,
 			level: 0,
+			split: None,
+		})
+	}
+
+	pub fn new_with_break(split: &'static str) -> Box<dyn Scope<'a> + 'a> {
+		Box::new(ScopeLine {
+			ended: false,
+			level: 0,
+			split: Some(split),
 		})
 	}
 }
@@ -374,6 +379,7 @@ impl<'a> Scope<'a> for ScopeLine {
 		Box::new(ScopeLine {
 			ended: self.ended,
 			level: self.level,
+			split: self.split,
 		})
 	}
 
@@ -407,20 +413,28 @@ impl<'a> Scope<'a> for ScopeLine {
 					Action::SkipAndStop
 				}
 			}
-			_ => Action::Output,
+			_ => {
+				if let Some(split) = self.split {
+					if self.split == input.next().symbol() {
+						return Action::SkipAndStop;
+					}
+				}
+				Action::Output
+			}
 		}
 	}
 }
 
-struct ScopeParenthesized<'a> {
+pub struct ScopeParenthesized<'a> {
 	open: VecDeque<Lex<'a>>,
 }
 
 impl<'a> ScopeParenthesized<'a> {
-	fn new() -> Self {
-		ScopeParenthesized {
+	pub fn new() -> Box<dyn Scope<'a> + 'a> {
+		let scope = ScopeParenthesized {
 			open: Default::default(),
-		}
+		};
+		Box::new(scope)
 	}
 }
 
@@ -436,7 +450,7 @@ impl<'a> Scope<'a> for ScopeParenthesized<'a> {
 			if input.next().symbol() == open.token.get_closing() {
 				self.open.pop_front();
 				if self.open.len() == 0 {
-					Action::Stop
+					Action::SkipAndStop
 				} else {
 					Action::Output
 				}
@@ -530,7 +544,7 @@ mod tests {
 		input.advance();
 		assert_eq!(input.token(), Token::Symbol("("));
 
-		input.enter_parenthesis();
+		input.enter(ScopeParenthesized::new(), ChildMode::Override);
 
 		assert_eq!(input.token(), Token::Integer(2));
 		input.advance();
@@ -540,9 +554,6 @@ mod tests {
 
 		assert_eq!(input.token(), Token::None);
 		input.leave();
-
-		assert_eq!(input.token(), Token::Symbol(")"));
-		input.advance();
 
 		assert_eq!(input.token(), Token::Integer(4));
 	}

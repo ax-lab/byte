@@ -1,6 +1,12 @@
-use crate::{lexer::Token, Error};
+use crate::{
+	lexer::{LexStream, Token},
+	Error,
+};
 
-use super::{parser::parse_expression, Context, Node, NodeKind};
+use super::{
+	parser::{parse_expression, parse_indented_block},
+	Context, Node, NodeKind,
+};
 
 // TODO: if, for, print
 
@@ -15,7 +21,7 @@ impl Macro for Print {
 	fn parse<'a>(&self, context: &mut Context<'a>) -> Option<Node<'a>> {
 		let pos = context.pos();
 
-		context.next(); // skip the `print`
+		context.advance(); // skip the `print`
 
 		let mut expr_list = Vec::new();
 		let node = loop {
@@ -40,7 +46,7 @@ impl Macro for Print {
 					let error = Error::ExpectedExpression(context.span()).at("print");
 					break Node::Invalid(error);
 				}
-				Node::Invalid(span) => break Node::Invalid(span),
+				Node::Invalid(error) => break Node::Invalid(error),
 			}
 		};
 		Some(node)
@@ -53,12 +59,12 @@ impl Macro for Let {
 	fn parse<'a>(&self, context: &mut Context<'a>) -> Option<Node<'a>> {
 		let pos = context.pos();
 
-		context.next(); // skip the `let` or `const`.
+		context.advance(); // skip the `let` or `const`.
 
 		let id = match context.token() {
 			Token::Identifier => {
-				let id = context.lex().text().to_string();
-				context.next();
+				let id = context.next().text().to_string();
+				context.advance();
 				id
 			}
 			_ => return None,
@@ -78,11 +84,55 @@ impl Macro for Let {
 					Node::None(..) => Node::Invalid(
 						Error::ExpectedExpression(context.span()).at("let declaration"),
 					),
-					Node::Invalid(span) => Node::Invalid(span),
+					Node::Invalid(error) => Node::Invalid(error),
 				}
 			}
 		};
 
 		Some(value)
+	}
+}
+
+pub struct If;
+
+impl Macro for If {
+	fn parse<'a>(&self, context: &mut Context<'a>) -> Option<Node<'a>> {
+		let pos = context.pos();
+
+		context.advance(); // skip `if`
+
+		let node = match parse_expression(context) {
+			Node::Some(expr, ..) => match parse_indented_block(context) {
+				Node::Some(block, ..) => {
+					let node = NodeKind::If {
+						expr: Box::new(expr),
+						block: Box::new(block),
+					};
+					Node::Some(node, context.from(pos))
+				}
+				Node::Invalid(error) => {
+					let error = error.at("if block");
+					Node::Invalid(error)
+				}
+				Node::None(..) => {
+					let error = Error::ExpectedIndent(context.span()).at("if block");
+					Node::Invalid(error)
+				}
+			},
+			Node::None(..) => {
+				Node::Invalid(Error::ExpectedExpression(context.span()).at("if block"))
+			}
+			Node::Invalid(error) => Node::Invalid(error),
+		};
+
+		Some(node)
+	}
+}
+
+pub struct For;
+
+impl Macro for For {
+	fn parse<'a>(&self, _context: &mut Context<'a>) -> Option<Node<'a>> {
+		todo!()
 	}
 }

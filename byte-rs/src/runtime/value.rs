@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Value {
+	None,
 	Null,
 	Bool(bool),
 	Integer(i128),
@@ -18,6 +19,7 @@ impl<'a> Default for Value {
 impl<'a> std::fmt::Display for Value {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
+			Value::None => write!(f, "(none)"),
 			Value::Null => write!(f, "null"),
 			Value::Bool(true) => write!(f, "true"),
 			Value::Bool(false) => write!(f, "false"),
@@ -51,6 +53,7 @@ impl<'a> Value {
 
 	pub fn to_bool(&self) -> bool {
 		match self {
+			Value::None => false,
 			Value::Integer(value) => *value != 0,
 			Value::String(value) => value != "",
 			Value::Bool(value) => *value,
@@ -61,6 +64,7 @@ impl<'a> Value {
 
 	pub fn to_string(&self) -> String {
 		match self {
+			Value::None => String::new(),
 			Value::Integer(value) => format!("{value}"),
 			Value::String(value) => value.clone(),
 			Value::Bool(value) => (if value.clone() { "true" } else { "false" }).into(),
@@ -71,6 +75,7 @@ impl<'a> Value {
 
 	pub fn to_integer(&self) -> i128 {
 		match self {
+			Value::None => 0,
 			Value::Integer(value) => *value,
 			Value::String(_) => panic!("using string value as a number"),
 			Value::Bool(value) => {
