@@ -21,16 +21,17 @@ pub fn parse_indented_block<'a>(context: &mut Context<'a>) -> Node<'a> {
 
 	let ok = context.token() == Token::Break;
 	let ok = if ok {
-		context.next();
+		context.advance();
 		context.token() == Token::Indent
 	} else {
 		false
 	};
+
 	if !ok {
 		let error = Error::ExpectedIndent(context.span());
 		return Node::Invalid(error);
 	}
-	context.next();
+	context.advance();
 
 	let mut block = Vec::new();
 	while context.token() != Token::Dedent {
@@ -48,7 +49,7 @@ pub fn parse_indented_block<'a>(context: &mut Context<'a>) -> Node<'a> {
 		};
 		block.push(node);
 	}
-	context.next();
+	context.advance();
 
 	let node = NodeKind::Block(block);
 	Node::Some(node, context.from(pos))
@@ -58,6 +59,10 @@ pub fn parse_line<'a>(context: &mut Context<'a>) -> Node<'a> {
 	context.scope_to_line_with_break(";");
 	let node = parse_node(context);
 	context.leave_scope();
+	context.skip_symbol(";");
+	if context.token() == Token::Break {
+		context.advance();
+	}
 
 	let node = if let Node::Some(..) = node {
 		resolve_macro(context, node)
@@ -230,6 +235,7 @@ fn parse_atom<'a>(context: &mut Context<'a>) -> Node<'a> {
 			context.scope_to_parenthesis();
 			let next = parse_node(context);
 			context.leave_scope();
+			context.skip_symbol(")");
 			match next {
 				Node::Invalid(error) => return Node::Invalid(error),
 				Node::None(..) => {

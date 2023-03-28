@@ -5,6 +5,7 @@ use crate::{
 
 use super::{
 	parser::{parse_expression, parse_indented_block},
+	scope::ScopeExpression,
 	Context, Node, NodeKind,
 };
 
@@ -101,7 +102,11 @@ impl Macro for If {
 
 		context.advance(); // skip `if`
 
-		let node = match parse_expression(context) {
+		context.enter_scope(ScopeExpression::new());
+		let expr = parse_expression(context);
+		context.leave_scope();
+
+		let node = match expr {
 			Node::Some(expr, ..) => match parse_indented_block(context) {
 				Node::Some(block, ..) => {
 					let node = NodeKind::If {

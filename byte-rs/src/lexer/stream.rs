@@ -27,6 +27,12 @@ pub trait LexStream<'a> {
 		self.next().span
 	}
 
+	fn peek_after(&self) -> Lex<'a> {
+		let mut input = self.copy();
+		input.advance();
+		input.next()
+	}
+
 	//----[ Reader helpers ]--------------------------------------------------//
 
 	fn at_end(&self) -> bool {

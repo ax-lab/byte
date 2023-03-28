@@ -410,7 +410,7 @@ impl<'a> Scope<'a> for ScopeLine {
 						Action::Stop
 					}
 				} else {
-					Action::Stop
+					Action::Output
 				}
 			}
 			_ => {
@@ -483,6 +483,37 @@ impl<'a> Scope<'a> for ScopeParenthesized<'a> {
 		} else {
 			None
 		}
+	}
+}
+
+pub struct ScopeExpression {}
+
+impl ScopeExpression {
+	pub fn new<'a>() -> Box<dyn Scope<'a> + 'a> {
+		Box::new(ScopeExpression {})
+	}
+}
+
+impl<'a> Scope<'a> for ScopeExpression {
+	fn copy(&self) -> Box<dyn Scope<'a> + 'a> {
+		Box::new(ScopeExpression {})
+	}
+
+	fn apply(&mut self, input: &dyn LexStream<'a>) -> Action {
+		match input.token() {
+			Token::Break => {
+				return Action::Stop;
+			}
+			token => {
+				if let Some(symbol) = input.next().symbol() {
+					match symbol {
+						";" | ":" => return Action::Stop,
+						_ => {}
+					}
+				}
+			}
+		}
+		Action::Output
 	}
 }
 
@@ -559,5 +590,33 @@ mod tests {
 		input.advance();
 
 		assert_eq!(input.token(), Token::Integer(4));
+	}
+
+	#[test]
+	fn scope_indented_line() {
+		let input = lexer::open(&"1\n\t2\n");
+		let mut input = ScopedStream::new(input);
+
+		input.enter(ScopeLine::new(), ChildMode::Override);
+
+		assert_eq!(input.token(), Token::Integer(1));
+		input.advance();
+
+		assert_eq!(input.token(), Token::Break);
+		input.advance();
+
+		assert_eq!(input.token(), Token::Indent);
+		input.advance();
+
+		assert_eq!(input.token(), Token::Integer(2));
+		input.advance();
+
+		assert_eq!(input.token(), Token::Break);
+		input.advance();
+
+		assert_eq!(input.token(), Token::Dedent);
+		input.advance();
+
+		assert_eq!(input.token(), Token::None);
 	}
 }

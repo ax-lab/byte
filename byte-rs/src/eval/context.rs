@@ -6,7 +6,7 @@ use crate::{
 
 use super::{
 	macros::{self, Macro},
-	scope::{ChildMode, ScopeLine, ScopeParenthesized, ScopedStream},
+	scope::{ChildMode, Scope, ScopeLine, ScopeParenthesized, ScopedStream},
 	NodeKind,
 };
 
@@ -43,6 +43,10 @@ impl<'a> Context<'a> {
 			_ => return None,
 		};
 		Some(out)
+	}
+
+	pub fn enter_scope(&mut self, scope: Box<dyn Scope<'a> + 'a>) {
+		self.input.enter(scope, ChildMode::Secondary);
 	}
 
 	#[allow(unused)]
