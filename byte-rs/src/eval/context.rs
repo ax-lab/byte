@@ -130,6 +130,8 @@ mod tests {
 
 		// once the scope is back to root, the break can be read
 		context.leave_scope();
+		assert_eq!(context.token(), Token::Break);
+		context.advance();
 		assert_eq!(context.token(), Token::Symbol("-"));
 
 		// next line scope
@@ -140,6 +142,8 @@ mod tests {
 
 		// back to root
 		context.leave_scope();
+		assert_eq!(context.token(), Token::Break);
+		context.advance();
 		assert_eq!(context.token(), Token::Symbol("*"));
 		context.advance();
 		assert_eq!(context.token(), Token::Break);
@@ -150,6 +154,8 @@ mod tests {
 
 		// and pop it
 		context.leave_scope();
+		assert_eq!(context.token(), Token::Break);
+		context.advance();
 		assert_eq!(context.token(), Token::Symbol("."));
 		context.advance();
 		assert_eq!(context.token(), Token::None);
@@ -168,6 +174,8 @@ mod tests {
 
 		// once the scope is back to root, the break can be read
 		context.leave_scope();
+		assert_eq!(context.token(), Token::Symbol(";"));
+		context.advance();
 		assert_eq!(context.token(), Token::Symbol("-"));
 
 		// next line scope
@@ -178,6 +186,8 @@ mod tests {
 
 		// back to root
 		context.leave_scope();
+		assert_eq!(context.token(), Token::Break);
+		context.advance();
 		assert_eq!(context.token(), Token::Integer(1));
 
 		context.scope_to_line_with_break(";");
@@ -186,6 +196,8 @@ mod tests {
 		assert_eq!(context.token(), Token::None);
 
 		context.leave_scope();
+		assert_eq!(context.token(), Token::Symbol(";"));
+		context.advance();
 		assert_eq!(context.token(), Token::Integer(2));
 		context.advance();
 		assert_eq!(context.token(), Token::None);
@@ -210,6 +222,8 @@ mod tests {
 		assert_eq!(context.token(), Token::None);
 
 		context.leave_scope();
+		assert_eq!(context.token(), Token::Symbol(")"));
+		context.advance();
 		assert_eq!(context.token(), Token::Integer(3));
 		context.advance();
 		assert_eq!(context.token(), Token::None);

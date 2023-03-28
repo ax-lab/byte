@@ -316,14 +316,14 @@ impl<'a> Scope<'a> for ScopeIndented {
 			Token::Dedent => {
 				self.level -= 1;
 				if self.level == 0 {
-					Action::SkipAndStop
+					Action::Stop
 				} else {
 					Action::Output
 				}
 			}
 			Token::Break => {
 				if self.level == 1 {
-					// trim the line break before the final dedent
+					// skip the line break before the final dedent
 					let mut input = input.copy();
 					input.advance();
 					if input.token() == Token::Dedent {
@@ -405,18 +405,18 @@ impl<'a> Scope<'a> for ScopeLine {
 					let mut input = input.copy();
 					input.advance();
 					if input.token() == Token::Indent {
-						Action::Skip
+						Action::Output
 					} else {
-						Action::SkipAndStop
+						Action::Stop
 					}
 				} else {
-					Action::SkipAndStop
+					Action::Stop
 				}
 			}
 			_ => {
 				if let Some(split) = self.split {
 					if self.split == input.next().symbol() {
-						return Action::SkipAndStop;
+						return Action::Stop;
 					}
 				}
 				Action::Output
@@ -450,7 +450,7 @@ impl<'a> Scope<'a> for ScopeParenthesized<'a> {
 			if input.next().symbol() == open.token.get_closing() {
 				self.open.pop_front();
 				if self.open.len() == 0 {
-					Action::SkipAndStop
+					Action::Stop
 				} else {
 					Action::Output
 				}
@@ -554,6 +554,9 @@ mod tests {
 
 		assert_eq!(input.token(), Token::None);
 		input.leave();
+
+		assert_eq!(input.token(), Token::Symbol(")"));
+		input.advance();
 
 		assert_eq!(input.token(), Token::Integer(4));
 	}
