@@ -30,7 +30,7 @@ pub trait Scope<'a> {
 	/// each time the input advances to the next token.
 	///
 	/// Returns the action relative to the current input token.
-	fn apply(&mut self, input: &dyn LexStream<'a>) -> Action;
+	fn apply(&mut self, input: &dyn LexStream<'a>, as_parent: bool) -> Action;
 
 	fn leave(&self, input: &dyn LexStream<'a>) -> Option<Error<'a>> {
 		None
@@ -89,7 +89,7 @@ impl<'a> Default for Scoped<'a> {
 }
 
 impl<'a> Scoped<'a> {
-	pub fn apply(&mut self, input: &dyn LexStream<'a>) -> Action {
+	pub fn apply(&mut self, input: &dyn LexStream<'a>, is_parent: bool) -> Action {
 		match self {
 			Scoped::Root => Action::Output,
 			Scoped::Child {
@@ -108,7 +108,7 @@ impl<'a> Scoped<'a> {
 
 				if !mode.is_override() {
 					if let Some(parent) = parent.as_mut() {
-						match parent.apply(input) {
+						match parent.apply(input, true) {
 							Action::Output => {}
 							Action::Skip => return Action::Skip,
 							action @ Action::Stop | action @ Action::SkipAndStop => return action,
@@ -116,7 +116,7 @@ impl<'a> Scoped<'a> {
 					}
 				}
 
-				scope.apply(input)
+				scope.apply(input, is_parent)
 			}
 		}
 	}
@@ -204,7 +204,7 @@ impl<'a> ScopedStream<'a> {
 			let mut scope = self.scope.borrow_mut();
 			let mut stopped = false;
 			while !stopped {
-				match scope.apply(&*input) {
+				match scope.apply(&*input, false) {
 					Action::Output => {
 						break;
 					}
@@ -299,7 +299,7 @@ impl<'a> Scope<'a> for ScopeIndented {
 		Box::new(ScopeIndented { level: self.level })
 	}
 
-	fn apply(&mut self, input: &dyn LexStream<'a>) -> Action {
+	fn apply(&mut self, input: &dyn LexStream<'a>, as_parent: bool) -> Action {
 		if self.level == 0 {
 			if input.token() != Token::Indent {
 				panic!("indented scope expected an Indent at {}", input.span());
@@ -314,8 +314,11 @@ impl<'a> Scope<'a> for ScopeIndented {
 				Action::Output
 			}
 			Token::Dedent => {
-				self.level -= 1;
-				if self.level == 0 {
+				let level = self.level - 1;
+				if !as_parent || level > 0 {
+					self.level = level;
+				}
+				if level == 0 {
 					Action::Stop
 				} else {
 					Action::Output
@@ -383,7 +386,7 @@ impl<'a> Scope<'a> for ScopeLine {
 		})
 	}
 
-	fn apply(&mut self, input: &dyn LexStream<'a>) -> Action {
+	fn apply(&mut self, input: &dyn LexStream<'a>, as_parent: bool) -> Action {
 		if self.ended {
 			return Action::Stop;
 		}
@@ -394,8 +397,12 @@ impl<'a> Scope<'a> for ScopeLine {
 				Action::Output
 			}
 			Token::Dedent => {
-				self.level -= 1;
-				if self.level == 0 {
+				let level = self.level - 1;
+				if as_parent && level == 0 {
+					return Action::Stop;
+				}
+				self.level = level;
+				if level == 0 {
 					self.ended = true;
 				}
 				Action::Output
@@ -445,9 +452,13 @@ impl<'a> Scope<'a> for ScopeParenthesized<'a> {
 		})
 	}
 
-	fn apply(&mut self, input: &dyn LexStream<'a>) -> Action {
+	fn apply(&mut self, input: &dyn LexStream<'a>, as_parent: bool) -> Action {
 		if let Some(open) = self.open.front() {
 			if input.next().symbol() == open.token.get_closing() {
+				if self.open.len() == 1 && as_parent {
+					return Action::Stop;
+				}
+
 				self.open.pop_front();
 				if self.open.len() == 0 {
 					Action::Stop
@@ -499,7 +510,7 @@ impl<'a> Scope<'a> for ScopeExpression {
 		Box::new(ScopeExpression {})
 	}
 
-	fn apply(&mut self, input: &dyn LexStream<'a>) -> Action {
+	fn apply(&mut self, input: &dyn LexStream<'a>, as_parent: bool) -> Action {
 		match input.token() {
 			Token::Break => {
 				return Action::Stop;
@@ -618,5 +629,48 @@ mod tests {
 		input.advance();
 
 		assert_eq!(input.token(), Token::None);
+	}
+
+	#[test]
+	fn scope_nested_indented_line() {
+		let input = lexer::open(&"1\n\t2\n\t\t3\n");
+		let mut input = ScopedStream::new(input);
+
+		input.enter(ScopeLine::new(), ChildMode::Secondary);
+
+		assert_eq!(input.token(), Token::Integer(1));
+		input.advance();
+
+		assert_eq!(input.token(), Token::Break);
+		input.advance();
+
+		assert_eq!(input.token(), Token::Indent);
+		input.advance();
+
+		input.enter(ScopeLine::new(), ChildMode::Secondary);
+
+		assert_eq!(input.token(), Token::Integer(2));
+		input.advance();
+
+		assert_eq!(input.token(), Token::Break);
+		input.advance();
+
+		assert_eq!(input.token(), Token::Indent);
+		input.advance();
+
+		assert_eq!(input.token(), Token::Integer(3));
+		input.advance();
+
+		assert_eq!(input.token(), Token::Break);
+		input.advance();
+
+		assert_eq!(input.token(), Token::Dedent);
+		input.advance();
+
+		assert_eq!(input.token(), Token::None);
+
+		input.leave();
+
+		assert_eq!(input.token(), Token::Dedent);
 	}
 }

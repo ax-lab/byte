@@ -142,6 +142,31 @@ fn execute_expr<'a>(rt: &mut Runtime, expr: NodeKind) -> Value {
 				Value::None
 			}
 		}
+		NodeKind::For {
+			id,
+			from,
+			to,
+			block,
+		} => {
+			let from = execute_expr(rt, *from).as_value();
+			let to = execute_expr(rt, *to).as_value();
+
+			let from = match from {
+				Value::Integer(from) => from,
+				value => panic!("for: invalid from expression {value:?}"),
+			};
+			let to = match to {
+				Value::Integer(to) => to,
+				value => panic!("for: invalid to expression {value:?}"),
+			};
+
+			let mut value = Value::None;
+			for i in from..=to {
+				rt.set(&id, Value::Integer(i));
+				value = execute_expr(rt, (&*block).clone());
+			}
+			value
+		}
 		NodeKind::Unary(op, a) => {
 			let a = execute_expr(rt, *a);
 			match op {

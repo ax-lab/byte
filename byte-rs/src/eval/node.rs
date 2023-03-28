@@ -46,6 +46,12 @@ pub enum NodeKind {
 		expr: Box<NodeKind>,
 		block: Box<NodeKind>,
 	},
+	For {
+		id: String,
+		from: Box<NodeKind>,
+		to: Box<NodeKind>,
+		block: Box<NodeKind>,
+	},
 }
 
 #[derive(Clone, Debug)]

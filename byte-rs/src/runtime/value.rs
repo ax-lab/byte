@@ -172,7 +172,7 @@ impl<'a> Value {
 	}
 
 	pub fn op_sub(&self, b: Value) -> Value {
-		Value::Integer(self.to_integer() + b.to_integer())
+		Value::Integer(self.to_integer() - b.to_integer())
 	}
 
 	pub fn op_mul(&self, b: Value) -> Value {

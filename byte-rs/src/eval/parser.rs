@@ -42,7 +42,7 @@ pub fn parse_indented_block<'a>(context: &mut Context<'a>) -> Node<'a> {
 				break;
 			}
 			Node::None(..) => {
-				let error = Error::ExpectedExpression(context.span()).at("indented block");
+				let error = Error::ExpectedExpression(context.next()).at("indented block");
 				return Node::Invalid(error);
 			}
 			Node::Some(value, ..) => value,
@@ -139,7 +139,7 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 			}
 			Node::None(..) => {
 				return if ops.len() > 0 {
-					Node::Invalid(Error::ExpectedExpression(context.span()))
+					Node::Invalid(Error::ExpectedExpression(context.next()))
 				} else {
 					break;
 				};
@@ -164,7 +164,7 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 				Node::Some(expr, ..) => expr,
 				Node::None(..) => {
 					return Node::Invalid(
-						Error::ExpectedExpression(context.span()).at("ternary operator"),
+						Error::ExpectedExpression(context.next()).at("ternary operator"),
 					);
 				}
 				Node::Invalid(error) => return Node::Invalid(error),
@@ -239,7 +239,7 @@ fn parse_atom<'a>(context: &mut Context<'a>) -> Node<'a> {
 			match next {
 				Node::Invalid(error) => return Node::Invalid(error),
 				Node::None(..) => {
-					return Node::Invalid(Error::ExpectedExpression(context.span()));
+					return Node::Invalid(Error::ExpectedExpression(context.next()));
 				}
 				Node::Some(expr, ..) => expr,
 			}
