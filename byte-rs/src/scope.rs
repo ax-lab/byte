@@ -4,12 +4,13 @@ use std::{
 };
 
 use crate::{
-	lexer::{Lex, LexStream, Stream, Token},
+	lexer::{Lex, LexStream, Token},
 	Error,
 };
 
 /// Scope actions at a given input position.
 #[derive(Copy, Clone)]
+#[allow(unused)]
 pub enum Action {
 	/// Output the current token.
 	Output,
@@ -32,7 +33,7 @@ pub trait Scope<'a> {
 	/// Returns the action relative to the current input token.
 	fn apply(&mut self, input: &dyn LexStream<'a>, as_parent: bool) -> Action;
 
-	fn leave(&self, input: &dyn LexStream<'a>) -> Option<Error<'a>> {
+	fn leave(&self, _input: &dyn LexStream<'a>) -> Option<Error<'a>> {
 		None
 	}
 }
@@ -138,7 +139,7 @@ impl<'a> Scoped<'a> {
 				if let Some(parent) = parent {
 					let parent = std::mem::take(&mut *parent);
 					let result = scope.leave(input);
-					std::mem::replace(self, *parent);
+					*self = *parent;
 					result
 				} else {
 					panic!("trying to leave scope without a parent");
@@ -150,7 +151,7 @@ impl<'a> Scoped<'a> {
 
 pub struct ScopedStream<'a> {
 	input: RefCell<Box<dyn LexStream<'a> + 'a>>,
-	scope: RefCell<(Scoped<'a>)>,
+	scope: RefCell<Scoped<'a>>,
 	next: Cell<Option<Lex<'a>>>,
 	done: Cell<bool>,
 }
@@ -284,75 +285,6 @@ impl<'a> LexStream<'a> for ScopedStream<'a> {
 	}
 }
 
-pub struct ScopeIndented {
-	level: usize,
-}
-
-impl<'a> ScopeIndented {
-	pub fn new() -> Box<dyn Scope<'a> + 'a> {
-		Box::new(ScopeIndented { level: 0 })
-	}
-}
-
-impl<'a> Scope<'a> for ScopeIndented {
-	fn copy(&self) -> Box<dyn Scope<'a> + 'a> {
-		Box::new(ScopeIndented { level: self.level })
-	}
-
-	fn apply(&mut self, input: &dyn LexStream<'a>, as_parent: bool) -> Action {
-		if self.level == 0 {
-			if input.token() != Token::Indent {
-				panic!("indented scope expected an Indent at {}", input.span());
-			}
-			self.level += 1;
-			return Action::Skip;
-		}
-		let next = input.next();
-		match next.token {
-			Token::Indent => {
-				self.level += 1;
-				Action::Output
-			}
-			Token::Dedent => {
-				let level = self.level - 1;
-				if !as_parent || level > 0 {
-					self.level = level;
-				}
-				if level == 0 {
-					Action::Stop
-				} else {
-					Action::Output
-				}
-			}
-			Token::Break => {
-				if self.level == 1 {
-					// skip the line break before the final dedent
-					let mut input = input.copy();
-					input.advance();
-					if input.token() == Token::Dedent {
-						Action::Skip
-					} else {
-						Action::Output
-					}
-				} else {
-					Action::Output
-				}
-			}
-			_ => Action::Output,
-		}
-	}
-
-	fn leave(&self, input: &dyn LexStream<'a>) -> Option<Error<'a>> {
-		if self.level > 0 {
-			panic!(
-				"lexer generated unbalanced indentation for {}",
-				input.span()
-			)
-		}
-		None
-	}
-}
-
 pub struct ScopeLine {
 	ended: bool,
 	level: usize,
@@ -421,7 +353,7 @@ impl<'a> Scope<'a> for ScopeLine {
 				}
 			}
 			_ => {
-				if let Some(split) = self.split {
+				if let Some(_) = self.split {
 					if self.split == input.next().symbol() {
 						return Action::Stop;
 					}
@@ -466,7 +398,7 @@ impl<'a> Scope<'a> for ScopeParenthesized<'a> {
 					Action::Output
 				}
 			} else {
-				if let Some(opening) = input.token().get_closing() {
+				if let Some(_) = input.token().get_closing() {
 					self.open.push_front(input.next());
 				}
 				Action::Output
@@ -510,12 +442,12 @@ impl<'a> Scope<'a> for ScopeExpression {
 		Box::new(ScopeExpression {})
 	}
 
-	fn apply(&mut self, input: &dyn LexStream<'a>, as_parent: bool) -> Action {
+	fn apply(&mut self, input: &dyn LexStream<'a>, _as_parent: bool) -> Action {
 		match input.token() {
 			Token::Break => {
 				return Action::Stop;
 			}
-			token => {
+			_ => {
 				if let Some(symbol) = input.next().symbol() {
 					match symbol {
 						";" | ":" => return Action::Stop,

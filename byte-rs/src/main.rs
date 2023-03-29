@@ -2,16 +2,22 @@ use std::env;
 
 use lexer::{LexStream, Stream};
 
-mod input;
-use input::Input;
-
+mod context;
 mod error;
-pub use error::*;
-
 mod eval;
+mod input;
 mod lexer;
+mod macros;
+mod node;
+mod operator;
+mod parser;
 mod runtime;
+mod scope;
 mod source;
+
+use context::*;
+use error::*;
+use input::*;
 
 fn main() {
 	let mut done = false;

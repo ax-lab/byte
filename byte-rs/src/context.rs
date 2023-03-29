@@ -1,13 +1,13 @@
 use crate::{
 	input::Input,
 	lexer::{Lex, LexStream, Stream},
+	node::NodeKind,
 	Error,
 };
 
 use super::{
 	macros::{self, Macro},
 	scope::{ChildMode, Scope, ScopeLine, ScopeParenthesized, ScopedStream},
-	NodeKind,
 };
 
 #[derive(Clone)]

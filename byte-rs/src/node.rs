@@ -1,9 +1,8 @@
 use crate::{
 	lexer::{Cursor, Span},
+	operator::*,
 	Error,
 };
-
-use super::{OpBinary, OpTernary, OpUnary};
 
 /// Represents a syntactic structure in the source code.
 ///

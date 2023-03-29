@@ -1,24 +1,11 @@
-use crate::lexer::{LexStream, Stream, Token};
-
-mod context;
-pub use context::*;
-
-mod node;
-pub use node::*;
-
-mod operator;
-pub use operator::*;
-
-mod parser;
-
-use self::parser::parse_line;
-
-pub use super::runtime::*;
-
-mod macros;
-
-#[allow(unused)]
-pub mod scope;
+use crate::{
+	lexer::{LexStream, Stream, Token},
+	node::*,
+	operator::*,
+	parser::*,
+	runtime::*,
+	Context,
+};
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
@@ -236,6 +223,6 @@ fn execute_expr<'a>(rt: &mut Runtime, expr: NodeKind) -> Value {
 	}
 }
 
-fn resolve_macro<'a>(_input: &mut Context, expr: Node<'a>) -> Node<'a> {
+pub fn resolve_macro<'a>(_input: &mut Context, expr: Node<'a>) -> Node<'a> {
 	expr
 }

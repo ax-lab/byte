@@ -14,10 +14,6 @@ impl<'a> Lex<'a> {
 		}
 	}
 
-	pub fn is_none(&self) -> bool {
-		!self.is_some()
-	}
-
 	pub fn as_none(&self) -> Lex<'a> {
 		Lex {
 			token: Token::None,

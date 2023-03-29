@@ -1,12 +1,13 @@
 use crate::{
 	lexer::{LexStream, Token},
+	node::*,
 	Error,
 };
 
 use super::{
 	parser::{parse_expression, parse_indented_block},
 	scope::ScopeExpression,
-	Context, Node, NodeKind,
+	Context,
 };
 
 // TODO: if, for, print

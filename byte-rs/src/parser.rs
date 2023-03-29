@@ -1,16 +1,8 @@
 use std::collections::VecDeque;
 
-use crate::lexer::LexStream;
-use crate::lexer::Token;
-use crate::Error;
-
-use super::node::*;
-use super::resolve_macro;
-use super::Context;
-use super::Op;
-use super::OpBinary;
-use super::OpTernary;
-use super::OpUnary;
+use crate::{
+	eval::resolve_macro, lexer::LexStream, lexer::Token, node::*, operator::*, Context, Error,
+};
 
 pub fn parse_indented_block<'a>(context: &mut Context<'a>) -> Node<'a> {
 	let pos = context.pos();
