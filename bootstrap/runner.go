@@ -35,8 +35,5 @@ func (runner Runner) ExecScript(
 	callback func(output string, isError bool),
 ) (int, error) {
 	args := []string{filename}
-	if filepath.Ext(filename) == ".blk" {
-		args = append(args, "--blocks")
-	}
 	return Exec(runner.exe, args, callback)
 }

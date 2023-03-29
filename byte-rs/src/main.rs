@@ -10,7 +10,6 @@ pub use error::*;
 
 mod eval;
 mod lexer;
-mod parser;
 mod runtime;
 mod source;
 
@@ -19,7 +18,6 @@ fn main() {
 	let mut files = Vec::new();
 	let mut list_tokens = false;
 	let mut list_ast = false;
-	let mut list_blocks = false;
 	let mut eval_list = Vec::new();
 	let mut next_is_eval = false;
 	for arg in env::args().skip(1) {
@@ -44,10 +42,6 @@ fn main() {
 				}
 				"--ast" => {
 					list_ast = true;
-					false
-				}
-				"--blocks" => {
-					list_blocks = true;
 					false
 				}
 				"--eval" => {
@@ -94,12 +88,6 @@ fn main() {
 						println!("{span}: {:10}  =  {token:?}", format!("{text:?}"));
 						context.advance();
 					}
-					print_errors(&context);
-					std::process::exit(0);
-				}
-
-				if list_blocks {
-					parser::list_blocks(&mut context);
 					print_errors(&context);
 					std::process::exit(0);
 				}
