@@ -47,7 +47,7 @@ impl<'a> std::fmt::Display for Result {
 	}
 }
 
-pub fn run(input: Stream) -> Result {
+pub fn run(input: Stream, list_ast: bool) -> Result {
 	let mut context = Context::new(input.clone());
 	let mut program = Vec::new();
 	while context.has_some() && context.is_valid() {
@@ -70,6 +70,15 @@ pub fn run(input: Stream) -> Result {
 		if context.token() == Token::Break {
 			context.advance();
 		}
+	}
+
+	if list_ast {
+		let len = program.len();
+		for (i, it) in program.into_iter().enumerate() {
+			print!("\n[{}/{len}] = ", i + 1);
+			println!("{:#?}", it);
+		}
+		std::process::exit(0);
 	}
 
 	let (program, errors) = context.finish(program);
