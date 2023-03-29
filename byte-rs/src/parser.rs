@@ -1,8 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::{
-	eval::resolve_macro, lexer::LexStream, lexer::Token, node::*, operator::*, Context, Error,
-};
+use crate::{lexer::LexStream, lexer::Token, node::*, operator::*, Context, Error};
 
 pub fn parse_indented_block<'a>(context: &mut Context<'a>) -> Node<'a> {
 	let pos = context.pos();
@@ -55,12 +53,6 @@ pub fn parse_line<'a>(context: &mut Context<'a>) -> Node<'a> {
 	if context.token() == Token::Break {
 		context.advance();
 	}
-
-	let node = if let Node::Some(..) = node {
-		resolve_macro(context, node)
-	} else {
-		node
-	};
 	node
 }
 

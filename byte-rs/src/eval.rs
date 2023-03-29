@@ -222,7 +222,3 @@ fn execute_expr<'a>(rt: &mut Runtime, expr: NodeKind) -> Value {
 		},
 	}
 }
-
-pub fn resolve_macro<'a>(_input: &mut Context, expr: Node<'a>) -> Node<'a> {
-	expr
-}
