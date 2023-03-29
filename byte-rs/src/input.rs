@@ -22,3 +22,7 @@ impl Input for &str {
 		&self.as_bytes()[pos..end]
 	}
 }
+
+// TODO: make input 'static str
+// - centralize all open inputs under a static set
+// - make the input handle a concrete Copy type
