@@ -1,4 +1,4 @@
-use crate::input::*;
+use crate::core::input::*;
 
 use crate::{operator::*, Error};
 

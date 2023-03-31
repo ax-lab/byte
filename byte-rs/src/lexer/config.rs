@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
+use crate::core::input::*;
+
 use super::{
 	matcher::{MatchSymbol, SymbolTable},
 	Indent, LexerError, LexerResult, Matcher, MatcherResult, Token,
 };
-
-use crate::input::*;
 
 #[derive(Default)]
 pub struct Config {

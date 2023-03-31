@@ -3,11 +3,11 @@ use std::{
 	rc::Rc,
 };
 
-use crate::input::*;
+use crate::core::input::*;
 
 use crate::{Error, Result};
 
-use super::{Config, Indent, Input, Lex, LexerResult, Matcher, Token};
+use super::{Config, Indent, Lex, LexerResult, Matcher, Token};
 
 pub trait LexStream {
 	fn copy(&self) -> Box<dyn LexStream>;

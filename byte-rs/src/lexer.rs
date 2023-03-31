@@ -8,7 +8,7 @@ pub use config::Config;
 pub mod matcher;
 pub use matcher::{Matcher, MatcherResult};
 
-use crate::input::*;
+use crate::core::input::*;
 
 pub use lex::*;
 pub use stream::*;
@@ -94,14 +94,14 @@ mod tests {
 
 	use super::*;
 
-	fn open_str(text: &'static str) -> Stream {
-		let input = crate::input::open_str(text, text);
-		open(input)
+	fn open(text: &'static str) -> Stream {
+		let input = open_str(text, text);
+		super::open(input)
 	}
 
 	#[test]
 	fn lexer_with_invalid_symbol_should_generate_error() {
-		let mut ctx = open_str("+¶");
+		let mut ctx = open("+¶");
 		let a = ctx.clone();
 
 		assert_eq!(ctx.token(), Token::Symbol("+"));
@@ -126,7 +126,7 @@ mod tests {
 
 	#[test]
 	fn lexer_should_parse_symbols() {
-		let mut ctx = open_str("+ - / *");
+		let mut ctx = open("+ - / *");
 		assert_eq!(ctx.token(), Token::Symbol("+"));
 		ctx.advance();
 
@@ -142,7 +142,7 @@ mod tests {
 
 	#[test]
 	fn lexer_should_configure_symbols() {
-		let mut ctx = open_str("+ - /// *** ^^^");
+		let mut ctx = open("+ - /// *** ^^^");
 		assert_eq!(ctx.token(), Token::Symbol("+"));
 		ctx.advance();
 
@@ -165,7 +165,7 @@ mod tests {
 
 	#[test]
 	fn lexer_should_save_and_restore_configuration() {
-		let mut ctx = open_str("//////.");
+		let mut ctx = open("//////.");
 
 		// read some symbols before changing the configuration to make sure
 		// it doesn't apply retroactively

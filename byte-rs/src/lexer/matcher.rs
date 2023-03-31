@@ -1,6 +1,6 @@
-use super::{LexerError, Token};
+use crate::core::input::*;
 
-use crate::input::*;
+use super::{LexerError, Token};
 
 mod comment;
 mod identifier;

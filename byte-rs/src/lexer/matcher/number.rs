@@ -1,4 +1,6 @@
-use super::{Cursor, Matcher, MatcherResult, Token};
+use crate::core::input::*;
+
+use super::{Matcher, MatcherResult, Token};
 
 #[derive(Copy, Clone)]
 pub struct MatchNumber;

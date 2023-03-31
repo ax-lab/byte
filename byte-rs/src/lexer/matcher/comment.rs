@@ -1,4 +1,6 @@
-use super::{Cursor, Matcher, MatcherResult};
+use crate::core::input::*;
+
+use super::{Matcher, MatcherResult};
 
 #[derive(Copy, Clone)]
 pub struct MatchComment;

@@ -1,4 +1,5 @@
-use crate::input::*;
+use crate::core::input::*;
+
 use crate::lexer::{Lex, LexerError};
 
 pub type Result<T> = std::result::Result<T, Error>;

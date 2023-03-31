@@ -1,9 +1,6 @@
-use crate::input::*;
+use crate::core::input::*;
 
-use crate::{
-	input::is_space,
-	lexer::{Matcher, MatcherResult},
-};
+use crate::lexer::{Matcher, MatcherResult};
 
 #[derive(Copy, Clone)]
 pub struct MatchSpace;

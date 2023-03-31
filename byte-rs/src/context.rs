@@ -1,5 +1,6 @@
+use crate::core::input::*;
+
 use crate::{
-	input::Input,
 	lexer::{Lex, LexStream, Stream},
 	node::NodeKind,
 	Error,
@@ -102,7 +103,6 @@ impl LexStream for Context {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::input::open_str;
 	use crate::lexer::{self, Token};
 
 	#[test]

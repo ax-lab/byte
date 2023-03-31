@@ -1,6 +1,6 @@
 use crate::lexer::LexerError;
 
-use crate::input::*;
+use crate::core::input::*;
 
 use super::{Matcher, MatcherResult, Token};
 
