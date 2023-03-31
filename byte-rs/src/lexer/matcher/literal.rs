@@ -1,6 +1,7 @@
 use crate::lexer::LexerError;
 
-use super::{Cursor, Matcher, MatcherResult, Token};
+use super::{Matcher, MatcherResult, Token};
+use crate::{Cursor, Span};
 
 #[derive(Copy, Clone)]
 pub struct MatchLiteral;
@@ -9,12 +10,14 @@ impl Matcher for MatchLiteral {
 	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
 		match next {
 			'\'' => {
-				let pos = input.offset;
+				let pos = *input;
 				loop {
-					let end = input.offset;
+					let end = *input;
 					match input.read() {
 						Some('\'') => {
-							break MatcherResult::Token(Token::Literal(pos, end));
+							break MatcherResult::Token(Token::Literal(
+								input.src().text(Span { pos, end }),
+							));
 						}
 
 						None => break MatcherResult::Error(LexerError::UnclosedLiteral),

@@ -1,4 +1,8 @@
-use crate::lexer::{is_space, Cursor, Matcher, MatcherResult};
+use crate::{
+	input::is_space,
+	lexer::{Matcher, MatcherResult},
+	Cursor,
+};
 
 #[derive(Copy, Clone)]
 pub struct MatchSpace;

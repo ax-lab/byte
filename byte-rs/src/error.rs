@@ -1,24 +1,25 @@
-use crate::lexer::{Lex, LexerError, Span};
+use crate::lexer::{Lex, LexerError};
+use crate::Span;
 
-pub type Result<'a, T> = std::result::Result<T, Error<'a>>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Clone, Debug)]
-pub enum Error<'a> {
-	At(String, Box<Error<'a>>),
-	Lexer(LexerError, Span<'a>),
-	Dedent(Span<'a>),
-	ClosingSymbol(&'static str, Span<'a>),
-	ClosingDedent(&'static str, Span<'a>),
-	Expected(&'static str, Lex<'a>),
-	ExpectedEnd(Lex<'a>),
-	ExpectedExpression(Lex<'a>),
-	ExpectedSymbol(&'static str, Span<'a>),
-	ExpectedIndent(Span<'a>),
-	InvalidToken(Span<'a>),
+pub enum Error {
+	At(String, Box<Error>),
+	Lexer(LexerError, Span),
+	Dedent(Span),
+	ClosingSymbol(&'static str, Span),
+	ClosingDedent(&'static str, Span),
+	Expected(&'static str, Lex),
+	ExpectedEnd(Lex),
+	ExpectedExpression(Lex),
+	ExpectedSymbol(&'static str, Span),
+	ExpectedIndent(Span),
+	InvalidToken(Span),
 }
 
-impl<'a> Error<'a> {
-	pub fn span(&self) -> Span<'a> {
+impl Error {
+	pub fn span(&self) -> Span {
 		match self {
 			Error::At(_, err) => err.span(),
 			Error::Lexer(_, span) => *span,
@@ -34,18 +35,18 @@ impl<'a> Error<'a> {
 		}
 	}
 
-	pub fn at<T: Into<String>>(self, context: T) -> Error<'a> {
+	pub fn at<T: Into<String>>(self, context: T) -> Error {
 		Error::At(context.into(), self.into())
 	}
 }
 
-impl<'a, T> Into<Result<'a, T>> for Error<'a> {
-	fn into(self) -> Result<'a, T> {
+impl<T> Into<Result<T>> for Error {
+	fn into(self) -> Result<T> {
 		Result::Err(self)
 	}
 }
 
-impl<'a> std::fmt::Display for Error<'a> {
+impl std::fmt::Display for Error {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Error::At(context, error) => write!(f, "{context}: {error}"),

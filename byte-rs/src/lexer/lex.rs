@@ -1,12 +1,14 @@
-use super::{Input, Span, Token};
+use crate::core::input::Span;
+
+use super::Token;
 
 #[derive(Copy, Clone, Eq, PartialEq)]
-pub struct Lex<'a> {
+pub struct Lex {
 	pub token: Token,
-	pub span: Span<'a>,
+	pub span: Span,
 }
 
-impl<'a> Lex<'a> {
+impl Lex {
 	pub fn is_some(&self) -> bool {
 		match self.token {
 			Token::None => false,
@@ -14,7 +16,7 @@ impl<'a> Lex<'a> {
 		}
 	}
 
-	pub fn as_none(&self) -> Lex<'a> {
+	pub fn as_none(&self) -> Lex {
 		Lex {
 			token: Token::None,
 			span: Span {
@@ -32,16 +34,12 @@ impl<'a> Lex<'a> {
 		}
 	}
 
-	pub fn source(&self) -> &'a dyn Input {
-		self.span.pos.source
-	}
-
-	pub fn text(&self) -> &'a str {
+	pub fn text(&self) -> &'static str {
 		self.span.text()
 	}
 }
 
-impl<'a> std::fmt::Debug for Lex<'a> {
+impl std::fmt::Debug for Lex {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.debug_struct("Lex")
 			.field("token", &self.token)
@@ -50,7 +48,7 @@ impl<'a> std::fmt::Debug for Lex<'a> {
 	}
 }
 
-impl<'a> std::fmt::Display for Lex<'a> {
+impl std::fmt::Display for Lex {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self.token {
 			Token::None => {
@@ -62,8 +60,8 @@ impl<'a> std::fmt::Display for Lex<'a> {
 			token => match token {
 				Token::Symbol(sym) => write!(f, "{sym}"),
 				Token::Integer(value) => write!(f, "{value}"),
-				Token::Literal(pos, end) => {
-					write!(f, "{:?}", self.source().read_text(pos, end))
+				Token::Literal(content) => {
+					write!(f, "{:?}", content)
 				}
 				Token::Identifier => {
 					write!(f, "{}", self.text())

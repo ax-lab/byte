@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use crate::{lexer::LexStream, lexer::Token, node::*, operator::*, Context, Error};
 
-pub fn parse_indented_block<'a>(context: &mut Context<'a>) -> Node<'a> {
+pub fn parse_indented_block(context: &mut Context) -> Node {
 	let pos = context.pos();
 
 	if !context.skip_symbol(":") {
@@ -45,7 +45,7 @@ pub fn parse_indented_block<'a>(context: &mut Context<'a>) -> Node<'a> {
 	Node::Some(node, context.from(pos))
 }
 
-pub fn parse_line<'a>(context: &mut Context<'a>) -> Node<'a> {
+pub fn parse_line(context: &mut Context) -> Node {
 	context.scope_to_line_with_break(";");
 	let node = parse_node(context);
 	context.leave_scope();
@@ -56,13 +56,13 @@ pub fn parse_line<'a>(context: &mut Context<'a>) -> Node<'a> {
 	node
 }
 
-pub fn parse_node<'a>(context: &mut Context<'a>) -> Node<'a> {
+pub fn parse_node(context: &mut Context) -> Node {
 	let node = parse_expression(context);
 	context.check_end();
 	node
 }
 
-pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
+pub fn parse_expression(context: &mut Context) -> Node {
 	let pos = context.pos();
 	let mut ops = VecDeque::new();
 	let mut values = VecDeque::new();
@@ -183,7 +183,7 @@ pub fn parse_expression<'a>(context: &mut Context<'a>) -> Node<'a> {
 	}
 }
 
-fn parse_atom<'a>(context: &mut Context<'a>) -> Node<'a> {
+fn parse_atom(context: &mut Context) -> Node {
 	let pos = context.pos();
 	let value = match context.token() {
 		Token::Invalid => return Node::Invalid(Error::InvalidToken(context.span())),
@@ -210,8 +210,7 @@ fn parse_atom<'a>(context: &mut Context<'a>) -> Node<'a> {
 			context.advance();
 			Atom::Integer(value).as_value()
 		}
-		Token::Literal(pos, end) => {
-			let content = context.source().read_text(pos, end);
+		Token::Literal(content) => {
 			context.advance();
 			Atom::String(content.into()).as_value()
 		}

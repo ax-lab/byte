@@ -1,6 +1,4 @@
-mod cursor;
 mod lex;
-mod span;
 mod stream;
 mod token;
 
@@ -12,11 +10,11 @@ pub use matcher::{Matcher, MatcherResult};
 
 use crate::Input;
 
-pub use cursor::*;
 pub use lex::*;
-pub use span::*;
 pub use stream::*;
 pub use token::*;
+
+use crate::{Cursor, Span};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Indent(pub usize);
@@ -35,7 +33,7 @@ pub enum LexerError {
 }
 
 impl LexerError {
-	pub fn output(&self, f: &mut std::fmt::Formatter<'_>, span: Span<'_>) -> std::fmt::Result {
+	pub fn output(&self, f: &mut std::fmt::Formatter<'_>, span: Span) -> std::fmt::Result {
 		write!(f, "{self}")?;
 		match self {
 			LexerError::InvalidSymbol => write!(f, " `{}`", span.text())?,
@@ -56,12 +54,7 @@ impl std::fmt::Display for LexerError {
 	}
 }
 
-/// This is used for the lexer to determined what is a whitespace character.
-pub fn is_space(char: char) -> bool {
-	matches!(char, ' ' | '\t')
-}
-
-pub fn open(input: &dyn Input) -> Stream {
+pub fn open(input: Input) -> Stream {
 	let mut cfg = Config::default();
 	cfg.add_matcher(Box::new(matcher::MatchSpace));
 	cfg.add_matcher(Box::new(matcher::MatchComment));
@@ -93,19 +86,24 @@ pub fn open(input: &dyn Input) -> Stream {
 	out
 }
 
-fn read_token<'a>(config: &Config, input: &mut Cursor<'a>) -> (LexerResult, Span<'a>) {
+fn read_token(config: &Config, input: &mut Cursor) -> (LexerResult, Span) {
 	config.read_token(input)
 }
 
 #[cfg(test)]
 mod tests {
-	use crate::Error;
+	use crate::{core::input::Pos, Error};
 
 	use super::*;
 
+	fn open_str(text: &'static str) -> Stream {
+		let input = crate::input::open_str(text, text);
+		open(input)
+	}
+
 	#[test]
 	fn lexer_with_invalid_symbol_should_generate_error() {
-		let mut ctx = open(&"+¶");
+		let mut ctx = open_str("+¶");
 		let a = ctx.clone();
 
 		assert_eq!(ctx.token(), Token::Symbol("+"));
@@ -122,15 +120,13 @@ mod tests {
 		let err = errors[0].clone();
 		assert!(matches!(err, Error::Lexer(..)));
 		let span = err.span();
-		assert_eq!(span.pos.line, 0);
-		assert_eq!(span.end.line, 0);
-		assert_eq!(span.pos.column, 1);
-		assert_eq!(span.end.column, 2);
+		assert_eq!(span.pos.pos(), Pos::LineCol(0, 1));
+		assert_eq!(span.end.pos(), Pos::LineCol(0, 2));
 	}
 
 	#[test]
 	fn lexer_should_parse_symbols() {
-		let mut ctx = open(&"+ - / *");
+		let mut ctx = open_str("+ - / *");
 		assert_eq!(ctx.token(), Token::Symbol("+"));
 		ctx.advance();
 
@@ -146,7 +142,7 @@ mod tests {
 
 	#[test]
 	fn lexer_should_configure_symbols() {
-		let mut ctx = open(&"+ - /// *** ^^^");
+		let mut ctx = open_str("+ - /// *** ^^^");
 		assert_eq!(ctx.token(), Token::Symbol("+"));
 		ctx.advance();
 
@@ -169,7 +165,7 @@ mod tests {
 
 	#[test]
 	fn lexer_should_save_and_restore_configuration() {
-		let mut ctx = open(&"//////.");
+		let mut ctx = open_str("//////.");
 
 		// read some symbols before changing the configuration to make sure
 		// it doesn't apply retroactively

@@ -2,8 +2,9 @@ use std::rc::Rc;
 
 use super::{
 	matcher::{MatchSymbol, SymbolTable},
-	Cursor, Indent, LexerError, LexerResult, Matcher, MatcherResult, Span, Token,
+	Indent, LexerError, LexerResult, Matcher, MatcherResult, Token,
 };
+use crate::{Cursor, Span};
 
 #[derive(Default)]
 pub struct Config {
@@ -34,9 +35,9 @@ impl Config {
 		self.matchers.push(matcher);
 	}
 
-	pub fn read_token<'a>(&self, input: &mut Cursor<'a>) -> (LexerResult, Span<'a>) {
+	pub fn read_token(&self, input: &mut Cursor) -> (LexerResult, Span) {
 		let mut pos = *input;
-		let mut indent = Indent(pos.indent);
+		let mut indent = Indent(pos.indent());
 		let result = 'main: loop {
 			if let Some(next) = input.read() {
 				let symbol_matcher: Box<dyn Matcher> =
@@ -53,7 +54,7 @@ impl Config {
 						next @ (MatcherResult::Skip | MatcherResult::Comment) => {
 							pos = *input;
 							if let MatcherResult::Skip = next {
-								indent = Indent(pos.indent);
+								indent = Indent(pos.indent());
 							}
 							skipped = true;
 							break;

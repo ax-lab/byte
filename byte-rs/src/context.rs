@@ -11,22 +11,22 @@ use super::{
 };
 
 #[derive(Clone)]
-pub struct Context<'a> {
-	input: ScopedStream<'a>,
+pub struct Context {
+	input: ScopedStream,
 }
 
-impl<'a> Context<'a> {
-	pub fn new(input: Stream<'a>) -> Self {
+impl Context {
+	pub fn new(input: Stream) -> Self {
 		Context {
 			input: ScopedStream::new(input),
 		}
 	}
 
-	pub fn add_error(&mut self, error: Error<'a>) {
+	pub fn add_error(&mut self, error: Error) {
 		self.input.add_error(error);
 	}
 
-	pub fn finish(self, program: Vec<NodeKind>) -> (Vec<NodeKind>, Vec<Error<'a>>) {
+	pub fn finish(self, program: Vec<NodeKind>) -> (Vec<NodeKind>, Vec<Error>) {
 		(program, self.input.errors())
 	}
 
@@ -45,7 +45,7 @@ impl<'a> Context<'a> {
 		Some(out)
 	}
 
-	pub fn enter_scope(&mut self, scope: Box<dyn Scope<'a> + 'a>) {
+	pub fn enter_scope(&mut self, scope: Box<dyn Scope>) {
 		self.input.enter(scope, ChildMode::Secondary);
 	}
 
@@ -69,16 +69,16 @@ impl<'a> Context<'a> {
 	}
 }
 
-impl<'a> LexStream<'a> for Context<'a> {
-	fn copy(&self) -> Box<dyn LexStream<'a> + 'a> {
+impl LexStream for Context {
+	fn copy(&self) -> Box<dyn LexStream> {
 		Box::new(self.clone())
 	}
 
-	fn source(&self) -> &'a dyn Input {
+	fn source(&self) -> Input {
 		self.input.source()
 	}
 
-	fn next(&self) -> Lex<'a> {
+	fn next(&self) -> Lex {
 		self.input.next()
 	}
 
@@ -86,11 +86,11 @@ impl<'a> LexStream<'a> for Context<'a> {
 		self.input.advance()
 	}
 
-	fn add_error(&mut self, error: Error<'a>) {
+	fn add_error(&mut self, error: Error) {
 		self.input.add_error(error)
 	}
 
-	fn errors(&self) -> Vec<Error<'a>> {
+	fn errors(&self) -> Vec<Error> {
 		self.input.errors()
 	}
 
@@ -102,12 +102,13 @@ impl<'a> LexStream<'a> for Context<'a> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::input::open_str;
 	use crate::lexer::{self, Token};
 
 	#[test]
 	fn root_scope() {
 		let input = "+ -";
-		let mut context = Context::new(lexer::open(&input));
+		let mut context = Context::new(lexer::open(open_str(input, input)));
 
 		assert_eq!(context.token(), Token::Symbol("+"));
 		context.advance();
@@ -121,7 +122,7 @@ mod tests {
 	#[test]
 	fn line_scope() {
 		let input = "+\n-\n*\n.";
-		let mut context = Context::new(lexer::open(&input));
+		let mut context = Context::new(lexer::open(open_str(input, input)));
 
 		// line scope should stop at the line break
 		context.scope_to_line();
@@ -168,7 +169,7 @@ mod tests {
 	#[test]
 	fn line_scope_with_break() {
 		let input = "+;-\n1; 2";
-		let mut context = Context::new(lexer::open(&input));
+		let mut context = Context::new(lexer::open(open_str(input, input)));
 
 		// line scope should stop at the line break
 		context.scope_to_line_with_break(";");
@@ -211,7 +212,7 @@ mod tests {
 	fn line_scope_parenthesis() {
 		let input = "(1 2) 3";
 
-		let mut context = Context::new(lexer::open(&input));
+		let mut context = Context::new(lexer::open(open_str(input, input)));
 		assert_eq!(context.token(), Token::Symbol("("));
 
 		context.scope_to_parenthesis();

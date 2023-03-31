@@ -1,4 +1,5 @@
-use super::{Cursor, LexerError, Token};
+use super::{LexerError, Token};
+use crate::Cursor;
 
 mod comment;
 mod identifier;

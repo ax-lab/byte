@@ -1,8 +1,4 @@
-use crate::{
-	lexer::{Cursor, Span},
-	operator::*,
-	Error,
-};
+use crate::{operator::*, Cursor, Error, Span};
 
 /// Represents a syntactic structure in the source code.
 ///
@@ -12,15 +8,15 @@ use crate::{
 /// After parsing, a Node is evaluated and the result is the actual compiled
 /// program output
 #[derive(Clone, Debug)]
-pub enum Node<'a> {
-	None(Cursor<'a>),
-	Invalid(Error<'a>),
-	Some(NodeKind, Span<'a>),
+pub enum Node {
+	None(Cursor),
+	Invalid(Error),
+	Some(NodeKind, Span),
 }
 
-impl<'a> Node<'a> {
+impl Node {
 	#[allow(unused)]
-	pub fn span(&self) -> Span<'a> {
+	pub fn span(&self) -> Span {
 		match self {
 			Node::None(cur) => Span {
 				pos: *cur,

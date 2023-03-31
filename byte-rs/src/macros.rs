@@ -14,13 +14,13 @@ use super::{
 
 /// Trait for low-level syntax macros operating during the parsing stage.
 pub trait Macro {
-	fn parse<'a>(&self, context: &mut Context<'a>) -> Option<Node<'a>>;
+	fn parse(&self, context: &mut Context) -> Option<Node>;
 }
 
 pub struct Print;
 
 impl Macro for Print {
-	fn parse<'a>(&self, context: &mut Context<'a>) -> Option<Node<'a>> {
+	fn parse(&self, context: &mut Context) -> Option<Node> {
 		let pos = context.pos();
 
 		context.advance(); // skip the `print`
@@ -58,7 +58,7 @@ impl Macro for Print {
 pub struct Let;
 
 impl Macro for Let {
-	fn parse<'a>(&self, context: &mut Context<'a>) -> Option<Node<'a>> {
+	fn parse(&self, context: &mut Context) -> Option<Node> {
 		let pos = context.pos();
 
 		context.advance(); // skip the `let` or `const`.
@@ -98,7 +98,7 @@ impl Macro for Let {
 pub struct If;
 
 impl Macro for If {
-	fn parse<'a>(&self, context: &mut Context<'a>) -> Option<Node<'a>> {
+	fn parse(&self, context: &mut Context) -> Option<Node> {
 		let pos = context.pos();
 
 		context.advance(); // skip `if`
@@ -138,7 +138,7 @@ impl Macro for If {
 pub struct For;
 
 impl Macro for For {
-	fn parse<'a>(&self, context: &mut Context<'a>) -> Option<Node<'a>> {
+	fn parse(&self, context: &mut Context) -> Option<Node> {
 		let pos = context.pos();
 
 		context.advance(); // skip `for`

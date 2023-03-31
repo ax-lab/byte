@@ -110,6 +110,9 @@ impl Matcher for MatchSymbol {
 
 #[cfg(test)]
 mod tests {
+	use crate::input::open_str;
+	use crate::Span;
+
 	use super::*;
 
 	#[test]
@@ -156,13 +159,14 @@ mod tests {
 	}
 
 	fn check_symbols(symbols: &MatchSymbol, input: &'static str, expected: &[Token]) {
-		let mut input = Cursor::new(&input);
+		let input = open_str("literal", input);
+		let mut input = input.sta();
 		for (i, expected) in expected.iter().cloned().enumerate() {
 			let next = input.read().expect("unexpected end of input");
-			let pos = input.offset;
+			let pos = input;
 			let next = symbols.try_match(next, &mut input);
-			let end = input.offset;
-			let text = input.source.read_text(pos, end);
+			let end = input;
+			let text = input.src().text(Span { pos, end });
 			match next {
 				MatcherResult::Token(actual) => assert_eq!(
 					actual, expected,

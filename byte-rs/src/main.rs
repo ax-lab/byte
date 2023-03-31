@@ -3,9 +3,9 @@ use std::env;
 use lexer::{LexStream, Stream};
 
 mod context;
+mod core;
 mod error;
 mod eval;
-mod input;
 mod lexer;
 mod macros;
 mod node;
@@ -13,11 +13,11 @@ mod operator;
 mod parser;
 mod runtime;
 mod scope;
-mod source;
+
+use crate::core::*;
 
 use context::*;
 use error::*;
-use input::*;
 
 fn main() {
 	let mut done = false;
@@ -76,16 +76,15 @@ fn main() {
 	}
 
 	for it in eval_list.into_iter() {
-		let text = it.as_str();
-		let context = lexer::open(&text);
+		let context = lexer::open(input::open_text("eval", &it));
 		let result = eval::run(context, false);
 		println!("{result}");
 	}
 
 	for file in files {
-		match source::open_file(&file) {
+		match input::open_file(&file) {
 			Ok(source) => {
-				let mut context = lexer::open(&source);
+				let mut context = lexer::open(source);
 				if list_tokens {
 					while context.next().is_some() {
 						let token = context.token();

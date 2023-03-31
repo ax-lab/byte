@@ -3,31 +3,31 @@ use std::{
 	rc::Rc,
 };
 
-use crate::{Error, Result};
+use crate::{Cursor, Error, Result, Span};
 
-use super::{Config, Cursor, Indent, Input, Lex, LexerResult, Matcher, Span, Token};
+use super::{Config, Indent, Input, Lex, LexerResult, Matcher, Token};
 
-pub trait LexStream<'a> {
-	fn copy(&self) -> Box<dyn LexStream<'a> + 'a>;
+pub trait LexStream {
+	fn copy(&self) -> Box<dyn LexStream>;
 
-	fn source(&self) -> &'a dyn Input;
+	fn source(&self) -> Input;
 
-	fn next(&self) -> Lex<'a>;
+	fn next(&self) -> Lex;
 	fn advance(&mut self);
 
-	fn add_error(&mut self, error: Error<'a>);
-	fn errors(&self) -> Vec<Error<'a>>;
+	fn add_error(&mut self, error: Error);
+	fn errors(&self) -> Vec<Error>;
 	fn has_errors(&self) -> bool;
 
 	fn token(&self) -> Token {
 		self.next().token
 	}
 
-	fn span(&self) -> Span<'a> {
+	fn span(&self) -> Span {
 		self.next().span
 	}
 
-	fn peek_after(&self) -> Lex<'a> {
+	fn peek_after(&self) -> Lex {
 		let mut input = self.copy();
 		input.advance();
 		input.next()
@@ -43,11 +43,11 @@ pub trait LexStream<'a> {
 		self.next().is_some()
 	}
 
-	fn pos(&self) -> Cursor<'a> {
+	fn pos(&self) -> Cursor {
 		self.next().span.pos
 	}
 
-	fn from(&self, pos: Cursor<'a>) -> Span<'a> {
+	fn from(&self, pos: Cursor) -> Span {
 		Span {
 			pos,
 			end: self.pos(),
@@ -89,19 +89,19 @@ pub trait LexStream<'a> {
 /// The context can also be configured during the lexing process, which will
 /// take effect going forward in the lexing.
 #[derive(Clone)]
-pub struct Stream<'a> {
-	state: Rc<RefCell<State<'a>>>,
+pub struct Stream {
+	state: Rc<RefCell<State>>,
 	config: Rc<Config>,
 	index: usize,
 
-	current: Cell<Option<Lex<'a>>>,
-	current_error: RefCell<Option<Error<'a>>>,
+	current: Cell<Option<Lex>>,
+	current_error: RefCell<Option<Error>>,
 
-	errors: RefCell<Rc<Vec<Error<'a>>>>,
+	errors: RefCell<Rc<Vec<Error>>>,
 }
 
-impl<'a> LexStream<'a> for Stream<'a> {
-	fn copy(&self) -> Box<dyn LexStream<'a> + 'a> {
+impl LexStream for Stream {
+	fn copy(&self) -> Box<dyn LexStream> {
 		Box::new(self.clone())
 	}
 
@@ -109,7 +109,7 @@ impl<'a> LexStream<'a> for Stream<'a> {
 		self.errors.borrow().len() > 0 || self.current_error.borrow().is_some()
 	}
 
-	fn errors(&self) -> Vec<Error<'a>> {
+	fn errors(&self) -> Vec<Error> {
 		let errors = self.errors.borrow();
 		let mut errors = (**errors).clone();
 		if let Some(error) = &*self.current_error.borrow() {
@@ -118,13 +118,13 @@ impl<'a> LexStream<'a> for Stream<'a> {
 		errors
 	}
 
-	fn add_error(&mut self, error: Error<'a>) {
+	fn add_error(&mut self, error: Error) {
 		let mut errors = self.errors.borrow_mut();
 		let errors = Rc::make_mut(&mut errors);
 		errors.push(error);
 	}
 
-	fn next(&self) -> Lex<'a> {
+	fn next(&self) -> Lex {
 		match self.current.get() {
 			Some(value) => value,
 			None => {
@@ -148,7 +148,7 @@ impl<'a> LexStream<'a> for Stream<'a> {
 		}
 	}
 
-	fn source(&self) -> &'a dyn Input {
+	fn source(&self) -> Input {
 		self.state.borrow().source
 	}
 
@@ -163,8 +163,8 @@ impl<'a> LexStream<'a> for Stream<'a> {
 	}
 }
 
-impl<'a> Stream<'a> {
-	pub fn new(source: &'a dyn Input, config: Config) -> Self {
+impl Stream {
+	pub fn new(source: Input, config: Config) -> Self {
 		let state = State {
 			source,
 			entries: Vec::new(),
@@ -214,32 +214,32 @@ impl<'a> Stream<'a> {
 //----------------------------------------------------------------------------//
 
 #[derive(Clone)]
-struct Entry<'a> {
+struct Entry {
 	token: Token,
-	span: Span<'a>,
+	span: Span,
 	prev: Option<usize>,
 	head: Option<usize>,
 }
 
 #[derive(Clone)]
-struct State<'a> {
-	entries: Vec<Entry<'a>>,
-	source: &'a dyn Input,
+struct State {
+	entries: Vec<Entry>,
+	source: Input,
 }
 
-impl<'a> State<'a> {
-	pub fn cur(&self) -> Cursor<'a> {
+impl State {
+	pub fn cur(&self) -> Cursor {
 		self.entries
 			.last()
 			.map(|x| x.span.end)
-			.unwrap_or(Cursor::new(self.source))
+			.unwrap_or(self.source.sta())
 	}
 
 	pub fn head(&self) -> Option<usize> {
 		self.entries.last().map(|x| x.head).unwrap_or_default()
 	}
 
-	pub fn get_index(&mut self, config: &Config, index: usize) -> Result<'a, Lex<'a>> {
+	pub fn get_index(&mut self, config: &Config, index: usize) -> Result<Lex> {
 		while index >= self.entries.len() {
 			if !self.fill_next(config)? {
 				let token = Token::None;
@@ -254,12 +254,12 @@ impl<'a> State<'a> {
 		})
 	}
 
-	fn fill_next(&mut self, config: &Config) -> Result<'a, bool> {
+	fn fill_next(&mut self, config: &Config) -> Result<bool> {
 		let start_count = self.entries.len();
 		let mut cursor = self.cur();
-		let empty = cursor.column == 0;
+		let empty = cursor.column() == 0;
 		loop {
-			let new_line = cursor.column == 0;
+			let new_line = cursor.column() == 0;
 			let start = cursor;
 			let input = &mut cursor;
 
@@ -324,7 +324,7 @@ impl<'a> State<'a> {
 		Ok(self.entries.len() > start_count)
 	}
 
-	fn indent(&mut self, span: Span<'a>) {
+	fn indent(&mut self, span: Span) {
 		self.entries.push(Entry {
 			token: Token::Indent,
 			span,
@@ -339,13 +339,13 @@ impl<'a> State<'a> {
 			let head = &self.entries[index];
 			current = head.prev;
 			if let Token::Indent = head.token {
-				return head.span.end.column;
+				return head.span.end.column();
 			}
 		}
 		0
 	}
 
-	fn dedent(&mut self, span: Span<'a>) -> Result<'a, ()> {
+	fn dedent(&mut self, span: Span) -> Result<()> {
 		let expected = if let Some(index) = self.head() {
 			let head = &self.entries[index];
 			if let Token::Indent = head.token {
@@ -369,7 +369,7 @@ impl<'a> State<'a> {
 		}
 	}
 
-	fn open_paren(&mut self, token: Token, span: Span<'a>) {
+	fn open_paren(&mut self, token: Token, span: Span) {
 		let head = self.head();
 		self.entries.push(Entry {
 			token,
@@ -379,12 +379,7 @@ impl<'a> State<'a> {
 		});
 	}
 
-	fn close_paren(
-		&mut self,
-		token: Token,
-		span: Span<'a>,
-		symbol: &'static str,
-	) -> Result<'a, ()> {
+	fn close_paren(&mut self, token: Token, span: Span, symbol: &'static str) -> Result<()> {
 		let mut current = self.head();
 		while let Some(index) = current {
 			let head = &self.entries[index];
@@ -407,7 +402,7 @@ impl<'a> State<'a> {
 						prev: current.map(|x| self.entries[x].prev).unwrap_or_default(),
 						head: head.prev,
 					});
-					if self.indent_level() > span.pos.column {
+					if self.indent_level() > span.pos.column() {
 						return Error::ClosingDedent(symbol, span).into();
 					}
 					break;

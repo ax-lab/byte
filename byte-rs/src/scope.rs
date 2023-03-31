@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
 	lexer::{Lex, LexStream, Token},
-	Error,
+	Error, Input,
 };
 
 /// Scope actions at a given input position.
@@ -22,8 +22,8 @@ pub enum Action {
 	SkipAndStop,
 }
 
-pub trait Scope<'a> {
-	fn copy(&self) -> Box<dyn Scope<'a> + 'a>;
+pub trait Scope {
+	fn copy(&self) -> Box<dyn Scope>;
 
 	/// Apply the scope to the current input stream position.
 	///
@@ -31,20 +31,20 @@ pub trait Scope<'a> {
 	/// each time the input advances to the next token.
 	///
 	/// Returns the action relative to the current input token.
-	fn apply(&mut self, input: &dyn LexStream<'a>, as_parent: bool) -> Action;
+	fn apply(&mut self, input: &dyn LexStream, as_parent: bool) -> Action;
 
-	fn leave(&self, _input: &dyn LexStream<'a>) -> Option<Error<'a>> {
+	fn leave(&self, _input: &dyn LexStream) -> Option<Error> {
 		None
 	}
 }
 
-pub enum Scoped<'a> {
+pub enum Scoped {
 	Root,
 	Child {
 		mode: ChildMode,
-		last: Option<(Lex<'a>, Action)>,
-		scope: Box<dyn Scope<'a> + 'a>,
-		parent: Option<Box<Scoped<'a>>>,
+		last: Option<(Lex, Action)>,
+		scope: Box<dyn Scope>,
+		parent: Option<Box<Scoped>>,
 	},
 }
 
@@ -64,7 +64,7 @@ impl ChildMode {
 	}
 }
 
-impl<'a> Clone for Scoped<'a> {
+impl Clone for Scoped {
 	fn clone(&self) -> Self {
 		match self {
 			Self::Root => Self::Root,
@@ -83,14 +83,14 @@ impl<'a> Clone for Scoped<'a> {
 	}
 }
 
-impl<'a> Default for Scoped<'a> {
+impl Default for Scoped {
 	fn default() -> Self {
 		Scoped::Root
 	}
 }
 
-impl<'a> Scoped<'a> {
-	pub fn apply(&mut self, input: &dyn LexStream<'a>, is_parent: bool) -> Action {
+impl Scoped {
+	pub fn apply(&mut self, input: &dyn LexStream, is_parent: bool) -> Action {
 		match self {
 			Scoped::Root => Action::Output,
 			Scoped::Child {
@@ -122,7 +122,7 @@ impl<'a> Scoped<'a> {
 		}
 	}
 
-	pub fn enter(&mut self, scope: Box<dyn Scope<'a> + 'a>, mode: ChildMode) {
+	pub fn enter(&mut self, scope: Box<dyn Scope>, mode: ChildMode) {
 		let me = std::mem::take(self);
 		*self = Scoped::Child {
 			mode,
@@ -132,7 +132,7 @@ impl<'a> Scoped<'a> {
 		};
 	}
 
-	pub fn leave(&mut self, input: &dyn LexStream<'a>) -> Option<Error<'a>> {
+	pub fn leave(&mut self, input: &dyn LexStream) -> Option<Error> {
 		match self {
 			Scoped::Root => panic!("trying to leave root scope"),
 			Scoped::Child { scope, parent, .. } => {
@@ -149,15 +149,15 @@ impl<'a> Scoped<'a> {
 	}
 }
 
-pub struct ScopedStream<'a> {
-	input: RefCell<Box<dyn LexStream<'a> + 'a>>,
-	scope: RefCell<Scoped<'a>>,
-	next: Cell<Option<Lex<'a>>>,
+pub struct ScopedStream {
+	input: RefCell<Box<dyn LexStream + 'static>>,
+	scope: RefCell<Scoped>,
+	next: Cell<Option<Lex>>,
 	done: Cell<bool>,
 }
 
-impl<'a> ScopedStream<'a> {
-	pub fn new<T: LexStream<'a> + 'a>(input: T) -> ScopedStream<'a> {
+impl ScopedStream {
+	pub fn new<T: LexStream + 'static>(input: T) -> ScopedStream {
 		ScopedStream {
 			input: RefCell::new(Box::new(input)),
 			scope: RefCell::new(Scoped::Root),
@@ -166,7 +166,7 @@ impl<'a> ScopedStream<'a> {
 		}
 	}
 
-	pub fn enter(&mut self, scope: Box<dyn Scope<'a> + 'a>, mode: ChildMode) {
+	pub fn enter(&mut self, scope: Box<dyn Scope>, mode: ChildMode) {
 		self.scope.borrow_mut().enter(scope, mode);
 		self.apply_scope();
 		self.next.set(None);
@@ -185,12 +185,12 @@ impl<'a> ScopedStream<'a> {
 		self.done.set(false);
 	}
 
-	pub fn input(&self) -> Ref<dyn LexStream<'a>> {
+	pub fn input(&self) -> Ref<dyn LexStream> {
 		let input = self.input.borrow();
 		Ref::map(input, |x| &**x)
 	}
 
-	pub fn input_mut(&self) -> RefMut<dyn LexStream<'a>> {
+	pub fn input_mut(&self) -> RefMut<dyn LexStream> {
 		let input = self.input.borrow_mut();
 		RefMut::map(input, |x| &mut **x)
 	}
@@ -227,7 +227,7 @@ impl<'a> ScopedStream<'a> {
 	}
 }
 
-impl<'a> Clone for ScopedStream<'a> {
+impl Clone for ScopedStream {
 	fn clone(&self) -> Self {
 		Self {
 			input: RefCell::new(self.input().copy()),
@@ -238,16 +238,16 @@ impl<'a> Clone for ScopedStream<'a> {
 	}
 }
 
-impl<'a> LexStream<'a> for ScopedStream<'a> {
-	fn copy(&self) -> Box<dyn LexStream<'a> + 'a> {
+impl LexStream for ScopedStream {
+	fn copy(&self) -> Box<dyn LexStream> {
 		Box::new(self.clone())
 	}
 
-	fn source(&self) -> &'a dyn crate::input::Input {
+	fn source(&self) -> Input {
 		self.input().source()
 	}
 
-	fn next(&self) -> Lex<'a> {
+	fn next(&self) -> Lex {
 		if let Some(next) = self.next.get() {
 			next
 		} else {
@@ -272,11 +272,11 @@ impl<'a> LexStream<'a> for ScopedStream<'a> {
 		self.next.set(None);
 	}
 
-	fn errors(&self) -> Vec<Error<'a>> {
+	fn errors(&self) -> Vec<Error> {
 		self.input().errors()
 	}
 
-	fn add_error(&mut self, error: Error<'a>) {
+	fn add_error(&mut self, error: Error) {
 		self.input_mut().add_error(error)
 	}
 
@@ -291,8 +291,8 @@ pub struct ScopeLine {
 	split: Option<&'static str>,
 }
 
-impl<'a> ScopeLine {
-	pub fn new() -> Box<dyn Scope<'a> + 'a> {
+impl ScopeLine {
+	pub fn new() -> Box<dyn Scope> {
 		Box::new(ScopeLine {
 			ended: false,
 			level: 0,
@@ -300,7 +300,7 @@ impl<'a> ScopeLine {
 		})
 	}
 
-	pub fn new_with_break(split: &'static str) -> Box<dyn Scope<'a> + 'a> {
+	pub fn new_with_break(split: &'static str) -> Box<dyn Scope> {
 		Box::new(ScopeLine {
 			ended: false,
 			level: 0,
@@ -309,8 +309,8 @@ impl<'a> ScopeLine {
 	}
 }
 
-impl<'a> Scope<'a> for ScopeLine {
-	fn copy(&self) -> Box<dyn Scope<'a> + 'a> {
+impl Scope for ScopeLine {
+	fn copy(&self) -> Box<dyn Scope> {
 		Box::new(ScopeLine {
 			ended: self.ended,
 			level: self.level,
@@ -318,7 +318,7 @@ impl<'a> Scope<'a> for ScopeLine {
 		})
 	}
 
-	fn apply(&mut self, input: &dyn LexStream<'a>, as_parent: bool) -> Action {
+	fn apply(&mut self, input: &dyn LexStream, as_parent: bool) -> Action {
 		if self.ended {
 			return Action::Stop;
 		}
@@ -364,12 +364,12 @@ impl<'a> Scope<'a> for ScopeLine {
 	}
 }
 
-pub struct ScopeParenthesized<'a> {
-	open: VecDeque<Lex<'a>>,
+pub struct ScopeParenthesized {
+	open: VecDeque<Lex>,
 }
 
-impl<'a> ScopeParenthesized<'a> {
-	pub fn new() -> Box<dyn Scope<'a> + 'a> {
+impl ScopeParenthesized {
+	pub fn new() -> Box<dyn Scope> {
 		let scope = ScopeParenthesized {
 			open: Default::default(),
 		};
@@ -377,14 +377,14 @@ impl<'a> ScopeParenthesized<'a> {
 	}
 }
 
-impl<'a> Scope<'a> for ScopeParenthesized<'a> {
-	fn copy(&self) -> Box<dyn Scope<'a> + 'a> {
-		Box::new(ScopeParenthesized::<'a> {
+impl Scope for ScopeParenthesized {
+	fn copy(&self) -> Box<dyn Scope> {
+		Box::new(ScopeParenthesized {
 			open: self.open.clone(),
 		})
 	}
 
-	fn apply(&mut self, input: &dyn LexStream<'a>, as_parent: bool) -> Action {
+	fn apply(&mut self, input: &dyn LexStream, as_parent: bool) -> Action {
 		if let Some(open) = self.open.front() {
 			if input.next().symbol() == open.token.get_closing() {
 				if self.open.len() == 1 && as_parent {
@@ -415,7 +415,7 @@ impl<'a> Scope<'a> for ScopeParenthesized<'a> {
 		}
 	}
 
-	fn leave(&self, input: &dyn LexStream<'a>) -> Option<Error<'a>> {
+	fn leave(&self, input: &dyn LexStream) -> Option<Error> {
 		if let Some(open) = self.open.front() {
 			let next = input.next();
 			let end = open.token.get_closing().unwrap();
@@ -432,17 +432,17 @@ impl<'a> Scope<'a> for ScopeParenthesized<'a> {
 pub struct ScopeExpression {}
 
 impl ScopeExpression {
-	pub fn new<'a>() -> Box<dyn Scope<'a> + 'a> {
+	pub fn new() -> Box<dyn Scope> {
 		Box::new(ScopeExpression {})
 	}
 }
 
-impl<'a> Scope<'a> for ScopeExpression {
-	fn copy(&self) -> Box<dyn Scope<'a> + 'a> {
+impl Scope for ScopeExpression {
+	fn copy(&self) -> Box<dyn Scope> {
 		Box::new(ScopeExpression {})
 	}
 
-	fn apply(&mut self, input: &dyn LexStream<'a>, _as_parent: bool) -> Action {
+	fn apply(&mut self, input: &dyn LexStream, _as_parent: bool) -> Action {
 		match input.token() {
 			Token::Break => {
 				return Action::Stop;
@@ -462,13 +462,13 @@ impl<'a> Scope<'a> for ScopeExpression {
 
 #[cfg(test)]
 mod tests {
-	use crate::lexer;
+	use crate::{input, lexer};
 
 	use super::*;
 
 	#[test]
 	fn scoped_stream_read() {
-		let input = lexer::open(&"1 2 3");
+		let input = lexer::open(input::open_str("literal", "1 2 3"));
 		let mut input = ScopedStream::new(input);
 
 		assert_eq!(input.next().token, Token::Integer(1));
@@ -486,7 +486,7 @@ mod tests {
 
 	#[test]
 	fn scoped_stream_clone() {
-		let input = lexer::open(&"1 2");
+		let input = lexer::open(input::open_str("literal", "1 2"));
 		let mut a = ScopedStream::new(input);
 		let mut b = a.clone();
 
@@ -511,7 +511,7 @@ mod tests {
 
 	#[test]
 	fn scoped_stream_scope() {
-		let input = lexer::open(&"1 (2 3) 4");
+		let input = lexer::open(input::open_str("literal", "1 (2 3) 4"));
 		let mut input = ScopedStream::new(input);
 
 		assert_eq!(input.token(), Token::Integer(1));
@@ -537,7 +537,7 @@ mod tests {
 
 	#[test]
 	fn scope_indented_line() {
-		let input = lexer::open(&"1\n\t2\n");
+		let input = lexer::open(input::open_str("literal", "1\n\t2\n"));
 		let mut input = ScopedStream::new(input);
 
 		input.enter(ScopeLine::new(), ChildMode::Override);
@@ -565,7 +565,7 @@ mod tests {
 
 	#[test]
 	fn scope_nested_indented_line() {
-		let input = lexer::open(&"1\n\t2\n\t\t3\n");
+		let input = lexer::open(input::open_str("literal", "1\n\t2\n\t\t3\n"));
 		let mut input = ScopedStream::new(input);
 
 		input.enter(ScopeLine::new(), ChildMode::Secondary);

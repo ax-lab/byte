@@ -7,7 +7,7 @@ pub enum Token {
 	Dedent,
 	Identifier,
 	Integer(u64),
-	Literal(usize, usize),
+	Literal(&'static str),
 	Symbol(&'static str),
 }
 
