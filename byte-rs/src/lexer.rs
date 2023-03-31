@@ -120,7 +120,7 @@ mod tests {
 		let err = errors[0].clone();
 		assert!(matches!(err, Error::Lexer(..)));
 		let span = err.span();
-		assert_eq!(span.pos.pos(), Pos::LineCol(0, 1));
+		assert_eq!(span.sta.pos(), Pos::LineCol(0, 1));
 		assert_eq!(span.end.pos(), Pos::LineCol(0, 2));
 	}
 

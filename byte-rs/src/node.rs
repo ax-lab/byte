@@ -19,7 +19,7 @@ impl Node {
 	pub fn span(&self) -> Span {
 		match self {
 			Node::None(cur) => Span {
-				pos: *cur,
+				sta: *cur,
 				end: *cur,
 			},
 			Node::Invalid(error) => error.span(),

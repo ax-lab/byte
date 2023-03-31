@@ -166,7 +166,7 @@ mod tests {
 			let pos = input;
 			let next = symbols.try_match(next, &mut input);
 			let end = input;
-			let text = input.src().text(Span { pos, end });
+			let text = input.src().text(Span { sta: pos, end });
 			match next {
 				MatcherResult::Token(actual) => assert_eq!(
 					actual, expected,

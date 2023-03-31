@@ -76,7 +76,7 @@ fn main() {
 	}
 
 	for it in eval_list.into_iter() {
-		let context = lexer::open(input::open_text("eval", &it));
+		let context = lexer::open(input::open_str("eval", &it));
 		let result = eval::run(context, false);
 		println!("{result}");
 	}

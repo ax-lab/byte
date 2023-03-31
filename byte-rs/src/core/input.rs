@@ -19,18 +19,9 @@ pub fn open_file<P: AsRef<Path>>(path: P) -> std::io::Result<Input> {
 }
 
 /// Open a plain string as input. The string is copied.
-pub fn open_text<S: AsRef<str>>(name: &str, text: S) -> Input {
+pub fn open_str<S: AsRef<str>>(name: &str, text: S) -> Input {
 	let name = to_static(name);
 	let text = to_static(text.as_ref());
-	Input {
-		name,
-		data: text.as_bytes(),
-	}
-}
-
-/// Open a static string as input. This does not copy the string.
-pub fn open_str(name: &str, text: &'static str) -> Input {
-	let name = to_static(name);
 	Input {
 		name,
 		data: text.as_bytes(),
@@ -68,7 +59,7 @@ impl Input {
 	}
 
 	pub fn bytes(&self, span: Span) -> &'static [u8] {
-		&self.data[span.pos.offset..span.end.offset]
+		&self.data[span.sta.offset..span.end.offset]
 	}
 
 	pub fn text(&self, span: Span) -> &'static str {
@@ -87,13 +78,13 @@ impl Eq for Input {}
 /// Span indexes a range of text from an [`Input`].
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Span {
-	pub pos: Cursor,
+	pub sta: Cursor,
 	pub end: Cursor,
 }
 
 impl Span {
 	pub fn src(&self) -> Input {
-		self.pos.src()
+		self.sta.src()
 	}
 
 	pub fn text(&self) -> &'static str {
@@ -106,10 +97,10 @@ impl std::fmt::Debug for Span {
 		write!(
 			f,
 			"[{}..{} @{} {}..{}]",
-			self.pos.pos(),
+			self.sta.pos(),
 			self.end.pos(),
 			self.src().name(),
-			self.pos.offset(),
+			self.sta.offset(),
 			self.end.offset(),
 		)
 	}
@@ -117,7 +108,7 @@ impl std::fmt::Debug for Span {
 
 impl std::fmt::Display for Span {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.pos)
+		write!(f, "{}", self.sta)
 	}
 }
 

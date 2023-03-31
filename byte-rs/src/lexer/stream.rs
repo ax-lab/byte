@@ -44,12 +44,12 @@ pub trait LexStream {
 	}
 
 	fn pos(&self) -> Cursor {
-		self.next().span.pos
+		self.next().span.sta
 	}
 
 	fn from(&self, pos: Cursor) -> Span {
 		Span {
-			pos,
+			sta: pos,
 			end: self.pos(),
 		}
 	}
@@ -244,7 +244,7 @@ impl State {
 			if !self.fill_next(config)? {
 				let token = Token::None;
 				let pos = self.cur();
-				let span = Span { pos: pos, end: pos };
+				let span = Span { sta: pos, end: pos };
 				return Ok(Lex { token, span });
 			}
 		}
@@ -283,15 +283,15 @@ impl State {
 				let level = self.indent_level();
 				if indent > level {
 					let span = Span {
-						pos: start,
-						end: span.pos,
+						sta: start,
+						end: span.sta,
 					};
 					self.indent(span);
 				} else {
 					while indent < self.indent_level() {
 						self.dedent(Span {
-							pos: start,
-							end: span.pos,
+							sta: start,
+							end: span.sta,
 						})?;
 					}
 				}
@@ -402,7 +402,7 @@ impl State {
 						prev: current.map(|x| self.entries[x].prev).unwrap_or_default(),
 						head: head.prev,
 					});
-					if self.indent_level() > span.pos.column() {
+					if self.indent_level() > span.sta.column() {
 						return Error::ClosingDedent(symbol, span).into();
 					}
 					break;

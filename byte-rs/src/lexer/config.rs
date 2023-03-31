@@ -72,6 +72,12 @@ impl Config {
 			}
 		};
 
-		(result, Span { pos, end: *input })
+		(
+			result,
+			Span {
+				sta: pos,
+				end: *input,
+			},
+		)
 	}
 }

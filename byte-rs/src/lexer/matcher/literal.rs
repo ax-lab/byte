@@ -16,7 +16,7 @@ impl Matcher for MatchLiteral {
 					match input.read() {
 						Some('\'') => {
 							break MatcherResult::Token(Token::Literal(
-								input.src().text(Span { pos, end }),
+								input.src().text(Span { sta: pos, end }),
 							));
 						}
 

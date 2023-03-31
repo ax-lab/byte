@@ -20,8 +20,8 @@ impl Lex {
 		Lex {
 			token: Token::None,
 			span: Span {
-				pos: self.span.pos,
-				end: self.span.pos,
+				sta: self.span.sta,
+				end: self.span.sta,
 			},
 		}
 	}
