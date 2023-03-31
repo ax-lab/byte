@@ -171,13 +171,11 @@ impl Cursor {
 				next
 			};
 			self.pos.advance(next);
-			if next == '\n' || is_space(next) && is_start {
+			if next == '\n' || (is_space(next) && is_start) {
 				self.indent = self.pos.indent();
 			}
 			Some(next)
 		} else {
-			self.pos = Pos::EndOfInput;
-			self.indent = 0;
 			None
 		}
 	}
