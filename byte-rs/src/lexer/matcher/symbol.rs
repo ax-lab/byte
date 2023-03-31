@@ -1,8 +1,10 @@
+use crate::input::*;
+
 use std::{collections::HashMap, rc::Rc};
 
 use crate::lexer::LexerError;
 
-use super::{Cursor, Matcher, MatcherResult, Token};
+use super::{Matcher, MatcherResult, Token};
 
 #[derive(Clone)]
 pub struct SymbolTable {
@@ -110,9 +112,6 @@ impl Matcher for MatchSymbol {
 
 #[cfg(test)]
 mod tests {
-	use crate::input::open_str;
-	use crate::Span;
-
 	use super::*;
 
 	#[test]

@@ -3,7 +3,9 @@ use std::{
 	rc::Rc,
 };
 
-use crate::{Cursor, Error, Result, Span};
+use crate::input::*;
+
+use crate::{Error, Result};
 
 use super::{Config, Indent, Input, Lex, LexerResult, Matcher, Token};
 
@@ -257,9 +259,9 @@ impl State {
 	fn fill_next(&mut self, config: &Config) -> Result<bool> {
 		let start_count = self.entries.len();
 		let mut cursor = self.cur();
-		let empty = cursor.column() == 0;
+		let empty = cursor.col() == 0;
 		loop {
-			let new_line = cursor.column() == 0;
+			let new_line = cursor.col() == 0;
 			let start = cursor;
 			let input = &mut cursor;
 
@@ -339,7 +341,7 @@ impl State {
 			let head = &self.entries[index];
 			current = head.prev;
 			if let Token::Indent = head.token {
-				return head.span.end.column();
+				return head.span.end.col();
 			}
 		}
 		0
@@ -402,7 +404,7 @@ impl State {
 						prev: current.map(|x| self.entries[x].prev).unwrap_or_default(),
 						head: head.prev,
 					});
-					if self.indent_level() > span.sta.column() {
+					if self.indent_level() > span.sta.col() {
 						return Error::ClosingDedent(symbol, span).into();
 					}
 					break;

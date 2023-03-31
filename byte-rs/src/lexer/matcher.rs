@@ -1,5 +1,6 @@
 use super::{LexerError, Token};
-use crate::Cursor;
+
+use crate::input::*;
 
 mod comment;
 mod identifier;

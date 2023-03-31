@@ -43,17 +43,9 @@ impl Input {
 	pub fn sta(&self) -> Cursor {
 		Cursor {
 			src: *self,
-			pos: Pos::LineCol(0, 0),
+			row: 0,
+			col: 0,
 			offset: 0,
-			indent: 0,
-		}
-	}
-
-	pub fn end(&self) -> Cursor {
-		Cursor {
-			src: *self,
-			pos: Pos::EndOfInput,
-			offset: self.data.len(),
 			indent: 0,
 		}
 	}
@@ -96,9 +88,9 @@ impl std::fmt::Debug for Span {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(
 			f,
-			"[{}..{} @{} {}..{}]",
-			self.sta.pos(),
-			self.end.pos(),
+			"[{}~{} @{} {}..{}]",
+			self.sta,
+			self.end,
 			self.src().name(),
 			self.sta.offset(),
 			self.end.offset(),
@@ -120,7 +112,8 @@ impl std::fmt::Display for Span {
 #[derive(Copy, Clone)]
 pub struct Cursor {
 	src: Input,
-	pos: Pos,
+	row: usize,
+	col: usize,
 	offset: usize,
 	indent: usize,
 }
@@ -131,18 +124,17 @@ impl Cursor {
 		self.src
 	}
 
-	pub fn pos(&self) -> Pos {
-		self.pos
+	pub fn row(&self) -> usize {
+		self.row
+	}
+
+	pub fn col(&self) -> usize {
+		self.col
 	}
 
 	/// Byte offset from the start of the input.
 	pub fn offset(&self) -> usize {
 		self.offset
-	}
-
-	/// Column for the current position.
-	pub fn column(&self) -> usize {
-		self.pos().indent()
 	}
 
 	/// Indentation level.
@@ -159,8 +151,13 @@ impl Cursor {
 	pub fn read(&mut self) -> Option<char> {
 		let text = unsafe { std::str::from_utf8_unchecked(&self.src.data[self.offset..]) };
 		if let Some(next) = text.chars().next() {
-			let is_start = self.indent == self.pos.indent();
+			// keep indentation until we find the first non-space character
+			let is_line_indent = self.indent == self.col;
+
+			// update offset to next char
 			self.offset += next.len_utf8();
+
+			// translate CR and CR+LF to a single LF
 			let next = if next == '\r' {
 				let mut next = *self;
 				if next.read() == Some('\n') {
@@ -170,19 +167,25 @@ impl Cursor {
 			} else {
 				next
 			};
-			self.pos.advance(next);
-			if next == '\n' || (is_space(next) && is_start) {
-				self.indent = self.pos.indent();
+
+			// update position
+			if next == '\n' {
+				self.row += 1;
+				self.col = 0;
+			} else if next == '\t' {
+				self.col += TAB_WIDTH - (self.col % TAB_WIDTH)
+			} else {
+				self.col += 1;
+			}
+
+			// update indentation
+			if next == '\n' || (is_space(next) && is_line_indent) {
+				self.indent = self.col;
 			}
 			Some(next)
 		} else {
 			None
 		}
-	}
-
-	pub fn peek(&self) -> Option<char> {
-		let mut cursor = *self;
-		cursor.read()
 	}
 
 	pub fn read_if(&mut self, expected: char) -> bool {
@@ -206,56 +209,13 @@ impl Eq for Cursor {}
 
 impl std::fmt::Display for Cursor {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.pos)
+		write!(f, "L{}:{:02}", self.row() + 1, self.col() + 1)
 	}
 }
 
 impl std::fmt::Debug for Cursor {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "[{} @{}:{}]", self.pos(), self.src.name(), self.offset)
-	}
-}
-
-/// Represents a line/column position in a source input.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum Pos {
-	/// Zero-based line and column position, considering [`TAB_WIDTH`].
-	LineCol(usize, usize),
-	/// End of input.
-	EndOfInput,
-}
-
-impl Pos {
-	fn indent(&self) -> usize {
-		match self {
-			Pos::LineCol(_, col) => *col,
-			Pos::EndOfInput => 0,
-		}
-	}
-
-	fn advance(&mut self, next: char) {
-		match self {
-			Pos::LineCol(line, col) => {
-				if next == '\n' {
-					*line += 1;
-					*col = 0;
-				} else if next == '\t' {
-					*col += 4 - (*col % 4)
-				} else {
-					*col += 1;
-				}
-			}
-			Pos::EndOfInput => {}
-		}
-	}
-}
-
-impl std::fmt::Display for Pos {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			Pos::LineCol(line, col) => write!(f, "L{}:{:02}", line + 1, col + 1),
-			Pos::EndOfInput => write!(f, "end of input"),
-		}
+		write!(f, "[{} @{}:{}]", self, self.src.name(), self.offset)
 	}
 }
 

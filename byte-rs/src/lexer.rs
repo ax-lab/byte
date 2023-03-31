@@ -8,13 +8,11 @@ pub use config::Config;
 pub mod matcher;
 pub use matcher::{Matcher, MatcherResult};
 
-use crate::Input;
+use crate::input::*;
 
 pub use lex::*;
 pub use stream::*;
 pub use token::*;
-
-use crate::{Cursor, Span};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Indent(pub usize);
@@ -92,7 +90,7 @@ fn read_token(config: &Config, input: &mut Cursor) -> (LexerResult, Span) {
 
 #[cfg(test)]
 mod tests {
-	use crate::{core::input::Pos, Error};
+	use crate::Error;
 
 	use super::*;
 
@@ -120,8 +118,10 @@ mod tests {
 		let err = errors[0].clone();
 		assert!(matches!(err, Error::Lexer(..)));
 		let span = err.span();
-		assert_eq!(span.sta.pos(), Pos::LineCol(0, 1));
-		assert_eq!(span.end.pos(), Pos::LineCol(0, 2));
+		assert_eq!(span.sta.row(), 0);
+		assert_eq!(span.sta.col(), 1);
+		assert_eq!(span.end.row(), 0);
+		assert_eq!(span.end.col(), 2);
 	}
 
 	#[test]

@@ -1,4 +1,6 @@
-use crate::{operator::*, Cursor, Error, Span};
+use crate::input::*;
+
+use crate::{operator::*, Error};
 
 /// Represents a syntactic structure in the source code.
 ///

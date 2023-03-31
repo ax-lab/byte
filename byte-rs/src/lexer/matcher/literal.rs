@@ -1,7 +1,8 @@
 use crate::lexer::LexerError;
 
+use crate::input::*;
+
 use super::{Matcher, MatcherResult, Token};
-use crate::{Cursor, Span};
 
 #[derive(Copy, Clone)]
 pub struct MatchLiteral;

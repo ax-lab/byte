@@ -6,6 +6,7 @@ mod context;
 mod core;
 mod error;
 mod eval;
+mod input;
 mod lexer;
 mod macros;
 mod node;
@@ -13,8 +14,6 @@ mod operator;
 mod parser;
 mod runtime;
 mod scope;
-
-use crate::core::*;
 
 use context::*;
 use error::*;

@@ -3,9 +3,11 @@ use std::{
 	collections::VecDeque,
 };
 
+use crate::input::*;
+
 use crate::{
 	lexer::{Lex, LexStream, Token},
-	Error, Input,
+	Error,
 };
 
 /// Scope actions at a given input position.

@@ -4,7 +4,8 @@ use super::{
 	matcher::{MatchSymbol, SymbolTable},
 	Indent, LexerError, LexerResult, Matcher, MatcherResult, Token,
 };
-use crate::{Cursor, Span};
+
+use crate::input::*;
 
 #[derive(Default)]
 pub struct Config {

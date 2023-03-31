@@ -1,4 +1,4 @@
-use crate::core::input::Span;
+use crate::input::*;
 
 use super::Token;
 

@@ -1,7 +1,8 @@
+use crate::input::*;
+
 use crate::{
 	input::is_space,
 	lexer::{Matcher, MatcherResult},
-	Cursor,
 };
 
 #[derive(Copy, Clone)]
