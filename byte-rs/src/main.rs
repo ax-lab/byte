@@ -73,14 +73,15 @@ fn main() {
 		std::process::exit(1);
 	}
 
+	let ctx = core::context::Context::new();
 	for it in eval_list.into_iter() {
-		let context = lexer::open(core::input::open_str("eval", &it));
+		let context = lexer::open(ctx.open_str("eval", &it));
 		let result = eval::run(context, false);
 		println!("{result}");
 	}
 
 	for file in files {
-		match core::input::open_file(&file) {
+		match ctx.open_file(&file) {
 			Ok(source) => {
 				let mut context = lexer::open(source);
 				if list_tokens {

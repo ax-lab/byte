@@ -464,13 +464,19 @@ impl Scope for ScopeExpression {
 
 #[cfg(test)]
 mod tests {
-	use crate::lexer;
+	use crate::lexer::{self, Stream};
 
 	use super::*;
+	use crate::core::context::*;
+
+	fn open(str: &'static str) -> Stream {
+		let ctx = Context::new();
+		lexer::open(ctx.open_str(str, str))
+	}
 
 	#[test]
 	fn scoped_stream_read() {
-		let input = lexer::open(open_str("literal", "1 2 3"));
+		let input = open("1 2 3");
 		let mut input = ScopedStream::new(input);
 
 		assert_eq!(input.next().token, Token::Integer(1));
@@ -488,7 +494,7 @@ mod tests {
 
 	#[test]
 	fn scoped_stream_clone() {
-		let input = lexer::open(open_str("literal", "1 2"));
+		let input = open("1 2");
 		let mut a = ScopedStream::new(input);
 		let mut b = a.clone();
 
@@ -513,7 +519,7 @@ mod tests {
 
 	#[test]
 	fn scoped_stream_scope() {
-		let input = lexer::open(open_str("literal", "1 (2 3) 4"));
+		let input = open("1 (2 3) 4");
 		let mut input = ScopedStream::new(input);
 
 		assert_eq!(input.token(), Token::Integer(1));
@@ -539,7 +545,7 @@ mod tests {
 
 	#[test]
 	fn scope_indented_line() {
-		let input = lexer::open(open_str("literal", "1\n\t2\n"));
+		let input = open("1\n\t2\n");
 		let mut input = ScopedStream::new(input);
 
 		input.enter(ScopeLine::new(), ChildMode::Override);
@@ -567,7 +573,7 @@ mod tests {
 
 	#[test]
 	fn scope_nested_indented_line() {
-		let input = lexer::open(open_str("literal", "1\n\t2\n\t\t3\n"));
+		let input = open("1\n\t2\n\t\t3\n");
 		let mut input = ScopedStream::new(input);
 
 		input.enter(ScopeLine::new(), ChildMode::Secondary);

@@ -103,12 +103,18 @@ impl LexStream for Context {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::lexer::{self, Token};
+	use crate::lexer::{self, Stream, Token};
+
+	fn open(str: &'static str) -> Stream {
+		let ctx = crate::core::context::Context::new();
+		let input = ctx.open_str(str, str);
+		lexer::open(input)
+	}
 
 	#[test]
 	fn root_scope() {
 		let input = "+ -";
-		let mut context = Context::new(lexer::open(open_str(input, input)));
+		let mut context = Context::new(open(input));
 
 		assert_eq!(context.token(), Token::Symbol("+"));
 		context.advance();
@@ -122,7 +128,7 @@ mod tests {
 	#[test]
 	fn line_scope() {
 		let input = "+\n-\n*\n.";
-		let mut context = Context::new(lexer::open(open_str(input, input)));
+		let mut context = Context::new(open(input));
 
 		// line scope should stop at the line break
 		context.scope_to_line();
@@ -169,7 +175,7 @@ mod tests {
 	#[test]
 	fn line_scope_with_break() {
 		let input = "+;-\n1; 2";
-		let mut context = Context::new(lexer::open(open_str(input, input)));
+		let mut context = Context::new(open(input));
 
 		// line scope should stop at the line break
 		context.scope_to_line_with_break(";");
@@ -212,7 +218,7 @@ mod tests {
 	fn line_scope_parenthesis() {
 		let input = "(1 2) 3";
 
-		let mut context = Context::new(lexer::open(open_str(input, input)));
+		let mut context = Context::new(open(input));
 		assert_eq!(context.token(), Token::Symbol("("));
 
 		context.scope_to_parenthesis();

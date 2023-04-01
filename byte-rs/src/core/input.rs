@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use super::context::*;
+
 /// Tab-width considered when computing column and indentation.
 pub const TAB_WIDTH: usize = 4;
 
@@ -8,23 +10,26 @@ pub fn is_space(char: char) -> bool {
 	matches!(char, ' ' | '\t')
 }
 
-/// Open a file as input.
-pub fn open_file<P: AsRef<Path>>(path: P) -> std::io::Result<Input> {
-	let path = path.as_ref();
-	let data = std::fs::read(path)?;
-	let name = to_static(&path.to_string_lossy());
-	let data = data.into_boxed_slice();
-	let data = Box::leak(data);
-	Ok(Input { name, data })
-}
+impl Context {
+	/// Open a file as input.
+	pub fn open_file<P: AsRef<Path>>(&self, path: P) -> std::io::Result<Input> {
+		let path = path.as_ref();
+		let data = std::fs::read(path)?;
+		let name = self.save(path.to_string_lossy().to_string());
+		let data = self.save(data);
 
-/// Open a plain string as input. The string is copied.
-pub fn open_str<S: AsRef<str>>(name: &str, text: S) -> Input {
-	let name = to_static(name);
-	let text = to_static(text.as_ref());
-	Input {
-		name,
-		data: text.as_bytes(),
+		let data = data.as_ref();
+		Ok(Input { name, data })
+	}
+
+	/// Open a plain string as input. The string is copied.
+	pub fn open_str<S: AsRef<str>>(&self, name: &str, text: S) -> Input {
+		let name = self.save(name.to_string());
+		let text = self.save(text.as_ref().to_string());
+		Input {
+			name: name,
+			data: text.as_bytes(),
+		}
 	}
 }
 
@@ -217,15 +222,4 @@ impl std::fmt::Debug for Cursor {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "[{} @{}:{}]", self, self.src.name(), self.offset)
 	}
-}
-
-/// Transform the given input string to a static string by moving it
-/// into heap memory and never deallocating it.
-///
-/// For simplicity sake we use this for source text which is kept
-/// alive during the entire compiler lifetime.
-fn to_static(input: &str) -> &'static str {
-	let input = input.to_string();
-	let input = input.into_boxed_str();
-	Box::leak(input)
 }

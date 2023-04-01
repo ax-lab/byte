@@ -113,6 +113,7 @@ impl Matcher for MatchSymbol {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::core::context::*;
 
 	#[test]
 	fn lexer_should_parse_symbols() {
@@ -158,7 +159,8 @@ mod tests {
 	}
 
 	fn check_symbols(symbols: &MatchSymbol, input: &'static str, expected: &[Token]) {
-		let input = open_str("literal", input);
+		let ctx = Context::new();
+		let input = ctx.open_str("literal", input);
 		let mut input = input.sta();
 		for (i, expected) in expected.iter().cloned().enumerate() {
 			let next = input.read().expect("unexpected end of input");
