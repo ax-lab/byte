@@ -4,27 +4,13 @@ use crate::core::context::*;
 use crate::core::error::*;
 use crate::core::input::*;
 
+mod indent;
 mod symbol;
 mod token;
 
 pub use token::*;
 
 use symbol::SymbolTable;
-
-#[derive(Debug)]
-pub enum LexerError {
-	InvalidSymbol,
-}
-
-impl ErrorInfo for LexerError {}
-
-impl Display for LexerError {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			LexerError::InvalidSymbol => write!(f, "invalid symbol"),
-		}
-	}
-}
 
 pub trait Scanner {
 	fn scan(&self, next: char, input: &mut Cursor, errors: &mut ErrorList) -> Option<Token>;
@@ -104,5 +90,31 @@ impl Lexer {
 			};
 		}
 		Token::None
+	}
+}
+
+#[derive(Debug)]
+pub enum LexerError {
+	InvalidSymbol,
+	InvalidDedentInRegion,
+	InvalidDedentIndent,
+}
+
+impl ErrorInfo for LexerError {}
+
+impl Display for LexerError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			LexerError::InvalidSymbol => write!(f, "invalid symbol"),
+			LexerError::InvalidDedentInRegion => {
+				write!(f, "indentation level is less than the enclosing expression")
+			}
+			LexerError::InvalidDedentIndent => {
+				write!(
+					f,
+					"cannot dedent and indent in a single line, return to previous level first"
+				)
+			}
+		}
 	}
 }

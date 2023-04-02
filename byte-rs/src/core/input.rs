@@ -52,6 +52,10 @@ impl Input {
 		&self.internal.name
 	}
 
+	pub fn len(&self) -> usize {
+		self.internal.data.len()
+	}
+
 	pub fn start(&self) -> Cursor {
 		Cursor {
 			src: self.clone(),
@@ -168,6 +172,10 @@ impl Cursor {
 		self.indent
 	}
 
+	pub fn at_end(&self) -> bool {
+		self.offset == self.src.len()
+	}
+
 	pub fn read(&mut self) -> Option<char> {
 		let text = unsafe { std::str::from_utf8_unchecked(&self.src.internal.data[self.offset..]) };
 		if let Some(next) = text.chars().next() {
@@ -219,6 +227,13 @@ impl Cursor {
 			true
 		} else {
 			false
+		}
+	}
+
+	pub fn pos(&self) -> Span {
+		Span {
+			sta: self.clone(),
+			end: self.clone(),
 		}
 	}
 }
