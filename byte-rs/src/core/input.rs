@@ -72,6 +72,12 @@ impl PartialEq for Input {
 
 impl Eq for Input {}
 
+impl std::fmt::Display for Input {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.name)
+	}
+}
+
 /// Span indexes a range of text from an [`Input`].
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Span {
@@ -192,6 +198,10 @@ impl Cursor {
 			None
 		}
 	}
+
+	//------------------------------------------------------------------------//
+	// Utility functions
+	//------------------------------------------------------------------------//
 
 	pub fn read_if(&mut self, expected: char) -> bool {
 		let mut cursor = *self;

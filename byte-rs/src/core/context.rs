@@ -9,7 +9,6 @@ use std::{
 #[derive(Copy, Clone)]
 pub struct Context(&'static ContextPtr);
 
-#[allow(unused)]
 impl Context {
 	pub fn new() -> Context {
 		// once created, we never deallocate the context root data

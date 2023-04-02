@@ -14,6 +14,9 @@ mod parser;
 mod runtime;
 mod scope;
 
+#[allow(unused)]
+mod lex;
+
 use context::*;
 use error::*;
 
