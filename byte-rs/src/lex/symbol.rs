@@ -3,18 +3,6 @@ use std::{collections::HashMap, rc::Rc};
 use super::*;
 use crate::core::input::*;
 
-pub struct Symbol(&'static str);
-
-impl Symbol {
-	pub fn from(ctx: Context, sym: &'static str) -> TokenData {
-		Symbol::data(ctx, Symbol(sym))
-	}
-}
-
-impl IsToken for Symbol {
-	type Value = Self;
-}
-
 #[derive(Clone)]
 pub struct SymbolTable {
 	states: Vec<Entry>,
@@ -35,12 +23,12 @@ impl Default for SymbolTable {
 
 #[derive(Clone)]
 struct Entry {
-	value: Option<TokenData>,
+	value: Option<Token>,
 	next: HashMap<char, usize>,
 }
 
 impl SymbolTable {
-	pub fn add_symbol(&mut self, symbol: &'static str, value: TokenData) {
+	pub fn add_symbol(&mut self, symbol: &'static str, value: Token) {
 		assert!(symbol.len() > 0);
 		let mut current = 0;
 		for char in symbol.chars() {
@@ -73,7 +61,7 @@ impl SymbolTable {
 }
 
 impl Scanner for SymbolTable {
-	fn scan(&self, next: char, input: &mut Cursor, errors: &mut ErrorList) -> Option<TokenData> {
+	fn scan(&self, next: char, input: &mut Cursor, errors: &mut ErrorList) -> Option<Token> {
 		let state = self.get_next(0, next);
 		let (mut state, valid) = if let Some((state, valid)) = state {
 			(state, valid)
@@ -110,39 +98,33 @@ mod tests {
 
 	#[test]
 	fn lexer_should_parse_symbols() {
-		let ctx = Context::new();
 		let mut sym = SymbolTable::default();
-		sym.add_symbol("+", Symbol::from(ctx, "+"));
-		sym.add_symbol("++", Symbol::from(ctx, "++"));
-		sym.add_symbol(".", Symbol::from(ctx, "."));
-		sym.add_symbol("..", Symbol::from(ctx, ".."));
-		sym.add_symbol("...", Symbol::from(ctx, "..."));
-		sym.add_symbol(">", Symbol::from(ctx, ">"));
-		sym.add_symbol(">>>>", Symbol::from(ctx, "arrow"));
+		sym.add_symbol("+", Token::Symbol("+"));
+		sym.add_symbol("++", Token::Symbol("++"));
+		sym.add_symbol(".", Token::Symbol("."));
+		sym.add_symbol("..", Token::Symbol(".."));
+		sym.add_symbol("...", Token::Symbol("..."));
+		sym.add_symbol(">", Token::Symbol(">"));
+		sym.add_symbol(">>>>", Token::Symbol("arrow"));
 
 		let sym = &sym;
-		check_symbols(ctx, sym, "", &[]);
-		check_symbols(ctx, sym, "+", &["+"]);
-		check_symbols(ctx, sym, "++", &["++"]);
-		check_symbols(ctx, sym, "+++", &["++", "+"]);
-		check_symbols(ctx, sym, ".", &["."]);
-		check_symbols(ctx, sym, "..", &[".."]);
-		check_symbols(ctx, sym, "...", &["..."]);
-		check_symbols(ctx, sym, "....", &["...", "."]);
-		check_symbols(ctx, sym, ".....+", &["...", "..", "+"]);
-		check_symbols(ctx, sym, ">>>", &[">", ">", ">"]);
-		check_symbols(ctx, sym, ">>>>", &["arrow"]);
-		check_symbols(ctx, sym, ">>>>>>>>", &["arrow", "arrow"]);
+		check_symbols(sym, "", &[]);
+		check_symbols(sym, "+", &["+"]);
+		check_symbols(sym, "++", &["++"]);
+		check_symbols(sym, "+++", &["++", "+"]);
+		check_symbols(sym, ".", &["."]);
+		check_symbols(sym, "..", &[".."]);
+		check_symbols(sym, "...", &["..."]);
+		check_symbols(sym, "....", &["...", "."]);
+		check_symbols(sym, ".....+", &["...", "..", "+"]);
+		check_symbols(sym, ">>>", &[">", ">", ">"]);
+		check_symbols(sym, ">>>>", &["arrow"]);
+		check_symbols(sym, ">>>>>>>>", &["arrow", "arrow"]);
 	}
 
-	fn check_symbols(
-		ctx: Context,
-		symbols: &SymbolTable,
-		input: &'static str,
-		expected: &[&'static str],
-	) {
-		let mut errors = ErrorList::new(ctx);
+	fn check_symbols(symbols: &SymbolTable, input: &'static str, expected: &[&'static str]) {
 		let ctx = Context::new();
+		let mut errors = ErrorList::new();
 		let input = ctx.open_str("literal", input);
 		let mut input = input.start();
 		for (i, expected) in expected.iter().cloned().enumerate() {
@@ -154,20 +136,14 @@ mod tests {
 			assert!(errors.empty());
 			let src = input.src();
 			let text = src.text(&Span { sta: pos, end });
-			let next = if let Some(next) = next {
-				next
-			} else {
-				panic!("got no match at #{i}: (consumed: `{text}`)");
-			};
-
-			if let Some(Symbol(actual)) = next.get::<Symbol>() {
+			if let Some(Token::Symbol(actual)) = next {
 				assert_eq!(
-					*actual, expected,
+					actual, expected,
 					"unexpected symbol {:?} from `{}` at #{} (expected {:?})",
 					actual, text, i, expected,
 				);
 			} else {
-				panic!("got invalid data at #{i}: (consumed: `{text}`)");
+				panic!("got invalid token at #{i}: (consumed: `{text}`, got `{next:?}`)");
 			}
 		}
 

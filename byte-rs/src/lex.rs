@@ -1,88 +1,66 @@
 use std::fmt::{Debug, Display};
 
-use crate::core::any::*;
 use crate::core::context::*;
 use crate::core::error::*;
 use crate::core::input::*;
 
-pub mod symbol;
+mod symbol;
+mod token;
 
-pub trait Scanner: 'static {
-	fn scan(&self, next: char, input: &mut Cursor, errors: &mut ErrorList) -> Option<TokenData>;
+pub use token::*;
+
+use symbol::SymbolTable;
+
+#[derive(Debug)]
+pub enum LexerError {
+	InvalidSymbol,
 }
 
-#[derive(Copy, Clone)]
-pub struct TokenData {
-	value: Value,
-}
+impl ErrorInfo for LexerError {}
 
-impl TokenData {
-	pub fn is<T: IsToken>(&self) -> bool {
-		self.value.is::<T>()
-	}
-
-	pub fn get<T: IsToken>(&self) -> Option<&'static T::Value> {
-		self.value.get::<T>()
-	}
-
-	pub fn val<T: IsToken>(&self) -> Option<T::Value>
-	where
-		<T as IsToken>::Value: Copy,
-	{
-		self.value.val::<T>()
+impl Display for LexerError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			LexerError::InvalidSymbol => write!(f, "invalid symbol"),
+		}
 	}
 }
 
-pub trait IsToken: 'static + Sized {
-	type Value: 'static;
-
-	fn data(ctx: Context, value: Self::Value) -> TokenData {
-		let value = <Self as Valued>::new(ctx, value);
-		TokenData { value }
-	}
+pub trait Scanner {
+	fn scan(&self, next: char, input: &mut Cursor, errors: &mut ErrorList) -> Option<Token>;
 }
 
-impl<T: IsToken> Valued for T {
-	type Value = T::Value;
-}
-
-#[derive(Clone)]
-pub struct Token {
-	data: TokenData,
+#[derive(Clone, Debug)]
+pub struct Lex {
+	data: Token,
 	span: Span,
 }
 
-impl Token {
-	pub fn invalid() -> Self {
-		todo!()
-	}
-
-	pub fn skip() -> Self {
-		todo!()
-	}
-}
-
+/// Provides the lexer configuration and the low-level token scanning for
+/// the compiler.
 pub struct Lexer {
 	scanners: Vec<Box<dyn Scanner>>,
+	symbols: SymbolTable,
 }
 
 impl Lexer {
 	pub fn new() -> Lexer {
 		Lexer {
 			scanners: Vec::new(),
+			symbols: SymbolTable::default(),
 		}
 	}
 
-	pub fn add_scanner<T: Scanner>(&mut self, scanner: T) {
+	pub fn add_scanner<T: Scanner + 'static>(&mut self, scanner: T) {
 		let scanner: Box<dyn Scanner> = Box::new(scanner);
 		self.scanners.push(scanner);
 	}
 
-	pub fn add_symbol(&mut self, symbol: &str, data: TokenData) {
-		todo!()
+	pub fn add_symbol(&mut self, symbol: &'static str, value: Token) {
+		self.symbols.add_symbol(symbol, value);
 	}
 
-	pub fn read(&self, input: &mut Cursor, errors: &mut ErrorList) -> Token {
+	pub fn read(&self, input: &mut Cursor, errors: &mut ErrorList) -> Lex {
 		let sta = input.clone();
 		let data = self.read_next(input, errors);
 		let span = Span {
@@ -90,10 +68,41 @@ impl Lexer {
 			end: input.clone(),
 		};
 		assert!(input.offset() > sta.offset());
-		Token { data, span }
+		Lex { data, span }
 	}
 
-	fn read_next(&self, input: &mut Cursor, errors: &mut ErrorList) -> TokenData {
-		todo!()
+	fn read_next(&self, input: &mut Cursor, errors: &mut ErrorList) -> Token {
+		let mut start = input.clone();
+		while let Some(next) = input.read() {
+			if is_space(next) {
+				start = input.clone();
+				continue;
+			}
+
+			let saved = (input.clone(), errors.clone());
+			for scanner in self.scanners.iter() {
+				if let Some(token) = scanner.scan(next, input, errors) {
+					return token;
+				} else {
+					(*input, *errors) = saved.clone();
+				}
+			}
+
+			// if none of the scanners matched, try the symbols
+			return if let Some(token) = self.symbols.scan(next, input, errors) {
+				token
+			} else {
+				(*input, *errors) = saved;
+				errors.at(
+					Span {
+						sta: start,
+						end: input.clone(),
+					},
+					LexerError::InvalidSymbol,
+				);
+				Token::Invalid
+			};
+		}
+		Token::None
 	}
 }

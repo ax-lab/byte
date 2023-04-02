@@ -1,51 +1,45 @@
 use std::fmt::{Debug, Display};
+use std::rc::Rc;
 
-use crate::core::context::*;
 use crate::core::input::*;
 
 pub trait ErrorInfo: Display + Debug + 'static {}
 
 #[derive(Clone)]
 pub struct Error {
-	info: &'static dyn ErrorInfo,
+	info: Rc<Box<dyn ErrorInfo>>,
 	span: Span,
 }
 
 impl Error {
-	pub fn span(&self) -> Span {
-		self.span.clone()
+	pub fn span(&self) -> &Span {
+		&self.span
 	}
 }
 
 impl std::fmt::Display for Error {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{} at {}", self.info, self.span())
+		write!(f, "error: {}\n", self.info)?;
+		write!(f, "       (at {}:{})", self.span().src(), self.span())?;
+		Ok(())
 	}
 }
 
 impl std::fmt::Debug for Error {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(
-			f,
-			"[error: {} at {}@{}]",
-			self.info,
-			self.span(),
-			self.span().src()
-		)
+		write!(f, "[error: {}]", self)
 	}
 }
 
-#[derive(Copy, Clone)]
-#[allow(unused)]
+#[derive(Clone)]
 pub struct ErrorList {
-	ctx: Context,
-	head: Option<&'static ErrorNode>,
+	head: Option<Rc<ErrorNode>>,
 }
 
 #[allow(unused)]
 impl ErrorList {
-	pub fn new(ctx: Context) -> ErrorList {
-		ErrorList { ctx, head: None }
+	pub fn new() -> ErrorList {
+		ErrorList { head: None }
 	}
 
 	pub fn empty(&self) -> bool {
@@ -53,18 +47,18 @@ impl ErrorList {
 	}
 
 	pub fn at<T: ErrorInfo>(&mut self, span: Span, info: T) {
-		let node = ErrorNode {
-			info: Box::new(info),
+		let error = Error {
+			info: Rc::new(Box::new(info)),
 			span,
-			prev: self.head,
 		};
-		let node = self.ctx.save(node);
-		self.head = Some(node);
+		let prev = std::mem::take(&mut self.head);
+		let node = ErrorNode { error, prev };
+		self.head = Some(Rc::new(node));
 	}
 
 	pub fn list(&self) -> Vec<Error> {
 		let mut list = Vec::new();
-		if let Some(node) = self.head {
+		if let Some(node) = &self.head {
 			node.append_to(&mut list);
 		}
 		list
@@ -72,19 +66,15 @@ impl ErrorList {
 }
 
 struct ErrorNode {
-	info: Box<dyn ErrorInfo>,
-	span: Span,
-	prev: Option<&'static ErrorNode>,
+	error: Error,
+	prev: Option<Rc<ErrorNode>>,
 }
 
 impl ErrorNode {
-	fn append_to(&'static self, list: &mut Vec<Error>) {
-		if let Some(prev) = self.prev {
-			prev.append_to(list);
+	fn append_to(&self, output: &mut Vec<Error>) {
+		if let Some(prev) = &self.prev {
+			prev.append_to(output);
 		}
-		list.push(Error {
-			info: &*self.info,
-			span: self.span.clone(),
-		})
+		output.push(self.error.clone());
 	}
 }
