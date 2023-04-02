@@ -232,7 +232,7 @@ impl State {
 		self.entries
 			.last()
 			.map(|x| x.span.end.clone())
-			.unwrap_or(self.source.sta())
+			.unwrap_or(self.source.start())
 	}
 
 	pub fn head(&self) -> Option<usize> {

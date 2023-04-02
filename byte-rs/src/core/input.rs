@@ -52,7 +52,7 @@ impl Input {
 		&self.internal.name
 	}
 
-	pub fn sta(&self) -> Cursor {
+	pub fn start(&self) -> Cursor {
 		Cursor {
 			src: self.clone(),
 			row: 0,
@@ -62,11 +62,11 @@ impl Input {
 		}
 	}
 
-	pub fn bytes(&self, span: Span) -> &[u8] {
+	pub fn bytes(&self, span: &Span) -> &[u8] {
 		&self.internal.data[span.sta.offset..span.end.offset]
 	}
 
-	pub fn text(&self, span: Span) -> &str {
+	pub fn text(&self, span: &Span) -> &str {
 		unsafe { std::str::from_utf8_unchecked(self.bytes(span)) }
 	}
 }
@@ -95,12 +95,12 @@ pub struct Span {
 }
 
 impl Span {
-	pub fn src(&self) -> Input {
+	pub fn src(&self) -> &Input {
 		self.sta.src()
 	}
 
 	pub fn text(&self) -> &str {
-		self.sta.src.text(self.clone())
+		self.sta.src.text(self)
 	}
 }
 
@@ -140,8 +140,8 @@ pub struct Cursor {
 
 impl Cursor {
 	/// Source input.
-	pub fn src(&self) -> Input {
-		self.src.clone()
+	pub fn src(&self) -> &Input {
+		&self.src
 	}
 
 	pub fn row(&self) -> usize {
@@ -239,6 +239,6 @@ impl std::fmt::Display for Cursor {
 
 impl std::fmt::Debug for Cursor {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "[{} @{}:{}]", self, self.src.name(), self.offset)
+		write!(f, "{}", self)
 	}
 }

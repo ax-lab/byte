@@ -144,7 +144,7 @@ mod tests {
 		let mut errors = ErrorList::new(ctx);
 		let ctx = Context::new();
 		let input = ctx.open_str("literal", input);
-		let mut input = input.sta();
+		let mut input = input.start();
 		for (i, expected) in expected.iter().cloned().enumerate() {
 			let pos = input.clone();
 			let char = input.read().expect("unexpected end of input");
@@ -153,7 +153,7 @@ mod tests {
 
 			assert!(errors.empty());
 			let src = input.src();
-			let text = src.text(Span { sta: pos, end });
+			let text = src.text(&Span { sta: pos, end });
 			let next = if let Some(next) = next {
 				next
 			} else {

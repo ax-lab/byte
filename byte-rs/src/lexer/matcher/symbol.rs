@@ -161,14 +161,14 @@ mod tests {
 	fn check_symbols(symbols: &MatchSymbol, input: &'static str, expected: &[Token]) {
 		let ctx = Context::new();
 		let input = ctx.open_str("literal", input);
-		let mut input = input.sta();
+		let mut input = input.start();
 		for (i, expected) in expected.iter().cloned().enumerate() {
 			let next = input.read().expect("unexpected end of input");
 			let pos = input.clone();
 			let next = symbols.try_match(next, &mut input);
 			let end = input.clone();
 			let src = input.src();
-			let text = src.text(Span { sta: pos, end });
+			let text = src.text(&Span { sta: pos, end });
 			match next {
 				MatcherResult::Token(actual) => assert_eq!(
 					actual, expected,
