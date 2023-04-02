@@ -6,7 +6,7 @@ use std::{
 #[derive(Clone, Debug)]
 pub struct Value {
 	type_id: TypeId,
-	value: Rc<Box<dyn Any>>,
+	value: Rc<dyn Any>,
 }
 
 #[allow(unused)]
@@ -14,7 +14,7 @@ impl Value {
 	pub fn new<T: 'static>(value: T) -> Value {
 		Value {
 			type_id: TypeId::of::<Self>(),
-			value: Rc::new(Box::new(value)),
+			value: Rc::new(value),
 		}
 	}
 

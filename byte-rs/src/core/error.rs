@@ -7,7 +7,7 @@ pub trait ErrorInfo: Display + Debug + 'static {}
 
 #[derive(Clone)]
 pub struct Error {
-	info: Rc<Box<dyn ErrorInfo>>,
+	info: Rc<dyn ErrorInfo>,
 	span: Span,
 }
 
@@ -48,7 +48,7 @@ impl ErrorList {
 
 	pub fn at<T: ErrorInfo>(&mut self, span: Span, info: T) {
 		let error = Error {
-			info: Rc::new(Box::new(info)),
+			info: Rc::new(info),
 			span,
 		};
 		let prev = std::mem::take(&mut self.head);
