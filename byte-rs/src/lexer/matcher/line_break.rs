@@ -2,7 +2,7 @@ use crate::core::input::*;
 
 use super::{Matcher, MatcherResult, Token};
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct MatchLineBreak(pub Token);
 
 impl Matcher for MatchLineBreak {

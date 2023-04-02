@@ -152,7 +152,8 @@ mod tests {
 			let end = input.clone();
 
 			assert!(errors.empty());
-			let text = input.src().text(Span { sta: pos, end });
+			let src = input.src();
+			let text = src.text(Span { sta: pos, end });
 			let next = if let Some(next) = next {
 				next
 			} else {

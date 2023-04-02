@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, rc::Rc};
 
 use super::context::*;
 
@@ -15,20 +15,23 @@ impl Context {
 	pub fn open_file<P: AsRef<Path>>(&self, path: P) -> std::io::Result<Input> {
 		let path = path.as_ref();
 		let data = std::fs::read(path)?;
-		let name = self.save(path.to_string_lossy().to_string());
-		let data = self.save(data);
+		let name = path.to_string_lossy().to_string();
+		let data = InputData { name, data };
 
-		let data = data.as_ref();
-		Ok(Input { name, data })
+		Ok(Input {
+			internal: data.into(),
+		})
 	}
 
 	/// Open a plain string as input. The string is copied.
 	pub fn open_str<S: AsRef<str>>(&self, name: &str, text: S) -> Input {
-		let name = self.save(name.to_string());
 		let text = self.save(text.as_ref().to_string());
+		let data = InputData {
+			name: name.to_string(),
+			data: text.as_bytes().into(),
+		};
 		Input {
-			name: name,
-			data: text.as_bytes(),
+			internal: data.into(),
 		}
 	}
 }
@@ -36,13 +39,17 @@ impl Context {
 /// Input source for the compiler.
 #[derive(Clone)]
 pub struct Input {
-	name: &'static str,
-	data: &'static [u8],
+	internal: Rc<InputData>,
+}
+
+struct InputData {
+	name: String,
+	data: Vec<u8>,
 }
 
 impl Input {
-	pub fn name(&self) -> &'static str {
-		self.name
+	pub fn name(&self) -> &str {
+		&self.internal.name
 	}
 
 	pub fn sta(&self) -> Cursor {
@@ -55,18 +62,20 @@ impl Input {
 		}
 	}
 
-	pub fn bytes(&self, span: Span) -> &'static [u8] {
-		&self.data[span.sta.offset..span.end.offset]
+	pub fn bytes(&self, span: Span) -> &[u8] {
+		&self.internal.data[span.sta.offset..span.end.offset]
 	}
 
-	pub fn text(&self, span: Span) -> &'static str {
+	pub fn text(&self, span: Span) -> &str {
 		unsafe { std::str::from_utf8_unchecked(self.bytes(span)) }
 	}
 }
 
 impl PartialEq for Input {
 	fn eq(&self, other: &Self) -> bool {
-		std::ptr::eq(self.name, other.name) && std::ptr::eq(self.data, other.data)
+		let a = &*self.internal;
+		let b = &*other.internal;
+		std::ptr::eq(a, b)
 	}
 }
 
@@ -74,7 +83,7 @@ impl Eq for Input {}
 
 impl std::fmt::Display for Input {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.name)
+		write!(f, "{}", self.internal.name)
 	}
 }
 
@@ -90,8 +99,8 @@ impl Span {
 		self.sta.src()
 	}
 
-	pub fn text(&self) -> &'static str {
-		self.src().text(self.clone())
+	pub fn text(&self) -> &str {
+		self.sta.src.text(self.clone())
 	}
 }
 
@@ -160,7 +169,7 @@ impl Cursor {
 	}
 
 	pub fn read(&mut self) -> Option<char> {
-		let text = unsafe { std::str::from_utf8_unchecked(&self.src.data[self.offset..]) };
+		let text = unsafe { std::str::from_utf8_unchecked(&self.src.internal.data[self.offset..]) };
 		if let Some(next) = text.chars().next() {
 			// keep indentation until we find the first non-space character
 			let is_line_indent = self.indent == self.col;

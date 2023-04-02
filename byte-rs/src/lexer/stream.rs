@@ -252,7 +252,7 @@ impl State {
 			}
 		}
 		Ok(Lex {
-			token: self.entries[index].token,
+			token: self.entries[index].token.clone(),
 			span: self.entries[index].span.clone(),
 		})
 	}
@@ -388,7 +388,7 @@ impl State {
 			let head = &self.entries[index];
 			current = head.prev;
 
-			match head.token {
+			match &head.token {
 				Token::Indent => {
 					self.entries.push(Entry {
 						token: Token::Dedent,

@@ -2,7 +2,7 @@ use crate::core::input::*;
 
 use super::{Matcher, MatcherResult, Token};
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct MatchIdentifier(pub Token);
 
 impl Matcher for MatchIdentifier {
@@ -21,7 +21,7 @@ impl Matcher for MatchIdentifier {
 					}
 				}
 
-				MatcherResult::Token(self.0)
+				MatcherResult::Token(self.0.clone())
 			}
 
 			_ => MatcherResult::None,

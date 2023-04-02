@@ -1,4 +1,4 @@
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Token {
 	None,
 	Invalid,
@@ -7,7 +7,7 @@ pub enum Token {
 	Dedent,
 	Identifier,
 	Integer(u64),
-	Literal(&'static str),
+	Literal(String),
 	Symbol(&'static str),
 }
 

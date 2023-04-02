@@ -34,7 +34,7 @@ impl Lex {
 		}
 	}
 
-	pub fn text(&self) -> &'static str {
+	pub fn text(&self) -> &str {
 		self.span.text()
 	}
 }
@@ -50,7 +50,7 @@ impl std::fmt::Debug for Lex {
 
 impl std::fmt::Display for Lex {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self.token {
+		match &self.token {
 			Token::None => {
 				write!(f, "end of input")
 			}

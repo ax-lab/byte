@@ -72,7 +72,8 @@ pub fn run(input: Stream, list_ast: bool) -> Result {
 	if errors.len() > 0 {
 		eprintln!();
 		for it in errors.into_iter() {
-			let name = input.source().name();
+			let src = input.source();
+			let name = src.name();
 			let span = it.span();
 			eprintln!("error: at {name}:{span} -- {it}");
 		}
