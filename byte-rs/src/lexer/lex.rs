@@ -2,7 +2,7 @@ use crate::core::input::*;
 
 use super::Token;
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Lex {
 	pub token: Token,
 	pub span: Span,
@@ -20,8 +20,8 @@ impl Lex {
 		Lex {
 			token: Token::None,
 			span: Span {
-				sta: self.span.sta,
-				end: self.span.sta,
+				sta: self.span.sta.clone(),
+				end: self.span.sta.clone(),
 			},
 		}
 	}

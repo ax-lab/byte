@@ -37,7 +37,7 @@ impl Config {
 	}
 
 	pub fn read_token(&self, input: &mut Cursor) -> (LexerResult, Span) {
-		let mut pos = *input;
+		let mut pos = input.clone();
 		let mut indent = Indent(pos.indent());
 		let result = 'main: loop {
 			if let Some(next) = input.read() {
@@ -45,15 +45,15 @@ impl Config {
 					Box::new(MatchSymbol::new(self.symbols.clone()));
 				let matchers = self.matchers.iter().chain(std::iter::once(&symbol_matcher));
 
-				let start = *input;
+				let start = input.clone();
 				let mut skipped = false;
 				for it in matchers {
-					*input = start;
+					*input = start.clone();
 					match it.try_match(next, input) {
 						MatcherResult::None => continue,
 						MatcherResult::Error(error) => break 'main LexerResult::Error(error),
 						next @ (MatcherResult::Skip | MatcherResult::Comment) => {
-							pos = *input;
+							pos = input.clone();
 							if let MatcherResult::Skip = next {
 								indent = Indent(pos.indent());
 							}
@@ -77,7 +77,7 @@ impl Config {
 			result,
 			Span {
 				sta: pos,
-				end: *input,
+				end: input.clone(),
 			},
 		)
 	}

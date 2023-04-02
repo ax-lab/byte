@@ -34,7 +34,7 @@ impl Context {
 }
 
 /// Input source for the compiler.
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct Input {
 	name: &'static str,
 	data: &'static [u8],
@@ -47,7 +47,7 @@ impl Input {
 
 	pub fn sta(&self) -> Cursor {
 		Cursor {
-			src: *self,
+			src: self.clone(),
 			row: 0,
 			col: 0,
 			offset: 0,
@@ -79,7 +79,7 @@ impl std::fmt::Display for Input {
 }
 
 /// Span indexes a range of text from an [`Input`].
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Span {
 	pub sta: Cursor,
 	pub end: Cursor,
@@ -91,7 +91,7 @@ impl Span {
 	}
 
 	pub fn text(&self) -> &'static str {
-		self.src().text(*self)
+		self.src().text(self.clone())
 	}
 }
 
@@ -120,7 +120,7 @@ impl std::fmt::Display for Span {
 ///
 /// This type is lightweight and can be easily copied to save and backtrack to
 /// an input position.
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct Cursor {
 	src: Input,
 	row: usize,
@@ -132,7 +132,7 @@ pub struct Cursor {
 impl Cursor {
 	/// Source input.
 	pub fn src(&self) -> Input {
-		self.src
+		self.src.clone()
 	}
 
 	pub fn row(&self) -> usize {
@@ -170,7 +170,7 @@ impl Cursor {
 
 			// translate CR and CR+LF to a single LF
 			let next = if next == '\r' {
-				let mut next = *self;
+				let mut next = self.clone();
 				if next.read() == Some('\n') {
 					*self = next;
 				}
@@ -204,7 +204,7 @@ impl Cursor {
 	//------------------------------------------------------------------------//
 
 	pub fn read_if(&mut self, expected: char) -> bool {
-		let mut cursor = *self;
+		let mut cursor = self.clone();
 		if cursor.read() == Some(expected) {
 			*self = cursor;
 			true

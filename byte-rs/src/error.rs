@@ -23,16 +23,16 @@ impl Error {
 	pub fn span(&self) -> Span {
 		match self {
 			Error::At(_, err) => err.span(),
-			Error::Lexer(_, span) => *span,
-			Error::Dedent(span) => *span,
-			Error::ClosingSymbol(_, span) => *span,
-			Error::ClosingDedent(_, span) => *span,
-			Error::Expected(_, lex) => lex.span,
-			Error::ExpectedEnd(lex) => lex.span,
-			Error::ExpectedExpression(lex) => lex.span,
-			Error::ExpectedSymbol(_, span) => *span,
-			Error::ExpectedIndent(span) => *span,
-			Error::InvalidToken(span) => *span,
+			Error::Lexer(_, span) => span.clone(),
+			Error::Dedent(span) => span.clone(),
+			Error::ClosingSymbol(_, span) => span.clone(),
+			Error::ClosingDedent(_, span) => span.clone(),
+			Error::Expected(_, lex) => lex.span.clone(),
+			Error::ExpectedEnd(lex) => lex.span.clone(),
+			Error::ExpectedExpression(lex) => lex.span.clone(),
+			Error::ExpectedSymbol(_, span) => span.clone(),
+			Error::ExpectedIndent(span) => span.clone(),
+			Error::InvalidToken(span) => span.clone(),
 		}
 	}
 
@@ -51,7 +51,7 @@ impl std::fmt::Display for Error {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Error::At(context, error) => write!(f, "{context}: {error}"),
-			Error::Lexer(error, span) => error.output(f, *span),
+			Error::Lexer(error, span) => error.output(f, span.clone()),
 			Error::Dedent(..) => write!(f, "unexpected dedent"),
 			Error::ClosingSymbol(sym, ..) => write!(f, "unexpected closing `{sym}`"),
 			Error::ClosingDedent(sym, ..) => write!(f, "unexpected dedent before closing `{sym}`"),

@@ -84,12 +84,12 @@ impl Matcher for MatchSymbol {
 			return MatcherResult::Error(LexerError::InvalidSymbol);
 		};
 
-		let mut last_pos = *input;
+		let mut last_pos = input.clone();
 		let mut valid = if valid { Some((last_pos, state)) } else { None };
 
 		while let Some(next) = input.read() {
 			if let Some((next, is_valid)) = symbols.get_next(state, next) {
-				(state, last_pos) = (next, *input);
+				(state, last_pos) = (next, input.clone());
 				if is_valid {
 					valid = Some((last_pos, state));
 				}
@@ -164,9 +164,9 @@ mod tests {
 		let mut input = input.sta();
 		for (i, expected) in expected.iter().cloned().enumerate() {
 			let next = input.read().expect("unexpected end of input");
-			let pos = input;
+			let pos = input.clone();
 			let next = symbols.try_match(next, &mut input);
-			let end = input;
+			let end = input.clone();
 			let text = input.src().text(Span { sta: pos, end });
 			match next {
 				MatcherResult::Token(actual) => assert_eq!(

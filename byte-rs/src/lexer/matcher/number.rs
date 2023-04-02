@@ -12,7 +12,7 @@ impl Matcher for MatchNumber {
 				let mut value = decimal_value(next);
 				let mut pos;
 				loop {
-					pos = *input;
+					pos = input.clone();
 					match input.read() {
 						Some(next @ '0'..='9') => {
 							value = value * 10 + decimal_value(next);

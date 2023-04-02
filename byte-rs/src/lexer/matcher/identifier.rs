@@ -11,7 +11,7 @@ impl Matcher for MatchIdentifier {
 			'a'..='z' | 'A'..='Z' | '_' => {
 				let mut pos;
 				loop {
-					pos = *input;
+					pos = input.clone();
 					match input.read() {
 						Some('a'..='z' | 'A'..='Z' | '_' | '0'..='9') => {}
 						_ => {

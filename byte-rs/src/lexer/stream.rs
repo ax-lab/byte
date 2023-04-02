@@ -1,7 +1,4 @@
-use std::{
-	cell::{Cell, RefCell},
-	rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
 use crate::core::input::*;
 
@@ -96,7 +93,7 @@ pub struct Stream {
 	config: Rc<Config>,
 	index: usize,
 
-	current: Cell<Option<Lex>>,
+	current: RefCell<Option<Lex>>,
 	current_error: RefCell<Option<Error>>,
 
 	errors: RefCell<Rc<Vec<Error>>>,
@@ -127,8 +124,9 @@ impl LexStream for Stream {
 	}
 
 	fn next(&self) -> Lex {
-		match self.current.get() {
-			Some(value) => value,
+		let mut current = self.current.borrow_mut();
+		match &*current {
+			Some(value) => value.clone(),
 			None => {
 				let mut state = self.state.borrow_mut();
 				let value = state.get_index(&self.config, self.index);
@@ -144,20 +142,20 @@ impl LexStream for Stream {
 						}
 					}
 				};
-				self.current.set(Some(value));
+				*current = Some(value.clone());
 				value
 			}
 		}
 	}
 
 	fn source(&self) -> Input {
-		self.state.borrow().source
+		self.state.borrow().source.clone()
 	}
 
 	fn advance(&mut self) {
 		if !self.token().is_none() {
 			self.index += 1;
-			self.current.set(None);
+			self.current.replace(None);
 			if let Some(error) = self.current_error.replace(None) {
 				self.add_error(error);
 			}
@@ -175,7 +173,7 @@ impl Stream {
 			state: Rc::new(state.into()),
 			config: Rc::new(config),
 			index: 0,
-			current: Cell::new(None),
+			current: RefCell::new(None),
 			current_error: RefCell::new(None),
 			errors: Default::default(),
 		};
@@ -198,7 +196,7 @@ impl Stream {
 
 	fn trim_state(&mut self) {
 		let new_length = self.index;
-		self.current.set(None);
+		self.current.replace(None);
 		self.current_error.replace(None);
 		if Rc::strong_count(&self.state) > 1 {
 			let mut new_state = self.state.borrow().clone();
@@ -233,7 +231,7 @@ impl State {
 	pub fn cur(&self) -> Cursor {
 		self.entries
 			.last()
-			.map(|x| x.span.end)
+			.map(|x| x.span.end.clone())
 			.unwrap_or(self.source.sta())
 	}
 
@@ -246,13 +244,16 @@ impl State {
 			if !self.fill_next(config)? {
 				let token = Token::None;
 				let pos = self.cur();
-				let span = Span { sta: pos, end: pos };
+				let span = Span {
+					sta: pos.clone(),
+					end: pos.clone(),
+				};
 				return Ok(Lex { token, span });
 			}
 		}
 		Ok(Lex {
 			token: self.entries[index].token,
-			span: self.entries[index].span,
+			span: self.entries[index].span.clone(),
 		})
 	}
 
@@ -262,7 +263,7 @@ impl State {
 		let empty = cursor.col() == 0;
 		loop {
 			let new_line = cursor.col() == 0;
-			let start = cursor;
+			let start = cursor.clone();
 			let input = &mut cursor;
 
 			// read the next token
@@ -286,14 +287,14 @@ impl State {
 				if indent > level {
 					let span = Span {
 						sta: start,
-						end: span.sta,
+						end: span.sta.clone(),
 					};
 					self.indent(span);
 				} else {
 					while indent < self.indent_level() {
 						self.dedent(Span {
-							sta: start,
-							end: span.sta,
+							sta: start.clone(),
+							end: span.sta.clone(),
 						})?;
 					}
 				}
@@ -353,7 +354,7 @@ impl State {
 			if let Token::Indent = head.token {
 				self.entries.push(Entry {
 					token: Token::Dedent,
-					span,
+					span: span.clone(),
 					prev: head.prev.map(|x| self.entries[x].prev).unwrap_or_default(),
 					head: head.prev,
 				});
@@ -391,7 +392,7 @@ impl State {
 				Token::Indent => {
 					self.entries.push(Entry {
 						token: Token::Dedent,
-						span,
+						span: span.clone(),
 						prev: current.map(|x| self.entries[x].prev).unwrap_or_default(),
 						head: head.prev,
 					});
@@ -400,7 +401,7 @@ impl State {
 				left if left.get_closing() == Some(symbol) => {
 					self.entries.push(Entry {
 						token,
-						span,
+						span: span.clone(),
 						prev: current.map(|x| self.entries[x].prev).unwrap_or_default(),
 						head: head.prev,
 					});

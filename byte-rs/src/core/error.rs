@@ -5,7 +5,7 @@ use crate::core::input::*;
 
 pub trait ErrorInfo: Display + Debug + 'static {}
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct Error {
 	info: &'static dyn ErrorInfo,
 	span: Span,
@@ -13,7 +13,7 @@ pub struct Error {
 
 impl Error {
 	pub fn span(&self) -> Span {
-		self.span
+		self.span.clone()
 	}
 }
 
@@ -84,7 +84,7 @@ impl ErrorNode {
 		}
 		list.push(Error {
 			info: &*self.info,
-			span: self.span,
+			span: self.span.clone(),
 		})
 	}
 }

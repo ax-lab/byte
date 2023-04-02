@@ -81,12 +81,12 @@ impl Scanner for SymbolTable {
 			return None;
 		};
 
-		let mut last_pos = *input;
+		let mut last_pos = input.clone();
 		let mut valid = if valid { Some((last_pos, state)) } else { None };
 
 		while let Some(next) = input.read() {
 			if let Some((next, is_valid)) = self.get_next(state, next) {
-				(state, last_pos) = (next, *input);
+				(state, last_pos) = (next, input.clone());
 				if is_valid {
 					valid = Some((last_pos, state));
 				}
@@ -146,10 +146,10 @@ mod tests {
 		let input = ctx.open_str("literal", input);
 		let mut input = input.sta();
 		for (i, expected) in expected.iter().cloned().enumerate() {
-			let pos = input;
+			let pos = input.clone();
 			let char = input.read().expect("unexpected end of input");
 			let next = symbols.scan(char, &mut input, &mut errors);
-			let end = input;
+			let end = input.clone();
 
 			assert!(errors.empty());
 			let text = input.src().text(Span { sta: pos, end });

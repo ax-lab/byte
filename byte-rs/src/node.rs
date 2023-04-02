@@ -21,11 +21,11 @@ impl Node {
 	pub fn span(&self) -> Span {
 		match self {
 			Node::None(cur) => Span {
-				sta: *cur,
-				end: *cur,
+				sta: cur.clone(),
+				end: cur.clone(),
 			},
 			Node::Invalid(error) => error.span(),
-			Node::Some(_, span) => *span,
+			Node::Some(_, span) => span.clone(),
 		}
 	}
 }

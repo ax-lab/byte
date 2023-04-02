@@ -8,10 +8,10 @@ pub struct MatchSpace;
 impl Matcher for MatchSpace {
 	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
 		if is_space(next) {
-			let mut pos = *input;
+			let mut pos = input.clone();
 			while let Some(next) = input.read() {
 				if is_space(next) {
-					pos = *input;
+					pos = input.clone();
 				} else {
 					break;
 				}

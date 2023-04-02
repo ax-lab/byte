@@ -11,9 +11,9 @@ impl Matcher for MatchLiteral {
 	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
 		match next {
 			'\'' => {
-				let pos = *input;
+				let pos = input.clone();
 				loop {
-					let end = *input;
+					let end = input.clone();
 					match input.read() {
 						Some('\'') => {
 							break MatcherResult::Token(Token::Literal(

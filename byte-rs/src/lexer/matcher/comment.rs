@@ -17,7 +17,7 @@ impl Matcher for MatchComment {
 
 				let mut pos;
 				let putback = loop {
-					pos = *input;
+					pos = input.clone();
 					match input.read() {
 						Some('\n' | '\r') if !multi => break true,
 						Some('(') if multi => {

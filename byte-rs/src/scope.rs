@@ -154,7 +154,7 @@ impl Scoped {
 pub struct ScopedStream {
 	input: RefCell<Box<dyn LexStream + 'static>>,
 	scope: RefCell<Scoped>,
-	next: Cell<Option<Lex>>,
+	next: RefCell<Option<Lex>>,
 	done: Cell<bool>,
 }
 
@@ -163,7 +163,7 @@ impl ScopedStream {
 		ScopedStream {
 			input: RefCell::new(Box::new(input)),
 			scope: RefCell::new(Scoped::Root),
-			next: Cell::new(None),
+			next: RefCell::new(None),
 			done: Cell::new(false),
 		}
 	}
@@ -171,7 +171,7 @@ impl ScopedStream {
 	pub fn enter(&mut self, scope: Box<dyn Scope>, mode: ChildMode) {
 		self.scope.borrow_mut().enter(scope, mode);
 		self.apply_scope();
-		self.next.set(None);
+		self.next.replace(None);
 	}
 
 	pub fn leave(&mut self) {
@@ -183,7 +183,7 @@ impl ScopedStream {
 		if let Some(error) = result {
 			self.add_error(error);
 		}
-		self.next.set(None);
+		self.next.replace(None);
 		self.done.set(false);
 	}
 
@@ -250,8 +250,9 @@ impl LexStream for ScopedStream {
 	}
 
 	fn next(&self) -> Lex {
-		if let Some(next) = self.next.get() {
-			next
+		let next = { self.next.borrow().clone() };
+		if let Some(next) = next {
+			next.clone()
 		} else {
 			self.apply_scope();
 			let input = self.input();
@@ -260,7 +261,7 @@ impl LexStream for ScopedStream {
 			} else {
 				input.next()
 			};
-			self.next.set(Some(next));
+			self.next.replace(Some(next.clone()));
 			next
 		}
 	}
@@ -271,7 +272,7 @@ impl LexStream for ScopedStream {
 		}
 		let mut input = self.input_mut();
 		input.advance();
-		self.next.set(None);
+		self.next.replace(None);
 	}
 
 	fn errors(&self) -> Vec<Error> {

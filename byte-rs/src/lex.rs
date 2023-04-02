@@ -46,7 +46,7 @@ impl<T: IsToken> Valued for T {
 	type Value = T::Value;
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct Token {
 	data: TokenData,
 	span: Span,
@@ -83,9 +83,12 @@ impl Lexer {
 	}
 
 	pub fn read(&self, input: &mut Cursor, errors: &mut ErrorList) -> Token {
-		let sta = *input;
+		let sta = input.clone();
 		let data = self.read_next(input, errors);
-		let span = Span { sta, end: *input };
+		let span = Span {
+			sta: sta.clone(),
+			end: input.clone(),
+		};
 		assert!(input.offset() > sta.offset());
 		Token { data, span }
 	}
