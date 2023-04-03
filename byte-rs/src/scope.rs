@@ -468,11 +468,9 @@ mod tests {
 	use crate::lexer::{self, Stream};
 
 	use super::*;
-	use crate::core::context::*;
 
 	fn open(str: &'static str) -> Stream {
-		let ctx = Context::new();
-		lexer::open(ctx.open_str(str, str))
+		lexer::open(Input::open_str(str, str))
 	}
 
 	#[test]

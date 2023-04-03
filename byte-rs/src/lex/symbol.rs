@@ -94,7 +94,6 @@ impl Matcher for SymbolTable {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::core::context::*;
 
 	#[test]
 	fn lexer_should_parse_symbols() {
@@ -123,9 +122,8 @@ mod tests {
 	}
 
 	fn check_symbols(symbols: &SymbolTable, input: &'static str, expected: &[&'static str]) {
-		let ctx = Context::new();
 		let mut errors = ErrorList::new();
-		let input = ctx.open_str("literal", input);
+		let input = Input::open_str("literal", input);
 		let mut input = input.start();
 		for (i, expected) in expected.iter().cloned().enumerate() {
 			let pos = input.clone();

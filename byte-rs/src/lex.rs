@@ -1,7 +1,6 @@
 use std::fmt::{Debug, Display};
 use std::rc::Rc;
 
-use crate::core::context::*;
 use crate::core::error::*;
 use crate::core::input::*;
 
@@ -263,8 +262,7 @@ mod tests {
 	}
 
 	fn test(input: &str, expected: &Vec<Token>) {
-		let ctx = Context::new();
-		let input = ctx.open_str("test", input);
+		let input = Input::open_str("test", input);
 
 		let mut scanner = Scanner::new();
 		scanner.add_symbol("+", s("+"));

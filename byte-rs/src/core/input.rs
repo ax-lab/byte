@@ -1,7 +1,5 @@
 use std::{path::Path, rc::Rc};
 
-use super::context::*;
-
 /// Tab-width considered when computing column and indentation.
 pub const TAB_WIDTH: usize = 4;
 
@@ -10,9 +8,9 @@ pub fn is_space(char: char) -> bool {
 	matches!(char, ' ' | '\t')
 }
 
-impl Context {
+impl Input {
 	/// Open a file as input.
-	pub fn open_file<P: AsRef<Path>>(&self, path: P) -> std::io::Result<Input> {
+	pub fn open_file<P: AsRef<Path>>(path: P) -> std::io::Result<Input> {
 		let path = path.as_ref();
 		let data = std::fs::read(path)?;
 		let name = path.to_string_lossy().to_string();
@@ -24,8 +22,8 @@ impl Context {
 	}
 
 	/// Open a plain string as input. The string is copied.
-	pub fn open_str<S: AsRef<str>>(&self, name: &str, text: S) -> Input {
-		let text = self.save(text.as_ref().to_string());
+	pub fn open_str<S: AsRef<str>>(name: &str, text: S) -> Input {
+		let text = text.as_ref().to_string();
 		let data = InputData {
 			name: name.to_string(),
 			data: text.as_bytes().into(),

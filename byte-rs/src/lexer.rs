@@ -90,14 +90,12 @@ fn read_token(config: &Config, input: &mut Cursor) -> (LexerResult, Span) {
 
 #[cfg(test)]
 mod tests {
-	use crate::core::context::*;
 	use crate::Error;
 
 	use super::*;
 
 	fn open(text: &'static str) -> Stream {
-		let ctx = Context::new();
-		let input = ctx.open_str(text, text);
+		let input = Input::open_str(text, text);
 		super::open(input)
 	}
 
