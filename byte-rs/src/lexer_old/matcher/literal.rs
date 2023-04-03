@@ -1,4 +1,4 @@
-use crate::lexer::LexerError;
+use crate::lexer_old::LexerError;
 
 use crate::core::input::*;
 

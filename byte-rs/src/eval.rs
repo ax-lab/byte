@@ -1,5 +1,5 @@
 use crate::{
-	lexer::{LexStream, Stream, Token},
+	lexer_old::{LexStream, Stream, Token},
 	node::*,
 	operator::*,
 	parser::*,

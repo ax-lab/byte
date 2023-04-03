@@ -1,6 +1,6 @@
 use crate::core::input::*;
 
-use crate::lexer::{Matcher, MatcherResult};
+use crate::lexer_old::{Matcher, MatcherResult};
 
 #[derive(Copy, Clone)]
 pub struct MatchSpace;

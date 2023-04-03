@@ -1,12 +1,12 @@
 use std::env;
 
-use lexer::{LexStream, Stream};
+use lexer_old::{LexStream, Stream};
 
 mod context;
 mod core;
 mod error;
 mod eval;
-mod lexer;
+mod lexer_old;
 mod macros;
 mod node;
 mod operator;
@@ -77,7 +77,7 @@ fn main() {
 	}
 
 	for it in eval_list.into_iter() {
-		let context = lexer::open(core::input::Input::open_str("eval", &it));
+		let context = lexer_old::open(core::input::Input::open_str("eval", &it));
 		let result = eval::run(context, false);
 		println!("{result}");
 	}
@@ -85,7 +85,7 @@ fn main() {
 	for file in files {
 		match core::input::Input::open_file(&file) {
 			Ok(source) => {
-				let mut context = lexer::open(source);
+				let mut context = lexer_old::open(source);
 				if list_tokens {
 					while context.next().is_some() {
 						let token = context.token();

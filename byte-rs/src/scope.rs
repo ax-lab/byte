@@ -6,7 +6,7 @@ use std::{
 use crate::core::input::*;
 
 use crate::{
-	lexer::{Lex, LexStream, Token},
+	lexer_old::{Lex, LexStream, Token},
 	Error,
 };
 
@@ -465,12 +465,12 @@ impl Scope for ScopeExpression {
 
 #[cfg(test)]
 mod tests {
-	use crate::lexer::{self, Stream};
+	use crate::lexer_old::{self, Stream};
 
 	use super::*;
 
 	fn open(str: &'static str) -> Stream {
-		lexer::open(Input::open_str(str, str))
+		lexer_old::open(Input::open_str(str, str))
 	}
 
 	#[test]

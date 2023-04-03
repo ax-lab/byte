@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::{lexer::LexStream, lexer::Token, node::*, operator::*, Context, Error};
+use crate::{lexer_old::LexStream, lexer_old::Token, node::*, operator::*, Context, Error};
 
 pub fn parse_indented_block(context: &mut Context) -> Node {
 	let pos = context.pos();

@@ -2,7 +2,7 @@ use crate::core::input::*;
 
 use std::{collections::HashMap, rc::Rc};
 
-use crate::lexer::LexerError;
+use crate::lexer_old::LexerError;
 
 use super::{Matcher, MatcherResult, Token};
 

@@ -1,7 +1,7 @@
 use crate::core::input::*;
 
 use crate::{
-	lexer::{Lex, LexStream, Stream},
+	lexer_old::{Lex, LexStream, Stream},
 	node::NodeKind,
 	Error,
 };
@@ -103,11 +103,11 @@ impl LexStream for Context {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::lexer::{self, Stream, Token};
+	use crate::lexer_old::{self, Stream, Token};
 
 	fn open(str: &'static str) -> Stream {
 		let input = Input::open_str(str, str);
-		lexer::open(input)
+		lexer_old::open(input)
 	}
 
 	#[test]
