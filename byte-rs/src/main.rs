@@ -15,7 +15,7 @@ mod runtime;
 mod scope;
 
 #[allow(unused)]
-mod lex;
+mod lexer;
 
 use context::*;
 use error::*;
