@@ -13,6 +13,13 @@ pub struct Indent {
 }
 
 impl Indent {
+	pub fn new() -> Self {
+		Indent {
+			current: None,
+			closing: None,
+		}
+	}
+
 	pub fn open_region(&mut self) -> IndentRegion {
 		static ID_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
@@ -86,7 +93,7 @@ impl Indent {
 							0
 						};
 
-						if level > base_level {
+						if new_level > base_level {
 							// ...don't allow a dedent between two levels
 							errors.at(input.pos(), LexerError::InvalidDedentIndent);
 							Some(Token::Invalid)

@@ -35,6 +35,18 @@ impl Value {
 	}
 }
 
+impl PartialEq for Value {
+	fn eq(&self, other: &Self) -> bool {
+		self.type_id == other.type_id && {
+			let a = self.value.as_ref();
+			let b = other.value.as_ref();
+			std::ptr::eq(a, b)
+		}
+	}
+}
+
+impl Eq for Value {}
+
 pub trait Valued: Sized + 'static {
 	type Value: Sized;
 

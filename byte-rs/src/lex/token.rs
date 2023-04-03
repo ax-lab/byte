@@ -1,6 +1,6 @@
 use crate::core::any::*;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Token {
 	None,
 	Invalid,

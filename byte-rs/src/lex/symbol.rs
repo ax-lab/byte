@@ -60,8 +60,8 @@ impl SymbolTable {
 	}
 }
 
-impl Scanner for SymbolTable {
-	fn scan(&self, next: char, input: &mut Cursor, errors: &mut ErrorList) -> Option<Token> {
+impl Matcher for SymbolTable {
+	fn try_match(&self, next: char, input: &mut Cursor, errors: &mut ErrorList) -> Option<Token> {
 		let state = self.get_next(0, next);
 		let (mut state, valid) = if let Some((state, valid)) = state {
 			(state, valid)
@@ -130,7 +130,7 @@ mod tests {
 		for (i, expected) in expected.iter().cloned().enumerate() {
 			let pos = input.clone();
 			let char = input.read().expect("unexpected end of input");
-			let next = symbols.scan(char, &mut input, &mut errors);
+			let next = symbols.try_match(char, &mut input, &mut errors);
 			let end = input.clone();
 
 			assert!(errors.empty());
