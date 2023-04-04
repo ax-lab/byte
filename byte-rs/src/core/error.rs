@@ -1,9 +1,18 @@
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use std::rc::Rc;
 
 use crate::core::input::*;
 
-pub trait ErrorInfo: Display + Debug + 'static {}
+pub trait ErrorInfo: Debug + 'static {
+	fn output(&self, f: &mut std::fmt::Formatter<'_>, span: &Span) -> std::fmt::Result;
+
+	fn upcast(self) -> Rc<dyn ErrorInfo>
+	where
+		Self: Sized,
+	{
+		Rc::new(self)
+	}
+}
 
 #[derive(Clone)]
 pub struct Error {
@@ -19,7 +28,10 @@ impl Error {
 
 impl std::fmt::Display for Error {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "error: {}\n", self.info)?;
+		let span = &self.span;
+		write!(f, "error: ")?;
+		self.info.output(f, span)?;
+		write!(f, "\n")?;
 		write!(f, "       (at {}:{})", self.span().src(), self.span())?;
 		Ok(())
 	}
@@ -47,10 +59,11 @@ impl ErrorList {
 	}
 
 	pub fn at<T: ErrorInfo>(&mut self, span: Span, info: T) {
-		let error = Error {
-			info: Rc::new(info),
-			span,
-		};
+		self.add_at(span, Rc::new(info))
+	}
+
+	pub fn add_at(&mut self, span: Span, info: Rc<dyn ErrorInfo>) {
+		let error = Error { info, span };
 		let prev = std::mem::take(&mut self.head);
 		let node = ErrorNode { error, prev };
 		self.head = Some(Rc::new(node));

@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::fmt::{Debug, Display};
 use std::rc::Rc;
 
@@ -5,9 +6,11 @@ use crate::core::error::*;
 use crate::core::input::*;
 
 mod indent;
+mod stream;
 mod symbol;
 mod token;
 
+pub use stream::*;
 pub use token::*;
 
 use indent::*;
@@ -17,6 +20,12 @@ use symbol::*;
 #[derive(Clone)]
 pub struct Lexer {
 	scanner: Rc<Scanner>,
+	state: State,
+	next: RefCell<Option<(TokenAt, State)>>,
+}
+
+#[derive(Clone)]
+struct State {
 	input: Cursor,
 	indent: Indent,
 	errors: ErrorList,
@@ -26,36 +35,92 @@ impl Lexer {
 	pub fn new(input: Cursor, scanner: Scanner) -> Self {
 		Lexer {
 			scanner: Rc::new(scanner),
-			input,
-			indent: Indent::new(),
-			errors: ErrorList::new(),
+			state: State {
+				input,
+				indent: Indent::new(),
+				errors: ErrorList::new(),
+			},
+			next: RefCell::new(None),
 		}
 	}
 
 	pub fn config<F: FnOnce(&mut Scanner)>(&mut self, config: F) {
+		self.next.replace(None);
 		let scanner = Rc::make_mut(&mut self.scanner);
 		config(scanner)
 	}
 
 	pub fn errors(&self) -> ErrorList {
-		self.errors.clone()
+		self.state.errors.clone()
+	}
+
+	pub fn next(&self) -> TokenAt {
+		let token = {
+			let next = self.next.borrow();
+			if let Some((token, ..)) = &*next {
+				Some(token.clone())
+			} else {
+				None
+			}
+		};
+		if let Some(token) = token {
+			token
+		} else {
+			let mut clone = self.clone();
+			let next = clone.read();
+			self.next.replace(Some((next.clone(), clone.state)));
+			next
+		}
 	}
 
 	pub fn read(&mut self) -> TokenAt {
-		self.scanner.skip(&mut self.input);
+		if let Some((token, state)) = self.next.take() {
+			self.state = state;
+			return token;
+		}
 
-		let start = self.input.clone();
-		let token = if let Some(token) = self.indent.check_indent(&self.input, &mut self.errors) {
+		let state = &mut self.state;
+		self.scanner.skip(&mut state.input);
+
+		let start = state.input.clone();
+		let token = if let Some(token) = state.indent.check_indent(&state.input, &mut state.errors)
+		{
 			token
 		} else {
-			self.scanner.read(&mut self.input, &mut self.errors)
+			self.scanner.read(&mut state.input, &mut state.errors)
 		};
 
 		let span = Span {
 			sta: start.clone(),
-			end: self.input.clone(),
+			end: state.input.clone(),
 		};
 		TokenAt(span, token)
+	}
+}
+
+impl Stream for Lexer {
+	fn pos(&self) -> Cursor {
+		self.state.input.clone()
+	}
+
+	fn copy(&self) -> Box<dyn Stream> {
+		Box::new(self.clone())
+	}
+
+	fn next(&self) -> TokenAt {
+		Lexer::next(self)
+	}
+
+	fn read(&mut self) -> TokenAt {
+		Lexer::read(self)
+	}
+
+	fn errors_ref(&self) -> &ErrorList {
+		&self.state.errors
+	}
+
+	fn errors_mut(&mut self) -> &mut ErrorList {
+		&mut self.state.errors
 	}
 }
 
@@ -65,6 +130,52 @@ pub trait Matcher {
 
 #[derive(Clone, Debug)]
 pub struct TokenAt(Span, Token);
+
+impl TokenAt {
+	pub fn span(&self) -> Span {
+		self.0.clone()
+	}
+
+	pub fn token(&self) -> Token {
+		self.1.clone()
+	}
+
+	pub fn symbol(&self) -> Option<&str> {
+		let str = match &self.1 {
+			Token::Symbol(symbol) => *symbol,
+			Token::Identifier => self.0.text(),
+			_ => return None,
+		};
+		Some(str)
+	}
+}
+
+impl std::fmt::Display for TokenAt {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match &self.1 {
+			Token::None => {
+				write!(f, "end of input")
+			}
+			Token::Invalid => {
+				write!(f, "invalid token")
+			}
+			Token::Break => {
+				write!(f, "line break")
+			}
+			Token::Indent => {
+				write!(f, "indent")
+			}
+			Token::Dedent => {
+				write!(f, "dedent")
+			}
+			Token::Symbol(sym) => write!(f, "`{sym}`"),
+			Token::Identifier => {
+				write!(f, "`{}`", self.span().text())
+			}
+			Token::Value(value) => write!(f, "`{value}`"),
+		}
+	}
+}
 
 /// Provides low-level token scanning using a configurable list of matchers
 /// and symbol table.
@@ -144,12 +255,11 @@ pub enum LexerError {
 	InvalidSymbol,
 	InvalidDedentInRegion,
 	InvalidDedentIndent,
+	ExpectedEnd(TokenAt),
 }
 
-impl ErrorInfo for LexerError {}
-
-impl Display for LexerError {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl ErrorInfo for LexerError {
+	fn output(&self, f: &mut std::fmt::Formatter<'_>, span: &Span) -> std::fmt::Result {
 		match self {
 			LexerError::InvalidSymbol => write!(f, "invalid symbol"),
 			LexerError::InvalidDedentInRegion => {
@@ -160,6 +270,9 @@ impl Display for LexerError {
 					f,
 					"cannot dedent and indent in a single line, return to previous level first"
 				)
+			}
+			LexerError::ExpectedEnd(got) => {
+				write!(f, "expected end, got `{got}`")
 			}
 		}
 	}
