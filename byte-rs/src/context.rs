@@ -1,10 +1,8 @@
+use crate::core::error::*;
 use crate::core::input::*;
+use crate::lexer::*;
 
-use crate::{
-	lexer_old::{Lex, LexStream, Stream},
-	node::NodeKind,
-	Error,
-};
+use crate::node::NodeKind;
 
 use super::{
 	macros::{self, Macro},
@@ -17,18 +15,14 @@ pub struct Context {
 }
 
 impl Context {
-	pub fn new(input: Stream) -> Self {
+	pub fn new(input: Lexer) -> Self {
 		Context {
 			input: ScopedStream::new(input),
 		}
 	}
 
-	pub fn add_error(&mut self, error: Error) {
-		self.input.add_error(error);
-	}
-
 	pub fn finish(self, program: Vec<NodeKind>) -> (Vec<NodeKind>, Vec<Error>) {
-		(program, self.input.errors())
+		(program, self.input.list_errors())
 	}
 
 	pub fn is_valid(&self) -> bool {
@@ -70,44 +64,41 @@ impl Context {
 	}
 }
 
-impl LexStream for Context {
-	fn copy(&self) -> Box<dyn LexStream> {
-		Box::new(self.clone())
+impl Stream for Context {
+	fn pos(&self) -> Cursor {
+		self.input.pos()
 	}
 
-	fn source(&self) -> Input {
-		self.input.source()
+	fn copy(&self) -> Box<dyn Stream> {
+		self.input.copy()
 	}
 
 	fn next(&self) -> Lex {
 		self.input.next()
 	}
 
-	fn advance(&mut self) {
-		self.input.advance()
+	fn read(&mut self) -> Lex {
+		self.input.read()
+	}
+
+	fn errors(&self) -> ErrorList {
+		self.input.errors()
 	}
 
 	fn add_error(&mut self, error: Error) {
 		self.input.add_error(error)
-	}
-
-	fn errors(&self) -> Vec<Error> {
-		self.input.errors()
-	}
-
-	fn has_errors(&self) -> bool {
-		self.input.has_errors()
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::lexer_old::{self, Stream, Token};
 
-	fn open(str: &'static str) -> Stream {
+	use crate::lexer::number::Integer;
+
+	fn open(str: &'static str) -> Lexer {
 		let input = Input::open_str(str, str);
-		lexer_old::open(input)
+		crate::lexer::open(input)
 	}
 
 	#[test]
@@ -198,17 +189,17 @@ mod tests {
 		context.leave_scope();
 		assert_eq!(context.token(), Token::Break);
 		context.advance();
-		assert_eq!(context.token(), Token::Integer(1));
+		assert_eq!(context.token(), Integer::token(1));
 
 		context.scope_to_line_with_break(";");
-		assert_eq!(context.token(), Token::Integer(1));
+		assert_eq!(context.token(), Integer::token(1));
 		context.advance();
 		assert_eq!(context.token(), Token::None);
 
 		context.leave_scope();
 		assert_eq!(context.token(), Token::Symbol(";"));
 		context.advance();
-		assert_eq!(context.token(), Token::Integer(2));
+		assert_eq!(context.token(), Integer::token(2));
 		context.advance();
 		assert_eq!(context.token(), Token::None);
 	}
@@ -221,10 +212,10 @@ mod tests {
 		assert_eq!(context.token(), Token::Symbol("("));
 
 		context.scope_to_parenthesis();
-		assert_eq!(context.token(), Token::Integer(1));
+		assert_eq!(context.token(), Integer::token(1));
 		context.advance();
 
-		assert_eq!(context.token(), Token::Integer(2));
+		assert_eq!(context.token(), Integer::token(2));
 		context.advance();
 
 		assert_eq!(context.token(), Token::None);
@@ -234,7 +225,7 @@ mod tests {
 		context.leave_scope();
 		assert_eq!(context.token(), Token::Symbol(")"));
 		context.advance();
-		assert_eq!(context.token(), Token::Integer(3));
+		assert_eq!(context.token(), Integer::token(3));
 		context.advance();
 		assert_eq!(context.token(), Token::None);
 

@@ -4,11 +4,8 @@ use std::{
 };
 
 use crate::core::input::*;
-
-use crate::{
-	lexer_old::{Lex, LexStream, Token},
-	Error,
-};
+use crate::lexer::*;
+use crate::{core::error::*, node::NodeError};
 
 /// Scope actions at a given input position.
 #[derive(Copy, Clone)]
@@ -33,9 +30,9 @@ pub trait Scope {
 	/// each time the input advances to the next token.
 	///
 	/// Returns the action relative to the current input token.
-	fn apply(&mut self, input: &dyn LexStream, as_parent: bool) -> Action;
+	fn apply(&mut self, input: &dyn Stream, as_parent: bool) -> Action;
 
-	fn leave(&self, _input: &dyn LexStream) -> Option<Error> {
+	fn leave(&self, _input: &dyn Stream) -> Option<NodeError> {
 		None
 	}
 }
@@ -92,7 +89,7 @@ impl Default for Scoped {
 }
 
 impl Scoped {
-	pub fn apply(&mut self, input: &dyn LexStream, is_parent: bool) -> Action {
+	pub fn apply(&mut self, input: &dyn Stream, is_parent: bool) -> Action {
 		match self {
 			Scoped::Root => Action::Output,
 			Scoped::Child {
@@ -104,7 +101,7 @@ impl Scoped {
 				// avoid applying the same position twice to the scope
 				if let Some((lex, result)) = last {
 					let next = input.next();
-					if lex.span == next.span && lex.token == next.token {
+					if lex.span() == next.span() && lex.token() == next.token() {
 						return *result;
 					}
 				}
@@ -134,7 +131,7 @@ impl Scoped {
 		};
 	}
 
-	pub fn leave(&mut self, input: &dyn LexStream) -> Option<Error> {
+	pub fn leave(&mut self, input: &dyn Stream) -> Option<NodeError> {
 		match self {
 			Scoped::Root => panic!("trying to leave root scope"),
 			Scoped::Child { scope, parent, .. } => {
@@ -152,14 +149,14 @@ impl Scoped {
 }
 
 pub struct ScopedStream {
-	input: RefCell<Box<dyn LexStream + 'static>>,
+	input: RefCell<Box<dyn Stream + 'static>>,
 	scope: RefCell<Scoped>,
 	next: RefCell<Option<Lex>>,
 	done: Cell<bool>,
 }
 
 impl ScopedStream {
-	pub fn new<T: LexStream + 'static>(input: T) -> ScopedStream {
+	pub fn new<T: Stream + 'static>(input: T) -> ScopedStream {
 		ScopedStream {
 			input: RefCell::new(Box::new(input)),
 			scope: RefCell::new(Scoped::Root),
@@ -181,18 +178,18 @@ impl ScopedStream {
 			scope.leave(&*input)
 		};
 		if let Some(error) = result {
-			self.add_error(error);
+			self.add_error(Error::new(error.span(), error));
 		}
 		self.next.replace(None);
 		self.done.set(false);
 	}
 
-	pub fn input(&self) -> Ref<dyn LexStream> {
+	pub fn input(&self) -> Ref<dyn Stream> {
 		let input = self.input.borrow();
 		Ref::map(input, |x| &**x)
 	}
 
-	pub fn input_mut(&self) -> RefMut<dyn LexStream> {
+	pub fn input_mut(&self) -> RefMut<dyn Stream> {
 		let input = self.input.borrow_mut();
 		RefMut::map(input, |x| &mut **x)
 	}
@@ -240,13 +237,13 @@ impl Clone for ScopedStream {
 	}
 }
 
-impl LexStream for ScopedStream {
-	fn copy(&self) -> Box<dyn LexStream> {
-		Box::new(self.clone())
+impl Stream for ScopedStream {
+	fn pos(&self) -> Cursor {
+		self.input.borrow().pos()
 	}
 
-	fn source(&self) -> Input {
-		self.input().source()
+	fn copy(&self) -> Box<dyn Stream> {
+		Box::new(self.clone())
 	}
 
 	fn next(&self) -> Lex {
@@ -266,25 +263,23 @@ impl LexStream for ScopedStream {
 		}
 	}
 
-	fn advance(&mut self) {
+	fn read(&mut self) -> Lex {
+		let next = self.next();
 		if self.done.get() {
-			return;
+			return next;
 		}
 		let mut input = self.input_mut();
 		input.advance();
 		self.next.replace(None);
+		next
 	}
 
-	fn errors(&self) -> Vec<Error> {
-		self.input().errors()
+	fn errors(&self) -> ErrorList {
+		self.input.borrow().errors()
 	}
 
 	fn add_error(&mut self, error: Error) {
-		self.input_mut().add_error(error)
-	}
-
-	fn has_errors(&self) -> bool {
-		self.input().has_errors()
+		self.input.borrow_mut().add_error(error)
 	}
 }
 
@@ -321,7 +316,7 @@ impl Scope for ScopeLine {
 		})
 	}
 
-	fn apply(&mut self, input: &dyn LexStream, as_parent: bool) -> Action {
+	fn apply(&mut self, input: &dyn Stream, as_parent: bool) -> Action {
 		if self.ended {
 			return Action::Stop;
 		}
@@ -387,9 +382,9 @@ impl Scope for ScopeParenthesized {
 		})
 	}
 
-	fn apply(&mut self, input: &dyn LexStream, as_parent: bool) -> Action {
+	fn apply(&mut self, input: &dyn Stream, as_parent: bool) -> Action {
 		if let Some(open) = self.open.front() {
-			if input.next().symbol() == open.token.get_closing() {
+			if input.next().symbol() == open.token().get_closing() {
 				if self.open.len() == 1 && as_parent {
 					return Action::Stop;
 				}
@@ -409,22 +404,22 @@ impl Scope for ScopeParenthesized {
 		} else {
 			let next = input.next();
 			assert!(
-				next.token.get_closing().is_some(),
+				next.token().get_closing().is_some(),
 				"scope does not start at a valid parenthesized symbol (got {next} at {})",
-				next.span
+				next.span()
 			);
 			self.open.push_front(next);
 			Action::Skip
 		}
 	}
 
-	fn leave(&self, input: &dyn LexStream) -> Option<Error> {
+	fn leave(&self, input: &dyn Stream) -> Option<NodeError> {
 		if let Some(open) = self.open.front() {
 			let next = input.next();
-			let end = open.token.get_closing().unwrap();
+			let end = open.token().get_closing().unwrap();
 			Some(
-				Error::ExpectedSymbol(end, next.span)
-					.at(format!("opening `{open}` at {}", open.span)),
+				NodeError::ExpectedSymbol(end, next.span())
+					.at(format!("opening `{open}` at {}", open.span())),
 			)
 		} else {
 			None
@@ -445,7 +440,7 @@ impl Scope for ScopeExpression {
 		Box::new(ScopeExpression {})
 	}
 
-	fn apply(&mut self, input: &dyn LexStream, _as_parent: bool) -> Action {
+	fn apply(&mut self, input: &dyn Stream, _as_parent: bool) -> Action {
 		match input.token() {
 			Token::Break => {
 				return Action::Stop;
@@ -465,12 +460,11 @@ impl Scope for ScopeExpression {
 
 #[cfg(test)]
 mod tests {
-	use crate::lexer_old::{self, Stream};
-
 	use super::*;
+	use crate::lexer::number::Integer;
 
-	fn open(str: &'static str) -> Stream {
-		lexer_old::open(Input::open_str(str, str))
+	fn open(str: &'static str) -> Lexer {
+		crate::lexer::open(Input::open_str(str, str))
 	}
 
 	#[test]
@@ -478,17 +472,17 @@ mod tests {
 		let input = open("1 2 3");
 		let mut input = ScopedStream::new(input);
 
-		assert_eq!(input.next().token, Token::Integer(1));
+		assert_eq!(input.next().token(), Integer::token(1));
 		input.advance();
 
-		assert_eq!(input.next().token, Token::Integer(2));
+		assert_eq!(input.next().token(), Integer::token(2));
 		input.advance();
 
-		assert_eq!(input.next().token, Token::Integer(3));
-		assert_eq!(input.next().token, Token::Integer(3));
+		assert_eq!(input.next().token(), Integer::token(3));
+		assert_eq!(input.next().token(), Integer::token(3));
 		input.advance();
 
-		assert_eq!(input.next().token, Token::None);
+		assert_eq!(input.next().token(), Token::None);
 	}
 
 	#[test]
@@ -497,23 +491,23 @@ mod tests {
 		let mut a = ScopedStream::new(input);
 		let mut b = a.clone();
 
-		assert_eq!(a.next().token, Token::Integer(1));
+		assert_eq!(a.next().token(), Integer::token(1));
 
 		let mut c = a.clone();
-		assert_eq!(c.next().token, Token::Integer(1));
+		assert_eq!(c.next().token(), Integer::token(1));
 		c.advance();
-		assert_eq!(c.next().token, Token::Integer(2));
-		assert_eq!(b.next().token, Token::Integer(1));
-		assert_eq!(a.next().token, Token::Integer(1));
+		assert_eq!(c.next().token(), Integer::token(2));
+		assert_eq!(b.next().token(), Integer::token(1));
+		assert_eq!(a.next().token(), Integer::token(1));
 
 		a.advance();
-		assert_eq!(a.next().token, Token::Integer(2));
-		assert_eq!(b.next().token, Token::Integer(1));
+		assert_eq!(a.next().token(), Integer::token(2));
+		assert_eq!(b.next().token(), Integer::token(1));
 
 		b.advance();
-		assert_eq!(a.next().token, Token::Integer(2));
-		assert_eq!(b.next().token, Token::Integer(2));
-		assert_eq!(c.next().token, Token::Integer(2));
+		assert_eq!(a.next().token(), Integer::token(2));
+		assert_eq!(b.next().token(), Integer::token(2));
+		assert_eq!(c.next().token(), Integer::token(2));
 	}
 
 	#[test]
@@ -521,16 +515,16 @@ mod tests {
 		let input = open("1 (2 3) 4");
 		let mut input = ScopedStream::new(input);
 
-		assert_eq!(input.token(), Token::Integer(1));
+		assert_eq!(input.token(), Integer::token(1));
 		input.advance();
 		assert_eq!(input.token(), Token::Symbol("("));
 
 		input.enter(ScopeParenthesized::new(), ChildMode::Override);
 
-		assert_eq!(input.token(), Token::Integer(2));
+		assert_eq!(input.token(), Integer::token(2));
 		input.advance();
 
-		assert_eq!(input.token(), Token::Integer(3));
+		assert_eq!(input.token(), Integer::token(3));
 		input.advance();
 
 		assert_eq!(input.token(), Token::None);
@@ -539,7 +533,7 @@ mod tests {
 		assert_eq!(input.token(), Token::Symbol(")"));
 		input.advance();
 
-		assert_eq!(input.token(), Token::Integer(4));
+		assert_eq!(input.token(), Integer::token(4));
 	}
 
 	#[test]
@@ -549,7 +543,7 @@ mod tests {
 
 		input.enter(ScopeLine::new(), ChildMode::Override);
 
-		assert_eq!(input.token(), Token::Integer(1));
+		assert_eq!(input.token(), Integer::token(1));
 		input.advance();
 
 		assert_eq!(input.token(), Token::Break);
@@ -558,7 +552,7 @@ mod tests {
 		assert_eq!(input.token(), Token::Indent);
 		input.advance();
 
-		assert_eq!(input.token(), Token::Integer(2));
+		assert_eq!(input.token(), Integer::token(2));
 		input.advance();
 
 		assert_eq!(input.token(), Token::Break);
@@ -577,7 +571,7 @@ mod tests {
 
 		input.enter(ScopeLine::new(), ChildMode::Secondary);
 
-		assert_eq!(input.token(), Token::Integer(1));
+		assert_eq!(input.token(), Integer::token(1));
 		input.advance();
 
 		assert_eq!(input.token(), Token::Break);
@@ -588,7 +582,7 @@ mod tests {
 
 		input.enter(ScopeLine::new(), ChildMode::Secondary);
 
-		assert_eq!(input.token(), Token::Integer(2));
+		assert_eq!(input.token(), Integer::token(2));
 		input.advance();
 
 		assert_eq!(input.token(), Token::Break);
@@ -597,7 +591,7 @@ mod tests {
 		assert_eq!(input.token(), Token::Indent);
 		input.advance();
 
-		assert_eq!(input.token(), Token::Integer(3));
+		assert_eq!(input.token(), Integer::token(3));
 		input.advance();
 
 		assert_eq!(input.token(), Token::Break);

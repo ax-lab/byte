@@ -1,12 +1,15 @@
 use crate::core::input::*;
 
-use super::{Matcher, MatcherResult, Token};
+use super::*;
 
-#[derive(Copy, Clone)]
-pub struct MatchNumber;
+pub struct Integer;
 
-impl Matcher for MatchNumber {
-	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
+impl TokenValue for Integer {
+	type Value = u64;
+}
+
+impl Matcher for Integer {
+	fn try_match(&self, next: char, input: &mut Cursor, errors: &mut ErrorList) -> Option<Token> {
 		match next {
 			'0'..='9' => {
 				let mut value = decimal_value(next);
@@ -23,15 +26,11 @@ impl Matcher for MatchNumber {
 					}
 				}
 				*input = pos;
-				MatcherResult::Token(Token::Integer(value))
+				Some(Integer::token(value))
 			}
 
-			_ => MatcherResult::None,
+			_ => None,
 		}
-	}
-
-	fn clone_box(&self) -> Box<dyn Matcher> {
-		Box::new(self.clone())
 	}
 }
 

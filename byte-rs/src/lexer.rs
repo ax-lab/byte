@@ -5,6 +5,11 @@ use std::rc::Rc;
 use crate::core::error::*;
 use crate::core::input::*;
 
+mod comment;
+mod identifier;
+mod literal;
+pub mod number;
+
 mod indent;
 mod stream;
 mod symbol;
@@ -13,15 +18,45 @@ mod token;
 pub use stream::*;
 pub use token::*;
 
+pub use literal::*;
+
 use indent::*;
 use symbol::*;
+
+pub fn open(input: Input) -> Lexer {
+	let mut scanner = Scanner::new();
+	scanner.add_matcher(comment::Comment);
+	scanner.add_matcher(identifier::Identifier);
+	scanner.add_matcher(literal::Literal);
+	scanner.add_matcher(number::Integer);
+
+	scanner.add_symbol(",", Token::Symbol(","));
+	scanner.add_symbol(";", Token::Symbol(";"));
+	scanner.add_symbol("++", Token::Symbol("++"));
+	scanner.add_symbol("--", Token::Symbol("--"));
+	scanner.add_symbol("+", Token::Symbol("+"));
+	scanner.add_symbol("-", Token::Symbol("-"));
+	scanner.add_symbol("*", Token::Symbol("*"));
+	scanner.add_symbol("/", Token::Symbol("/"));
+	scanner.add_symbol("%", Token::Symbol("%"));
+	scanner.add_symbol("=", Token::Symbol("="));
+	scanner.add_symbol("==", Token::Symbol("=="));
+	scanner.add_symbol("!", Token::Symbol("!"));
+	scanner.add_symbol("?", Token::Symbol("?"));
+	scanner.add_symbol(":", Token::Symbol(":"));
+	scanner.add_symbol("(", Token::Symbol("("));
+	scanner.add_symbol(")", Token::Symbol(")"));
+	scanner.add_symbol(".", Token::Symbol("."));
+	scanner.add_symbol("..", Token::Symbol(".."));
+	Lexer::new(input.start(), scanner)
+}
 
 /// Holds all the lexer state and provides lexing for tokens.
 #[derive(Clone)]
 pub struct Lexer {
 	scanner: Rc<Scanner>,
 	state: State,
-	next: RefCell<Option<(TokenAt, State)>>,
+	next: RefCell<Option<(Lex, State)>>,
 }
 
 #[derive(Clone)]
@@ -54,7 +89,7 @@ impl Lexer {
 		self.state.errors.clone()
 	}
 
-	pub fn next(&self) -> TokenAt {
+	pub fn next(&self) -> Lex {
 		let token = {
 			let next = self.next.borrow();
 			if let Some((token, ..)) = &*next {
@@ -73,28 +108,33 @@ impl Lexer {
 		}
 	}
 
-	pub fn read(&mut self) -> TokenAt {
+	pub fn read(&mut self) -> Lex {
 		if let Some((token, state)) = self.next.take() {
 			self.state = state;
 			return token;
 		}
 
-		let state = &mut self.state;
-		self.scanner.skip(&mut state.input);
+		let mut empty = self.state.input.col() == 0;
+		loop {
+			let state = &mut self.state;
+			self.scanner.skip(&mut state.input);
+			let start = state.input.clone();
+			let token =
+				if let Some(token) = state.indent.check_indent(&state.input, &mut state.errors) {
+					token
+				} else {
+					self.scanner.read(&mut state.input, &mut state.errors)
+				};
+			if token.is::<comment::Comment>() || (empty && token == Token::Break) {
+				continue;
+			}
 
-		let start = state.input.clone();
-		let token = if let Some(token) = state.indent.check_indent(&state.input, &mut state.errors)
-		{
-			token
-		} else {
-			self.scanner.read(&mut state.input, &mut state.errors)
-		};
-
-		let span = Span {
-			sta: start.clone(),
-			end: state.input.clone(),
-		};
-		TokenAt(span, token)
+			let span = Span {
+				sta: start.clone(),
+				end: state.input.clone(),
+			};
+			break Lex(span, token);
+		}
 	}
 }
 
@@ -107,20 +147,20 @@ impl Stream for Lexer {
 		Box::new(self.clone())
 	}
 
-	fn next(&self) -> TokenAt {
+	fn next(&self) -> Lex {
 		Lexer::next(self)
 	}
 
-	fn read(&mut self) -> TokenAt {
+	fn read(&mut self) -> Lex {
 		Lexer::read(self)
 	}
 
-	fn errors_ref(&self) -> &ErrorList {
-		&self.state.errors
+	fn errors(&self) -> ErrorList {
+		self.state.errors.clone()
 	}
 
-	fn errors_mut(&mut self) -> &mut ErrorList {
-		&mut self.state.errors
+	fn add_error(&mut self, error: Error) {
+		self.state.errors.add(error)
 	}
 }
 
@@ -129,9 +169,9 @@ pub trait Matcher {
 }
 
 #[derive(Clone, Debug)]
-pub struct TokenAt(Span, Token);
+pub struct Lex(Span, Token);
 
-impl TokenAt {
+impl Lex {
 	pub fn span(&self) -> Span {
 		self.0.clone()
 	}
@@ -148,9 +188,21 @@ impl TokenAt {
 		};
 		Some(str)
 	}
+
+	pub fn is_some(&self) -> bool {
+		self.1 != Token::None
+	}
+
+	pub fn text(&self) -> &str {
+		self.0.text()
+	}
+
+	pub fn as_none(&self) -> Lex {
+		Lex(self.span(), Token::None)
+	}
 }
 
-impl std::fmt::Display for TokenAt {
+impl std::fmt::Display for Lex {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match &self.1 {
 			Token::None => {
@@ -193,7 +245,7 @@ impl Scanner {
 		}
 	}
 
-	pub fn add_scanner<T: Matcher + 'static>(&mut self, scanner: T) {
+	pub fn add_matcher<T: Matcher + 'static>(&mut self, scanner: T) {
 		self.scanners.push(Rc::new(scanner));
 	}
 
@@ -235,13 +287,13 @@ impl Scanner {
 				token
 			} else {
 				(*input, *errors) = saved;
-				errors.at(
+				errors.add(Error::new(
 					Span {
 						sta: start,
 						end: input.clone(),
 					},
 					LexerError::InvalidSymbol,
-				);
+				));
 				Token::Invalid
 			}
 		} else {
@@ -255,7 +307,7 @@ pub enum LexerError {
 	InvalidSymbol,
 	InvalidDedentInRegion,
 	InvalidDedentIndent,
-	ExpectedEnd(TokenAt),
+	ExpectedEnd(Lex),
 }
 
 impl ErrorInfo for LexerError {
@@ -387,13 +439,13 @@ mod tests {
 		let mut lexer = Lexer::new(input.start(), scanner);
 		let mut clone = lexer.clone();
 		loop {
-			let TokenAt(span, token) = lexer.read();
+			let Lex(span, token) = lexer.read();
 			if token == Token::None {
 				break;
 			}
 
 			// sanity check clone
-			let TokenAt(clone_span, clone_token) = clone.read();
+			let Lex(clone_span, clone_token) = clone.read();
 			assert_eq!(clone_span, span);
 			assert_eq!(clone_token, token);
 

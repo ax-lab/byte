@@ -1,8 +1,4 @@
-use crate::{
-	lexer_old::{LexStream, Token},
-	node::*,
-	Error,
-};
+use crate::{lexer::*, node::*};
 
 use super::{
 	parser::{parse_expression, parse_indented_block},
@@ -34,7 +30,7 @@ impl Macro for Print {
 
 			if expr_list.len() > 0 {
 				if !context.skip_symbol(",") {
-					let error = Error::ExpectedSymbol(",", context.span());
+					let error = NodeError::ExpectedSymbol(",", context.span());
 					break Node::Invalid(error);
 				}
 			}
@@ -45,7 +41,7 @@ impl Macro for Print {
 					expr_list.push(expr);
 				}
 				Node::None(..) => {
-					let error = Error::ExpectedExpression(context.next()).at("print");
+					let error = NodeError::ExpectedExpression(context.next()).at("print");
 					break Node::Invalid(error);
 				}
 				Node::Invalid(error) => break Node::Invalid(error),
@@ -76,7 +72,7 @@ impl Macro for Let {
 			Node::Some(NodeKind::Let(id, None), context.from(pos))
 		} else {
 			if !context.skip_symbol("=") {
-				Node::Invalid(Error::ExpectedSymbol("=", context.span()).at("let declaration"))
+				Node::Invalid(NodeError::ExpectedSymbol("=", context.span()).at("let declaration"))
 			} else {
 				let expr = parse_expression(context);
 				match expr {
@@ -84,7 +80,7 @@ impl Macro for Let {
 						Node::Some(NodeKind::Let(id, Some(expr.into())), context.from(pos))
 					}
 					Node::None(..) => Node::Invalid(
-						Error::ExpectedExpression(context.next()).at("let declaration"),
+						NodeError::ExpectedExpression(context.next()).at("let declaration"),
 					),
 					Node::Invalid(error) => Node::Invalid(error),
 				}
@@ -121,12 +117,12 @@ impl Macro for If {
 					Node::Invalid(error)
 				}
 				Node::None(..) => {
-					let error = Error::ExpectedIndent(context.span()).at("if block");
+					let error = NodeError::ExpectedIndent(context.span()).at("if block");
 					Node::Invalid(error)
 				}
 			},
 			Node::None(..) => {
-				Node::Invalid(Error::ExpectedExpression(context.next()).at("if block"))
+				Node::Invalid(NodeError::ExpectedExpression(context.next()).at("if block"))
 			}
 			Node::Invalid(error) => Node::Invalid(error),
 		};
@@ -150,13 +146,13 @@ impl Macro for For {
 				id
 			}
 			_ => {
-				let error = Error::Expected("for identifier", context.next());
+				let error = NodeError::Expected("for identifier", context.next());
 				return Some(Node::Invalid(error));
 			}
 		};
 
 		if !context.skip_symbol("in") {
-			let error = Error::Expected("for `in`", context.next());
+			let error = NodeError::Expected("for `in`", context.next());
 			return Some(Node::Invalid(error));
 		}
 
@@ -168,14 +164,14 @@ impl Macro for For {
 			Node::Some(expr, ..) => expr,
 			Node::None(..) => {
 				return Some(Node::Invalid(
-					Error::ExpectedExpression(context.next()).at("for in"),
+					NodeError::ExpectedExpression(context.next()).at("for in"),
 				))
 			}
 			Node::Invalid(error) => return Some(Node::Invalid(error)),
 		};
 
 		if !context.skip_symbol("..") {
-			let error = Error::Expected("for `..`", context.next());
+			let error = NodeError::Expected("for `..`", context.next());
 			return Some(Node::Invalid(error));
 		}
 
@@ -199,12 +195,12 @@ impl Macro for For {
 					Node::Invalid(error)
 				}
 				Node::None(..) => {
-					let error = Error::ExpectedIndent(context.span()).at("for block");
+					let error = NodeError::ExpectedIndent(context.span()).at("for block");
 					Node::Invalid(error)
 				}
 			},
 			Node::None(..) => {
-				Node::Invalid(Error::ExpectedExpression(context.next()).at("for block"))
+				Node::Invalid(NodeError::ExpectedExpression(context.next()).at("for block"))
 			}
 			Node::Invalid(error) => Node::Invalid(error),
 		};

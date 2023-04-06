@@ -1,6 +1,41 @@
+use crate::core::error::*;
 use crate::core::input::*;
+use crate::lexer::*;
 
-use crate::{operator::*, Error};
+use crate::operator::*;
+
+#[derive(Clone, Debug)]
+pub enum NodeError {
+	At(String, Box<NodeError>),
+	Expected(&'static str, Lex),
+	ExpectedExpression(Lex),
+	ExpectedSymbol(&'static str, Span),
+	ExpectedIndent(Span),
+	InvalidToken(Span),
+}
+
+impl ErrorInfo for NodeError {
+	fn output(&self, f: &mut std::fmt::Formatter<'_>, _span: &Span) -> std::fmt::Result {
+		write!(f, "{self}")
+	}
+}
+
+impl NodeError {
+	pub fn span(&self) -> Span {
+		match self {
+			NodeError::At(_, err) => err.span(),
+			NodeError::Expected(_, lex) => lex.span(),
+			NodeError::ExpectedExpression(lex) => lex.span(),
+			NodeError::ExpectedSymbol(_, span) => span.clone(),
+			NodeError::ExpectedIndent(span) => span.clone(),
+			NodeError::InvalidToken(span) => span.clone(),
+		}
+	}
+
+	pub fn at<T: Into<String>>(self, context: T) -> NodeError {
+		NodeError::At(context.into(), self.into())
+	}
+}
 
 /// Represents a syntactic structure in the source code.
 ///
@@ -12,7 +47,7 @@ use crate::{operator::*, Error};
 #[derive(Clone, Debug)]
 pub enum Node {
 	None(Cursor),
-	Invalid(Error),
+	Invalid(NodeError),
 	Some(NodeKind, Span),
 }
 
@@ -24,7 +59,7 @@ impl Node {
 				sta: cur.clone(),
 				end: cur.clone(),
 			},
-			Node::Invalid(error) => error.span(),
+			Node::Invalid(error) => error.span().clone(),
 			Node::Some(_, span) => span.clone(),
 		}
 	}
@@ -63,5 +98,18 @@ pub enum Atom {
 impl Atom {
 	pub fn as_value(self) -> NodeKind {
 		NodeKind::Atom(self)
+	}
+}
+
+impl std::fmt::Display for NodeError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			NodeError::At(context, error) => write!(f, "{context}: {error}"),
+			NodeError::Expected(what, sym) => write!(f, "expected {what}, got `{sym}`"),
+			NodeError::ExpectedExpression(sym) => write!(f, "expression expected, got `{sym}`"),
+			NodeError::ExpectedSymbol(sym, ..) => write!(f, "expected `{sym}`"),
+			NodeError::ExpectedIndent(..) => write!(f, "expected indented line"),
+			NodeError::InvalidToken(..) => write!(f, "invalid token, parsing failed"),
+		}
 	}
 }

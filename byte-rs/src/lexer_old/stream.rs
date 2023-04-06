@@ -19,11 +19,11 @@ pub trait LexStream {
 	fn has_errors(&self) -> bool;
 
 	fn token(&self) -> Token {
-		self.next().token
+		self.next().token()
 	}
 
 	fn span(&self) -> Span {
-		self.next().span
+		self.next().span()
 	}
 
 	fn peek_after(&self) -> Lex {
@@ -39,11 +39,11 @@ pub trait LexStream {
 	}
 
 	fn has_some(&self) -> bool {
-		self.next().is_some()
+		self.token() != Token::None
 	}
 
 	fn pos(&self) -> Cursor {
-		self.next().span.sta
+		self.span().sta
 	}
 
 	fn from(&self, pos: Cursor) -> Span {

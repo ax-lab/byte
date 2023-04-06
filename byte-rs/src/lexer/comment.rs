@@ -1,12 +1,15 @@
 use crate::core::input::*;
 
-use super::{Matcher, MatcherResult};
+use super::*;
 
-#[derive(Copy, Clone)]
-pub struct MatchComment;
+pub struct Comment;
 
-impl Matcher for MatchComment {
-	fn try_match(&self, next: char, input: &mut Cursor) -> MatcherResult {
+impl TokenValue for Comment {
+	type Value = ();
+}
+
+impl Matcher for Comment {
+	fn try_match(&self, next: char, input: &mut Cursor, errors: &mut ErrorList) -> Option<Token> {
 		match next {
 			'#' => {
 				let (multi, mut level) = if input.read_if('(') {
@@ -36,14 +39,10 @@ impl Matcher for MatchComment {
 				if putback {
 					*input = pos;
 				}
-				MatcherResult::Comment
+				Some(Comment::token(()))
 			}
 
-			_ => MatcherResult::None,
+			_ => None,
 		}
-	}
-
-	fn clone_box(&self) -> Box<dyn Matcher> {
-		Box::new(self.clone())
 	}
 }

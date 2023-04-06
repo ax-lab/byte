@@ -1,6 +1,9 @@
 use std::collections::VecDeque;
 
-use crate::{lexer_old::LexStream, lexer_old::Token, node::*, operator::*, Context, Error};
+use crate::core::error::*;
+use crate::lexer::*;
+
+use crate::{node::*, operator::*, Context};
 
 pub fn parse_indented_block(context: &mut Context) -> Node {
 	let pos = context.pos();
@@ -18,7 +21,7 @@ pub fn parse_indented_block(context: &mut Context) -> Node {
 	};
 
 	if !ok {
-		let error = Error::ExpectedIndent(context.span());
+		let error = NodeError::ExpectedIndent(context.span());
 		return Node::Invalid(error);
 	}
 	context.advance();
@@ -28,11 +31,11 @@ pub fn parse_indented_block(context: &mut Context) -> Node {
 		let line = parse_line(context);
 		let node = match line {
 			Node::Invalid(error) => {
-				context.add_error(error);
+				context.add_error(Error::new(error.span(), error));
 				break;
 			}
 			Node::None(..) => {
-				let error = Error::ExpectedExpression(context.next()).at("indented block");
+				let error = NodeError::ExpectedExpression(context.next()).at("indented block");
 				return Node::Invalid(error);
 			}
 			Node::Some(value, ..) => value,
@@ -123,7 +126,7 @@ pub fn parse_expression(context: &mut Context) -> Node {
 			}
 			Node::None(..) => {
 				return if ops.len() > 0 {
-					Node::Invalid(Error::ExpectedExpression(context.next()))
+					Node::Invalid(NodeError::ExpectedExpression(context.next()))
 				} else {
 					break;
 				};
@@ -148,7 +151,7 @@ pub fn parse_expression(context: &mut Context) -> Node {
 				Node::Some(expr, ..) => expr,
 				Node::None(..) => {
 					return Node::Invalid(
-						Error::ExpectedExpression(context.next()).at("ternary operator"),
+						NodeError::ExpectedExpression(context.next()).at("ternary operator"),
 					);
 				}
 				Node::Invalid(error) => return Node::Invalid(error),
@@ -157,7 +160,7 @@ pub fn parse_expression(context: &mut Context) -> Node {
 
 			if !context.skip_symbol(end) {
 				return Node::Invalid(
-					Error::ExpectedSymbol(end, context.span()).at("ternary operator"),
+					NodeError::ExpectedSymbol(end, context.span()).at("ternary operator"),
 				);
 			}
 		} else if let Some(op) = context.next().symbol().and_then(|next| OpBinary::get(next)) {
@@ -186,7 +189,7 @@ pub fn parse_expression(context: &mut Context) -> Node {
 fn parse_atom(context: &mut Context) -> Node {
 	let pos = context.pos();
 	let value = match context.token() {
-		Token::Invalid => return Node::Invalid(Error::InvalidToken(context.span())),
+		Token::Invalid => return Node::Invalid(NodeError::InvalidToken(context.span())),
 		Token::Identifier => {
 			let value = match context.next().text() {
 				"null" => Atom::Null.as_value(),
@@ -206,13 +209,16 @@ fn parse_atom(context: &mut Context) -> Node {
 			context.advance();
 			value
 		}
-		Token::Integer(value) => {
-			context.advance();
-			Atom::Integer(value).as_value()
-		}
-		Token::Literal(content) => {
-			context.advance();
-			Atom::String(content.into()).as_value()
+		token @ Token::Value(..) => {
+			if let Some(value) = token.get::<number::Integer>() {
+				context.advance();
+				Atom::Integer(*value).as_value()
+			} else if let Some(value) = token.get::<Literal>() {
+				context.advance();
+				Atom::String(value.clone()).as_value()
+			} else {
+				return Node::None(pos);
+			}
 		}
 		Token::Symbol("(") => {
 			context.scope_to_parenthesis();
@@ -222,7 +228,7 @@ fn parse_atom(context: &mut Context) -> Node {
 			match next {
 				Node::Invalid(error) => return Node::Invalid(error),
 				Node::None(..) => {
-					return Node::Invalid(Error::ExpectedExpression(context.next()));
+					return Node::Invalid(NodeError::ExpectedExpression(context.next()));
 				}
 				Node::Some(expr, ..) => expr,
 			}

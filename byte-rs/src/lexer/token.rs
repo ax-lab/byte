@@ -54,6 +54,13 @@ impl Token {
 			_ => None,
 		}
 	}
+
+	pub fn get_closing(&self) -> Option<&'static str> {
+		match self {
+			Token::Symbol("(") => Some(")"),
+			_ => return None,
+		}
+	}
 }
 
 pub trait TokenValue: 'static + Sized {

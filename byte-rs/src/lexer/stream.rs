@@ -8,28 +8,24 @@ pub trait Stream {
 
 	fn copy(&self) -> Box<dyn Stream>;
 
-	fn next(&self) -> TokenAt;
+	fn next(&self) -> Lex;
 
-	fn read(&mut self) -> TokenAt;
+	fn read(&mut self) -> Lex;
 
-	fn errors_ref(&self) -> &ErrorList;
+	fn errors(&self) -> ErrorList;
 
-	fn errors_mut(&mut self) -> &mut ErrorList;
+	fn add_error(&mut self, error: Error);
 
 	fn advance(&mut self) {
 		self.read();
 	}
 
-	fn add_at(&mut self, span: Span, info: Rc<dyn ErrorInfo>) {
-		self.errors_mut().add_at(span, info);
-	}
-
 	fn has_errors(&self) -> bool {
-		!self.errors_ref().empty()
+		!self.errors().empty()
 	}
 
-	fn errors(&self) -> Vec<Error> {
-		self.errors_ref().list()
+	fn list_errors(&self) -> Vec<Error> {
+		self.errors().list()
 	}
 
 	fn token(&self) -> Token {
@@ -40,7 +36,7 @@ pub trait Stream {
 		self.next().span()
 	}
 
-	fn peek_after(&self) -> TokenAt {
+	fn peek_after(&self) -> Lex {
 		let mut input = self.copy();
 		input.advance();
 		input.next()
@@ -65,7 +61,7 @@ pub trait Stream {
 
 	/// Return the next token and true if the predicate matches the current
 	/// token.
-	fn next_if(&mut self, predicate: &dyn Fn(TokenAt) -> bool) -> bool {
+	fn next_if(&mut self, predicate: &dyn Fn(Lex) -> bool) -> bool {
 		if predicate(self.next()) {
 			self.advance();
 			true
@@ -82,7 +78,7 @@ pub trait Stream {
 	fn check_end(&mut self) -> bool {
 		if self.has_some() {
 			let next = self.next();
-			self.add_at(next.span(), LexerError::ExpectedEnd(next).upcast());
+			self.add_error(Error::new(next.span(), LexerError::ExpectedEnd(next)));
 			false
 		} else {
 			true

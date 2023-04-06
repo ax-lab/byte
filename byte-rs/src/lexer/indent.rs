@@ -95,7 +95,7 @@ impl Indent {
 
 						if new_level > base_level {
 							// ...don't allow a dedent between two levels
-							errors.at(input.pos(), LexerError::InvalidDedentIndent);
+							errors.add(Error::new(input.pos(), LexerError::InvalidDedentIndent));
 							Some(Token::Invalid)
 						} else {
 							// ...all good, generate the Token::Dedent
@@ -104,7 +104,7 @@ impl Indent {
 					}
 					Kind::Block { .. } => {
 						// cannot dedent out of an enclosed region
-						errors.at(input.pos(), LexerError::InvalidDedentInRegion);
+						errors.add(Error::new(input.pos(), LexerError::InvalidDedentInRegion));
 						Some(Token::Invalid)
 					}
 				}

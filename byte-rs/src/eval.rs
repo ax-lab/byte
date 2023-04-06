@@ -1,11 +1,5 @@
-use crate::{
-	lexer_old::{LexStream, Stream, Token},
-	node::*,
-	operator::*,
-	parser::*,
-	runtime::*,
-	Context,
-};
+use crate::core::error::*;
+use crate::{lexer::*, node::*, operator::*, parser::*, runtime::*, Context};
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
@@ -34,14 +28,14 @@ impl<'a> std::fmt::Display for Result {
 	}
 }
 
-pub fn run(input: Stream, list_ast: bool) -> Result {
+pub fn run(input: Lexer, list_ast: bool) -> Result {
 	let mut context = Context::new(input.clone());
 	let mut program = Vec::new();
 	while context.has_some() && context.is_valid() {
 		let node = parse_line(&mut context);
 		let node = match node {
 			Node::Invalid(error) => {
-				context.add_error(error);
+				context.add_error(Error::new(error.span(), error));
 				break;
 			}
 			Node::None(pos) => {
@@ -72,7 +66,8 @@ pub fn run(input: Stream, list_ast: bool) -> Result {
 	if errors.len() > 0 {
 		eprintln!();
 		for it in errors.into_iter() {
-			let src = input.source();
+			let src = input.pos();
+			let src = src.src();
 			let name = src.name();
 			let span = it.span();
 			eprintln!("error: at {name}:{span} -- {it}");

@@ -43,19 +43,60 @@ pub trait IsValue: Debug + 'static {
 	fn is_eq(&self, other: &Value) -> bool;
 }
 
-impl<T: Display + Debug + Eq + 'static> IsValue for T {
-	fn output(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "{self}")
-	}
+macro_rules! is_value {
+	($t:ty) => {
+		impl IsValue for $t {
+			fn output(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+				write!(f, "{self}")
+			}
 
-	fn is_eq(&self, other: &Value) -> bool {
-		if let Some(other) = other.get::<Self>() {
-			self == other
-		} else {
-			false
+			fn is_eq(&self, other: &Value) -> bool {
+				if let Some(other) = other.get::<Self>() {
+					self == other
+				} else {
+					false
+				}
+			}
 		}
-	}
+	};
+
+	($t:ty, debug) => {
+		impl IsValue for $t {
+			fn output(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+				write!(f, "{self:?}")
+			}
+
+			fn is_eq(&self, other: &Value) -> bool {
+				if let Some(other) = other.get::<Self>() {
+					self == other
+				} else {
+					false
+				}
+			}
+		}
+	};
 }
+
+pub(crate) use is_value;
+
+is_value!(&'static str);
+is_value!(String);
+is_value!(bool);
+is_value!((), debug);
+
+is_value!(i8);
+is_value!(i16);
+is_value!(i32);
+is_value!(i64);
+is_value!(i128);
+is_value!(isize);
+
+is_value!(u8);
+is_value!(u16);
+is_value!(u32);
+is_value!(u64);
+is_value!(u128);
+is_value!(usize);
 
 impl Display for Value {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

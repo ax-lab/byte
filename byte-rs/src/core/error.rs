@@ -5,13 +5,6 @@ use crate::core::input::*;
 
 pub trait ErrorInfo: Debug + 'static {
 	fn output(&self, f: &mut std::fmt::Formatter<'_>, span: &Span) -> std::fmt::Result;
-
-	fn upcast(self) -> Rc<dyn ErrorInfo>
-	where
-		Self: Sized,
-	{
-		Rc::new(self)
-	}
 }
 
 #[derive(Clone)]
@@ -21,6 +14,13 @@ pub struct Error {
 }
 
 impl Error {
+	pub fn new<T: ErrorInfo>(span: Span, info: T) -> Self {
+		Error {
+			span,
+			info: Rc::new(info),
+		}
+	}
+
 	pub fn span(&self) -> &Span {
 		&self.span
 	}
@@ -58,12 +58,7 @@ impl ErrorList {
 		self.head.is_none()
 	}
 
-	pub fn at<T: ErrorInfo>(&mut self, span: Span, info: T) {
-		self.add_at(span, Rc::new(info))
-	}
-
-	pub fn add_at(&mut self, span: Span, info: Rc<dyn ErrorInfo>) {
-		let error = Error { info, span };
+	pub fn add(&mut self, error: Error) {
 		let prev = std::mem::take(&mut self.head);
 		let node = ErrorNode { error, prev };
 		self.head = Some(Rc::new(node));

@@ -1,12 +1,8 @@
 use std::env;
 
-use lexer_old::{LexStream, Stream};
-
 mod context;
 mod core;
-mod error;
 mod eval;
-mod lexer_old;
 mod macros;
 mod node;
 mod operator;
@@ -17,8 +13,9 @@ mod scope;
 #[allow(unused)]
 mod lexer;
 
+use lexer::Stream;
+
 use context::*;
-use error::*;
 
 fn main() {
 	let mut done = false;
@@ -77,7 +74,7 @@ fn main() {
 	}
 
 	for it in eval_list.into_iter() {
-		let context = lexer_old::open(core::input::Input::open_str("eval", &it));
+		let context = lexer::open(core::input::Input::open_str("eval", &it));
 		let result = eval::run(context, false);
 		println!("{result}");
 	}
@@ -85,11 +82,12 @@ fn main() {
 	for file in files {
 		match core::input::Input::open_file(&file) {
 			Ok(source) => {
-				let mut context = lexer_old::open(source);
+				let mut context = lexer::open(source);
 				if list_tokens {
 					while context.next().is_some() {
-						let token = context.token();
-						let span = context.span();
+						let next = context.next();
+						let token = next.token();
+						let span = next.span();
 						let text = span.text();
 						println!("{span}: {:10}  =  {token:?}", format!("{text:?}"));
 						context.advance();
@@ -107,9 +105,9 @@ fn main() {
 	}
 }
 
-fn print_errors(ctx: &Stream) {
+fn print_errors(ctx: &lexer::Lexer) {
 	let mut has_errors = false;
-	for it in ctx.errors() {
+	for it in ctx.errors().list() {
 		if !has_errors {
 			eprintln!("\n---- Errors ----\n");
 			has_errors = true;
