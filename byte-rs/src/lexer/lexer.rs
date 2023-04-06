@@ -69,7 +69,7 @@ impl Lexer {
 			return token;
 		}
 
-		let mut empty = self.state.input.col() == 0;
+		let empty = self.state.input.col() == 0;
 		loop {
 			let state = &mut self.state;
 			self.scanner.skip(&mut state.input);

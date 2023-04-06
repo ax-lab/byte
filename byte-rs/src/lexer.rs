@@ -24,31 +24,33 @@ use symbol::*;
 pub fn open(input: crate::core::input::Input) -> Lexer {
 	use crate::lang::*;
 
-	let mut scanner = Scanner::new();
-	scanner.add_matcher(Comment);
-	scanner.add_matcher(Identifier);
-	scanner.add_matcher(Literal);
-	scanner.add_matcher(Integer);
+	let mut lexer = Lexer::new(input.start(), Scanner::new());
+	lexer.config(|scanner| {
+		scanner.add_matcher(Comment);
+		scanner.add_matcher(Identifier);
+		scanner.add_matcher(Literal);
+		scanner.add_matcher(Integer);
 
-	scanner.add_symbol(",", Token::Symbol(","));
-	scanner.add_symbol(";", Token::Symbol(";"));
-	scanner.add_symbol("++", Token::Symbol("++"));
-	scanner.add_symbol("--", Token::Symbol("--"));
-	scanner.add_symbol("+", Token::Symbol("+"));
-	scanner.add_symbol("-", Token::Symbol("-"));
-	scanner.add_symbol("*", Token::Symbol("*"));
-	scanner.add_symbol("/", Token::Symbol("/"));
-	scanner.add_symbol("%", Token::Symbol("%"));
-	scanner.add_symbol("=", Token::Symbol("="));
-	scanner.add_symbol("==", Token::Symbol("=="));
-	scanner.add_symbol("!", Token::Symbol("!"));
-	scanner.add_symbol("?", Token::Symbol("?"));
-	scanner.add_symbol(":", Token::Symbol(":"));
-	scanner.add_symbol("(", Token::Symbol("("));
-	scanner.add_symbol(")", Token::Symbol(")"));
-	scanner.add_symbol(".", Token::Symbol("."));
-	scanner.add_symbol("..", Token::Symbol(".."));
-	Lexer::new(input.start(), scanner)
+		scanner.add_symbol(",", Token::Symbol(","));
+		scanner.add_symbol(";", Token::Symbol(";"));
+		scanner.add_symbol("++", Token::Symbol("++"));
+		scanner.add_symbol("--", Token::Symbol("--"));
+		scanner.add_symbol("+", Token::Symbol("+"));
+		scanner.add_symbol("-", Token::Symbol("-"));
+		scanner.add_symbol("*", Token::Symbol("*"));
+		scanner.add_symbol("/", Token::Symbol("/"));
+		scanner.add_symbol("%", Token::Symbol("%"));
+		scanner.add_symbol("=", Token::Symbol("="));
+		scanner.add_symbol("==", Token::Symbol("=="));
+		scanner.add_symbol("!", Token::Symbol("!"));
+		scanner.add_symbol("?", Token::Symbol("?"));
+		scanner.add_symbol(":", Token::Symbol(":"));
+		scanner.add_symbol("(", Token::Symbol("("));
+		scanner.add_symbol(")", Token::Symbol(")"));
+		scanner.add_symbol(".", Token::Symbol("."));
+		scanner.add_symbol("..", Token::Symbol(".."));
+	});
+	lexer
 }
 
 #[cfg(test)]

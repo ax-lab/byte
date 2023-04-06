@@ -23,6 +23,7 @@ impl Indent {
 		}
 	}
 
+	#[allow(unused)]
 	pub fn open_region(&mut self) -> IndentRegion {
 		static ID_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
@@ -37,6 +38,7 @@ impl Indent {
 		IndentRegion(id)
 	}
 
+	#[allow(unused)]
 	pub fn close_region(&mut self, region: IndentRegion) {
 		if self.closing.is_some() {
 			panic!("close_region: already closing an indent region");

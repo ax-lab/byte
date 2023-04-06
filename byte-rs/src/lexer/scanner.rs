@@ -46,7 +46,7 @@ impl Scanner {
 	}
 
 	pub fn read(&self, input: &mut Cursor, errors: &mut ErrorList) -> Token {
-		let mut start = input.clone();
+		let start = input.clone();
 		if let Some(next) = input.read() {
 			if next == '\n' {
 				return Token::Break;

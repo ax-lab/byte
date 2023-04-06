@@ -4,15 +4,13 @@ mod context;
 mod core;
 mod eval;
 mod lang;
+mod lexer;
 mod macros;
 mod node;
 mod operator;
 mod parser;
 mod runtime;
 mod scope;
-
-#[allow(unused)]
-mod lexer;
 
 use lexer::Stream;
 

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
 use crate::core::error::*;
 use crate::core::input::*;
@@ -64,7 +64,7 @@ impl SymbolTable {
 }
 
 impl Matcher for SymbolTable {
-	fn try_match(&self, next: char, input: &mut Cursor, errors: &mut ErrorList) -> Option<Token> {
+	fn try_match(&self, next: char, input: &mut Cursor, _errors: &mut ErrorList) -> Option<Token> {
 		let state = self.get_next(0, next);
 		let (mut state, valid) = if let Some((state, valid)) = state {
 			(state, valid)
