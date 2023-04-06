@@ -3,6 +3,21 @@ use std::any::TypeId;
 use crate::core::any::*;
 use crate::core::input::*;
 
+pub trait IsToken: 'static + Sized {
+	type Value: Clone + IsValue;
+
+	fn name() -> &'static str;
+
+	fn token(value: Self::Value) -> Token {
+		let value = Value::new(value);
+		Token::Other(TokenValue {
+			name: Self::name(),
+			token: TypeId::of::<Self>(),
+			value,
+		})
+	}
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Token {
 	None,
@@ -12,7 +27,36 @@ pub enum Token {
 	Dedent,
 	Identifier,
 	Symbol(&'static str),
-	Value(TokenValueData),
+	Other(TokenValue),
+}
+
+impl Token {
+	pub fn is<T: IsToken>(&self) -> bool {
+		match self {
+			Token::Other(value) => value.token == TypeId::of::<T>(),
+			_ => false,
+		}
+	}
+
+	pub fn get<T: IsToken>(&self) -> Option<&T::Value> {
+		match self {
+			Token::Other(data) => {
+				if data.token == TypeId::of::<T>() {
+					data.value.get()
+				} else {
+					None
+				}
+			}
+			_ => None,
+		}
+	}
+
+	pub fn get_closing(&self) -> Option<&'static str> {
+		match self {
+			Token::Symbol("(") => Some(")"),
+			_ => return None,
+		}
+	}
 }
 
 #[derive(Clone, Debug)]
@@ -71,68 +115,36 @@ impl std::fmt::Display for TokenAt {
 			Token::Identifier => {
 				write!(f, "`{}`", self.span().text())
 			}
-			Token::Value(value) => write!(f, "`{value}`"),
+			Token::Other(value) => write!(f, "`{value}`"),
 		}
 	}
 }
 
-#[derive(Clone, Debug)]
-pub struct TokenValueData {
+#[derive(Clone)]
+pub struct TokenValue {
+	name: &'static str,
 	token: TypeId,
 	value: Value,
 }
 
-impl std::fmt::Display for TokenValueData {
+impl std::fmt::Display for TokenValue {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{}", self.value)
 	}
 }
 
-impl PartialEq for TokenValueData {
+impl PartialEq for TokenValue {
 	fn eq(&self, other: &Self) -> bool {
 		self.token == other.token && self.value == other.value
 	}
 }
 
-impl Eq for TokenValueData {}
+impl Eq for TokenValue {}
 
-impl Token {
-	pub fn is<T: TokenValue>(&self) -> bool {
-		match self {
-			Token::Value(value) => value.token == TypeId::of::<T>(),
-			_ => false,
-		}
-	}
-
-	pub fn get<T: TokenValue>(&self) -> Option<&T::Value> {
-		match self {
-			Token::Value(data) => {
-				if data.token == TypeId::of::<T>() {
-					data.value.get()
-				} else {
-					None
-				}
-			}
-			_ => None,
-		}
-	}
-
-	pub fn get_closing(&self) -> Option<&'static str> {
-		match self {
-			Token::Symbol("(") => Some(")"),
-			_ => return None,
-		}
-	}
-}
-
-pub trait TokenValue: 'static + Sized {
-	type Value: Clone + IsValue;
-
-	fn token(value: Self::Value) -> Token {
-		let value = Value::new(value);
-		Token::Value(TokenValueData {
-			token: TypeId::of::<Self>(),
-			value,
-		})
+impl std::fmt::Debug for TokenValue {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}{{ ", self.name)?;
+		self.value.fmt(f)?;
+		write!(f, " }}")
 	}
 }

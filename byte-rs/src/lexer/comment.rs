@@ -5,8 +5,12 @@ use super::*;
 
 pub struct Comment;
 
-impl TokenValue for Comment {
+impl IsToken for Comment {
 	type Value = ();
+
+	fn name() -> &'static str {
+		"Comment"
+	}
 }
 
 impl Matcher for Comment {

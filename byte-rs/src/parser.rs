@@ -211,7 +211,7 @@ fn parse_atom(context: &mut Context) -> Node {
 			context.advance();
 			value
 		}
-		token @ Token::Value(..) => {
+		token @ Token::Other(..) => {
 			if let Some(value) = token.get::<Integer>() {
 				context.advance();
 				Atom::Integer(*value).as_value()

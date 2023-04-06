@@ -4,8 +4,17 @@ use std::{
 	rc::Rc,
 };
 
+/// This trait provides the minimum features required for a [`Value`].
+///
+/// To implement this for `Display + Debug + Eq` types see [`is_value`].
+pub trait IsValue: Debug + 'static {
+	fn output(&self, f: &mut std::fmt::Formatter, debug: bool) -> std::fmt::Result;
+
+	fn is_eq(&self, other: &Value) -> bool;
+}
+
 /// Provides ref-counted storage for a dynamically typed value.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Value {
 	type_id: TypeId,
 	value: Rc<dyn IsValue>,
@@ -30,22 +39,17 @@ impl Value {
 	}
 }
 
-/// This trait provides the minimum features required for a [`Value`].
-///
-/// To implement this for `Display + Debug + Eq` types see [`is_value`].
-pub trait IsValue: Debug + 'static {
-	fn output(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result;
-
-	fn is_eq(&self, other: &Value) -> bool;
-}
-
 /// Implement the [`IsValue`] trait for types that implement [`Display`],
 /// [`Debug`], and [`Eq`].
 macro_rules! is_value {
 	($t:ty) => {
 		impl IsValue for $t {
-			fn output(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-				write!(f, "{self}")
+			fn output(&self, f: &mut std::fmt::Formatter, debug: bool) -> std::fmt::Result {
+				if debug {
+					write!(f, "{}<{self:?}>", stringify!($t))
+				} else {
+					write!(f, "{self}")
+				}
 			}
 
 			fn is_eq(&self, other: &Value) -> bool {
@@ -60,8 +64,12 @@ macro_rules! is_value {
 
 	($t:ty, debug) => {
 		impl IsValue for $t {
-			fn output(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-				write!(f, "{self:?}")
+			fn output(&self, f: &mut std::fmt::Formatter, debug: bool) -> std::fmt::Result {
+				if debug {
+					write!(f, "{}<{self:?}>", stringify!($t))
+				} else {
+					write!(f, "{self:?}")
+				}
 			}
 
 			fn is_eq(&self, other: &Value) -> bool {
@@ -98,7 +106,13 @@ is_value!(usize);
 
 impl Display for Value {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		self.value.output(f)
+		self.value.output(f, false)
+	}
+}
+
+impl Debug for Value {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		self.value.output(f, true)
 	}
 }
 

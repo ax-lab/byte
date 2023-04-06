@@ -4,8 +4,12 @@ use crate::lexer::*;
 
 pub struct Integer;
 
-impl TokenValue for Integer {
+impl IsToken for Integer {
 	type Value = u64;
+
+	fn name() -> &'static str {
+		"Number"
+	}
 }
 
 impl Matcher for Integer {

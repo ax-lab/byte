@@ -4,8 +4,12 @@ use crate::lexer::*;
 
 pub struct Literal;
 
-impl TokenValue for Literal {
+impl IsToken for Literal {
 	type Value = String;
+
+	fn name() -> &'static str {
+		"Literal"
+	}
 }
 
 #[derive(Debug)]
