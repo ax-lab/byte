@@ -9,9 +9,9 @@ pub trait Stream {
 
 	fn copy(&self) -> Box<dyn Stream>;
 
-	fn next(&self) -> Lex;
+	fn next(&self) -> TokenAt;
 
-	fn read(&mut self) -> Lex;
+	fn read(&mut self) -> TokenAt;
 
 	fn errors(&self) -> ErrorList;
 
@@ -37,7 +37,7 @@ pub trait Stream {
 		self.next().span()
 	}
 
-	fn peek_after(&self) -> Lex {
+	fn peek_after(&self) -> TokenAt {
 		let mut input = self.copy();
 		input.advance();
 		input.next()
@@ -62,7 +62,7 @@ pub trait Stream {
 
 	/// Return the next token and true if the predicate matches the current
 	/// token.
-	fn next_if(&mut self, predicate: &dyn Fn(Lex) -> bool) -> bool {
+	fn next_if(&mut self, predicate: &dyn Fn(TokenAt) -> bool) -> bool {
 		if predicate(self.next()) {
 			self.advance();
 			true

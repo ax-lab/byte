@@ -11,7 +11,7 @@ use super::*;
 pub struct Lexer {
 	scanner: Rc<Scanner>,
 	state: State,
-	next: RefCell<Option<(Lex, State)>>,
+	next: RefCell<Option<(TokenAt, State)>>,
 }
 
 #[derive(Clone)]
@@ -44,7 +44,7 @@ impl Lexer {
 		self.state.errors.clone()
 	}
 
-	pub fn next(&self) -> Lex {
+	pub fn next(&self) -> TokenAt {
 		let token = {
 			let next = self.next.borrow();
 			if let Some((token, ..)) = &*next {
@@ -63,7 +63,7 @@ impl Lexer {
 		}
 	}
 
-	pub fn read(&mut self) -> Lex {
+	pub fn read(&mut self) -> TokenAt {
 		if let Some((token, state)) = self.next.take() {
 			self.state = state;
 			return token;
@@ -88,7 +88,7 @@ impl Lexer {
 				sta: start.clone(),
 				end: state.input.clone(),
 			};
-			break Lex(span, token);
+			break TokenAt(span, token);
 		}
 	}
 }
@@ -102,11 +102,11 @@ impl Stream for Lexer {
 		Box::new(self.clone())
 	}
 
-	fn next(&self) -> Lex {
+	fn next(&self) -> TokenAt {
 		Lexer::next(self)
 	}
 
-	fn read(&mut self) -> Lex {
+	fn read(&mut self) -> TokenAt {
 		Lexer::read(self)
 	}
 

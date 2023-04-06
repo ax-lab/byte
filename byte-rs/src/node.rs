@@ -7,8 +7,8 @@ use crate::operator::*;
 #[derive(Clone, Debug)]
 pub enum NodeError {
 	At(String, Box<NodeError>),
-	Expected(&'static str, Lex),
-	ExpectedExpression(Lex),
+	Expected(&'static str, TokenAt),
+	ExpectedExpression(TokenAt),
 	ExpectedSymbol(&'static str, Span),
 	ExpectedIndent(Span),
 	InvalidToken(Span),

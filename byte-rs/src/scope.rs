@@ -41,7 +41,7 @@ pub enum Scoped {
 	Root,
 	Child {
 		mode: ChildMode,
-		last: Option<(Lex, Action)>,
+		last: Option<(TokenAt, Action)>,
 		scope: Box<dyn Scope>,
 		parent: Option<Box<Scoped>>,
 	},
@@ -151,7 +151,7 @@ impl Scoped {
 pub struct ScopedStream {
 	input: RefCell<Box<dyn Stream + 'static>>,
 	scope: RefCell<Scoped>,
-	next: RefCell<Option<Lex>>,
+	next: RefCell<Option<TokenAt>>,
 	done: Cell<bool>,
 }
 
@@ -246,7 +246,7 @@ impl Stream for ScopedStream {
 		Box::new(self.clone())
 	}
 
-	fn next(&self) -> Lex {
+	fn next(&self) -> TokenAt {
 		let next = { self.next.borrow().clone() };
 		if let Some(next) = next {
 			next.clone()
@@ -263,7 +263,7 @@ impl Stream for ScopedStream {
 		}
 	}
 
-	fn read(&mut self) -> Lex {
+	fn read(&mut self) -> TokenAt {
 		let next = self.next();
 		if self.done.get() {
 			return next;
@@ -363,7 +363,7 @@ impl Scope for ScopeLine {
 }
 
 pub struct ScopeParenthesized {
-	open: VecDeque<Lex>,
+	open: VecDeque<TokenAt>,
 }
 
 impl ScopeParenthesized {

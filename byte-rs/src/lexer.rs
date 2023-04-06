@@ -164,13 +164,13 @@ mod tests {
 		let mut lexer = Lexer::new(input.start(), scanner);
 		let mut clone = lexer.clone();
 		loop {
-			let Lex(span, token) = lexer.read();
+			let TokenAt(span, token) = lexer.read();
 			if token == Token::None {
 				break;
 			}
 
 			// sanity check clone
-			let Lex(clone_span, clone_token) = clone.read();
+			let TokenAt(clone_span, clone_token) = clone.read();
 			assert_eq!(clone_span, span);
 			assert_eq!(clone_token, token);
 

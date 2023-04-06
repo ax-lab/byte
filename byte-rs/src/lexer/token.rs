@@ -16,9 +16,9 @@ pub enum Token {
 }
 
 #[derive(Clone, Debug)]
-pub struct Lex(pub Span, pub Token);
+pub struct TokenAt(pub Span, pub Token);
 
-impl Lex {
+impl TokenAt {
 	pub fn span(&self) -> Span {
 		self.0.clone()
 	}
@@ -44,12 +44,12 @@ impl Lex {
 		self.0.text()
 	}
 
-	pub fn as_none(&self) -> Lex {
-		Lex(self.span(), Token::None)
+	pub fn as_none(&self) -> TokenAt {
+		TokenAt(self.span(), Token::None)
 	}
 }
 
-impl std::fmt::Display for Lex {
+impl std::fmt::Display for TokenAt {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match &self.1 {
 			Token::None => {

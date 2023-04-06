@@ -8,7 +8,7 @@ pub enum LexerError {
 	InvalidSymbol,
 	InvalidDedentInRegion,
 	InvalidDedentIndent,
-	ExpectedEnd(Lex),
+	ExpectedEnd(TokenAt),
 }
 
 impl IsError for LexerError {

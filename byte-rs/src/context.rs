@@ -73,11 +73,11 @@ impl Stream for Context {
 		self.input.copy()
 	}
 
-	fn next(&self) -> Lex {
+	fn next(&self) -> TokenAt {
 		self.input.next()
 	}
 
-	fn read(&mut self) -> Lex {
+	fn read(&mut self) -> TokenAt {
 		self.input.read()
 	}
 
