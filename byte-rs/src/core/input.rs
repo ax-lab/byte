@@ -8,6 +8,13 @@ pub fn is_space(char: char) -> bool {
 	matches!(char, ' ' | '\t')
 }
 
+/// Input text stream for the compiler. Can be cloned and shared with low
+/// overhead.
+#[derive(Clone)]
+pub struct Input {
+	internal: Rc<InputData>,
+}
+
 impl Input {
 	/// Open a file as input.
 	pub fn open_file<P: AsRef<Path>>(path: P) -> std::io::Result<Input> {
@@ -32,12 +39,6 @@ impl Input {
 			internal: data.into(),
 		}
 	}
-}
-
-/// Input source for the compiler.
-#[derive(Clone)]
-pub struct Input {
-	internal: Rc<InputData>,
 }
 
 struct InputData {

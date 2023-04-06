@@ -3,6 +3,7 @@ use crate::core::input::*;
 
 use super::*;
 
+/// Trait for any type providing a stream of [`Token`].
 pub trait Stream {
 	fn pos(&self) -> Cursor;
 

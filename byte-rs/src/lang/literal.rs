@@ -1,6 +1,6 @@
+use crate::core::error::*;
 use crate::core::input::*;
-
-use super::*;
+use crate::lexer::*;
 
 pub struct Literal;
 
@@ -11,8 +11,8 @@ impl TokenValue for Literal {
 #[derive(Debug)]
 struct UnclosedLiteral;
 
-impl ErrorInfo for UnclosedLiteral {
-	fn output(&self, f: &mut std::fmt::Formatter<'_>, span: &Span) -> std::fmt::Result {
+impl IsError for UnclosedLiteral {
+	fn output(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "unclosed string literal")
 	}
 }

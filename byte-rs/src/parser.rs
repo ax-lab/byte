@@ -1,6 +1,8 @@
 use std::collections::VecDeque;
 
 use crate::core::error::*;
+
+use crate::lang::*;
 use crate::lexer::*;
 
 use crate::{node::*, operator::*, Context};
@@ -210,7 +212,7 @@ fn parse_atom(context: &mut Context) -> Node {
 			value
 		}
 		token @ Token::Value(..) => {
-			if let Some(value) = token.get::<number::Integer>() {
+			if let Some(value) = token.get::<Integer>() {
 				context.advance();
 				Atom::Integer(*value).as_value()
 			} else if let Some(value) = token.get::<Literal>() {

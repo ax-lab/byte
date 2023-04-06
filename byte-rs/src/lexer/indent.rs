@@ -3,9 +3,12 @@ use std::{
 	sync::atomic::{AtomicUsize, Ordering},
 };
 
-use super::*;
+use crate::core::error::*;
 use crate::core::input::*;
 
+use super::*;
+
+/// Manages the state and apply basic lexing rules for indentation.
 #[derive(Clone)]
 pub struct Indent {
 	current: Option<Rc<IndentLevel>>,

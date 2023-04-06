@@ -3,6 +3,7 @@ use std::env;
 mod context;
 mod core;
 mod eval;
+mod lang;
 mod macros;
 mod node;
 mod operator;

@@ -1,3 +1,4 @@
+use crate::core::error::*;
 use crate::core::input::*;
 
 use super::*;
@@ -9,7 +10,7 @@ impl TokenValue for Comment {
 }
 
 impl Matcher for Comment {
-	fn try_match(&self, next: char, input: &mut Cursor, errors: &mut ErrorList) -> Option<Token> {
+	fn try_match(&self, next: char, input: &mut Cursor, _errors: &mut ErrorList) -> Option<Token> {
 		match next {
 			'#' => {
 				let (multi, mut level) = if input.read_if('(') {

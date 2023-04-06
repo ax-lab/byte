@@ -461,7 +461,7 @@ impl Scope for ScopeExpression {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::lexer::number::Integer;
+	use crate::lang::Integer;
 
 	fn open(str: &'static str) -> Lexer {
 		crate::lexer::open(Input::open_str(str, str))

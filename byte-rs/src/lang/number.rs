@@ -1,6 +1,6 @@
+use crate::core::error::*;
 use crate::core::input::*;
-
-use super::*;
+use crate::lexer::*;
 
 pub struct Integer;
 
@@ -9,7 +9,7 @@ impl TokenValue for Integer {
 }
 
 impl Matcher for Integer {
-	fn try_match(&self, next: char, input: &mut Cursor, errors: &mut ErrorList) -> Option<Token> {
+	fn try_match(&self, next: char, input: &mut Cursor, _errors: &mut ErrorList) -> Option<Token> {
 		match next {
 			'0'..='9' => {
 				let mut value = decimal_value(next);

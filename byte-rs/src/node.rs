@@ -14,8 +14,8 @@ pub enum NodeError {
 	InvalidToken(Span),
 }
 
-impl ErrorInfo for NodeError {
-	fn output(&self, f: &mut std::fmt::Formatter<'_>, _span: &Span) -> std::fmt::Result {
+impl IsError for NodeError {
+	fn output(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{self}")
 	}
 }

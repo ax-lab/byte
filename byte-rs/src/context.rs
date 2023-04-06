@@ -94,7 +94,7 @@ impl Stream for Context {
 mod tests {
 	use super::*;
 
-	use crate::lexer::number::Integer;
+	use crate::lang::Integer;
 
 	fn open(str: &'static str) -> Lexer {
 		let input = Input::open_str(str, str);

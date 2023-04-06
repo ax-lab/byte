@@ -11,17 +11,12 @@ pub struct Value {
 	value: Rc<dyn IsValue>,
 }
 
-#[allow(unused)]
 impl Value {
 	pub fn new<T: IsValue>(value: T) -> Value {
 		Value {
 			type_id: TypeId::of::<T>(),
 			value: Rc::new(value),
 		}
-	}
-
-	pub fn is<T: IsValue>(&self) -> bool {
-		self.type_id == TypeId::of::<T>()
 	}
 
 	pub fn get<T: 'static>(&self) -> Option<&T> {
@@ -35,14 +30,17 @@ impl Value {
 	}
 }
 
-/// This trait provides the minimum features required for a [`Value`]. It is
-/// automatically implemented for `Display + Debug + Eq` types.
+/// This trait provides the minimum features required for a [`Value`].
+///
+/// To implement this for `Display + Debug + Eq` types see [`is_value`].
 pub trait IsValue: Debug + 'static {
 	fn output(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result;
 
 	fn is_eq(&self, other: &Value) -> bool;
 }
 
+/// Implement the [`IsValue`] trait for types that implement [`Display`],
+/// [`Debug`], and [`Eq`].
 macro_rules! is_value {
 	($t:ty) => {
 		impl IsValue for $t {

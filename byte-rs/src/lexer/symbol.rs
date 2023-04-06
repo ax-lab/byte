@@ -1,8 +1,11 @@
 use std::{collections::HashMap, rc::Rc};
 
-use super::*;
+use crate::core::error::*;
 use crate::core::input::*;
 
+use super::*;
+
+/// Configurable symbol table implementing the [`Matcher`] trait.
 #[derive(Clone)]
 pub struct SymbolTable {
 	states: Vec<Entry>,

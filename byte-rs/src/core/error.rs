@@ -1,20 +1,22 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::rc::Rc;
 
 use crate::core::input::*;
 
-pub trait ErrorInfo: Debug + 'static {
-	fn output(&self, f: &mut std::fmt::Formatter<'_>, span: &Span) -> std::fmt::Result;
+/// Trait for any type that can be used as an [`Error`].
+pub trait IsError: Debug + 'static {
+	fn output(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
 }
 
+/// Type for any compilation error.
 #[derive(Clone)]
 pub struct Error {
-	info: Rc<dyn ErrorInfo>,
+	info: Rc<dyn IsError>,
 	span: Span,
 }
 
 impl Error {
-	pub fn new<T: ErrorInfo>(span: Span, info: T) -> Self {
+	pub fn new<T: IsError>(span: Span, info: T) -> Self {
 		Error {
 			span,
 			info: Rc::new(info),
@@ -26,23 +28,23 @@ impl Error {
 	}
 }
 
-impl std::fmt::Display for Error {
+impl Display for Error {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		let span = &self.span;
 		write!(f, "error: ")?;
-		self.info.output(f, span)?;
+		self.info.output(f)?;
 		write!(f, "\n")?;
 		write!(f, "       (at {}:{})", self.span().src(), self.span())?;
 		Ok(())
 	}
 }
 
-impl std::fmt::Debug for Error {
+impl Debug for Error {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "[error: {}]", self)
 	}
 }
 
+/// List of [`Error`].
 #[derive(Clone)]
 pub struct ErrorList {
 	head: Option<Rc<ErrorNode>>,
