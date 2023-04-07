@@ -60,13 +60,6 @@ impl Token {
 			_ => None,
 		}
 	}
-
-	pub fn get_closing(&self) -> Option<&'static str> {
-		match self {
-			Token::Symbol("(") => Some(")"),
-			_ => return None,
-		}
-	}
 }
 
 /// Wraps a single instance of a [`Token`] and its position in the stream.
@@ -105,6 +98,13 @@ impl TokenAt {
 
 	pub fn as_none(&self) -> TokenAt {
 		TokenAt(self.span(), Token::None)
+	}
+
+	pub fn get_closing(&self) -> Option<&'static str> {
+		match self.1 {
+			Token::Symbol("(") => Some(")"),
+			_ => return None,
+		}
 	}
 }
 

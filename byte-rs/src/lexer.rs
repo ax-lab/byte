@@ -20,6 +20,8 @@ use comment::*;
 use indent::*;
 use symbol::*;
 
+pub use indent::IndentRegion;
+
 /// Creates a new pre-configured [`Lexer`].
 pub fn open(input: crate::core::input::Input) -> Lexer {
 	use crate::lang::*;

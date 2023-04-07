@@ -43,6 +43,16 @@ impl Lexer {
 		}
 	}
 
+	#[allow(unused)]
+	pub fn start_indent(&mut self) -> IndentRegion {
+		self.state.indent.open_region()
+	}
+
+	#[allow(unused)]
+	pub fn end_indent(&mut self, region: IndentRegion) {
+		self.state.indent.close_region(region);
+	}
+
 	pub fn config<F: FnOnce(&mut Scanner)>(&mut self, config: F) {
 		self.next.replace(None);
 		self.state.stream.config(config);
