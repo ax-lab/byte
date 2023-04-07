@@ -5,10 +5,12 @@ use crate::core::input::*;
 
 use super::*;
 
-/// Provides low-level token scanning using a configurable list of matchers
+/// Implements raw token scanning using a configurable list of matchers
 /// and symbol table.
 ///
-/// This is used by the [`Lexer`].
+/// This sits at a lower level than the [`Lexer`], scanning the physical
+/// tokens in the input stream, without applying additional rules such as
+/// indentation, skipping comments and empty lines.
 #[derive(Clone)]
 pub struct Scanner {
 	scanners: Vec<Rc<dyn Matcher>>,
@@ -31,7 +33,8 @@ impl Scanner {
 		self.symbols.add_symbol(symbol, value);
 	}
 
-	/// Skip spaces and empty lines from the input cursor.
+	/// Skip spaces and blank lines from the input cursor. This positions the
+	/// input stream at the next raw token.
 	pub fn skip(&self, input: &mut Cursor) {
 		let is_start = input.col() == 0;
 		let mut saved = input.clone();

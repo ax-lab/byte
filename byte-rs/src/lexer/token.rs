@@ -3,6 +3,7 @@ use std::any::TypeId;
 use crate::core::any::*;
 use crate::core::input::*;
 
+/// Trait for custom token types returned as [`Token::Other`].
 pub trait IsToken: 'static + Sized {
 	type Value: Clone + IsValue;
 
@@ -18,6 +19,15 @@ pub trait IsToken: 'static + Sized {
 	}
 }
 
+/// Enumeration of possible tokens for the language.
+///
+/// ## Custom tokens
+///
+/// Additional tokens can be defined by implementing the [`IsToken`] trait
+/// and a custom [`crate::lexer::Matcher`].
+///
+/// Those custom tokens are returned as [`Token::Other`] and can be tested
+/// and retrieved using the [`Token::is`] and [`Token::get`] methods.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Token {
 	None,
@@ -59,6 +69,11 @@ impl Token {
 	}
 }
 
+/// Wraps a single instance of a [`Token`] and its position in the stream.
+///
+/// This provides token's [`Span`] position, which provides access to the raw
+/// text for the token. This is useful for error messages and is sometimes
+/// necessary to parse the value of the token.
 #[derive(Clone, Debug)]
 pub struct TokenAt(pub Span, pub Token);
 
@@ -120,6 +135,7 @@ impl std::fmt::Display for TokenAt {
 	}
 }
 
+/// Holds the value of a custom [`Token::Other`].
 #[derive(Clone)]
 pub struct TokenValue {
 	name: &'static str,

@@ -1,34 +1,43 @@
 use std::cell::RefCell;
-use std::rc::Rc;
 
 use crate::core::error::*;
 use crate::core::input::*;
 
 use super::*;
 
-/// Holds all the lexer state and provides lexing for tokens.
+/// [`Lexer`] holds the entire lexing state and configuration for a position
+/// in the input, given by a [`Cursor`].
+///
+/// The lexer output is a stream of [`Token`] ready to be parsed.
+///
+/// Cloning a [`Lexer`] is a low-overhead operation and allows saving an
+/// input position and configuration state, allowing a parser to backtrack
+/// fully.
+///
+/// It is the lexer's responsibility to apply high-level language tokenization
+/// semantics such as indentation (i.e. [`Token::Indent`] and [`Token::Dedent`])
+/// and filtering of ignored tokens such as [`Comment`].
+///
+/// The lexer can be reconfigured during parsing, either from the input source
+/// text or by the parser itself.
 #[derive(Clone)]
 pub struct Lexer {
-	scanner: Rc<Scanner>,
 	state: State,
 	next: RefCell<Option<(TokenAt, State)>>,
 }
 
 #[derive(Clone)]
 struct State {
-	input: Cursor,
+	stream: TokenStream,
 	indent: Indent,
-	errors: ErrorList,
 }
 
 impl Lexer {
 	pub fn new(input: Cursor, scanner: Scanner) -> Self {
 		Lexer {
-			scanner: Rc::new(scanner),
 			state: State {
-				input,
+				stream: TokenStream::new(input, scanner),
 				indent: Indent::new(),
-				errors: ErrorList::new(),
 			},
 			next: RefCell::new(None),
 		}
@@ -36,12 +45,11 @@ impl Lexer {
 
 	pub fn config<F: FnOnce(&mut Scanner)>(&mut self, config: F) {
 		self.next.replace(None);
-		let scanner = Rc::make_mut(&mut self.scanner);
-		config(scanner)
+		self.state.stream.config(config);
 	}
 
 	pub fn errors(&self) -> ErrorList {
-		self.state.errors.clone()
+		self.state.stream.errors().clone()
 	}
 
 	pub fn next(&self) -> TokenAt {
@@ -69,24 +77,24 @@ impl Lexer {
 			return token;
 		}
 
-		let empty = self.state.input.col() == 0;
+		let empty = self.pos().col() == 0;
 		loop {
 			let state = &mut self.state;
-			self.scanner.skip(&mut state.input);
-			let start = state.input.clone();
-			let token =
-				if let Some(token) = state.indent.check_indent(&state.input, &mut state.errors) {
-					token
-				} else {
-					self.scanner.read(&mut state.input, &mut state.errors)
-				};
+			state.stream.skip();
+			let start = state.stream.pos();
+			let errors = state.stream.errors_mut();
+			let token = if let Some(token) = state.indent.check_indent(&start, errors) {
+				token
+			} else {
+				state.stream.read()
+			};
 			if token.is::<Comment>() || (empty && token == Token::Break) {
 				continue;
 			}
 
 			let span = Span {
 				sta: start.clone(),
-				end: state.input.clone(),
+				end: state.stream.pos(),
 			};
 			break TokenAt(span, token);
 		}
@@ -95,7 +103,7 @@ impl Lexer {
 
 impl Stream for Lexer {
 	fn pos(&self) -> Cursor {
-		self.state.input.clone()
+		self.state.stream.pos()
 	}
 
 	fn copy(&self) -> Box<dyn Stream> {
@@ -111,10 +119,10 @@ impl Stream for Lexer {
 	}
 
 	fn errors(&self) -> ErrorList {
-		self.state.errors.clone()
+		self.state.stream.errors().clone()
 	}
 
 	fn add_error(&mut self, error: Error) {
-		self.state.errors.add(error)
+		self.state.stream.errors_mut().add(error)
 	}
 }
