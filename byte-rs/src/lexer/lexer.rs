@@ -1,4 +1,6 @@
 use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::rc::Rc;
 
 use crate::core::error::*;
 use crate::core::input::*;
@@ -23,7 +25,7 @@ use super::*;
 #[derive(Clone)]
 pub struct Lexer {
 	state: State,
-	next: RefCell<Option<(TokenAt, State)>>,
+	next: RefCell<Rc<VecDeque<(TokenAt, State)>>>,
 }
 
 #[derive(Clone)]
@@ -39,7 +41,7 @@ impl Lexer {
 				stream: TokenStream::new(input, scanner),
 				indent: Indent::new(),
 			},
-			next: RefCell::new(None),
+			next: RefCell::new(Rc::new(VecDeque::new())),
 		}
 	}
 
@@ -54,7 +56,8 @@ impl Lexer {
 	}
 
 	pub fn config<F: FnOnce(&mut Scanner)>(&mut self, config: F) {
-		self.next.replace(None);
+		let mut next = self.next.borrow_mut();
+		*next = Rc::new(VecDeque::new());
 		self.state.stream.config(config);
 	}
 
@@ -62,41 +65,62 @@ impl Lexer {
 		self.state.stream.errors().clone()
 	}
 
-	pub fn next(&self) -> TokenAt {
-		let token = {
+	pub fn lookahead(&self, n: usize) -> TokenAt {
+		{
 			let next = self.next.borrow();
-			if let Some((token, ..)) = &*next {
-				Some(token.clone())
-			} else {
-				None
+			if let Some((token, ..)) = next.get(n) {
+				return token.clone();
+			} else if let Some((last, ..)) = next.back() {
+				if last.is_none() {
+					return last.clone();
+				}
 			}
-		};
-		if let Some(token) = token {
-			token
-		} else {
-			let mut clone = self.clone();
-			let next = clone.read();
-			self.next.replace(Some((next.clone(), clone.state)));
-			next
 		}
+
+		let mut next = self.next.borrow_mut();
+		let next = Rc::make_mut(&mut next);
+		let mut state = next
+			.back()
+			.map(|x| x.1.clone())
+			.unwrap_or_else(|| self.state.clone());
+		while n >= next.len() {
+			let token = state.read();
+			let is_none = token.is_none();
+			next.push_back((token.clone(), state.clone()));
+			if is_none {
+				break;
+			}
+		}
+		next.back().map(|x| x.0.clone()).unwrap()
+	}
+
+	pub fn next(&self) -> TokenAt {
+		self.lookahead(0)
 	}
 
 	pub fn read(&mut self) -> TokenAt {
-		if let Some((token, state)) = self.next.take() {
+		let mut next = self.next.borrow_mut();
+		let next = Rc::make_mut(&mut next);
+		if let Some((token, state)) = next.pop_front() {
 			self.state = state;
 			return token;
+		} else {
+			self.state.read()
 		}
+	}
+}
 
-		let empty = self.pos().col() == 0;
+impl State {
+	fn read(&mut self) -> TokenAt {
+		let empty = self.stream.pos().col() == 0;
 		loop {
-			let state = &mut self.state;
-			state.stream.skip();
-			let start = state.stream.pos().clone();
-			let errors = state.stream.errors_mut();
-			let next = if let Some(next) = state.indent.check_indent(&start, errors) {
+			self.stream.skip();
+			let start = self.stream.pos().clone();
+			let errors = self.stream.errors_mut();
+			let next = if let Some(next) = self.indent.check_indent(&start, errors) {
 				next
 			} else {
-				state.stream.read()
+				self.stream.read()
 			};
 			let token = next.token();
 			if token.is::<Comment>() || (empty && token == Token::Break) {

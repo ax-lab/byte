@@ -92,6 +92,10 @@ impl TokenAt {
 		self.1 != Token::None
 	}
 
+	pub fn is_none(&self) -> bool {
+		self.1 == Token::None
+	}
+
 	pub fn text(&self) -> &str {
 		self.0.text()
 	}
