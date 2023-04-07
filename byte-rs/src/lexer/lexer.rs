@@ -91,7 +91,7 @@ impl Lexer {
 		loop {
 			let state = &mut self.state;
 			state.stream.skip();
-			let start = state.stream.pos();
+			let start = state.stream.pos().clone();
 			let errors = state.stream.errors_mut();
 			let token = if let Some(token) = state.indent.check_indent(&start, errors) {
 				token
@@ -104,7 +104,7 @@ impl Lexer {
 
 			let span = Span {
 				sta: start.clone(),
-				end: state.stream.pos(),
+				end: state.stream.pos().clone(),
 			};
 			break TokenAt(span, token);
 		}
@@ -113,7 +113,7 @@ impl Lexer {
 
 impl Stream for Lexer {
 	fn pos(&self) -> Cursor {
-		self.state.stream.pos()
+		self.state.stream.pos().clone()
 	}
 
 	fn copy(&self) -> Box<dyn Stream> {

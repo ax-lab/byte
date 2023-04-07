@@ -126,8 +126,8 @@ impl TokenStream {
 		}
 	}
 
-	pub fn pos(&self) -> Cursor {
-		self.input.clone()
+	pub fn pos(&self) -> &Cursor {
+		&self.input
 	}
 
 	pub fn errors(&self) -> &ErrorList {
@@ -148,6 +148,7 @@ impl TokenStream {
 	}
 
 	pub fn read(&mut self) -> Token {
+		self.skip();
 		self.scanner.read(&mut self.input, &mut self.errors)
 	}
 }

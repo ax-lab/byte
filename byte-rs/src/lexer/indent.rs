@@ -15,6 +15,15 @@ pub struct Indent {
 	closing: Option<IndentRegion>,
 }
 
+impl Default for Indent {
+	fn default() -> Self {
+		Self {
+			current: None,
+			closing: None,
+		}
+	}
+}
+
 impl Indent {
 	pub fn new() -> Self {
 		Indent {
