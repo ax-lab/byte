@@ -9,7 +9,7 @@ impl IsToken for Comment {
 	type Value = ();
 
 	fn name() -> &'static str {
-		"Comment"
+		"comment"
 	}
 }
 

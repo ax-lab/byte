@@ -93,20 +93,16 @@ impl Lexer {
 			state.stream.skip();
 			let start = state.stream.pos().clone();
 			let errors = state.stream.errors_mut();
-			let token = if let Some(token) = state.indent.check_indent(&start, errors) {
-				token
+			let next = if let Some(next) = state.indent.check_indent(&start, errors) {
+				next
 			} else {
 				state.stream.read()
 			};
+			let token = next.token();
 			if token.is::<Comment>() || (empty && token == Token::Break) {
 				continue;
 			}
-
-			let span = Span {
-				sta: start.clone(),
-				end: state.stream.pos().clone(),
-			};
-			break TokenAt(span, token);
+			break next;
 		}
 	}
 }

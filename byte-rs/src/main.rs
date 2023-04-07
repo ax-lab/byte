@@ -1,5 +1,6 @@
 use std::env;
 
+mod blocks;
 mod context;
 mod core;
 mod eval;
@@ -23,6 +24,7 @@ fn main() {
 	let mut list_ast = false;
 	let mut eval_list = Vec::new();
 	let mut next_is_eval = false;
+	let mut is_blocks = false;
 	for arg in env::args().skip(1) {
 		if next_is_eval {
 			next_is_eval = false;
@@ -49,6 +51,10 @@ fn main() {
 				}
 				"--eval" => {
 					next_is_eval = true;
+					false
+				}
+				"--blocks" => {
+					is_blocks = true;
 					false
 				}
 				_ => {
@@ -81,6 +87,11 @@ fn main() {
 	for file in files {
 		match core::input::Input::open_file(&file) {
 			Ok(source) => {
+				if is_blocks {
+					let stream = lexer::open_stream(source.clone());
+					blocks::exec(stream);
+				}
+
 				let mut context = lexer::open(source);
 				if list_tokens {
 					while context.next().is_some() {

@@ -6,6 +6,7 @@ mod stream;
 mod token;
 
 pub use error::*;
+pub use indent::*;
 pub use lexer::*;
 pub use matcher::*;
 pub use scanner::*;
@@ -16,43 +17,49 @@ mod comment;
 mod indent;
 mod symbol;
 
-use comment::*;
-use indent::*;
-use symbol::*;
+pub use comment::*;
 
-pub use indent::IndentRegion;
+use symbol::*;
 
 /// Creates a new pre-configured [`Lexer`].
 pub fn open(input: crate::core::input::Input) -> Lexer {
+	let mut lexer = Lexer::new(input.start(), Scanner::new());
+	lexer.config(config_scanner);
+	lexer
+}
+
+pub fn open_stream(input: crate::core::input::Input) -> TokenStream {
+	let mut stream = TokenStream::new(input.start(), Scanner::new());
+	stream.config(config_scanner);
+	stream
+}
+
+fn config_scanner(scanner: &mut Scanner) {
 	use crate::lang::*;
 
-	let mut lexer = Lexer::new(input.start(), Scanner::new());
-	lexer.config(|scanner| {
-		scanner.add_matcher(Comment);
-		scanner.add_matcher(Identifier);
-		scanner.add_matcher(Literal);
-		scanner.add_matcher(Integer);
+	scanner.add_matcher(Comment);
+	scanner.add_matcher(Identifier);
+	scanner.add_matcher(Literal);
+	scanner.add_matcher(Integer);
 
-		scanner.add_symbol(",", Token::Symbol(","));
-		scanner.add_symbol(";", Token::Symbol(";"));
-		scanner.add_symbol("++", Token::Symbol("++"));
-		scanner.add_symbol("--", Token::Symbol("--"));
-		scanner.add_symbol("+", Token::Symbol("+"));
-		scanner.add_symbol("-", Token::Symbol("-"));
-		scanner.add_symbol("*", Token::Symbol("*"));
-		scanner.add_symbol("/", Token::Symbol("/"));
-		scanner.add_symbol("%", Token::Symbol("%"));
-		scanner.add_symbol("=", Token::Symbol("="));
-		scanner.add_symbol("==", Token::Symbol("=="));
-		scanner.add_symbol("!", Token::Symbol("!"));
-		scanner.add_symbol("?", Token::Symbol("?"));
-		scanner.add_symbol(":", Token::Symbol(":"));
-		scanner.add_symbol("(", Token::Symbol("("));
-		scanner.add_symbol(")", Token::Symbol(")"));
-		scanner.add_symbol(".", Token::Symbol("."));
-		scanner.add_symbol("..", Token::Symbol(".."));
-	});
-	lexer
+	scanner.add_symbol(",", Token::Symbol(","));
+	scanner.add_symbol(";", Token::Symbol(";"));
+	scanner.add_symbol("++", Token::Symbol("++"));
+	scanner.add_symbol("--", Token::Symbol("--"));
+	scanner.add_symbol("+", Token::Symbol("+"));
+	scanner.add_symbol("-", Token::Symbol("-"));
+	scanner.add_symbol("*", Token::Symbol("*"));
+	scanner.add_symbol("/", Token::Symbol("/"));
+	scanner.add_symbol("%", Token::Symbol("%"));
+	scanner.add_symbol("=", Token::Symbol("="));
+	scanner.add_symbol("==", Token::Symbol("=="));
+	scanner.add_symbol("!", Token::Symbol("!"));
+	scanner.add_symbol("?", Token::Symbol("?"));
+	scanner.add_symbol(":", Token::Symbol(":"));
+	scanner.add_symbol("(", Token::Symbol("("));
+	scanner.add_symbol(")", Token::Symbol(")"));
+	scanner.add_symbol(".", Token::Symbol("."));
+	scanner.add_symbol("..", Token::Symbol(".."));
 }
 
 #[cfg(test)]

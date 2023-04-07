@@ -8,7 +8,7 @@ impl IsToken for Literal {
 	type Value = String;
 
 	fn name() -> &'static str {
-		"Literal"
+		"literal"
 	}
 }
 

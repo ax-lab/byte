@@ -8,7 +8,7 @@ impl IsToken for Integer {
 	type Value = u64;
 
 	fn name() -> &'static str {
-		"Number"
+		"integer"
 	}
 }
 

@@ -130,7 +130,7 @@ impl std::fmt::Display for TokenAt {
 			Token::Identifier => {
 				write!(f, "`{}`", self.span().text())
 			}
-			Token::Other(value) => write!(f, "`{value}`"),
+			Token::Other(value) => write!(f, "{value}"),
 		}
 	}
 }
@@ -145,7 +145,11 @@ pub struct TokenValue {
 
 impl std::fmt::Display for TokenValue {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.value)
+		if self.value.get::<()>().is_none() {
+			write!(f, "{} `{}`", self.name, self.value)
+		} else {
+			write!(f, "{}", self.name)
+		}
 	}
 }
 

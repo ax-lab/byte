@@ -147,8 +147,15 @@ impl TokenStream {
 		self.scanner.skip(&mut self.input);
 	}
 
-	pub fn read(&mut self) -> Token {
+	pub fn read(&mut self) -> TokenAt {
 		self.skip();
-		self.scanner.read(&mut self.input, &mut self.errors)
+
+		let sta = self.input.clone();
+		let next = self.scanner.read(&mut self.input, &mut self.errors);
+		let span = Span {
+			sta,
+			end: self.input.clone(),
+		};
+		TokenAt(span, next)
 	}
 }

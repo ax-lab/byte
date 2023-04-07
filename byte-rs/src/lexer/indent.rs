@@ -53,7 +53,17 @@ impl Indent {
 		self.closing = Some(region);
 	}
 
-	pub fn check_indent(&mut self, input: &Cursor, errors: &mut ErrorList) -> Option<Token> {
+	pub fn check_indent(&mut self, input: &Cursor, errors: &mut ErrorList) -> Option<TokenAt> {
+		self.check_indent_token(input, errors).map(|token| {
+			let span = Span {
+				sta: input.clone(),
+				end: input.clone(),
+			};
+			TokenAt(span, token)
+		})
+	}
+
+	fn check_indent_token(&mut self, input: &Cursor, errors: &mut ErrorList) -> Option<Token> {
 		// Closing a region takes precedence over anything. If we are closing a
 		// region, generate any pending Dedent before processing anything.
 		if let Some(IndentRegion(close_id)) = self.closing {

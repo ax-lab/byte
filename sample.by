@@ -1,8 +1,7 @@
-const MAX = 1000
+x(
+	2)
+3
 
-let sum = 0
-for i in 1..MAX-1:
-	if i % 3 == 0 or i % 5 == 0:
-		sum = sum + i
-
-print sum
+4
+# some comment
+5
