@@ -1,4 +1,5 @@
-use crate::{lexer::*, node::*};
+use super::node::*;
+use crate::lexer::*;
 
 use super::{
 	parser::{parse_expression, parse_indented_block},

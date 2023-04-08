@@ -2,7 +2,7 @@ use crate::core::error::*;
 use crate::core::input::*;
 use crate::lexer::*;
 
-use crate::operator::*;
+use super::operator::*;
 
 #[derive(Clone, Debug)]
 pub enum NodeError {

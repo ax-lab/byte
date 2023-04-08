@@ -3,9 +3,10 @@ use std::{
 	collections::VecDeque,
 };
 
+use super::node::NodeError;
+use crate::core::error::*;
 use crate::core::input::*;
 use crate::lexer::*;
-use crate::{core::error::*, node::NodeError};
 
 /// Scope actions at a given input position.
 #[derive(Copy, Clone)]

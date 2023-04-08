@@ -1,23 +1,15 @@
 use std::env;
 
 mod blocks;
-mod context;
 mod core;
-mod eval;
 mod lang;
 mod lexer;
-mod macros;
-mod node;
-mod operator;
-mod parser;
-mod runtime;
-mod scope;
 
-use lexer::Stream;
-
-use context::*;
+mod old;
 
 fn main() {
+	use lexer::Stream;
+
 	let mut done = false;
 	let mut files = Vec::new();
 	let mut list_tokens = false;
@@ -80,7 +72,7 @@ fn main() {
 
 	for it in eval_list.into_iter() {
 		let context = lexer::open(core::input::Input::open_str("eval", &it));
-		let result = eval::run(context, false);
+		let result = old::eval::run(context, false);
 		println!("{result}");
 	}
 
@@ -105,7 +97,7 @@ fn main() {
 					print_errors(&context);
 					std::process::exit(0);
 				}
-				eval::run(context, list_ast);
+				old::eval::run(context, list_ast);
 			}
 			Err(msg) => {
 				eprintln!("\n[error] open file: {msg}\n");

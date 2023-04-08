@@ -2,7 +2,7 @@ use crate::core::error::*;
 use crate::core::input::*;
 use crate::lexer::*;
 
-use crate::node::NodeKind;
+use super::node::NodeKind;
 
 use super::{
 	macros::{self, Macro},

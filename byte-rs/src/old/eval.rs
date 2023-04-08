@@ -1,5 +1,6 @@
+use super::{node::*, operator::*, parser::*, runtime::*, Context};
 use crate::core::error::*;
-use crate::{lexer::*, node::*, operator::*, parser::*, runtime::*, Context};
+use crate::lexer::*;
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
