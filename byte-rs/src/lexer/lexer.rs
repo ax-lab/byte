@@ -65,6 +65,14 @@ impl Lexer {
 		self.state.stream.errors().clone()
 	}
 
+	pub fn add_error(&mut self, error: Error) {
+		self.state.stream.errors_mut().add(error)
+	}
+
+	pub fn pos(&self) -> Cursor {
+		self.state.stream.pos().clone()
+	}
+
 	pub fn lookahead(&self, n: usize) -> TokenAt {
 		{
 			let next = self.next.borrow();
@@ -128,31 +136,5 @@ impl State {
 			}
 			break next;
 		}
-	}
-}
-
-impl Stream for Lexer {
-	fn pos(&self) -> Cursor {
-		self.state.stream.pos().clone()
-	}
-
-	fn copy(&self) -> Box<dyn Stream> {
-		Box::new(self.clone())
-	}
-
-	fn next(&self) -> TokenAt {
-		Lexer::next(self)
-	}
-
-	fn read(&mut self) -> TokenAt {
-		Lexer::read(self)
-	}
-
-	fn errors(&self) -> ErrorList {
-		self.state.stream.errors().clone()
-	}
-
-	fn add_error(&mut self, error: Error) {
-		self.state.stream.errors_mut().add(error)
 	}
 }

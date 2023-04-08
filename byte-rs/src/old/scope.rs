@@ -4,6 +4,8 @@ use std::{
 };
 
 use super::node::NodeError;
+use super::stream::*;
+
 use crate::core::error::*;
 use crate::core::input::*;
 use crate::lexer::*;

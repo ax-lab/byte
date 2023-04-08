@@ -2,6 +2,8 @@ use super::{node::*, operator::*, parser::*, runtime::*, Context};
 use crate::core::error::*;
 use crate::lexer::*;
 
+use super::stream::*;
+
 #[derive(Clone, Debug)]
 #[allow(unused)]
 pub enum Result {

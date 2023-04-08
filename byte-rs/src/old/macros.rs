@@ -7,6 +7,8 @@ use super::{
 	Context,
 };
 
+use super::stream::*;
+
 // TODO: if, for, print
 
 /// Trait for low-level syntax macros operating during the parsing stage.

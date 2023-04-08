@@ -6,5 +6,6 @@ pub mod operator;
 pub mod parser;
 pub mod runtime;
 pub mod scope;
+pub mod stream;
 
 pub use context::*;

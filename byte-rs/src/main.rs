@@ -8,7 +8,7 @@ mod lexer;
 mod old;
 
 fn main() {
-	use lexer::Stream;
+	use old::stream::Stream;
 
 	let mut done = false;
 	let mut files = Vec::new();

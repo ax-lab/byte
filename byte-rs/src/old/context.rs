@@ -3,6 +3,7 @@ use crate::core::input::*;
 use crate::lexer::*;
 
 use super::node::NodeKind;
+use super::stream::*;
 
 use super::{
 	macros::{self, Macro},
