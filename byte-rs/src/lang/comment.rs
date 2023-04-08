@@ -1,7 +1,7 @@
 use crate::core::error::*;
 use crate::core::input::*;
 
-use super::*;
+use crate::lexer::*;
 
 pub struct Comment;
 

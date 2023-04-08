@@ -120,6 +120,8 @@ impl Lexer {
 
 impl State {
 	fn read(&mut self) -> TokenAt {
+		use crate::lang::Comment;
+
 		let empty = self.stream.pos().col() == 0;
 		loop {
 			self.stream.skip();

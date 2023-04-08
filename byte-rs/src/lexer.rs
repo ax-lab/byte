@@ -13,11 +13,8 @@ pub use scanner::*;
 pub use stream::*;
 pub use token::*;
 
-mod comment;
 mod indent;
 mod symbol;
-
-pub use comment::*;
 
 use symbol::*;
 

@@ -39,6 +39,8 @@ impl RootScope {
 
 impl Scope for RootScope {
 	fn read(&mut self) -> TokenAt {
+		use crate::lang::Comment;
+
 		let stream = &mut self.stream;
 		stream.skip();
 
