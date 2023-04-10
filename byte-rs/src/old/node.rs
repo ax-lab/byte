@@ -1,8 +1,7 @@
 use crate::core::error::*;
 use crate::core::input::*;
+use crate::lang::operator::*;
 use crate::lexer::*;
-
-use super::operator::*;
 
 #[derive(Clone, Debug)]
 pub enum NodeError {

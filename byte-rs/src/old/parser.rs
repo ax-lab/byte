@@ -2,10 +2,11 @@ use std::collections::VecDeque;
 
 use crate::core::error::*;
 
+use crate::lang::operator::*;
 use crate::lang::*;
 use crate::lexer::*;
 
-use super::{node::*, operator::*, stream::*, Context};
+use super::{node::*, stream::*, Context};
 
 pub fn parse_indented_block(context: &mut Context) -> Node {
 	let pos = context.pos();

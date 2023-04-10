@@ -5,6 +5,12 @@ use crate::lexer::*;
 #[derive(Debug)]
 pub enum ParserError {
 	ExpectedEnd(TokenAt),
+	ExpectedSymbol {
+		symbol: &'static str,
+		context: &'static str,
+	},
+	ExpectedExpressionValue,
+	InvalidExpression,
 }
 
 impl IsError for ParserError {
@@ -12,6 +18,15 @@ impl IsError for ParserError {
 		match self {
 			ParserError::ExpectedEnd(got) => {
 				write!(f, "expected statement end, got `{got}`")
+			}
+			ParserError::ExpectedSymbol { symbol, context } => {
+				write!(f, "at {context}: expected `{symbol}`")
+			}
+			ParserError::ExpectedExpressionValue => {
+				write!(f, "expected expression value")
+			}
+			ParserError::InvalidExpression => {
+				write!(f, "invalid expression")
 			}
 		}
 	}
