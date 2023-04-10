@@ -15,7 +15,11 @@ pub fn parse(input: crate::core::input::Input) {
 		if let Statement::End(..) = next {
 			break;
 		}
-		list.push(next);
+
+		let next = next.resolve(&mut ctx);
+		if let Some(next) = next {
+			list.push(next);
+		}
 	}
 
 	if ctx.has_errors() {
@@ -81,8 +85,6 @@ pub fn parse_next(ctx: &mut Context) -> Statement {
 				ctx.add_error(Error::new(next.span(), ParserError::ExpectedEnd(next)));
 			}
 		}
-
-		let expr = Expr::new(expr);
 		Statement::Expr(expr)
 	}
 }

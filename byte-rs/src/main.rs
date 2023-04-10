@@ -3,6 +3,7 @@ use std::env;
 mod core;
 mod lang;
 mod lexer;
+mod nodes;
 mod parser;
 
 mod old;

@@ -6,7 +6,7 @@
 			"request": "launch",
 			"name": "Debug",
 			"program": "${workspaceFolder}/byte-rs/target/debug/byte",
-			"args": ["${workspaceFolder}/sample.by"],
+			"args": ["${workspaceFolder}/sample.by", "--blocks"],
 			"cwd": "${workspaceFolder}",
 			"preLaunchTask": "rust: build"
 		}

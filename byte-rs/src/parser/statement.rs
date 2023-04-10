@@ -3,39 +3,22 @@ use std::any::TypeId;
 use crate::core::any::*;
 use crate::core::input::*;
 use crate::lexer::*;
+use crate::nodes::*;
+
+use super::*;
 
 #[derive(Debug)]
 pub enum Statement {
 	End(Cursor),
-	Expr(Expr),
+	Expr(Vec<ExprItem>),
 }
 
 impl Statement {
-	pub fn span(&self) -> Span {
+	pub fn resolve(&self, ctx: &mut Context) -> Option<Node> {
 		match self {
-			Statement::End(pos) => Span {
-				sta: pos.clone(),
-				end: pos.clone(),
-			},
-			Statement::Expr(expr) => expr.span(),
+			Statement::End(..) => None,
+			Statement::Expr(expr) => Some(crate::nodes::parse_expr(ctx, &expr)),
 		}
-	}
-}
-
-#[derive(Debug)]
-pub struct Expr {
-	pub items: Vec<ExprItem>,
-}
-
-impl Expr {
-	pub fn new(items: Vec<ExprItem>) -> Self {
-		Self { items }
-	}
-	pub fn span(&self) -> Span {
-		let ls = &self.items;
-		let sta = ls.first().map(|x| x.span().sta).unwrap();
-		let end = ls.last().map(|x| x.span().sta).unwrap();
-		Span { sta, end }
 	}
 }
 

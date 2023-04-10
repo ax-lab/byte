@@ -1,3 +1,4 @@
+#(
 const MAX = 1000
 
 let sum = 0
@@ -6,3 +7,7 @@ for i in 1..MAX-1:
 		sum = sum + i
 
 print sum
+)
+
+true
+false
