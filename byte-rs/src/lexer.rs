@@ -25,12 +25,6 @@ pub fn open(input: crate::core::input::Input) -> Lexer {
 	lexer
 }
 
-pub fn open_stream(input: crate::core::input::Input) -> TokenStream {
-	let mut stream = TokenStream::new(input.start(), Scanner::new());
-	stream.config(config_scanner);
-	stream
-}
-
 fn config_scanner(scanner: &mut Scanner) {
 	use crate::lang::*;
 

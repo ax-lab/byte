@@ -1,9 +1,9 @@
 use std::env;
 
-mod blocks;
 mod core;
 mod lang;
 mod lexer;
+mod parser;
 
 mod old;
 
@@ -80,8 +80,7 @@ fn main() {
 		match core::input::Input::open_file(&file) {
 			Ok(source) => {
 				if is_blocks {
-					let stream = lexer::open_stream(source.clone());
-					blocks::exec(stream);
+					parser::parse(source.clone());
 				}
 
 				let mut context = lexer::open(source);
@@ -108,13 +107,19 @@ fn main() {
 }
 
 fn print_errors(ctx: &lexer::Lexer) {
-	let mut has_errors = false;
-	for it in ctx.errors().list() {
-		if !has_errors {
-			eprintln!("\n---- Errors ----\n");
-			has_errors = true;
+	print_error_list(ctx.errors());
+}
+
+fn print_error_list(errors: crate::core::error::ErrorList) {
+	if !errors.empty() {
+		let mut has_errors = false;
+		for it in errors.list() {
+			if !has_errors {
+				eprintln!("\n---- Errors ----\n");
+				has_errors = true;
+			}
+			eprintln!("    error: {it} at {}", it.span());
 		}
-		eprintln!("    error: {it} at {}", it.span());
 	}
 }
 
