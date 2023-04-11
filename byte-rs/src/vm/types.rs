@@ -1,3 +1,5 @@
+use super::print;
+
 #[derive(Copy, Clone)]
 pub enum Type {
 	Unit,
@@ -27,4 +29,10 @@ pub enum TypeFloat {
 	Any,
 	F32,
 	F64,
+}
+
+impl std::fmt::Debug for Type {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		print::print_type(self, f)
+	}
 }
