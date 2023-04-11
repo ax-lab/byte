@@ -6,6 +6,9 @@ mod lexer;
 mod nodes;
 mod parser;
 
+#[allow(unused)]
+mod vm;
+
 mod old;
 
 fn main() {
