@@ -1,6 +1,6 @@
 use super::print;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum Type {
 	Unit,
 	Never,
@@ -9,7 +9,7 @@ pub enum Type {
 	Float(TypeFloat),
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum TypeInt {
 	Any,
 	I8,
@@ -24,15 +24,9 @@ pub enum TypeInt {
 	USize,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum TypeFloat {
 	Any,
 	F32,
 	F64,
-}
-
-impl std::fmt::Debug for Type {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		print::print_type(self, f)
-	}
 }

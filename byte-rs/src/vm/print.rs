@@ -1,8 +1,56 @@
 use std::fmt::*;
 
+use super::expr::*;
 use super::*;
 
-pub fn print_value(typ: &Type, val: &Value, f: &mut Formatter) -> Result {
+#[derive(Debug)]
+pub struct Print {
+	pub args: Vec<Expr>,
+	pub line: bool,
+}
+
+impl IsExpr for Print {
+	fn eval(&self, rt: &mut Runtime) -> Value {
+		let mut empty = true;
+		for expr in self.args.iter() {
+			if !empty {
+				print!(" ");
+			}
+			let val = expr.val().eval(rt);
+			if val.typ() != &Type::Unit {
+				empty = false;
+				print!("{val}");
+			}
+		}
+		if self.line {
+			println!();
+		}
+		Value::unit()
+	}
+}
+
+impl std::fmt::Display for Value {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		print::print_value(self.typ(), self.val(), f)
+	}
+}
+
+impl std::fmt::Debug for Value {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "⸨")?;
+		write!(f, "{:?}:=", self.typ())?;
+		print::print_value(self.typ(), self.val(), f)?;
+		write!(f, "⸩")
+	}
+}
+
+impl std::fmt::Debug for Type {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		print::print_type(self, f)
+	}
+}
+
+fn print_value(typ: &Type, val: &InnerValue, f: &mut Formatter) -> Result {
 	match typ {
 		Type::Never => write!(f, "!"),
 		Type::Unit => write!(f, "()"),
@@ -34,7 +82,7 @@ pub fn print_value(typ: &Type, val: &Value, f: &mut Formatter) -> Result {
 	}
 }
 
-pub fn print_type(typ: &Type, f: &mut Formatter) -> Result {
+fn print_type(typ: &Type, f: &mut Formatter) -> Result {
 	match typ {
 		Type::Never => write!(f, "Never"),
 		Type::Unit => write!(f, "Unit"),

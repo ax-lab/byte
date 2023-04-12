@@ -1,15 +1,29 @@
 use super::*;
 
 #[derive(Copy, Clone)]
-pub struct Var(pub Type, pub Value);
+pub struct Value(pub Type, pub InnerValue);
+
+impl Value {
+	pub fn unit() -> Value {
+		Value(Type::Unit, InnerValue::default())
+	}
+}
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub union Value {
+pub union InnerValue {
 	pub bool: bool,
 	pub int: ValueInt,
 	pub float: ValueFloat,
 	pub ptr: *const (),
+}
+
+impl Default for InnerValue {
+	fn default() -> Self {
+		InnerValue {
+			int: ValueInt { u64: 0 },
+		}
+	}
 }
 
 #[derive(Copy, Clone)]
@@ -34,27 +48,12 @@ pub union ValueFloat {
 	pub f64: f64,
 }
 
-impl Var {
-	fn typ(&self) -> &Type {
+impl Value {
+	pub fn typ(&self) -> &Type {
 		&self.0
 	}
 
-	fn val(&self) -> &Value {
+	pub fn val(&self) -> &InnerValue {
 		&self.1
-	}
-}
-
-impl std::fmt::Display for Var {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		print::print_value(self.typ(), self.val(), f)
-	}
-}
-
-impl std::fmt::Debug for Var {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "⸨")?;
-		write!(f, "{:?}:=", self.typ())?;
-		print::print_value(self.typ(), self.val(), f)?;
-		write!(f, "⸩")
 	}
 }

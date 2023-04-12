@@ -9,4 +9,8 @@ pub enum Literal {
 	Number(Str),
 }
 
-impl IsExpr for Literal {}
+impl IsExpr for Literal {
+	fn eval(&self, rt: &mut Runtime) -> Value {
+		todo!()
+	}
+}

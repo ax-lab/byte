@@ -1,5 +1,7 @@
 use crate::core::input::*;
 
+use super::*;
+
 mod literal;
 
 use std::{any::TypeId, sync::Arc};
@@ -57,4 +59,6 @@ impl Expr {
 	}
 }
 
-pub trait IsExpr: std::fmt::Debug + 'static {}
+pub trait IsExpr: std::fmt::Debug + 'static {
+	fn eval(&self, rt: &mut Runtime) -> Value;
+}
