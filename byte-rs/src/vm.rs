@@ -8,4 +8,6 @@ pub use runtime::*;
 pub use types::*;
 pub use values::*;
 
+pub mod expr;
+
 mod print;
