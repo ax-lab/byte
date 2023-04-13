@@ -6,7 +6,7 @@ use std::{
 
 use super::*;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub enum Inst {
 	Halt,
 	Pass,

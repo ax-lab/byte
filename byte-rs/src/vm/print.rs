@@ -79,6 +79,7 @@ fn print_value(typ: &Type, val: &InnerValue, f: &mut Formatter) -> Result {
 				TypeFloat::F64 => write!(f, "{}", unsafe { val.f64 }),
 			}
 		}
+		Type::Other(typ) => typ.get().fmt_val(val, f),
 	}
 }
 
@@ -105,5 +106,8 @@ fn print_type(typ: &Type, f: &mut Formatter) -> Result {
 			TypeFloat::F32 => write!(f, "Float⟨32⟩"),
 			TypeFloat::F64 => write!(f, "Float⟨64⟩"),
 		},
+		Type::Other(typ) => {
+			write!(f, "Type({})", typ.get())
+		}
 	}
 }
