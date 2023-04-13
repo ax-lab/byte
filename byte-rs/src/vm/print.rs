@@ -27,6 +27,10 @@ impl IsExpr for Print {
 		}
 		Value::unit()
 	}
+
+	fn get_type(&self) -> Type {
+		Type::Unit
+	}
 }
 
 impl std::fmt::Display for Value {

@@ -21,6 +21,14 @@ impl IsExpr for Literal {
 			}
 		}
 	}
+
+	fn get_type(&self) -> Type {
+		match self {
+			Literal::Bool(..) => Type::Bool,
+			Literal::String(..) => StrValue::get_type(),
+			Literal::Integer(..) => Type::Int(TypeInt::Any),
+		}
+	}
 }
 
 impl Value {}

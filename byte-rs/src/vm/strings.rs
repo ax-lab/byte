@@ -11,7 +11,7 @@ pub struct StrValue;
 impl IsValue for Str {}
 
 impl StrValue {
-	pub fn typ() -> Type {
+	pub fn get_type() -> Type {
 		static TYPE: OnceCell<Type> = OnceCell::new();
 		TYPE.get_or_init(|| Type::new(StrValue)).clone()
 	}
@@ -21,7 +21,7 @@ impl StrValue {
 	}
 
 	pub fn new(value: Str) -> Value {
-		Value(Self::typ(), InnerValue::pack(value))
+		Value(Self::get_type(), InnerValue::pack(value))
 	}
 
 	fn inner(value: &InnerValue) -> &Str {
