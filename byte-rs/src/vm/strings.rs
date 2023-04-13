@@ -6,14 +6,14 @@ use crate::core::str::*;
 
 use super::*;
 
-pub struct StringValue;
+pub struct StrValue;
 
 impl IsValue for Str {}
 
-impl StringValue {
+impl StrValue {
 	pub fn typ() -> Type {
 		static TYPE: OnceCell<Type> = OnceCell::new();
-		TYPE.get_or_init(|| Type::new(StringValue)).clone()
+		TYPE.get_or_init(|| Type::new(StrValue)).clone()
 	}
 
 	pub fn get(value: &Value) -> Option<&Str> {
@@ -33,7 +33,7 @@ impl StringValue {
 	}
 }
 
-impl IsType for StringValue {
+impl IsType for StrValue {
 	fn val_type_id(&self) -> std::any::TypeId {
 		TypeId::of::<Str>()
 	}
@@ -56,7 +56,7 @@ impl IsType for StringValue {
 	}
 }
 
-impl std::fmt::Display for StringValue {
+impl std::fmt::Display for StrValue {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "String")
 	}
@@ -68,12 +68,12 @@ mod tests {
 
 	#[test]
 	fn string_value() {
-		let a = StringValue::new(Str::Static("abc"));
-		let b = StringValue::new(Str::from("123".to_string()));
+		let a = StrValue::new(Str::Static("abc"));
+		let b = StrValue::new(Str::from("123".to_string()));
 		assert_eq!(format!("{a}{b}"), "abc123");
 
-		let xa = StringValue::get(&a).map(|x| x.as_str());
-		let xb = StringValue::get(&b).map(|x| x.as_str());
+		let xa = StrValue::get(&a).map(|x| x.as_str());
+		let xb = StrValue::get(&b).map(|x| x.as_str());
 		assert_eq!(xa, Some("abc"));
 		assert_eq!(xb, Some("123"));
 
