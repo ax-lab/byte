@@ -2,6 +2,8 @@ use std::any::{Any, TypeId};
 
 use super::*;
 
+pub trait IsValue: 'static + Send + Sync {}
+
 pub struct Value(pub Type, pub InnerValue);
 
 impl Clone for Value {
@@ -43,7 +45,7 @@ impl Value {
 		&mut self.1
 	}
 
-	pub fn as_ref<T: 'static>(&self) -> Option<&T> {
+	pub fn as_ref<T: IsValue>(&self) -> Option<&T> {
 		match self.typ() {
 			Type::Other(typ) => {
 				if typ.get().val_type_id() == TypeId::of::<T>() {
@@ -56,7 +58,7 @@ impl Value {
 		}
 	}
 
-	pub fn as_mut<T: 'static>(&mut self) -> Option<&mut T> {
+	pub fn as_mut<T: IsValue>(&mut self) -> Option<&mut T> {
 		match self.typ() {
 			Type::Other(typ) => {
 				if typ.type_id() == TypeId::of::<T>() {
@@ -88,24 +90,24 @@ impl Default for InnerValue {
 }
 
 impl InnerValue {
-	pub fn pack<T: 'static>(value: T) -> InnerValue {
+	pub fn pack<T: IsValue>(value: T) -> InnerValue {
 		let ptr = Box::new(value);
 		let ptr = Box::into_raw(ptr) as *mut ();
 		InnerValue { ptr }
 	}
 
-	pub unsafe fn unpack<T: 'static>(self) -> T {
+	pub unsafe fn unpack<T: IsValue>(self) -> T {
 		let ptr = self.ptr as *mut T;
 		let ptr = Box::from_raw(ptr);
 		*ptr
 	}
 
-	pub unsafe fn as_ref<T: 'static>(&self) -> Option<&T> {
+	pub unsafe fn as_ref<T: IsValue>(&self) -> Option<&T> {
 		let ptr = self.ptr as *const T;
 		ptr.as_ref()
 	}
 
-	pub unsafe fn as_mut<T: 'static>(&mut self) -> Option<&mut T> {
+	pub unsafe fn as_mut<T: IsValue>(&mut self) -> Option<&mut T> {
 		let ptr = self.ptr as *mut T;
 		ptr.as_mut()
 	}

@@ -1,4 +1,4 @@
-use std::{path::Path, rc::Rc};
+use std::{path::Path, sync::Arc};
 
 /// Tab-width considered when computing column and indentation.
 pub const TAB_WIDTH: usize = 4;
@@ -12,7 +12,7 @@ pub fn is_space(char: char) -> bool {
 /// overhead.
 #[derive(Clone)]
 pub struct Input {
-	internal: Rc<InputData>,
+	internal: Arc<InputData>,
 }
 
 impl Input {

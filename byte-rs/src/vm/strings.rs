@@ -8,6 +8,8 @@ use super::*;
 
 pub struct StringValue;
 
+impl IsValue for Str {}
+
 impl StringValue {
 	pub fn typ() -> Type {
 		static TYPE: OnceCell<Type> = OnceCell::new();
