@@ -5,7 +5,7 @@ use std::sync::Arc;
 use super::*;
 
 pub trait IsType: 'static + Display {
-	fn type_id(&self) -> TypeId;
+	fn val_type_id(&self) -> TypeId;
 
 	fn fmt_val(&self, value: &InnerValue, f: &mut std::fmt::Formatter) -> std::fmt::Result;
 
@@ -25,7 +25,7 @@ pub enum Type {
 }
 
 impl Type {
-	fn new<T: IsType>(typ: T) -> Self {
+	pub fn new<T: IsType>(typ: T) -> Self {
 		let typ = Box::new(typ);
 		let typ = Box::leak(typ) as *const dyn IsType;
 		Type::Other(OtherType(typ))
@@ -62,3 +62,6 @@ impl OtherType {
 		unsafe { self.0.as_ref().unwrap() }
 	}
 }
+
+unsafe impl Send for OtherType {}
+unsafe impl Sync for OtherType {}

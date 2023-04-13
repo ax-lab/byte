@@ -56,6 +56,12 @@ impl Str {
 	}
 }
 
+impl Default for Str {
+	fn default() -> Self {
+		Str::Empty
+	}
+}
+
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct StrId(usize);
 
