@@ -68,13 +68,10 @@ impl Scanner {
 				token
 			} else {
 				(*input, *errors) = saved;
-				errors.add(Error::new(
-					Span {
-						sta: start,
-						end: input.clone(),
-					},
-					LexerError::InvalidSymbol,
-				));
+				errors.add(Error::new(LexerError::InvalidSymbol).at(Span {
+					sta: start,
+					end: input.clone(),
+				}));
 				Token::Invalid
 			}
 		} else {

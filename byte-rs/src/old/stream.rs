@@ -78,7 +78,8 @@ pub trait Stream {
 	fn check_end(&mut self) -> bool {
 		if self.has_some() {
 			let next = self.next();
-			self.add_error(Error::new(next.span(), LexerError::ExpectedEnd(next)));
+			let span = next.span();
+			self.add_error(Error::new(LexerError::ExpectedEnd(next)).at(span));
 			false
 		} else {
 			true

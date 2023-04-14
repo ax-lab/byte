@@ -38,7 +38,7 @@ impl Matcher for Literal {
 
 						None => {
 							let span = Span { sta: pos, end };
-							errors.add(Error::new(span, UnclosedLiteral));
+							errors.add(Error::new(UnclosedLiteral).at(span));
 							break Some(Token::Invalid);
 						}
 

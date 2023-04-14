@@ -82,7 +82,8 @@ pub fn parse_next(ctx: &mut Context) -> Statement {
 			if next.token() == Token::Break {
 				break;
 			} else if !ctx.has_errors() {
-				ctx.add_error(Error::new(next.span(), ParserError::ExpectedEnd(next)));
+				let span = next.span();
+				ctx.add_error(Error::new(ParserError::ExpectedEnd(next)).at(span));
 			}
 		}
 		Statement::Expr(expr)

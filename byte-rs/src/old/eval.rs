@@ -39,7 +39,8 @@ pub fn run(input: Lexer, list_ast: bool) -> Result {
 		let node = parse_line(&mut context);
 		let node = match node {
 			Node::Invalid(error) => {
-				context.add_error(Error::new(error.span(), error));
+				let span = error.span();
+				context.add_error(Error::new(error).at(span));
 				break;
 			}
 			Node::None(pos) => {
@@ -74,7 +75,12 @@ pub fn run(input: Lexer, list_ast: bool) -> Result {
 			let src = src.src();
 			let name = src.name();
 			let span = it.span();
-			eprintln!("error: at {name}:{span} -- {it}");
+			let span = if let Some(span) = span {
+				format!(":{}", span)
+			} else {
+				format!("")
+			};
+			eprintln!("error: at {name}{span} -- {it}");
 		}
 		eprintln!();
 		std::process::exit(1);

@@ -122,7 +122,11 @@ fn print_error_list(errors: crate::core::error::ErrorList) {
 				eprintln!("\n---- Errors ----\n");
 				has_errors = true;
 			}
-			eprintln!("    error: {it} at {}", it.span());
+			eprint!("    error: {it}");
+			if let Some(span) = it.span() {
+				eprint!(" at {}", span);
+			}
+			eprintln!();
 		}
 	}
 }

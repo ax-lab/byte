@@ -1,5 +1,7 @@
-use std::fmt::{Debug, Display};
-use std::rc::Rc;
+use std::{
+	fmt::{Debug, Display},
+	sync::Arc,
+};
 
 use crate::core::input::*;
 
@@ -11,20 +13,25 @@ pub trait IsError: Debug + 'static {
 /// Type for any compilation error.
 #[derive(Clone)]
 pub struct Error {
-	info: Rc<dyn IsError>,
-	span: Span,
+	info: Arc<dyn IsError>,
+	span: Option<Span>,
 }
 
 impl Error {
-	pub fn new<T: IsError>(span: Span, info: T) -> Self {
+	pub fn new<T: IsError>(info: T) -> Self {
 		Error {
-			span,
-			info: Rc::new(info),
+			span: None,
+			info: Arc::new(info),
 		}
 	}
 
-	pub fn span(&self) -> &Span {
-		&self.span
+	pub fn span(&self) -> Option<Span> {
+		self.span.clone()
+	}
+
+	pub fn at(mut self, span: Span) -> Self {
+		self.span = Some(span);
+		self
 	}
 }
 
@@ -32,8 +39,10 @@ impl Display for Error {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "error: ")?;
 		self.info.output(f)?;
-		write!(f, "\n")?;
-		write!(f, "       (at {}:{})", self.span().src(), self.span())?;
+		if let Some(span) = self.span() {
+			write!(f, "\n")?;
+			write!(f, "       (at {}:{})", span.src(), span)?;
+		}
 		Ok(())
 	}
 }
@@ -47,7 +56,7 @@ impl Debug for Error {
 /// List of [`Error`].
 #[derive(Clone)]
 pub struct ErrorList {
-	head: Option<Rc<ErrorNode>>,
+	head: Option<Arc<ErrorNode>>,
 }
 
 #[allow(unused)]
@@ -63,7 +72,7 @@ impl ErrorList {
 	pub fn add(&mut self, error: Error) {
 		let prev = std::mem::take(&mut self.head);
 		let node = ErrorNode { error, prev };
-		self.head = Some(Rc::new(node));
+		self.head = Some(Arc::new(node));
 	}
 
 	pub fn list(&self) -> Vec<Error> {
@@ -77,7 +86,7 @@ impl ErrorList {
 
 struct ErrorNode {
 	error: Error,
-	prev: Option<Rc<ErrorNode>>,
+	prev: Option<Arc<ErrorNode>>,
 }
 
 impl ErrorNode {

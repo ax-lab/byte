@@ -181,7 +181,8 @@ impl ScopedStream {
 			scope.leave(&*input)
 		};
 		if let Some(error) = result {
-			self.add_error(Error::new(error.span(), error));
+			let span = error.span();
+			self.add_error(Error::new(error).at(span));
 		}
 		self.next.replace(None);
 		self.done.set(false);

@@ -34,7 +34,8 @@ pub fn parse_indented_block(context: &mut Context) -> Node {
 		let line = parse_line(context);
 		let node = match line {
 			Node::Invalid(error) => {
-				context.add_error(Error::new(error.span(), error));
+				let span = error.span();
+				context.add_error(Error::new(error).at(span));
 				break;
 			}
 			Node::None(..) => {
