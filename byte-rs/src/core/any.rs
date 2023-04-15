@@ -1,13 +1,13 @@
 use std::{
 	any::TypeId,
 	fmt::{Debug, Display},
-	rc::Rc,
+	sync::Arc,
 };
 
 /// This trait provides the minimum features required for a [`Value`].
 ///
 /// To implement this for `Display + Debug + Eq` types see [`is_value`].
-pub trait IsValue: Debug + 'static {
+pub trait IsAnyValue: Debug + 'static + Send + Sync {
 	fn output(&self, f: &mut std::fmt::Formatter, debug: bool) -> std::fmt::Result;
 
 	fn is_eq(&self, other: &Value) -> bool;
@@ -17,21 +17,21 @@ pub trait IsValue: Debug + 'static {
 #[derive(Clone)]
 pub struct Value {
 	type_id: TypeId,
-	value: Rc<dyn IsValue>,
+	value: Arc<dyn IsAnyValue>,
 }
 
 impl Value {
-	pub fn new<T: IsValue>(value: T) -> Value {
+	pub fn new<T: IsAnyValue>(value: T) -> Value {
 		Value {
 			type_id: TypeId::of::<T>(),
-			value: Rc::new(value),
+			value: Arc::new(value),
 		}
 	}
 
 	pub fn get<T: 'static>(&self) -> Option<&T> {
 		if self.type_id == TypeId::of::<T>() {
 			let ptr = self.value.as_ref();
-			let ptr = unsafe { &*(ptr as *const dyn IsValue as *const T) };
+			let ptr = unsafe { &*(ptr as *const dyn IsAnyValue as *const T) };
 			Some(ptr)
 		} else {
 			None
@@ -43,7 +43,7 @@ impl Value {
 /// [`Debug`], and [`Eq`].
 macro_rules! is_value {
 	($t:ty) => {
-		impl IsValue for $t {
+		impl IsAnyValue for $t {
 			fn output(&self, f: &mut std::fmt::Formatter, debug: bool) -> std::fmt::Result {
 				if debug {
 					write!(f, "{}<{self:?}>", stringify!($t))
@@ -63,7 +63,7 @@ macro_rules! is_value {
 	};
 
 	($t:ty, debug) => {
-		impl IsValue for $t {
+		impl IsAnyValue for $t {
 			fn output(&self, f: &mut std::fmt::Formatter, debug: bool) -> std::fmt::Result {
 				if debug {
 					write!(f, "{}<{self:?}>", stringify!($t))

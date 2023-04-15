@@ -5,7 +5,7 @@ use crate::core::input::*;
 
 /// Trait for custom token types returned as [`Token::Other`].
 pub trait IsToken: 'static + Sized {
-	type Value: Clone + IsValue;
+	type Value: Clone + IsAnyValue;
 
 	fn name() -> &'static str;
 
