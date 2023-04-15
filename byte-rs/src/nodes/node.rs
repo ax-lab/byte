@@ -81,7 +81,7 @@ impl Node {
 	pub fn get<T: IsNode>(&self) -> Option<Arc<T>> {
 		let value = self.value.lock().unwrap();
 		let node = value.node.clone();
-		if node.type_id() == TypeId::of::<T>() {
+		if (&*node).type_id() == TypeId::of::<T>() {
 			let node_ptr = Arc::into_raw(node).cast::<T>();
 			let node = unsafe { Arc::from_raw(node_ptr) };
 			Some(node)

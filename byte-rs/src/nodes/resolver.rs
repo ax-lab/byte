@@ -156,6 +156,7 @@ impl NodeQueueInner {
 
 		// check if the node is not being processed already
 		if !self.added.contains(&node_id) {
+			self.added.insert(node_id);
 			self.ready.push_back(node);
 		}
 	}
@@ -184,9 +185,11 @@ impl NodeQueueInner {
 
 		// rebuild the pending map
 		let has_deps = deps.len() > 0;
-		let pending = self.pending_nodes.entry(node_id).or_default();
-		pending.clear();
-		pending.extend(deps.iter().map(|x| x.id()));
+		if has_deps {
+			let pending = self.pending_nodes.entry(node_id).or_default();
+			pending.clear();
+			pending.extend(deps.iter().map(|x| x.id()));
+		};
 		for dep in deps.into_iter() {
 			// map the reverse dependency link
 			self.dependent_nodes
@@ -198,7 +201,7 @@ impl NodeQueueInner {
 			self.add(dep);
 		}
 
-		if has_deps {
+		if !has_deps {
 			self.ready.push_back(node);
 		} else {
 			self.waiting.insert(node_id, node);
@@ -249,34 +252,163 @@ impl NodeQueueInner {
 
 #[cfg(test)]
 mod tests {
+	use std::cell::Cell;
+
 	use super::*;
 
 	#[test]
 	fn test_queue_simple() {
-		let a = Node::new(TestNode { name: "Node A" });
-		let b = Node::new(TestNode { name: "Node B" });
-		let c = Node::new(TestNode { name: "Node C" });
+		let out = Arc::new(Mutex::new(Vec::new()));
+		let a = Node::new(SimpleNode {
+			name: "A".into(),
+			out: out.clone(),
+		});
+		let b = Node::new(SimpleNode {
+			name: "B".into(),
+			out: out.clone(),
+		});
+		let c = Node::new(SimpleNode {
+			name: "C".into(),
+			out: out.clone(),
+		});
+
 		let mut resolver = NodeResolver::new();
 		resolver.resolve(a.clone());
 		resolver.resolve(b.clone());
 		resolver.resolve(c.clone());
 		resolver.wait();
+
 		assert!(a.is_done());
 		assert!(b.is_done());
 		assert!(c.is_done());
+
+		let mut out = out.lock().unwrap().clone();
+		out.sort();
+		assert_eq!(out, ["A done", "B done", "C done"]);
+	}
+
+	#[test]
+	fn test_queue_complex() {
+		let out = Arc::new(Mutex::new(Vec::new()));
+		let c1 = Node::new(ComplexNode::new("C1", out.clone()));
+		let c2 = Node::new(ComplexNode::new("C2", out.clone()));
+
+		let mut resolver = NodeResolver::new();
+		resolver.resolve(c1.clone());
+		resolver.resolve(c2.clone());
+		resolver.wait();
+
+		assert!(c1.is_done());
+		assert!(c2.is_done());
+
+		let s1 = c1.get::<SimpleNode>().unwrap();
+		let s2 = c2.get::<SimpleNode>().unwrap();
+		assert_eq!(s1.name, "C1: 2 - Final");
+		assert_eq!(s2.name, "C2: 2 - Final");
+
+		let mut out = out.lock().unwrap().clone();
+		out.sort();
+		assert_eq!(
+			out,
+			[
+				"C1: 0",
+				"C1: 0 - A done",
+				"C1: 0 - B done",
+				"C1: 1",
+				"C1: 1 - C done",
+				"C1: 2",
+				"C1: 2 - Final done",
+				"C2: 0",
+				"C2: 0 - A done",
+				"C2: 0 - B done",
+				"C2: 1",
+				"C2: 1 - C done",
+				"C2: 2",
+				"C2: 2 - Final done",
+			]
+		);
 	}
 
 	#[derive(Debug)]
-	struct TestNode {
-		name: &'static str,
+	struct SimpleNode {
+		name: String,
+		out: Arc<Mutex<Vec<String>>>,
 	}
 
-	impl IsNode for TestNode {
+	impl IsNode for SimpleNode {
 		fn eval(&self) -> NodeEval {
-			if false {
-				println!("processing {}", self.name);
-			}
+			let mut out = self.out.lock().unwrap();
+			out.push(format!("{} done", self.name));
 			NodeEval::Complete
+		}
+	}
+
+	#[derive(Debug)]
+	struct ComplexNode {
+		name: String,
+		next: Mutex<usize>,
+		out: Arc<Mutex<Vec<String>>>,
+	}
+
+	impl ComplexNode {
+		pub fn new(name: &'static str, out: Arc<Mutex<Vec<String>>>) -> Self {
+			Self {
+				name: name.into(),
+				out,
+				next: Mutex::new(0),
+			}
+		}
+
+		fn say(&self, msg: &str) {
+			let mut out = self.out.lock().unwrap();
+			out.push(format!("{}: {}", self.name, msg));
+		}
+	}
+
+	impl IsNode for ComplexNode {
+		fn eval(&self) -> NodeEval {
+			let mut next = self.next.lock().unwrap();
+			let state = *next;
+			*next += 1;
+			match state {
+				0 => {
+					self.say("0");
+					let out = self.out.clone();
+					let a = SimpleNode {
+						name: format!("{}: 0 - A", self.name),
+						out,
+					};
+					let out = self.out.clone();
+					let b = SimpleNode {
+						name: format!("{}: 0 - B", self.name),
+						out,
+					};
+					let a = Node::new(a);
+					let b = Node::new(b);
+					NodeEval::DependsOn(vec![a, b])
+				}
+				1 => {
+					self.say("1");
+					let out = self.out.clone();
+					let c = SimpleNode {
+						name: format!("{}: 1 - C", self.name),
+						out,
+					};
+					let c = Node::new(c);
+					NodeEval::DependsOn(vec![c])
+				}
+				2 => {
+					self.say("2");
+					let out = self.out.clone();
+					let d = SimpleNode {
+						name: format!("{}: 2 - Final", self.name),
+						out,
+					};
+					NodeEval::NewValue(Arc::new(d))
+				}
+
+				_ => panic!("invalid state"),
+			}
 		}
 	}
 }
