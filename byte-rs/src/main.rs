@@ -3,8 +3,10 @@ use std::env;
 mod core;
 mod lang;
 mod lexer;
-mod nodes;
 mod parser;
+
+#[allow(unused)]
+mod nodes;
 
 #[allow(unused)]
 mod vm;

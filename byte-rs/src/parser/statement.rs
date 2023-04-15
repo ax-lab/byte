@@ -14,10 +14,10 @@ pub enum Statement {
 }
 
 impl Statement {
-	pub fn resolve(&self, ctx: &mut Context) -> Option<Node> {
+	pub fn resolve(&self, _ctx: &mut Context) -> Option<Node> {
 		match self {
 			Statement::End(..) => None,
-			Statement::Expr(expr) => crate::nodes::parse_expression(ctx, &expr),
+			Statement::Expr(_expr) => todo!(),
 		}
 	}
 }
@@ -37,6 +37,7 @@ pub enum ExprItem {
 	},
 }
 
+#[allow(unused)]
 impl ExprItem {
 	pub fn span(&self) -> Span {
 		match self {

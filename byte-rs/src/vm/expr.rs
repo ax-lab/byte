@@ -59,7 +59,7 @@ impl Expr {
 	}
 }
 
-pub trait IsExpr: std::fmt::Debug + 'static {
+pub trait IsExpr: std::fmt::Debug + Sync + Send + 'static {
 	fn eval(&self, rt: &mut Runtime) -> Value;
 
 	fn get_type(&self) -> Type;

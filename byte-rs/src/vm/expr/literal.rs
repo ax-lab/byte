@@ -7,7 +7,7 @@ use super::*;
 pub enum Literal {
 	Bool(bool),
 	String(Str),
-	Integer(Str),
+	Integer(u64),
 }
 
 impl IsExpr for Literal {
@@ -15,10 +15,7 @@ impl IsExpr for Literal {
 		match self {
 			Literal::Bool(value) => Value::bool(*value),
 			Literal::String(value) => StrValue::new(value.clone()),
-			Literal::Integer(value) => {
-				let value: u64 = value.as_str().parse().expect("invalid integer literal");
-				ValueInt::any(value)
-			}
+			Literal::Integer(value) => ValueInt::any(*value),
 		}
 	}
 
