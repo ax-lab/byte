@@ -1,7 +1,7 @@
 use super::{node::*, parser::*, runtime::*, Context};
 use crate::core::error::*;
-use crate::lang::operator::*;
 use crate::lexer::*;
+use crate::vm::operators::*;
 
 use super::stream::*;
 

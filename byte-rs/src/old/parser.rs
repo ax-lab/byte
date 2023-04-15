@@ -2,9 +2,9 @@ use std::collections::VecDeque;
 
 use crate::core::error::*;
 
-use crate::lang::operator::*;
 use crate::lang::*;
 use crate::lexer::*;
+use crate::vm::operators::*;
 
 use super::{node::*, stream::*, Context};
 
