@@ -10,6 +10,12 @@ pub trait IsError: Debug + 'static {
 	fn output(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
 }
 
+impl IsError for String {
+	fn output(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{self}")
+	}
+}
+
 /// Type for any compilation error.
 #[derive(Clone)]
 pub struct Error {
@@ -81,6 +87,10 @@ impl ErrorList {
 			node.append_to(&mut list);
 		}
 		list
+	}
+
+	pub fn at<T: ToString>(&mut self, span: Span, msg: T) {
+		self.add(Error::new(msg.to_string()).at(span))
 	}
 }
 
