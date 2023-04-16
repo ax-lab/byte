@@ -1,8 +1,173 @@
 use std::{
-	any::TypeId,
+	any::{Any, TypeId},
 	fmt::{Debug, Display},
 	sync::Arc,
 };
+
+/// Extension to [`std::any::Any`] providing dynamic typing and the basic
+/// requirements for a generic value.
+///
+/// As with [`Any`], this trait provides a blanket implementation for all
+/// supported types.
+///
+/// Types must be [`Send`] + [`Sync`], implement [`std::fmt::Debug`], and
+/// must not contain non-`'static` references.
+pub trait IsValue: Any + Send + Sync + Debug {}
+
+impl<T: Any + Send + Sync + Debug> IsValue for T {}
+
+/// Provides dynamic typing with traits.
+///
+/// To implement this trait use the [`has_traits`] macro. To retrieve a trait
+/// from a [`HasTraits`] value use the [`to_trait`] macro.
+pub trait HasTraits: IsValue {
+	fn get_trait(&self, type_id: TypeId) -> Option<&dyn HasTraits> {
+		let _ = type_id;
+		None
+	}
+}
+
+mod macros {
+	#[allow(unused)]
+	use super::HasTraits;
+
+	/// Implements the [`HasTraits`] macros for a type, expanding to an `impl`
+	/// block.
+	///
+	/// # Examples
+	///
+	/// ```
+	/// struct SomeType {}
+	///
+	/// trait A {
+	///     fn a(&self) {}
+	/// }
+	///
+	/// trait B {
+	///     fn b(&self) {}
+	/// }
+	///
+	/// has_traits!(SomeType, A, B);
+	///
+	/// impl A for SomeType {}
+	/// impl B for SomeType {}
+	///
+	/// fn somewhere(value: &dyn IsValue) {
+	///     let value = to_trait!(value, A).unwrap();
+	///     value.a();
+	/// }
+	/// ```
+	#[macro_export]
+	macro_rules! has_traits {
+		($me:path $( : $($typ:path),+ )?) => {
+			impl crate::core::any::HasTraits for $me {
+				fn get_trait(
+					&self,
+					type_id: ::std::any::TypeId,
+				) -> Option<&dyn crate::core::any::HasTraits> {
+					let _ = type_id;
+					$($(
+						if (type_id == ::std::any::TypeId::of::<dyn $typ>()) {
+							unsafe {
+								let me = self as &dyn $typ;
+								let me = std::mem::transmute(me);
+								return Some(me);
+							}
+						}
+					)+)?
+					None
+				}
+			}
+		};
+	}
+
+	#[macro_export]
+	macro_rules! to_trait {
+		($me:expr, $target:path) => {{
+			let me = $me;
+			let id = ::std::any::TypeId::of::<dyn $target>();
+			let me = crate::core::any::HasTraits::get_trait(me, id);
+			if let Some(me) = me {
+				unsafe {
+					let me: &dyn $target = std::mem::transmute(me);
+					Some(me)
+				}
+			} else {
+				None
+			}
+		}};
+	}
+
+	pub use has_traits;
+	pub use to_trait;
+}
+
+pub use macros::has_traits;
+pub use macros::to_trait;
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_has_traits() {
+		let v = Arc::new(SomeType {
+			a: "from A".into(),
+			b: "from B".into(),
+		});
+		assert_eq!(v.say(), "from some type");
+
+		let va = to_trait!(v.as_ref(), A).unwrap();
+		let vb = to_trait!(v.as_ref(), B).unwrap();
+		assert_eq!(va.a(), "from A");
+		assert_eq!(vb.b(), "from B");
+
+		let v = v.as_ref();
+		assert!(to_trait!(v, C).is_none());
+	}
+
+	has_traits!(SomeType: A, B);
+
+	trait A {
+		fn a(&self) -> String;
+	}
+
+	trait B {
+		fn b(&self) -> String;
+	}
+
+	trait C {
+		fn c(&self) -> String;
+	}
+
+	#[derive(Debug)]
+	struct SomeType {
+		a: String,
+		b: String,
+	}
+
+	impl SomeType {
+		fn say(&self) -> String {
+			format!("from some type")
+		}
+	}
+
+	impl A for SomeType {
+		fn a(&self) -> String {
+			self.a.clone()
+		}
+	}
+
+	impl B for SomeType {
+		fn b(&self) -> String {
+			self.b.clone()
+		}
+	}
+}
+
+//----------------------------------------------------------------------------//
+// OLD CODE [deprecated]
+//----------------------------------------------------------------------------//
 
 /// This trait provides the minimum features required for a [`Value`].
 ///
@@ -125,7 +290,7 @@ impl PartialEq for Value {
 impl Eq for Value {}
 
 #[cfg(test)]
-mod tests {
+mod tests_old {
 	use super::*;
 
 	#[test]
