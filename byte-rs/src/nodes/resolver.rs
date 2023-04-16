@@ -38,7 +38,12 @@ impl NodeResolver {
 
 	fn process_queue(mut queue: Arc<NodeQueue>) {
 		while let Some(mut node) = queue.take_next() {
-			match node.val().eval() {
+			let eval = {
+				let node = node.val();
+				let mut node = node.write().unwrap();
+				node.eval()
+			};
+			match eval {
 				NodeEval::Complete => {
 					node.set_done();
 					queue.complete(node);
@@ -344,7 +349,7 @@ mod tests {
 	has_traits!(SimpleNode);
 
 	impl IsNode for SimpleNode {
-		fn eval(&self) -> NodeEval {
+		fn eval(&mut self) -> NodeEval {
 			let mut out = self.out.lock().unwrap();
 			out.push(format!("{} done", self.name));
 			NodeEval::Complete
@@ -376,7 +381,7 @@ mod tests {
 	has_traits!(ComplexNode);
 
 	impl IsNode for ComplexNode {
-		fn eval(&self) -> NodeEval {
+		fn eval(&mut self) -> NodeEval {
 			let mut next = self.next.lock().unwrap();
 			let state = *next;
 			*next += 1;
@@ -414,7 +419,7 @@ mod tests {
 						name: format!("{}: 2 - Final", self.name),
 						out,
 					};
-					NodeEval::NewValue(Arc::new(d))
+					NodeEval::NewValue(Box::new(d))
 				}
 
 				_ => panic!("invalid state"),

@@ -2,8 +2,9 @@ use std::any::{Any, TypeId};
 use std::cell::{Ref, RefCell};
 use std::collections::VecDeque;
 use std::fmt::Debug;
+use std::ops::Deref;
 use std::sync::atomic::{self, AtomicU64};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard};
 
 use crate::core::error::*;
 use crate::core::input::*;
@@ -58,7 +59,7 @@ pub struct Node {
 
 /// Root trait implemented for a [`Node`] underlying value.
 pub trait IsNode: HasTraits {
-	fn eval(&self) -> NodeEval;
+	fn eval(&mut self) -> NodeEval;
 
 	fn span(&self) -> Option<Span> {
 		None
@@ -104,7 +105,8 @@ impl Node {
 
 		// Create the inner value. This can change if the underlying `IsNode`
 		// changes.
-		let node: Arc<dyn IsNode> = Arc::new(node);
+		let node: Box<dyn IsNode> = Box::new(node);
+		let node = Arc::new(RwLock::new(node));
 		let value = InnerNodeValue {
 			node,
 			done: false,
@@ -127,29 +129,23 @@ impl Node {
 		value.span.clone()
 	}
 
-	pub fn val(&self) -> Arc<dyn IsNode> {
+	pub fn val(&self) -> Arc<RwLock<Box<dyn IsNode>>> {
 		let value = self.value.lock().unwrap();
 		value.node.clone()
 	}
 
-	pub fn get<T: IsNode>(&self) -> Option<Arc<T>> {
+	pub fn get<T: IsNode>(&self) -> Option<NodeRef<T>> {
 		let value = self.value.lock().unwrap();
-		let node = value.node.clone();
-		if (&*node).type_id() == TypeId::of::<T>() {
-			let node_ptr = Arc::into_raw(node).cast::<T>();
-			let node = unsafe { Arc::from_raw(node_ptr) };
-			Some(node)
-		} else {
-			None
-		}
+		value.get_value()
 	}
 
-	pub fn set(&self, node: Arc<dyn IsNode>) {
+	pub fn set(&self, node: Box<dyn IsNode>) {
 		let mut value = self.value.lock().unwrap();
 		if value.done {
 			panic!("cannot set value for a resolved node");
 		}
 
+		let node = Arc::new(RwLock::new(node));
 		let new_value = InnerNodeValue {
 			node,
 			done: value.done,
@@ -217,10 +213,10 @@ pub enum NodeEval {
 
 	/// Node evaluated to a new [`IsNode`] value. The value will replace the
 	/// current node and continue being evaluated.
-	NewValue(Arc<dyn IsNode>),
+	NewValue(Box<dyn IsNode>),
 
 	/// Same as [`NodeEval::NewValue`] but also sets a new position.
-	NewValueAndPos(Arc<dyn IsNode>, Span),
+	NewValueAndPos(Box<dyn IsNode>, Span),
 
 	/// The node evaluation depends on the given nodes. The nodes will be fully
 	/// resolved before evaluation of the current [`IsNode`] is continued.
@@ -256,5 +252,35 @@ impl Debug for Node {
 struct InnerNodeValue {
 	done: bool,
 	span: Option<Span>,
-	node: Arc<dyn IsNode>,
+	node: Arc<RwLock<Box<dyn IsNode>>>,
+}
+
+impl InnerNodeValue {
+	pub fn get_value<T: IsNode>(&self) -> Option<NodeRef<T>> {
+		let guard = self.node.read().unwrap();
+		let value = &**guard;
+		if value.type_id() == TypeId::of::<T>() {
+			let guard = unsafe { std::mem::transmute(guard) };
+			let node = NodeRef {
+				node: self.node.clone(),
+				guard,
+			};
+			Some(node)
+		} else {
+			None
+		}
+	}
+}
+
+pub struct NodeRef<T: IsNode> {
+	node: Arc<RwLock<Box<dyn IsNode>>>,
+	guard: RwLockReadGuard<'static, Box<T>>,
+}
+
+impl<T: IsNode> Deref for NodeRef<T> {
+	type Target = T;
+
+	fn deref(&self) -> &Self::Target {
+		&self.guard
+	}
 }

@@ -17,7 +17,7 @@ impl From<TokenAt> for Atom {
 }
 
 impl IsNode for Atom {
-	fn eval(&self) -> NodeEval {
+	fn eval(&mut self) -> NodeEval {
 		NodeEval::Complete
 	}
 
