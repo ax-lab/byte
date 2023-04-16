@@ -16,7 +16,6 @@ impl OpUnary {
 		Some(op)
 	}
 
-	#[allow(unused)]
 	pub fn get_posfix(symbol: &str) -> Option<OpUnary> {
 		let op = match symbol {
 			"++" => OpUnary::PosIncrement,

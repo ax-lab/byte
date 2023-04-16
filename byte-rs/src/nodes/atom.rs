@@ -1,31 +1,84 @@
 use crate::core::str::*;
 use crate::lang::*;
 use crate::lexer::*;
+use crate::vm::operators::*;
 
 use super::*;
 
 #[derive(Debug)]
 pub struct Atom(TokenAt);
 
-impl Atom {
-	fn value(&self) -> &TokenAt {
-		&self.0
+has_traits!(Atom: IsExprValueNode, IsOperatorNode);
+
+impl From<TokenAt> for Atom {
+	fn from(value: TokenAt) -> Self {
+		Atom(value)
 	}
 }
 
-#[cfg(never)]
 impl IsNode for Atom {
+	fn eval(&self) -> NodeEval {
+		NodeEval::Complete
+	}
+
+	fn span(&self) -> Option<Span> {
+		Some(self.0.span())
+	}
+}
+
+impl IsExprValueNode for Atom {
 	fn is_value(&self) -> Option<bool> {
-		let result = match self.value().token() {
-			Token::Identifier => true,
-			token @ Token::Other(..) => token.is::<Integer>() || token.is::<Literal>(),
-			_ => false,
-		};
-		Some(result)
+		let Atom(value) = self;
+		match value.token() {
+			Token::Identifier => Some(true),
+			token @ Token::Other(..) => Some(token.is::<Integer>() || token.is::<Literal>()),
+			_ => Some(false),
+		}
+	}
+}
+
+impl IsOperatorNode for Atom {
+	fn get_unary_pre(&self) -> Option<OpUnary> {
+		if let Some(symbol) = self.symbol() {
+			OpUnary::get_prefix(symbol)
+		} else {
+			None
+		}
+	}
+
+	fn get_unary_pos(&self) -> Option<OpUnary> {
+		if let Some(symbol) = self.symbol() {
+			OpUnary::get_posfix(symbol)
+		} else {
+			None
+		}
+	}
+
+	fn get_binary(&self) -> Option<OpBinary> {
+		if let Some(symbol) = self.symbol() {
+			OpBinary::get(symbol)
+		} else {
+			None
+		}
+	}
+
+	fn get_ternary(&self) -> Option<(OpTernary, &'static str)> {
+		if let Some(symbol) = self.symbol() {
+			OpTernary::get(symbol)
+		} else {
+			None
+		}
+	}
+}
+
+impl Atom {
+	fn symbol(&self) -> Option<&str> {
+		let Atom(value) = self;
+		value.symbol()
 	}
 
 	fn resolve(&self, scope: &mut Scope, errors: &mut ErrorList) -> Option<Expr> {
-		let value = self.value();
+		let Atom(value) = self;
 		let expr = match value.token() {
 			Token::Identifier => {
 				let expr = match value.text() {

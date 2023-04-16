@@ -183,6 +183,12 @@ impl NodeQueueInner {
 		let removed = self.processing.remove(&node_id);
 		assert!(removed);
 
+		// Filter any dependency that has been resolved already.
+		let deps = deps
+			.into_iter()
+			.filter(|x| !x.is_done())
+			.collect::<Vec<_>>();
+
 		// rebuild the pending map
 		let has_deps = deps.len() > 0;
 		if has_deps {
@@ -335,6 +341,8 @@ mod tests {
 		out: Arc<Mutex<Vec<String>>>,
 	}
 
+	has_traits!(SimpleNode);
+
 	impl IsNode for SimpleNode {
 		fn eval(&self) -> NodeEval {
 			let mut out = self.out.lock().unwrap();
@@ -364,6 +372,8 @@ mod tests {
 			out.push(format!("{}: {}", self.name, msg));
 		}
 	}
+
+	has_traits!(ComplexNode);
 
 	impl IsNode for ComplexNode {
 		fn eval(&self) -> NodeEval {
