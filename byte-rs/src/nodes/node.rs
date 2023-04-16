@@ -1,7 +1,7 @@
 use std::any::{Any, TypeId};
 use std::cell::{Ref, RefCell};
 use std::collections::VecDeque;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::ops::Deref;
 use std::sync::atomic::{self, AtomicU64};
 use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard};
@@ -58,7 +58,7 @@ pub struct Node {
 }
 
 /// Root trait implemented for a [`Node`] underlying value.
-pub trait IsNode: HasTraits {
+pub trait IsNode: HasTraits + Display {
 	fn eval(&mut self) -> NodeEval;
 
 	fn span(&self) -> Option<Span> {
@@ -105,17 +105,24 @@ impl Node {
 
 		// Create the inner value. This can change if the underlying `IsNode`
 		// changes.
+		let span = node.span();
 		let node: Box<dyn IsNode> = Box::new(node);
 		let node = Arc::new(RwLock::new(node));
 		let value = InnerNodeValue {
 			node,
 			done: false,
-			span: None,
+			span,
 		};
 
 		// Wrap everything in a shared mutex.
 		let value = Arc::new(Mutex::new(value));
 		Node { id, value }
+	}
+
+	pub fn new_at<T: IsNode>(node: T, span: Option<Span>) -> Self {
+		let mut node = Self::new(node);
+		node.set_span(span);
+		node
 	}
 
 	/// Globally unique identifier for the node. This does not change with
@@ -139,7 +146,7 @@ impl Node {
 		value.get_value()
 	}
 
-	pub fn set(&self, node: Box<dyn IsNode>) {
+	pub fn set(&mut self, node: Box<dyn IsNode>) {
 		let mut value = self.value.lock().unwrap();
 		if value.done {
 			panic!("cannot set value for a resolved node");
@@ -154,7 +161,20 @@ impl Node {
 		*value = new_value;
 	}
 
-	pub fn at(self, span: Span) -> Self {
+	pub fn set_from_node(&mut self, other: Node) {
+		let other = {
+			let value = other.value.lock().unwrap();
+			InnerNodeValue {
+				done: value.done,
+				node: value.node.clone(),
+				span: value.span.clone(),
+			}
+		};
+		let mut value = self.value.lock().unwrap();
+		*value = other;
+	}
+
+	pub fn at(mut self, span: Span) -> Self {
 		self.set_span(Some(span));
 		self
 	}
@@ -164,45 +184,20 @@ impl Node {
 		value.done
 	}
 
-	pub fn set_done(&self) {
+	pub fn set_done(&mut self) {
 		let mut value = self.value.lock().unwrap();
 		value.done = true;
 	}
 
-	pub fn set_span(&self, span: Option<Span>) {
+	pub fn set_span(&mut self, span: Option<Span>) {
 		let mut value = self.value.lock().unwrap();
 		value.span = span;
 	}
 
 	pub fn get_span(a: &Node, b: &Node) -> Option<Span> {
-		let sta = a.span();
-		let end = b.span();
-		let (sta, end) = if sta.is_none() {
-			(end, sta)
-		} else {
-			(sta, end)
-		};
-		if let Some(sta) = sta {
-			let span = if let Some(end) = end {
-				let (sta, end) = if sta.sta.offset() < end.sta.offset() {
-					(sta, end)
-				} else {
-					(end, sta)
-				};
-				Span {
-					sta: sta.sta,
-					end: end.end,
-				}
-			} else {
-				Span {
-					sta: sta.sta.clone(),
-					end: sta.sta,
-				}
-			};
-			Some(span)
-		} else {
-			None
-		}
+		let a = a.span();
+		let b = b.span();
+		Span::from_range(a, b)
 	}
 }
 
@@ -218,6 +213,10 @@ pub enum NodeEval {
 	/// Same as [`NodeEval::NewValue`] but also sets a new position.
 	NewValueAndPos(Box<dyn IsNode>, Span),
 
+	/// Similar to [`NodeEval::NewValue`] but uses the content of the given
+	/// node.
+	FromNode(Node),
+
 	/// The node evaluation depends on the given nodes. The nodes will be fully
 	/// resolved before evaluation of the current [`IsNode`] is continued.
 	DependsOn(Vec<Node>),
@@ -229,19 +228,35 @@ pub enum NodeEval {
 
 impl<T: IsNode> From<T> for Node {
 	fn from(value: T) -> Self {
-		let span = value.span();
-		let node = Node::new(value);
-		if let Some(span) = span {
-			node.at(span)
-		} else {
-			node
-		}
+		Node::new(value)
 	}
 }
 
 impl Debug for Node {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{:?}", self.val())
+		let (node, span) = {
+			let value = self.value.lock().unwrap();
+			let node = value.node.clone();
+			let span = value.span.clone();
+			(node, span)
+		};
+		let node = node.read().unwrap();
+		write!(f, "{node:?}")?;
+		if let Some(span) = span {
+			write!(f, " at {span}")?;
+		}
+		Ok(())
+	}
+}
+
+impl Display for Node {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		let node = {
+			let value = self.value.lock().unwrap();
+			value.node.clone()
+		};
+		let node = node.read().unwrap();
+		write!(f, "{node}")
 	}
 }
 

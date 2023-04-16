@@ -98,6 +98,31 @@ pub struct Span {
 }
 
 impl Span {
+	pub fn from_range(a: Option<Span>, b: Option<Span>) -> Option<Span> {
+		if a.is_none() && b.is_none() {
+			None
+		} else if let Some(a) = a {
+			if let Some(b) = b {
+				let (a, b) = if a.sta.offset() > b.sta.offset() {
+					(b, a)
+				} else {
+					(a, b)
+				};
+				let sta = a.sta.clone();
+				let end = b.end.clone();
+				Some(Span { sta, end })
+			} else {
+				let sta = a.sta.clone();
+				Some(Span {
+					sta: sta.clone(),
+					end: sta,
+				})
+			}
+		} else {
+			Span::from_range(b, None)
+		}
+	}
+
 	pub fn src(&self) -> &Input {
 		self.sta.src()
 	}

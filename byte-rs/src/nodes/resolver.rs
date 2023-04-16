@@ -57,6 +57,10 @@ impl NodeResolver {
 					node.set_span(Some(span));
 					queue.add_again_with_dependencies(node, Vec::new());
 				}
+				NodeEval::FromNode(other) => {
+					node.set_from_node(other);
+					queue.add_again_with_dependencies(node, Vec::new());
+				}
 				NodeEval::DependsOn(deps) => {
 					queue.add_again_with_dependencies(node, deps);
 				}
@@ -145,19 +149,12 @@ struct NodeQueueInner {
 
 	/// Nodes that are currently being handled by the queue.
 	added: HashSet<u64>,
-
-	/// Nodes that have been fully processed.
-	done: HashSet<u64>,
 }
 
 impl NodeQueueInner {
 	/// Add a node to the processing queue.
 	pub fn add(&mut self, node: Node) {
 		let node_id = node.id();
-
-		// fully resolved nodes should never appear here
-		assert!(!self.done.contains(&node_id));
-		assert!(!node.is_done());
 
 		// check if the node is not being processed already
 		if !self.added.contains(&node_id) {
@@ -227,7 +224,6 @@ impl NodeQueueInner {
 		assert!(removed);
 
 		self.added.remove(&completed_id);
-		self.done.insert(completed_id);
 
 		// check all dependent nodes and remove the completed node as a pending
 		// dependency
@@ -356,6 +352,12 @@ mod tests {
 		}
 	}
 
+	impl std::fmt::Display for SimpleNode {
+		fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+			write!(f, "{self:?}")
+		}
+	}
+
 	#[derive(Debug)]
 	struct ComplexNode {
 		name: String,
@@ -424,6 +426,12 @@ mod tests {
 
 				_ => panic!("invalid state"),
 			}
+		}
+	}
+
+	impl std::fmt::Display for ComplexNode {
+		fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+			write!(f, "{self:?}")
 		}
 	}
 }

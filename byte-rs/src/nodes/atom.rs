@@ -26,6 +26,13 @@ impl IsNode for Atom {
 	}
 }
 
+impl std::fmt::Display for Atom {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		let Atom(value) = self;
+		write!(f, "{value}")
+	}
+}
+
 impl IsExprValueNode for Atom {
 	fn is_value(&self) -> Option<bool> {
 		let Atom(value) = self;
@@ -72,7 +79,7 @@ impl IsOperatorNode for Atom {
 }
 
 impl Atom {
-	fn symbol(&self) -> Option<&str> {
+	pub fn symbol(&self) -> Option<&str> {
 		let Atom(value) = self;
 		value.symbol()
 	}
@@ -106,7 +113,7 @@ impl Atom {
 			let expr = expr.at(span);
 			Some(expr)
 		} else {
-			errors.at(span, format!("{value} is not a value"));
+			errors.at(Some(span), format!("{value} is not a value"));
 			None
 		}
 	}

@@ -7,42 +7,49 @@ use crate::vm::operators::*;
 use super::*;
 
 #[derive(Debug)]
+pub struct Raw {
+	list: Vec<Node>,
+	done: usize,
+}
+
+has_traits!(Raw);
+
+impl Raw {
+	pub fn new(list: Vec<Node>) -> Self {
+		todo!()
+	}
+}
+
+impl IsNode for Raw {
+	fn eval(&mut self) -> NodeEval {
+		todo!()
+	}
+}
+
+impl std::fmt::Display for Raw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{self:?}")
+	}
+}
+
+#[derive(Debug)]
 pub enum RawExpr {
 	Unary(OpUnary, Node),
 	Binary(OpBinary, Node, Node),
 	Ternary(OpTernary, Node, Node, Node),
 }
 
-#[cfg(never)]
+has_traits!(RawExpr);
+
 impl IsNode for RawExpr {
-	fn is_value(&self) -> Option<bool> {
-		Some(true)
-	}
-
-	fn resolve(&self, scope: &mut Scope, errors: &mut ErrorList) -> Option<Expr> {
-		todo!()
+	fn eval(&mut self) -> NodeEval {
+		NodeEval::Complete
 	}
 }
 
-#[cfg(never)]
-#[derive(Debug)]
-pub struct Raw {
-	list: Vec<Node>,
-}
-
-#[cfg(never)]
-impl IsNode for Raw {
-	fn is_value(&self) -> Option<bool> {
-		Some(true)
-	}
-
-	fn resolve(&self, scope: &mut Scope, errors: &mut ErrorList) -> Option<Expr> {
-		// if let Some(expr) = parse(&self.list, scope, errors) {
-		// 	expr.complete(scope, errors)
-		// } else {
-		// 	None
-		// }
-		todo!()
+impl std::fmt::Display for RawExpr {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{self:?}")
 	}
 }
 
@@ -50,35 +57,132 @@ impl IsNode for Raw {
 // Expression parsing
 //----------------------------------------------------------------------------//
 
-/// Provides incremental expression parsing for a list of [`Node`].
-#[cfg(never)]
-struct RawParser {
-	next: VecDeque<Node>,
+pub struct NodeExprList {
+	list: Vec<Node>,
+	next: usize,
 	ops: VecDeque<(Op, Node)>,
 	values: VecDeque<Node>,
+	errors: ErrorList,
 }
 
-#[cfg(never)]
-impl RawParser {
-	pub fn is_complete(&self) -> bool {
-		self.next.len() == 0
+impl NodeExprList {
+	pub fn reduce(&mut self) -> NodeEval {
+		if self.next >= self.list.len() {
+			return self.check_pending();
+		}
+
+		loop {
+			while let Some(op) = self.get_unary_pre() {
+				// the unary operator doesn't affect other operators on the stack
+				// because it binds forward to the next operator
+				let op = Op::Unary(op);
+				self.push_op(op, self.next().clone());
+				self.advance();
+			}
+
+			let next = self.next().clone();
+			match self.is_value() {
+				Some(true) => {
+					self.values.push_back(next);
+					self.advance();
+				}
+				Some(false) => {
+					self.errors.at(next.span(), "expected a value expression");
+					return NodeEval::Complete;
+				}
+				None => {
+					return NodeEval::DependsOn(vec![next]);
+				}
+			}
+
+			// TODO: posfix operators (always pop themselves)
+
+			// Ternary and binary operators work similarly, but the ternary will
+			// parse the middle expression as parenthesized.
+			if let Some((op, end)) = self.get_ternary() {
+				let node = self.next().clone();
+				self.advance();
+				let op = Op::Ternary(op);
+				self.push_op(op, node.clone());
+
+				if let Some(index) = self.find_symbol(end) {
+					let mut tail = self.list.split_off(index + 1);
+
+					// Create a raw with the sub expression and append it as a node
+					let expr = self.list.split_off(self.next);
+					let expr = Raw::new(expr);
+					let expr = Node::new(expr);
+					self.list.push(expr.clone());
+					self.list.append(&mut tail);
+				} else {
+					self.errors.at(
+						node.span(),
+						format!("symbol `{end}` for ternary operator {node} not found"),
+					);
+					return NodeEval::Complete;
+				}
+			} else if let Some(op) = self.get_binary() {
+				let node = self.next().clone();
+				let op = Op::Binary(op);
+				self.push_op(op, node);
+				self.advance();
+			} else {
+				break;
+			}
+		}
+
+		// pop any remaining operators on the stack.
+		while self.ops.len() > 0 {
+			self.pop_stack();
+		}
+
+		// check that there was no unparsed portion of the expression
+		if self.next < self.values.len() {
+			if self.errors.empty() {
+				self.errors
+					.at(self.values[self.next].span(), "expected end of expression");
+			}
+			return NodeEval::Complete;
+		}
+
+		if self.values.len() == 0 {
+			if self.errors.empty() {
+				let sta = self.list.first().and_then(|x| x.span());
+				let end = self.list.last().and_then(|x| x.span());
+				let span = Span::from_range(sta, end);
+				self.errors.at(span, "invalid expression");
+			}
+			NodeEval::Complete
+		} else {
+			assert!(self.values.len() == 1);
+			let expr = self.values.pop_back().unwrap();
+			NodeEval::FromNode(expr)
+		}
 	}
 
-	pub fn reduce(&mut self, errors: &mut ErrorList) -> bool {
-		loop {
-			let next = if let Some(pending) = self.next.front().map(|x| x.is_pending()) {
-				if pending {
-					// we can't process this node yet
-					return false;
-				}
-				self.next.pop_front().unwrap()
-			} else {
-				// the whole expression has been parsed
-				return true;
-			};
+	/// If there are nodes pending evaluation return [`NodeEval::DependsOn`],
+	/// otherwise returns [`NodeEval::Complete`].
+	///
+	/// Expression parsing is greedy. It parses a node as soon as it can be
+	/// identified as an expression part. As such, nodes may remain pending
+	/// even after the parsing is complete.
+	fn check_pending(&self) -> NodeEval {
+		let pending = self
+			.list
+			.iter()
+			.filter(|x| x.is_done())
+			.cloned()
+			.collect::<Vec<_>>();
+		if pending.len() > 0 {
+			NodeEval::DependsOn(pending)
+		} else {
+			NodeEval::Complete
 		}
-		todo!()
 	}
+
+	//------------------------------------------------------------------------//
+	// Stack manipulation
+	//------------------------------------------------------------------------//
 
 	/// Push a new operator onto the stack.
 	fn push_op(&mut self, op: Op, node: Node) {
@@ -103,7 +207,7 @@ impl RawParser {
 				let expr = values.pop_back().unwrap();
 				let span = Node::get_span(&op_node, &expr);
 				let expr = RawExpr::Unary(op, expr);
-				let expr = Node::new(expr).set_span(span);
+				let expr = Node::new_at(expr, span);
 				values.push_back(expr);
 			}
 			Op::Binary(op) => {
@@ -111,7 +215,7 @@ impl RawParser {
 				let lhs = values.pop_back().unwrap();
 				let span = Node::get_span(&lhs, &rhs);
 				let expr = RawExpr::Binary(op, lhs, rhs);
-				let expr = Node::new(expr).set_span(span);
+				let expr = Node::new_at(expr, span);
 				values.push_back(expr);
 			}
 			Op::Ternary(op) => {
@@ -120,188 +224,87 @@ impl RawParser {
 				let a = values.pop_back().unwrap();
 				let span = Node::get_span(&a, &c);
 				let expr = RawExpr::Ternary(op, a, b, c);
-				let expr = Node::new(expr).set_span(span);
+				let expr = Node::new_at(expr, span);
 				values.push_back(expr);
 			}
 		}
 	}
-}
 
-#[cfg(never)]
-fn parse(input: &[Node], scope: &mut Scope, errors: &mut ErrorList) -> Option<Node> {
-	let mut ops = VecDeque::new();
-	let mut values = VecDeque::new();
+	//------------------------------------------------------------------------//
+	// Helpers
+	//------------------------------------------------------------------------//
 
-	// pop a single operation from the stack
-	let pop_stack = |ops: &mut VecDeque<Op>, values: &mut VecDeque<Expr>| {};
-
-	// push an operator onto the stack, popping operations with higher precedence
-	let push_op = |op: Op, ops: &mut VecDeque<Op>, values: &mut VecDeque<Expr>| {};
-
-	loop {
-		while let Some(op) = input.get_unary() {
-			// the unary operator doesn't affect other operators on the stack
-			// because it binds forward to the next operator
-			let op = Op::Unary(op);
-			ops.push_back(op);
-			input.advance();
-		}
-
-		if let Some(expr) = input.parse_atom() {
-			values.push_back(expr);
-		} else {
-			if ops.len() > 0 {
-				input.add_error(input.span(), ParserError::ExpectedExpressionValue);
-				return None;
-			} else {
-				break;
-			};
-		}
-
-		// TODO: posfix operators (always pop themselves)
-
-		// Ternary and binary operators work similarly, but the ternary will
-		// parse the middle expression as parenthesized.
-		if let Some((op, end)) = input.get_ternary() {
-			input.advance();
-			let op = Op::Ternary(op);
-			push_op(op, &mut ops, &mut values);
-
-			let expr = match parse(input) {
-				Some(expr) => expr,
-				None => {
-					input.add_error(input.span(), ParserError::ExpectedExpressionValue);
-					return None;
-				}
-			};
-			values.push_back(expr);
-
-			if !input.skip_symbol(end) {
-				input.add_error(
-					input.span(),
-					ParserError::ExpectedSymbol {
-						symbol: end,
-						context: "ternary operator",
-					},
-				);
-				return None;
-			}
-		} else if let Some(op) = input.get_binary() {
-			let op = Op::Binary(op);
-			push_op(op, &mut ops, &mut values);
-			input.advance();
-		} else {
-			break;
-		}
+	pub fn next(&self) -> &Node {
+		&self.list[self.next]
 	}
 
-	// pop any remaining operators on the stack.
-	while ops.len() > 0 {
-		pop_stack(&mut ops, &mut values);
-	}
-
-	if values.len() == 0 {
-		None
-	} else {
-		assert!(values.len() == 1);
-		let expr = values.pop_back().unwrap();
-		Some(expr)
-	}
-}
-
-#[cfg(never)]
-pub struct ExprIter<'a> {
-	ctx: &'a mut Context,
-	items: &'a [ExprItem],
-}
-
-#[cfg(never)]
-impl<'a> ExprIter<'a> {
-	pub fn span(&self) -> Span {
-		self.items.first().unwrap().span()
+	pub fn advance(&mut self) {
+		self.next += 1;
 	}
 
 	pub fn skip_symbol(&mut self, expected: &'static str) -> bool {
-		if let Some(token) = self.get_token() {
-			if token.symbol() == Some(expected) {
-				self.advance();
-				true
-			} else {
-				false
-			}
+		if self.is_symbol_at(self.next, expected) {
+			self.advance();
+			true
 		} else {
 			false
 		}
 	}
 
-	pub fn get_unary(&self) -> Option<OpUnary> {
-		if let Some(next) = self.get_token() {
-			if let Some(symbol) = next.symbol() {
-				OpUnary::get_prefix(symbol)
-			} else {
-				None
+	pub fn find_symbol(&self, symbol: &str) -> Option<usize> {
+		for i in self.next..self.list.len() {
+			if self.is_symbol_at(i, symbol) {
+				return Some(i);
 			}
+		}
+		None
+	}
+
+	pub fn is_symbol_at(&self, index: usize, symbol: &str) -> bool {
+		let node = &self.list[index];
+		if let Some(node) = node.get::<Atom>() {
+			node.symbol() == Some(symbol)
+		} else {
+			false
+		}
+	}
+
+	pub fn is_value(&mut self) -> Option<bool> {
+		let node = self.next();
+		let next = node.val();
+		let next = next.read().unwrap();
+		let next = &**next;
+		let expr = to_trait!(next, IsExprValueNode);
+		if let Some(expr) = expr {
+			expr.is_value()
+		} else if node.is_done() {
+			Some(false)
 		} else {
 			None
 		}
+	}
+
+	pub fn get_unary_pre(&self) -> Option<OpUnary> {
+		let next = self.next().val();
+		let next = next.read().unwrap();
+		let next = &**next;
+		let node = to_trait!(next, IsOperatorNode);
+		node.and_then(|x| x.get_unary_pre())
 	}
 
 	pub fn get_binary(&self) -> Option<OpBinary> {
-		if let Some(next) = self.get_token() {
-			if let Some(symbol) = next.symbol() {
-				OpBinary::get(symbol)
-			} else {
-				None
-			}
-		} else {
-			None
-		}
+		let next = self.next().val();
+		let next = next.read().unwrap();
+		let next = &**next;
+		let node = to_trait!(next, IsOperatorNode);
+		node.and_then(|x| x.get_binary())
 	}
 
-	pub fn get_ternary(&self) -> Option<(OpTernary, &'static str)> {
-		if let Some(next) = self.get_token() {
-			if let Some(symbol) = next.symbol() {
-				OpTernary::get(symbol)
-			} else {
-				None
-			}
-		} else {
-			None
-		}
-	}
-
-	pub fn parse_atom(&mut self) -> Option<Expr> {
-		if self.items.first().is_some() {
-			parse_value(self)
-		} else {
-			None
-		}
-	}
-
-	pub fn parse_macro(&mut self, name: &str) -> Option<Expr> {
-		if name == "print" {
-			todo!()
-		} else {
-			None
-		}
-	}
-
-	pub fn advance(&mut self) {
-		self.items = &self.items[1..];
-	}
-
-	pub fn get_token(&self) -> Option<TokenAt> {
-		if let Some(next) = self.items.first() {
-			match next {
-				ExprItem::Token(token) => Some(token.clone()),
-				_ => None,
-			}
-		} else {
-			None
-		}
-	}
-
-	pub fn add_error<T: IsError>(&mut self, span: Span, error: T) {
-		self.ctx.add_error(Error::new(span, error));
+	pub fn get_ternary(&mut self) -> Option<(OpTernary, &'static str)> {
+		let next = self.next().val();
+		let next = next.read().unwrap();
+		let next = &**next;
+		let node = to_trait!(next, IsOperatorNode);
+		node.and_then(|x| x.get_ternary())
 	}
 }

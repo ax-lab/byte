@@ -89,8 +89,14 @@ impl ErrorList {
 		list
 	}
 
-	pub fn at<T: ToString>(&mut self, span: Span, msg: T) {
-		self.add(Error::new(msg.to_string()).at(span))
+	pub fn at<T: ToString>(&mut self, span: Option<Span>, msg: T) {
+		let error = Error::new(msg.to_string());
+		let error = if let Some(span) = span {
+			error.at(span)
+		} else {
+			error
+		};
+		self.add(error)
 	}
 }
 
