@@ -5,8 +5,10 @@ use std::{
 
 use crate::core::input::*;
 
+use super::*;
+
 /// Trait for any type that can be used as an [`Error`].
-pub trait IsError: Debug + 'static {
+pub trait IsError: IsValue {
 	fn output(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
 }
 
@@ -63,6 +65,12 @@ impl Debug for Error {
 #[derive(Clone)]
 pub struct ErrorList {
 	head: Option<Arc<ErrorNode>>,
+}
+
+impl Default for ErrorList {
+	fn default() -> Self {
+		Self::new()
+	}
 }
 
 #[allow(unused)]

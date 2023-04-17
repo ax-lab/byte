@@ -8,15 +8,16 @@ use super::*;
 
 #[derive(Debug)]
 pub struct Raw {
-	list: Vec<Node>,
-	done: usize,
+	expr: NodeExprList,
 }
 
 has_traits!(Raw);
 
 impl Raw {
-	pub fn new(list: Vec<Node>) -> Self {
-		todo!()
+	pub fn new(list: Vec<Node>, scope: Scope) -> Self {
+		Self {
+			expr: NodeExprList::new(list, scope),
+		}
 	}
 }
 
@@ -58,6 +59,7 @@ impl std::fmt::Display for RawExpr {
 //----------------------------------------------------------------------------//
 
 pub struct NodeExprList {
+	scope: Scope,
 	list: Vec<Node>,
 	next: usize,
 	ops: VecDeque<(Op, Node)>,
@@ -65,7 +67,24 @@ pub struct NodeExprList {
 	errors: ErrorList,
 }
 
+impl std::fmt::Debug for NodeExprList {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{:?}", self.list)
+	}
+}
+
 impl NodeExprList {
+	pub fn new(list: Vec<Node>, scope: Scope) -> Self {
+		Self {
+			scope,
+			list,
+			next: 0,
+			ops: Default::default(),
+			values: Default::default(),
+			errors: Default::default(),
+		}
+	}
+
 	pub fn reduce(&mut self) -> NodeEval {
 		if self.next >= self.list.len() {
 			return self.check_pending();
@@ -110,7 +129,7 @@ impl NodeExprList {
 
 					// Create a raw with the sub expression and append it as a node
 					let expr = self.list.split_off(self.next);
-					let expr = Raw::new(expr);
+					let expr = Raw::new(expr, self.scope.clone());
 					let expr = Node::new(expr);
 					self.list.push(expr.clone());
 					self.list.append(&mut tail);
