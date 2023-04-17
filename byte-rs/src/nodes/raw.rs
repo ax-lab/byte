@@ -22,7 +22,7 @@ impl Raw {
 }
 
 impl IsNode for Raw {
-	fn eval(&mut self) -> NodeEval {
+	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval {
 		todo!()
 	}
 }
@@ -43,8 +43,8 @@ pub enum RawExpr {
 has_traits!(RawExpr);
 
 impl IsNode for RawExpr {
-	fn eval(&mut self) -> NodeEval {
-		NodeEval::Complete
+	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval {
+		todo!()
 	}
 }
 

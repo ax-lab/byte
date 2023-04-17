@@ -10,22 +10,29 @@ const NUM_RESOLVERS: usize = 1;
 
 pub struct NodeResolver {
 	queue: Arc<NodeQueue>,
+	errors: Arc<Mutex<ErrorList>>,
 }
 
 impl NodeResolver {
 	pub fn new() -> Self {
 		let result = Self {
 			queue: Default::default(),
+			errors: Default::default(),
 		};
 
 		for _ in 0..NUM_RESOLVERS {
 			let queue = result.queue.clone();
+			let errors = result.errors.clone();
 			thread::spawn(move || {
-				Self::process_queue(queue);
+				Self::process_queue(queue, errors);
 			});
 		}
 
 		result
+	}
+
+	pub fn errors(&self) -> ErrorList {
+		self.errors.lock().unwrap().clone()
 	}
 
 	pub fn resolve(&mut self, node: Node) {
@@ -37,12 +44,18 @@ impl NodeResolver {
 		self.queue.wait();
 	}
 
-	fn process_queue(mut queue: Arc<NodeQueue>) {
+	fn process_queue(mut queue: Arc<NodeQueue>, errors: Arc<Mutex<ErrorList>>) {
 		while let Some(mut node) = queue.take_next() {
 			let eval = {
 				let node = node.val();
 				let mut node = node.write().unwrap();
-				node.eval()
+				let mut eval_errors = ErrorList::new();
+				let result = node.eval(&mut eval_errors);
+				if !eval_errors.empty() {
+					let mut errors = errors.lock().unwrap();
+					errors.append(eval_errors);
+				}
+				result
 			};
 			match eval {
 				NodeEval::Complete => {
@@ -358,7 +371,7 @@ mod tests {
 	has_traits!(SimpleNode);
 
 	impl IsNode for SimpleNode {
-		fn eval(&mut self) -> NodeEval {
+		fn eval(&mut self, _: &mut ErrorList) -> NodeEval {
 			let mut out = self.out.lock().unwrap();
 			out.push(format!("{} done", self.name));
 			NodeEval::Complete
@@ -396,7 +409,7 @@ mod tests {
 	has_traits!(ComplexNode);
 
 	impl IsNode for ComplexNode {
-		fn eval(&mut self) -> NodeEval {
+		fn eval(&mut self, _: &mut ErrorList) -> NodeEval {
 			let mut next = self.next.lock().unwrap();
 			let state = *next;
 			*next += 1;

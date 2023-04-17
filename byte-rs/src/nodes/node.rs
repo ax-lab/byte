@@ -59,7 +59,7 @@ pub struct Node {
 
 /// Root trait implemented for a [`Node`] underlying value.
 pub trait IsNode: HasTraits + Display {
-	fn eval(&mut self) -> NodeEval;
+	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval;
 
 	fn span(&self) -> Option<Span> {
 		None

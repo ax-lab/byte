@@ -83,6 +83,12 @@ impl ErrorList {
 		self.head.is_none()
 	}
 
+	pub fn append(&mut self, errors: ErrorList) {
+		for err in errors.list().into_iter() {
+			self.add(err);
+		}
+	}
+
 	pub fn add(&mut self, error: Error) {
 		let prev = std::mem::take(&mut self.head);
 		let node = ErrorNode { error, prev };
