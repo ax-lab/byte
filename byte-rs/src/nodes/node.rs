@@ -240,7 +240,7 @@ impl Debug for Node {
 			let span = value.span.clone();
 			(node, span)
 		};
-		let node = node.read().unwrap();
+		let node = node.read().unwrap_or_else(|err| err.into_inner());
 		write!(f, "{node:?}")?;
 		if let Some(span) = span {
 			write!(f, " at {span}")?;

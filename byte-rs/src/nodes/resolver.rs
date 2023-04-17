@@ -47,10 +47,26 @@ impl NodeResolver {
 	fn process_queue(mut queue: Arc<NodeQueue>, errors: Arc<Mutex<ErrorList>>) {
 		while let Some(mut node) = queue.take_next() {
 			let eval = {
-				let node = node.val();
-				let mut node = node.write().unwrap();
-				let mut eval_errors = ErrorList::new();
-				let result = node.eval(&mut eval_errors);
+				let value = node.val();
+				let mut value = value.write().unwrap();
+				let result = std::panic::catch_unwind(move || {
+					let mut eval_errors = ErrorList::new();
+					let result = value.eval(&mut eval_errors);
+					(result, eval_errors)
+				});
+				let (result, eval_errors) = match result {
+					Ok(value) => value,
+					Err(err) => {
+						let mut errors = ErrorList::new();
+						let err = err
+							.downcast_ref::<&str>()
+							.map(|x| x.to_string())
+							.or_else(|| err.downcast_ref::<String>().cloned())
+							.unwrap_or_default();
+						errors.add(Error::new(format!("eval panicked: {err:?}\n\t-> {node:?}")));
+						(NodeEval::Complete, errors)
+					}
+				};
 				if !eval_errors.empty() {
 					let mut errors = errors.lock().unwrap();
 					errors.append(eval_errors);
