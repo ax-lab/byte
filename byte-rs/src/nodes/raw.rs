@@ -22,7 +22,7 @@ impl Raw {
 
 impl IsNode for Raw {
 	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval {
-		todo!()
+		self.expr.reduce(errors)
 	}
 }
 
@@ -43,7 +43,6 @@ impl std::fmt::Debug for Raw {
 	}
 }
 
-#[derive(Debug)]
 pub enum RawExpr {
 	Unary(OpUnary, Node),
 	Binary(OpBinary, Node, Node),
@@ -54,13 +53,56 @@ has_traits!(RawExpr);
 
 impl IsNode for RawExpr {
 	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval {
-		todo!()
+		let mut deps = Vec::new();
+		match self {
+			RawExpr::Unary(_, a) => {
+				if !a.is_done() {
+					deps.push(a.clone());
+				}
+			}
+			RawExpr::Binary(_, a, b) => {
+				if !a.is_done() {
+					deps.push(a.clone());
+				}
+				if !b.is_done() {
+					deps.push(b.clone());
+				}
+			}
+			RawExpr::Ternary(_, a, b, c) => {
+				if !a.is_done() {
+					deps.push(a.clone());
+				}
+				if !b.is_done() {
+					deps.push(b.clone());
+				}
+				if !c.is_done() {
+					deps.push(c.clone());
+				}
+			}
+		}
+		if deps.len() > 0 {
+			NodeEval::DependsOn(deps)
+		} else {
+			NodeEval::Complete
+		}
 	}
 }
 
 impl std::fmt::Display for RawExpr {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{self:?}")
+	}
+}
+
+impl std::fmt::Debug for RawExpr {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::Unary(op, val) => write!(f, "Unary:{op:?}({val:?})"),
+			Self::Binary(op, lhs, rhs) => write!(f, "Binary:{op:?}(\n    {lhs:?}\n    {rhs:?}\n)"),
+			Self::Ternary(op, a, b, c) => {
+				write!(f, "Ternary:{op:?}(\n    {a:?}\n    {b:?}\n    {c:?}\n    )")
+			}
+		}
 	}
 }
 
@@ -74,7 +116,6 @@ pub struct NodeExprList {
 	next: usize,
 	ops: VecDeque<(Op, Node)>,
 	values: VecDeque<Node>,
-	errors: ErrorList,
 }
 
 impl std::fmt::Debug for NodeExprList {
@@ -91,11 +132,10 @@ impl NodeExprList {
 			next: 0,
 			ops: Default::default(),
 			values: Default::default(),
-			errors: Default::default(),
 		}
 	}
 
-	pub fn reduce(&mut self) -> NodeEval {
+	pub fn reduce(&mut self, errors: &mut ErrorList) -> NodeEval {
 		if self.next >= self.list.len() {
 			return self.check_pending();
 		}
@@ -105,22 +145,22 @@ impl NodeExprList {
 				// the unary operator doesn't affect other operators on the stack
 				// because it binds forward to the next operator
 				let op = Op::Unary(op);
-				self.push_op(op, self.next().clone());
+				self.push_op(op, self.next().unwrap().clone());
 				self.advance();
 			}
 
-			let next = self.next().clone();
+			let next = self.next().cloned();
 			match self.is_value() {
 				Some(true) => {
-					self.values.push_back(next);
+					self.values.push_back(next.unwrap());
 					self.advance();
 				}
 				Some(false) => {
-					self.errors.at(next.span(), "expected a value expression");
+					errors.at(next.and_then(|x| x.span()), "expected a value expression");
 					return NodeEval::Complete;
 				}
 				None => {
-					return NodeEval::DependsOn(vec![next]);
+					return NodeEval::DependsOn(vec![next.unwrap()]);
 				}
 			}
 
@@ -129,7 +169,7 @@ impl NodeExprList {
 			// Ternary and binary operators work similarly, but the ternary will
 			// parse the middle expression as parenthesized.
 			if let Some((op, end)) = self.get_ternary() {
-				let node = self.next().clone();
+				let node = self.next().unwrap().clone();
 				self.advance();
 				let op = Op::Ternary(op);
 				self.push_op(op, node.clone());
@@ -144,14 +184,14 @@ impl NodeExprList {
 					self.list.push(expr.clone());
 					self.list.append(&mut tail);
 				} else {
-					self.errors.at(
+					errors.at(
 						node.span(),
 						format!("symbol `{end}` for ternary operator {node} not found"),
 					);
 					return NodeEval::Complete;
 				}
 			} else if let Some(op) = self.get_binary() {
-				let node = self.next().clone();
+				let node = self.next().unwrap().clone();
 				let op = Op::Binary(op);
 				self.push_op(op, node);
 				self.advance();
@@ -167,21 +207,20 @@ impl NodeExprList {
 
 		// check that there was no unparsed portion of the expression
 		if self.next < self.values.len() {
-			if self.errors.empty() {
-				self.errors
-					.at(self.values[self.next].span(), "expected end of expression");
+			if errors.empty() {
+				errors.at(self.values[self.next].span(), "expected end of expression");
 			}
 			return NodeEval::Complete;
 		}
 
 		if self.values.len() == 0 {
-			if self.errors.empty() {
+			if errors.empty() {
 				let sta = self.list.first().and_then(|x| x.span());
 				let end = self.list.last().and_then(|x| x.span());
 				let span = Span::from_range(sta, end);
-				self.errors.at(span, "invalid expression");
+				errors.at(span, "invalid expression");
 			}
-			NodeEval::Complete
+			self.check_pending()
 		} else {
 			assert!(self.values.len() == 1);
 			let expr = self.values.pop_back().unwrap();
@@ -263,8 +302,8 @@ impl NodeExprList {
 	// Helpers
 	//------------------------------------------------------------------------//
 
-	pub fn next(&self) -> &Node {
-		&self.list[self.next]
+	pub fn next(&self) -> Option<&Node> {
+		self.list.get(self.next)
 	}
 
 	pub fn advance(&mut self) {
@@ -299,7 +338,7 @@ impl NodeExprList {
 	}
 
 	pub fn is_value(&mut self) -> Option<bool> {
-		let node = self.next();
+		let node = self.next()?;
 		let next = node.val();
 		let next = next.read().unwrap();
 		let next = &**next;
@@ -314,7 +353,7 @@ impl NodeExprList {
 	}
 
 	pub fn get_unary_pre(&self) -> Option<OpUnary> {
-		let next = self.next().val();
+		let next = self.next()?.val();
 		let next = next.read().unwrap();
 		let next = &**next;
 		let node = to_trait!(next, IsOperatorNode);
@@ -322,7 +361,7 @@ impl NodeExprList {
 	}
 
 	pub fn get_binary(&self) -> Option<OpBinary> {
-		let next = self.next().val();
+		let next = self.next()?.val();
 		let next = next.read().unwrap();
 		let next = &**next;
 		let node = to_trait!(next, IsOperatorNode);
@@ -330,7 +369,7 @@ impl NodeExprList {
 	}
 
 	pub fn get_ternary(&mut self) -> Option<(OpTernary, &'static str)> {
-		let next = self.next().val();
+		let next = self.next()?.val();
 		let next = next.read().unwrap();
 		let next = &**next;
 		let node = to_trait!(next, IsOperatorNode);

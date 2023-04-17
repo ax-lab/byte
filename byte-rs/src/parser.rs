@@ -28,10 +28,16 @@ pub fn parse(input: crate::core::input::Input) {
 		std::process::exit(1);
 	}
 
-	for it in list.into_iter() {
-		println!("\n>>> {:?}\n{it:#?}", it.span());
+	for (i, it) in list.into_iter().enumerate() {
+		let span = if let Some(span) = it.span() {
+			format!("{span:?}")
+		} else {
+			String::new()
+		};
+		println!("\n>>> Node {}: {span}\n\n{it:#?}", i + 1);
 	}
 
+	println!();
 	std::process::exit(0);
 }
 
