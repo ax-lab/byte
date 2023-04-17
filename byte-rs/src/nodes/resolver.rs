@@ -33,6 +33,7 @@ impl NodeResolver {
 	}
 
 	pub fn wait(&self) {
+		self.queue.done();
 		self.queue.wait();
 	}
 
@@ -80,6 +81,12 @@ impl NodeQueue {
 	pub fn push(&self, node: Node) {
 		let mut queue = self.queue.lock().unwrap();
 		queue.add(node);
+		self.signal.notify_all();
+	}
+
+	pub fn done(&self) {
+		let mut queue = self.queue.lock().unwrap();
+		queue.done();
 		self.signal.notify_all();
 	}
 
@@ -132,6 +139,8 @@ impl NodeQueue {
 
 #[derive(Default)]
 struct NodeQueueInner {
+	done: bool,
+
 	/// Queue of nodes next in line for processing.
 	ready: VecDeque<Node>,
 
@@ -244,9 +253,13 @@ impl NodeQueueInner {
 		}
 	}
 
+	pub fn done(&mut self) {
+		self.done = true;
+	}
+
 	/// Returns true when all added nodes have been processed.
 	pub fn is_done(&self) -> bool {
-		let done = self.ready.len() == 0 && self.processing.len() == 0;
+		let done = self.done && self.ready.len() == 0 && self.processing.len() == 0;
 		if done {
 			assert!(self.waiting.len() == 0);
 			assert!(self.added.len() == 0);
