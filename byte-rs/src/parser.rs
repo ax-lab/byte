@@ -1,29 +1,30 @@
-mod blocks;
-mod context;
-mod error;
-mod statement;
+use crate::lexer::*;
+use crate::nodes::*;
 
-pub use context::*;
+mod error;
+
 pub use error::*;
-pub use statement::*;
 
 pub fn parse(input: crate::core::input::Input) {
-	let mut ctx = open(input);
+	let mut lexer = open(input);
 	let mut list = Vec::new();
-	loop {
-		let next = parse_next(&mut ctx);
-		if let Statement::End(..) = next {
-			break;
-		}
-
-		let next = next.resolve(&mut ctx);
-		if let Some(next) = next {
-			list.push(next);
-		}
+	let mut resolver = NodeResolver::new();
+	while let Some(next) = parse_next(&mut lexer) {
+		list.push(next.clone());
+		resolver.resolve(next);
 	}
 
-	if ctx.has_errors() {
-		super::print_error_list(ctx.errors());
+	resolver.wait();
+
+	let errors = lexer.errors();
+	if !errors.empty() {
+		super::print_error_list(errors);
+		std::process::exit(1);
+	}
+
+	let errors = resolver.errors();
+	if !errors.empty() {
+		super::print_error_list(errors);
 		std::process::exit(1);
 	}
 
@@ -34,58 +35,47 @@ pub fn parse(input: crate::core::input::Input) {
 	std::process::exit(0);
 }
 
-pub fn open(input: crate::core::input::Input) -> Context {
-	use crate::core::input::*;
+pub fn open(input: crate::core::input::Input) -> Lexer {
 	use crate::lang::*;
-	use crate::lexer::*;
 
-	let lexer = create_lexer(input);
-	let context = Context::new(lexer);
-	return context;
+	let mut lexer = Lexer::new(input.start(), Scanner::new());
+	lexer.config(|scanner| {
+		scanner.add_matcher(Comment);
+		scanner.add_matcher(Identifier);
+		scanner.add_matcher(Literal);
+		scanner.add_matcher(Integer);
 
-	fn create_lexer(input: Input) -> Lexer {
-		let mut lexer = Lexer::new(input.start(), Scanner::new());
-		lexer.config(|scanner| {
-			scanner.add_matcher(Comment);
-			scanner.add_matcher(Identifier);
-			scanner.add_matcher(Literal);
-			scanner.add_matcher(Integer);
+		scanner.add_symbol("(", Token::Symbol("("));
+		scanner.add_symbol(")", Token::Symbol(")"));
+		scanner.add_symbol(",", Token::Symbol(","));
+		scanner.add_symbol(";", Token::Symbol(";"));
+		scanner.add_symbol(":", Token::Symbol(":"));
 
-			scanner.add_symbol("(", Token::Symbol("("));
-			scanner.add_symbol(")", Token::Symbol(")"));
-			scanner.add_symbol(",", Token::Symbol(","));
-			scanner.add_symbol(";", Token::Symbol(";"));
-			scanner.add_symbol(":", Token::Symbol(":"));
-
-			scanner.add_symbol("=", Token::Symbol("="));
-			scanner.add_symbol("+", Token::Symbol("+"));
-			scanner.add_symbol("-", Token::Symbol("-"));
-			scanner.add_symbol("%", Token::Symbol("%"));
-			scanner.add_symbol("==", Token::Symbol("=="));
-			scanner.add_symbol("..", Token::Symbol(".."));
-		});
-		lexer
-	}
+		scanner.add_symbol("=", Token::Symbol("="));
+		scanner.add_symbol("+", Token::Symbol("+"));
+		scanner.add_symbol("-", Token::Symbol("-"));
+		scanner.add_symbol("%", Token::Symbol("%"));
+		scanner.add_symbol("==", Token::Symbol("=="));
+		scanner.add_symbol("..", Token::Symbol(".."));
+	});
+	lexer
 }
 
-pub fn parse_next(ctx: &mut Context) -> Statement {
-	use crate::core::error::*;
-	use crate::lexer::*;
-
-	let next = ctx.next();
-	if next.is_none() {
-		Statement::End(ctx.pos())
+fn parse_next(lexer: &mut Lexer) -> Option<Node> {
+	if lexer.next().is_none() {
+		None
 	} else {
-		let expr = blocks::parse_line_expr(ctx);
-		while ctx.next().is_some() {
-			let next = ctx.read();
+		let mut expr = Vec::new();
+		while lexer.next().is_some() {
+			let next = lexer.read();
 			if next.token() == Token::Break {
 				break;
-			} else if !ctx.has_errors() {
-				let span = next.span();
-				ctx.add_error(Error::new(ParserError::ExpectedEnd(next)).at(span));
 			}
+			let next = Node::new(Atom::from(next));
+			expr.push(next);
 		}
-		Statement::Expr(expr)
+		let expr = Raw::new(expr, Scope::new());
+		let expr = Node::new(expr);
+		Some(expr)
 	}
 }

@@ -11,6 +11,10 @@ use crate::core::str::*;
 pub struct Scope {}
 
 impl Scope {
+	pub fn new() -> Scope {
+		Scope {}
+	}
+
 	/// Return the root scope for the current hierarchy.
 	pub fn root(&self) -> Scope {
 		todo!()

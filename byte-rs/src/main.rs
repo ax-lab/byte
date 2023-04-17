@@ -130,6 +130,7 @@ fn print_error_list(errors: crate::core::error::ErrorList) {
 			}
 			eprintln!();
 		}
+		eprintln!();
 	}
 }
 
