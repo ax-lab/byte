@@ -67,7 +67,7 @@ impl Token {
 /// This provides token's [`Span`] position, which provides access to the raw
 /// text for the token. This is useful for error messages and is sometimes
 /// necessary to parse the value of the token.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct TokenAt(pub Span, pub Token);
 
 impl TokenAt {
@@ -136,6 +136,12 @@ impl std::fmt::Display for TokenAt {
 			}
 			Token::Other(value) => write!(f, "{value}"),
 		}
+	}
+}
+
+impl std::fmt::Debug for TokenAt {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "<{:?} {:?}>", self.1, self.0)
 	}
 }
 

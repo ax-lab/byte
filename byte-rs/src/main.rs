@@ -119,12 +119,12 @@ fn print_errors(ctx: &lexer::Lexer) {
 fn print_error_list(errors: crate::core::error::ErrorList) {
 	if !errors.empty() {
 		let mut has_errors = false;
-		for it in errors.list() {
+		for (i, it) in errors.list().into_iter().enumerate() {
 			if !has_errors {
 				eprintln!("\n---- Errors ----\n");
 				has_errors = true;
 			}
-			eprint!("    error: {it}");
+			eprint!("[Error {}] {it}", i + 1);
 			if let Some(span) = it.span() {
 				eprint!(" at {}", span);
 			}

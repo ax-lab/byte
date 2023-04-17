@@ -63,7 +63,10 @@ impl NodeResolver {
 							.map(|x| x.to_string())
 							.or_else(|| err.downcast_ref::<String>().cloned())
 							.unwrap_or_default();
-						errors.add(Error::new(format!("eval panicked: {err:?}\n\t-> {node:?}")));
+						errors.add(Error::new(format!(
+							"eval panicked: {err:?}\n\n{}\n\n{node:?}\n",
+							">>> Node <<<"
+						)));
 						(NodeEval::Complete, errors)
 					}
 				};

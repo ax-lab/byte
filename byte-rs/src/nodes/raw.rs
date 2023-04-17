@@ -6,7 +6,6 @@ use crate::vm::operators::*;
 
 use super::*;
 
-#[derive(Debug)]
 pub struct Raw {
 	expr: NodeExprList,
 }
@@ -30,6 +29,17 @@ impl IsNode for Raw {
 impl std::fmt::Display for Raw {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{self:?}")
+	}
+}
+
+impl std::fmt::Debug for Raw {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "Raw {{")?;
+		for (i, it) in self.expr.list.iter().enumerate() {
+			write!(f, "\n    {it:?}")?;
+		}
+		write!(f, "\n}}")?;
+		Ok(())
 	}
 }
 

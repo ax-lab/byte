@@ -45,7 +45,6 @@ impl Error {
 
 impl Display for Error {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "error: ")?;
 		self.info.output(f)?;
 		if let Some(span) = self.span() {
 			write!(f, "\n")?;

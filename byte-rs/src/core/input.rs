@@ -134,15 +134,12 @@ impl Span {
 
 impl std::fmt::Debug for Span {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(
-			f,
-			"[{}~{} @{} {}..{}]",
-			self.sta,
-			self.end,
-			self.src().name(),
-			self.sta.offset(),
-			self.end.offset(),
-		)
+		let src = self.src().name();
+		if self.sta == self.end {
+			write!(f, "`{}`@{}", src, self.sta)
+		} else {
+			write!(f, "`{}`@{}…{}", src, self.sta, self.end)
+		}
 	}
 }
 

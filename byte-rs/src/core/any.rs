@@ -211,7 +211,7 @@ macro_rules! is_value {
 		impl IsAnyValue for $t {
 			fn output(&self, f: &mut std::fmt::Formatter, debug: bool) -> std::fmt::Result {
 				if debug {
-					write!(f, "{}<{self:?}>", stringify!($t))
+					write!(f, "{}:={self:?}", stringify!($t))
 				} else {
 					write!(f, "{self}")
 				}
