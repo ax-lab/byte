@@ -1,10 +1,6 @@
 use crate::lexer::*;
 use crate::nodes::*;
 
-mod error;
-
-pub use error::*;
-
 pub fn parse(input: crate::core::input::Input) {
 	let mut lexer = open(input);
 	let mut list = Vec::new();
