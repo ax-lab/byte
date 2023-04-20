@@ -1,5 +1,7 @@
 use std::any::{Any, TypeId};
 
+use crate::core::*;
+
 use super::*;
 
 pub trait IsValue: 'static + Send + Sync {}
@@ -76,16 +78,14 @@ impl Value {
 #[derive(Copy, Clone)]
 pub union InnerValue {
 	pub bool: bool,
-	pub int: ValueInt,
-	pub float: ValueFloat,
+	pub int: num::Int,
+	pub float: num::Float,
 	pub ptr: *mut (),
 }
 
 impl Default for InnerValue {
 	fn default() -> Self {
-		InnerValue {
-			int: ValueInt { u64: 0 },
-		}
+		unsafe { std::mem::zeroed() }
 	}
 }
 
@@ -113,92 +113,70 @@ impl InnerValue {
 	}
 }
 
-#[derive(Copy, Clone)]
-pub union ValueInt {
-	pub any: u64,
-	pub i8: i8,
-	pub u8: u8,
-	pub i16: i16,
-	pub i32: i32,
-	pub i64: i64,
-	pub u16: u16,
-	pub u32: u32,
-	pub u64: u64,
-	pub isize: isize,
-	pub usize: usize,
-}
-
-impl ValueInt {
-	pub fn new(typ: TypeInt, val: ValueInt) -> Value {
+impl num::Int {
+	pub fn new(typ: kind::Int, val: num::Int) -> Value {
 		Value(Type::Int(typ), InnerValue { int: val })
 	}
 
 	pub fn i8(value: i8) -> Value {
-		Self::new(TypeInt::I8, ValueInt { i8: value })
+		Self::new(kind::Int::I8, num::Int { i8: value })
 	}
 
 	pub fn i16(value: i16) -> Value {
-		Self::new(TypeInt::I16, ValueInt { i16: value })
+		Self::new(kind::Int::I16, num::Int { i16: value })
 	}
 
 	pub fn i32(value: i32) -> Value {
-		Self::new(TypeInt::I32, ValueInt { i32: value })
+		Self::new(kind::Int::I32, num::Int { i32: value })
 	}
 
 	pub fn i64(value: i64) -> Value {
-		Self::new(TypeInt::I64, ValueInt { i64: value })
+		Self::new(kind::Int::I64, num::Int { i64: value })
 	}
 
 	pub fn isize(value: isize) -> Value {
-		Self::new(TypeInt::ISize, ValueInt { isize: value })
+		Self::new(kind::Int::ISize, num::Int { isize: value })
 	}
 
 	pub fn u8(value: u8) -> Value {
-		Self::new(TypeInt::U8, ValueInt { u8: value })
+		Self::new(kind::Int::U8, num::Int { u8: value })
 	}
 
 	pub fn u16(value: u16) -> Value {
-		Self::new(TypeInt::U16, ValueInt { u16: value })
+		Self::new(kind::Int::U16, num::Int { u16: value })
 	}
 
 	pub fn u32(value: u32) -> Value {
-		Self::new(TypeInt::U32, ValueInt { u32: value })
+		Self::new(kind::Int::U32, num::Int { u32: value })
 	}
 
 	pub fn u64(value: u64) -> Value {
-		Self::new(TypeInt::U64, ValueInt { u64: value })
+		Self::new(kind::Int::U64, num::Int { u64: value })
 	}
 
 	pub fn usize(value: usize) -> Value {
-		Self::new(TypeInt::USize, ValueInt { usize: value })
+		Self::new(kind::Int::USize, num::Int { usize: value })
 	}
 
-	pub fn any(value: u64) -> Value {
-		Self::new(TypeInt::Any, ValueInt { any: value })
+	pub fn any(value: num::AnyInt) -> Value {
+		Self::new(kind::Int::Any, num::Int { any: value })
 	}
 }
 
-#[derive(Copy, Clone)]
-pub union ValueFloat {
-	pub any: f64,
-	pub f32: f32,
-	pub f64: f64,
-}
-
-impl ValueFloat {
-	pub fn new(typ: TypeFloat, val: ValueFloat) -> Value {
+impl num::Float {
+	pub fn new(typ: kind::Float, val: num::Float) -> Value {
 		Value(Type::Float(typ), InnerValue { float: val })
 	}
 
 	pub fn f32(value: f32) -> Value {
-		Self::new(TypeFloat::F32, ValueFloat { f32: value })
+		Self::new(kind::Float::F32, num::Float { f32: value })
 	}
 
 	pub fn f64(value: f64) -> Value {
-		Self::new(TypeFloat::F64, ValueFloat { f64: value })
+		Self::new(kind::Float::F64, num::Float { f64: value })
 	}
 
 	pub fn any(value: f64) -> Value {
-		Self::new(TypeFloat::Any, ValueFloat { any: value })
+		Self::new(kind::Float::Any, num::Float { any: value })
 	}
 }

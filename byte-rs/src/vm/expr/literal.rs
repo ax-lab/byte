@@ -1,4 +1,5 @@
 use crate::core::str::*;
+use crate::core::*;
 
 use super::strings::StrValue;
 use super::*;
@@ -15,7 +16,7 @@ impl IsExpr for Literal {
 		match self {
 			Literal::Bool(value) => Value::bool(*value),
 			Literal::String(value) => StrValue::new(value.clone()),
-			Literal::Integer(value) => ValueInt::any(*value),
+			Literal::Integer(value) => num::Int::any(*value as num::AnyInt),
 		}
 	}
 
@@ -23,7 +24,7 @@ impl IsExpr for Literal {
 		match self {
 			Literal::Bool(..) => Type::Bool,
 			Literal::String(..) => StrValue::get_type(),
-			Literal::Integer(..) => Type::Int(TypeInt::Any),
+			Literal::Integer(..) => Type::Int(kind::Int::Any),
 		}
 	}
 }

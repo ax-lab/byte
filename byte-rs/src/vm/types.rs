@@ -2,6 +2,8 @@ use std::any::TypeId;
 use std::fmt::Display;
 use std::sync::Arc;
 
+use crate::core::num::*;
+
 use super::*;
 
 pub trait IsType: 'static + Display {
@@ -19,8 +21,8 @@ pub enum Type {
 	Unit,
 	Never,
 	Bool,
-	Int(TypeInt),
-	Float(TypeFloat),
+	Int(kind::Int),
+	Float(kind::Float),
 	Other(OtherType),
 }
 
@@ -30,28 +32,6 @@ impl Type {
 		let typ = Box::leak(typ) as *const dyn IsType;
 		Type::Other(OtherType(typ))
 	}
-}
-
-#[derive(Copy, Clone, Eq, PartialEq)]
-pub enum TypeInt {
-	Any,
-	I8,
-	U8,
-	I16,
-	I32,
-	I64,
-	U16,
-	U32,
-	U64,
-	ISize,
-	USize,
-}
-
-#[derive(Copy, Clone, Eq, PartialEq)]
-pub enum TypeFloat {
-	Any,
-	F32,
-	F64,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]

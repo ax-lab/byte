@@ -1,5 +1,7 @@
 use std::fmt::*;
 
+use crate::core::num::*;
+
 use super::expr::*;
 use super::*;
 
@@ -62,25 +64,25 @@ fn print_value(typ: &Type, val: &InnerValue, f: &mut Formatter) -> Result {
 		Type::Int(typ) => {
 			let val = unsafe { &val.int };
 			match typ {
-				TypeInt::Any => write!(f, "{}", unsafe { val.any }),
-				TypeInt::I8 => write!(f, "{}", unsafe { val.i8 }),
-				TypeInt::U8 => write!(f, "{}", unsafe { val.u8 }),
-				TypeInt::I16 => write!(f, "{}", unsafe { val.i16 }),
-				TypeInt::I32 => write!(f, "{}", unsafe { val.i32 }),
-				TypeInt::I64 => write!(f, "{}", unsafe { val.i64 }),
-				TypeInt::U16 => write!(f, "{}", unsafe { val.u16 }),
-				TypeInt::U32 => write!(f, "{}", unsafe { val.u32 }),
-				TypeInt::U64 => write!(f, "{}", unsafe { val.u64 }),
-				TypeInt::ISize => write!(f, "{}", unsafe { val.isize }),
-				TypeInt::USize => write!(f, "{}", unsafe { val.usize }),
+				kind::Int::Any => write!(f, "{}", unsafe { val.any }),
+				kind::Int::I8 => write!(f, "{}", unsafe { val.i8 }),
+				kind::Int::U8 => write!(f, "{}", unsafe { val.u8 }),
+				kind::Int::I16 => write!(f, "{}", unsafe { val.i16 }),
+				kind::Int::I32 => write!(f, "{}", unsafe { val.i32 }),
+				kind::Int::I64 => write!(f, "{}", unsafe { val.i64 }),
+				kind::Int::U16 => write!(f, "{}", unsafe { val.u16 }),
+				kind::Int::U32 => write!(f, "{}", unsafe { val.u32 }),
+				kind::Int::U64 => write!(f, "{}", unsafe { val.u64 }),
+				kind::Int::ISize => write!(f, "{}", unsafe { val.isize }),
+				kind::Int::USize => write!(f, "{}", unsafe { val.usize }),
 			}
 		}
 		Type::Float(typ) => {
 			let val = unsafe { &val.float };
 			match typ {
-				TypeFloat::Any => write!(f, "{}", unsafe { val.any }),
-				TypeFloat::F32 => write!(f, "{}", unsafe { val.f32 }),
-				TypeFloat::F64 => write!(f, "{}", unsafe { val.f64 }),
+				kind::Float::Any => write!(f, "{}", unsafe { val.any }),
+				kind::Float::F32 => write!(f, "{}", unsafe { val.f32 }),
+				kind::Float::F64 => write!(f, "{}", unsafe { val.f64 }),
 			}
 		}
 		Type::Other(typ) => typ.get().fmt_val(val, f),
@@ -93,22 +95,22 @@ fn print_type(typ: &Type, f: &mut Formatter) -> Result {
 		Type::Unit => write!(f, "Unit"),
 		Type::Bool => write!(f, "Bool"),
 		Type::Int(typ) => match typ {
-			TypeInt::Any => write!(f, "Int⟨_⟩"),
-			TypeInt::I8 => write!(f, "Int⟨8⟩"),
-			TypeInt::U8 => write!(f, "Uint⟨8⟩"),
-			TypeInt::I16 => write!(f, "Int⟨16⟩"),
-			TypeInt::I32 => write!(f, "Int⟨32⟩"),
-			TypeInt::I64 => write!(f, "Int⟨64⟩"),
-			TypeInt::U16 => write!(f, "Uint⟨16⟩"),
-			TypeInt::U32 => write!(f, "Uint⟨32⟩"),
-			TypeInt::U64 => write!(f, "Uint⟨64⟩"),
-			TypeInt::ISize => write!(f, "Int⟨size⟩"),
-			TypeInt::USize => write!(f, "Uint⟨size⟩"),
+			kind::Int::Any => write!(f, "Int⟨_⟩"),
+			kind::Int::I8 => write!(f, "Int⟨8⟩"),
+			kind::Int::U8 => write!(f, "Uint⟨8⟩"),
+			kind::Int::I16 => write!(f, "Int⟨16⟩"),
+			kind::Int::I32 => write!(f, "Int⟨32⟩"),
+			kind::Int::I64 => write!(f, "Int⟨64⟩"),
+			kind::Int::U16 => write!(f, "Uint⟨16⟩"),
+			kind::Int::U32 => write!(f, "Uint⟨32⟩"),
+			kind::Int::U64 => write!(f, "Uint⟨64⟩"),
+			kind::Int::ISize => write!(f, "Int⟨size⟩"),
+			kind::Int::USize => write!(f, "Uint⟨size⟩"),
 		},
 		Type::Float(typ) => match typ {
-			TypeFloat::Any => write!(f, "Float⟨_⟩"),
-			TypeFloat::F32 => write!(f, "Float⟨32⟩"),
-			TypeFloat::F64 => write!(f, "Float⟨64⟩"),
+			kind::Float::Any => write!(f, "Float⟨_⟩"),
+			kind::Float::F32 => write!(f, "Float⟨32⟩"),
+			kind::Float::F64 => write!(f, "Float⟨64⟩"),
 		},
 		Type::Other(typ) => {
 			write!(f, "Type({})", typ.get())
