@@ -4,7 +4,6 @@ use std::fmt::*;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::panic::UnwindSafe;
-use std::ptr::NonNull;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::RwLockReadGuard;
@@ -27,12 +26,12 @@ impl<T: Any + Send + Sync + UnwindSafe> CanBox for T {}
 /// Blanket trait providing dynamic cloning capabilities for types that
 /// implement the [`Clone`] trait.
 pub trait DynClone {
-	fn clone_box(&self) -> Box<dyn IsValue>;
+	fn clone_box(&self) -> Arc<dyn IsValue>;
 }
 
 impl<T: CanBox + Clone> DynClone for T {
-	fn clone_box(&self) -> Box<dyn IsValue> {
-		Box::new(self.clone())
+	fn clone_box(&self) -> Arc<dyn IsValue> {
+		Arc::new(self.clone())
 	}
 }
 
@@ -43,15 +42,9 @@ pub struct Cell {
 	data: CellData,
 }
 
-impl Debug for Cell {
-	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-		todo!()
-	}
-}
-
 impl Clone for Cell {
 	fn clone(&self) -> Self {
-		if let CellKind::Other(..) = self.kind {
+		if let CellKind::Other = self.kind {
 			unsafe {
 				Arc::increment_strong_count(self.data.other.ptr);
 			};
@@ -65,7 +58,7 @@ impl Clone for Cell {
 
 impl Drop for Cell {
 	fn drop(&mut self) {
-		if let CellKind::Other(..) = self.kind {
+		if let CellKind::Other = self.kind {
 			unsafe {
 				Arc::decrement_strong_count(self.data.other.ptr);
 			};
@@ -106,7 +99,7 @@ impl Cell {
 		}
 	}
 
-	pub fn from<T: CanBox>(value: T) -> Cell {
+	pub fn from<T: IsValue>(value: T) -> Cell {
 		when_type!(value: T =>
 			bool {
 				return Cell {
@@ -142,7 +135,7 @@ impl Cell {
 
 		let other = CellPtr::new(value);
 		Cell {
-			kind: CellKind::Other(TypeId::of::<T>()),
+			kind: CellKind::Other,
 			data: CellData { other },
 		}
 	}
@@ -155,30 +148,27 @@ impl Cell {
 		self.kind == CellKind::Never
 	}
 
-	pub fn get<T: CanBox>(&self) -> Option<Ref<T>> {
+	pub fn get<T: IsValue>(&self) -> Option<&T> {
 		match self.kind {
 			CellKind::Never | CellKind::Unit => None,
 			CellKind::Bool => {
 				if TypeId::of::<T>() == TypeId::of::<bool>() {
 					let ptr = unsafe { std::mem::transmute(&self.data.bool) };
-					Some(Ref::Plain(ptr))
+					Some(ptr)
 				} else {
 					None
 				}
 			}
-			CellKind::Int(kind) => {
-				let ptr = unsafe { self.data.int.get::<T>(kind) };
-				ptr.map(|x| Ref::Plain(x))
-			}
-			CellKind::Float(kind) => {
-				let ptr = unsafe { self.data.float.get::<T>(kind) };
-				ptr.map(|x| Ref::Plain(x))
-			}
-			CellKind::Other(id) => {
-				if id == TypeId::of::<T>() {
-					let ptr = unsafe { self.data.other.ptr.as_ref().unwrap() };
-					let ptr = ptr.read().unwrap();
-					Some(Ref::Boxed(unsafe { std::mem::transmute(ptr) }))
+			CellKind::Int(kind) => unsafe { self.data.int.get::<T>(kind) },
+			CellKind::Float(kind) => unsafe { self.data.float.get::<T>(kind) },
+			CellKind::Other => {
+				let data = unsafe { self.data.other };
+				if data.id() == TypeId::of::<T>() {
+					let ptr = unsafe {
+						let ptr = data.ptr as *const T;
+						ptr.as_ref().unwrap()
+					};
+					Some(ptr)
 				} else {
 					None
 				}
@@ -186,75 +176,28 @@ impl Cell {
 		}
 	}
 
-	pub fn get_mut<T: CanBox>(&mut self) -> Option<RefMut<T>> {
+	pub fn get_mut<T: IsValue>(&mut self) -> Option<&mut T> {
 		match self.kind {
 			CellKind::Never | CellKind::Unit => None,
 			CellKind::Bool => {
 				if TypeId::of::<T>() == TypeId::of::<bool>() {
 					let ptr = unsafe { std::mem::transmute(&mut self.data.bool) };
-					Some(RefMut::Plain(ptr))
+					Some(ptr)
 				} else {
 					None
 				}
 			}
-			CellKind::Int(kind) => {
-				let ptr = unsafe { self.data.int.get_mut::<T>(kind) };
-				ptr.map(|x| RefMut::Plain(x))
-			}
-			CellKind::Float(kind) => {
-				let ptr = unsafe { self.data.float.get_mut::<T>(kind) };
-				ptr.map(|x| RefMut::Plain(x))
-			}
-			CellKind::Other(id) => {
-				if id == TypeId::of::<T>() {
-					let ptr = unsafe { self.data.other.ptr.as_ref().unwrap() };
-					let mut ptr = ptr.write().unwrap();
-					Some(RefMut::Boxed(unsafe { std::mem::transmute(ptr) }))
+			CellKind::Int(kind) => unsafe { self.data.int.get_mut::<T>(kind) },
+			CellKind::Float(kind) => unsafe { self.data.float.get_mut::<T>(kind) },
+			CellKind::Other => {
+				let mut data = unsafe { &mut self.data.other };
+				if data.id() == TypeId::of::<T>() {
+					let ptr = unsafe { (data.get_mut() as *mut T).as_mut().unwrap() };
+					Some(ptr)
 				} else {
 					None
 				}
 			}
-		}
-	}
-}
-
-pub enum Ref<'a, T: CanBox> {
-	Plain(&'a T),
-	Boxed(RwLockReadGuard<'a, Box<T>>),
-}
-
-pub enum RefMut<'a, T: CanBox> {
-	Plain(&'a mut T),
-	Boxed(RwLockWriteGuard<'a, Box<T>>),
-}
-
-impl<'a, T: CanBox> Deref for Ref<'a, T> {
-	type Target = T;
-
-	fn deref(&self) -> &Self::Target {
-		match self {
-			Ref::Plain(ptr) => ptr,
-			Ref::Boxed(ptr) => ptr,
-		}
-	}
-}
-
-impl<'a, T: CanBox> Deref for RefMut<'a, T> {
-	type Target = T;
-
-	fn deref(&self) -> &Self::Target {
-		match self {
-			RefMut::Plain(ptr) => ptr,
-			RefMut::Boxed(ptr) => ptr,
-		}
-	}
-}
-
-impl<'a, T: CanBox> DerefMut for RefMut<'a, T> {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		match self {
-			RefMut::Plain(ptr) => ptr,
-			RefMut::Boxed(ptr) => ptr,
 		}
 	}
 }
@@ -270,17 +213,50 @@ union CellData {
 
 #[derive(Copy, Clone)]
 struct CellPtr {
-	ptr: *const RwLock<Box<dyn CanBox>>,
+	id: TypeId,
+	ptr: *const dyn IsValue,
 }
 
 unsafe impl Send for CellPtr {}
 unsafe impl Sync for CellPtr {}
 
+impl UnwindSafe for CellPtr {}
+
 impl CellPtr {
-	pub fn new<T: CanBox>(value: T) -> Self {
-		let ptr: Box<dyn CanBox> = Box::new(value);
-		let ptr = Arc::new(RwLock::new(ptr));
+	pub fn new<T: IsValue>(value: T) -> Self {
+		let ptr: Arc<dyn IsValue> = Arc::new(value);
 		CellPtr {
+			id: TypeId::of::<T>(),
+			ptr: Arc::into_raw(ptr),
+		}
+	}
+
+	pub fn id(&self) -> TypeId {
+		self.id
+	}
+
+	pub fn get_mut(&mut self) -> *mut dyn IsValue {
+		unsafe {
+			let arc = std::mem::ManuallyDrop::new(Arc::from_raw(self.ptr));
+			let mut arc = if Arc::strong_count(&arc) != 1 {
+				let new_arc = arc.clone_box();
+				Arc::decrement_strong_count(self.ptr);
+				self.ptr = Arc::into_raw(new_arc);
+				std::mem::ManuallyDrop::new(Arc::from_raw(self.ptr))
+			} else {
+				arc
+			};
+			let ptr = Arc::get_mut(&mut arc).unwrap();
+			ptr
+		}
+	}
+
+	pub fn copy(&self) -> CellPtr {
+		let ptr = self.ptr;
+		let ptr = unsafe { self.ptr.as_ref().unwrap() };
+		let ptr = ptr.clone_box();
+		CellPtr {
+			id: self.id,
 			ptr: Arc::into_raw(ptr),
 		}
 	}
@@ -293,7 +269,7 @@ pub enum CellKind {
 	Bool,
 	Int(num::kind::Int),
 	Float(num::kind::Float),
-	Other(TypeId),
+	Other,
 }
 
 const _: () = {
@@ -383,46 +359,116 @@ mod tests {
 		check(&any, v1, v2);
 
 		fn check<T: IsValue + PartialEq + Clone + Debug>(cell: &Cell, v1: T, v2: T) {
+			// check that we don't cast to the wrong type
 			assert!(cell.get::<String>().is_none());
+
+			// make sure we are able to get the value
 			assert_eq!(*cell.get::<T>().unwrap(), v1);
 
+			// make sure invariants hold after cloning
 			let mut cell = cell.clone();
 			assert!(cell.get_mut::<String>().is_none());
 			assert_eq!(*cell.get::<T>().unwrap(), v1);
+
+			// test the mutable reference as well
 			assert_eq!(*cell.get_mut::<T>().unwrap(), v1);
 
+			let saved = cell.clone();
+
+			// change the value and check that it applied correctly
 			*(cell.get_mut::<T>().unwrap()) = v2.clone();
 			assert_eq!(*cell.get::<T>().unwrap(), v2);
 			assert_eq!(*cell.get_mut::<T>().unwrap(), v2);
+
+			// make sure the clone does not change
+			assert_eq!(*saved.get::<T>().unwrap(), v1);
 		}
 	}
 
 	#[test]
 	fn complex_type() {
-		struct X {
-			data: Arc<RwLock<i32>>,
+		use std::sync::atomic::*;
+
+		// Number of instances of X. Used to test drop and copy on write are
+		// correct.
+		static COUNTER: AtomicUsize = AtomicUsize::new(0);
+		let count = || COUNTER.load(Ordering::SeqCst) as usize;
+
+		struct X<'a> {
+			data: u32,
+			cnt: &'a AtomicUsize,
 		}
 
-		let my_data = Arc::new(RwLock::new(42));
-		let my_type = X {
-			data: my_data.clone(),
-		};
+		impl<'a> X<'a> {
+			pub fn new(data: u32, cnt: &'a AtomicUsize) -> Self {
+				cnt.fetch_add(1, Ordering::SeqCst);
+				Self { data, cnt }
+			}
+		}
 
-		let mut cell = Cell::from(my_type);
+		impl<'a> Clone for X<'a> {
+			fn clone(&self) -> Self {
+				self.cnt.fetch_add(1, Ordering::SeqCst);
+				Self {
+					data: self.data.clone(),
+					cnt: self.cnt.clone(),
+				}
+			}
+		}
+
+		impl<'a> Drop for X<'a> {
+			fn drop(&mut self) {
+				self.cnt.fetch_sub(1, Ordering::SeqCst);
+			}
+		}
+
+		// Create a new value and cell.
+		let x = X::new(42, &COUNTER);
+		let mut cell = Cell::from(x);
+
+		// Make sure we are not able to cast to the wrong type.
 		assert!(cell.get::<String>().is_none());
 		assert!(cell.get_mut::<String>().is_none());
 
+		// So far we only created one instance
+		assert_eq!(count(), 1);
+
+		let mut value = cell.get_mut::<X>().unwrap();
+		assert_eq!(count(), 1); // we are the single instance, so no copy
+		drop(value);
+
+		// Save the current value for later
+		let saved = cell.clone();
+		assert_eq!(count(), 1); // clone is copy-on-write
+
+		// Check that we can get a reference to the value
 		let value = cell.get::<X>().unwrap();
-		assert_eq!(*value.data.read().unwrap(), 42);
+		assert_eq!(value.data, 42);
 		drop(value);
 
-		let value = cell.get_mut::<X>().unwrap();
-		assert_eq!(*value.data.read().unwrap(), 42);
-		*value.data.write().unwrap() = 123;
+		// Check that we can get a mutable reference, this will copy
+		let mut value = cell.get_mut::<X>().unwrap();
+		assert_eq!(count(), 2);
+		assert_eq!(value.data, 42);
 
-		assert_eq!(*value.data.read().unwrap(), 123);
+		// Change the value
+		value.data = 123;
 		drop(value);
 
-		assert_eq!(*my_data.read().unwrap(), 123);
+		// Check that the change affected the original...
+		let value = cell.get::<X>().unwrap();
+		assert_eq!(value.data, 123);
+		drop(value);
+
+		// ...but not the clone
+		assert_eq!(saved.get::<X>().unwrap().data, 42);
+
+		// At the end we must have two instances...
+		assert_eq!(count(), 2);
+		drop(saved);
+		drop(cell);
+
+		// ...both must be properly dropped at the end
+		assert_eq!(count(), 0);
 	}
 }
