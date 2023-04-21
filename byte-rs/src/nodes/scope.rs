@@ -7,7 +7,7 @@ use crate::core::str::*;
 ///
 /// Cloning a scope just copies the reference. The clone will still refer
 /// to the same scope.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Scope {}
 
 impl Scope {

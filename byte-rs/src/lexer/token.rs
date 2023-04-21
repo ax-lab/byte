@@ -1,4 +1,5 @@
 use std::any::TypeId;
+use std::panic::UnwindSafe;
 
 use crate::core::any::*;
 use crate::core::input::*;
@@ -40,6 +41,8 @@ pub enum Token {
 	Other(TokenValue),
 }
 
+impl UnwindSafe for Token {}
+
 impl Token {
 	pub fn is<T: IsToken>(&self) -> bool {
 		match self {
@@ -67,7 +70,7 @@ impl Token {
 /// This provides token's [`Span`] position, which provides access to the raw
 /// text for the token. This is useful for error messages and is sometimes
 /// necessary to parse the value of the token.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct TokenAt(pub Span, pub Token);
 
 impl TokenAt {

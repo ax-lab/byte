@@ -4,15 +4,18 @@ use std::fmt::*;
 use std::panic::UnwindSafe;
 use std::sync::Arc;
 
+use super::*;
+
 use super::num;
 use super::util::*;
+use super::HasTraits;
 
 /// Trait for any generic value that can be used with a [`Cell`].
 ///
 /// This trait provides a blanket implementation for all supported values.
-pub trait IsCellValue: CanBox + DynClone + DynEq {}
+pub trait IsValue: CanBox + DynClone + DynEq + HasTraits {}
 
-impl<T: CanBox + DynClone + DynEq> IsCellValue for T {}
+impl<T: CanBox + DynClone + DynEq + HasTraits> IsValue for T {}
 
 pub trait CanBox: Any + Send + Sync + UnwindSafe {}
 
@@ -20,11 +23,11 @@ impl<T: Any + Send + Sync + UnwindSafe> CanBox for T {}
 
 /// Dynamic clone trait. Provides a blanket implementation for [`Clone`] types.
 pub trait DynClone {
-	fn clone_box(&self) -> Arc<dyn IsCellValue>;
+	fn clone_box(&self) -> Arc<dyn IsValue>;
 }
 
-impl<T: CanBox + Clone + DynEq> DynClone for T {
-	fn clone_box(&self) -> Arc<dyn IsCellValue> {
+impl<T: CanBox + Clone + DynEq + HasTraits> DynClone for T {
+	fn clone_box(&self) -> Arc<dyn IsValue> {
 		Arc::new(self.clone())
 	}
 }
@@ -51,7 +54,6 @@ pub struct Cell {
 	data: CellData,
 }
 
-#[allow(unused)]
 impl Cell {
 	pub fn unit() -> Cell {
 		Cell {
@@ -85,7 +87,7 @@ impl Cell {
 		}
 	}
 
-	pub fn from<T: IsCellValue>(value: T) -> Cell {
+	pub fn from<T: IsValue>(value: T) -> Cell {
 		when_type!(value: T =>
 			bool {
 				return Cell {
@@ -135,30 +137,6 @@ impl Cell {
 
 	pub fn kind(&self) -> CellKind {
 		self.kind
-	}
-
-	pub fn is_unit(&self) -> bool {
-		self.kind == CellKind::Unit
-	}
-
-	pub fn is_never(&self) -> bool {
-		self.kind == CellKind::Never
-	}
-
-	pub fn is_int(&self) -> bool {
-		matches!(self.kind, CellKind::Int(..))
-	}
-
-	pub fn is_float(&self) -> bool {
-		matches!(self.kind, CellKind::Float(..))
-	}
-
-	pub fn is_any_int(&self) -> bool {
-		self.kind == CellKind::Int(num::kind::Int::Any)
-	}
-
-	pub fn is_any_float(&self) -> bool {
-		self.kind == CellKind::Float(num::kind::Float::Any)
 	}
 
 	pub fn get<T: CanBox>(&self) -> Option<&T> {
@@ -219,7 +197,7 @@ impl Cell {
 			CellKind::Int(kind) => unsafe { self.data.int.get_mut::<T>(kind) },
 			CellKind::Float(kind) => unsafe { self.data.float.get_mut::<T>(kind) },
 			CellKind::Other => {
-				let mut data = unsafe { &mut self.data.other };
+				let data = unsafe { &mut self.data.other };
 				if data.id() == TypeId::of::<T>() {
 					let ptr = unsafe { (data.get_mut() as *mut T).as_mut().unwrap() };
 					Some(ptr)
@@ -235,6 +213,15 @@ impl Cell {
 			CellKind::Str => unsafe { Some(self.data.str) },
 			CellKind::Other => self.get::<String>().map(|x| x.as_str()),
 			_ => None,
+		}
+	}
+
+	pub fn as_value(&self) -> Option<&dyn IsValue> {
+		if self.kind == CellKind::Other {
+			let data = unsafe { &self.data.other };
+			Some(data.as_ref())
+		} else {
+			None
 		}
 	}
 }
@@ -298,6 +285,26 @@ impl PartialEq for Cell {
 	}
 }
 
+has_traits!(i8);
+has_traits!(i16);
+has_traits!(i32);
+has_traits!(i64);
+has_traits!(isize);
+
+has_traits!(u8);
+has_traits!(u16);
+has_traits!(u32);
+has_traits!(u64);
+has_traits!(usize);
+
+has_traits!(f32);
+has_traits!(f64);
+
+has_traits!(bool);
+has_traits!(String);
+
+impl HasTraits for &str {}
+
 //----------------------------------------------------------------------------//
 // Utility types
 //----------------------------------------------------------------------------//
@@ -315,7 +322,7 @@ union CellData {
 #[derive(Copy, Clone)]
 struct CellPtr {
 	id: TypeId,
-	ptr: *const dyn IsCellValue,
+	ptr: *const dyn IsValue,
 }
 
 unsafe impl Send for CellPtr {}
@@ -324,8 +331,8 @@ unsafe impl Sync for CellPtr {}
 impl UnwindSafe for CellPtr {}
 
 impl CellPtr {
-	pub fn new<T: IsCellValue>(value: T) -> Self {
-		let ptr: Arc<dyn IsCellValue> = Arc::new(value);
+	pub fn new<T: IsValue>(value: T) -> Self {
+		let ptr: Arc<dyn IsValue> = Arc::new(value);
 		CellPtr {
 			id: TypeId::of::<T>(),
 			ptr: Arc::into_raw(ptr),
@@ -336,11 +343,11 @@ impl CellPtr {
 		self.id
 	}
 
-	pub fn as_ref(&self) -> &dyn IsCellValue {
+	pub fn as_ref(&self) -> &dyn IsValue {
 		unsafe { self.ptr.as_ref() }.unwrap()
 	}
 
-	pub fn get_mut(&mut self) -> *mut dyn IsCellValue {
+	pub fn get_mut(&mut self) -> *mut dyn IsValue {
 		unsafe {
 			let arc = std::mem::ManuallyDrop::new(Arc::from_raw(self.ptr));
 			let mut arc = if Arc::strong_count(&arc) != 1 {
@@ -373,10 +380,10 @@ pub enum CellKind {
 //----------------------------------------------------------------------------//
 
 const _: () = {
-	fn assert<T: IsCellValue>() {}
+	fn assert<T: IsValue>() {}
 
 	fn assert_all() {
-		assert::<Cell>();
+		//assert::<Cell>();
 		assert::<String>();
 		assert::<u32>();
 	}
@@ -391,11 +398,11 @@ mod tests {
 	fn simple_types() {
 		// unit
 		let unit = Cell::unit();
-		assert!(unit.is_unit());
+		assert!(unit.kind() == CellKind::Unit);
 
 		// never
 		let never = Cell::never();
-		assert!(never.is_never());
+		assert!(never.kind() == CellKind::Never);
 
 		// bool
 		let bool = Cell::from(true);
@@ -450,17 +457,17 @@ mod tests {
 		let v1: num::AnyInt = 42;
 		let v2: num::AnyInt = 123;
 		let any = Cell::any_int(v1);
-		assert!(any.is_any_int());
+		assert!(any.kind() == CellKind::Int(num::kind::Int::Any));
 		check(&any, v1, v2);
 
 		// any
 		let v1: num::AnyFloat = 42.0;
 		let v2: num::AnyFloat = 123.0;
 		let any = Cell::any_float(v1);
-		assert!(any.is_any_float());
+		assert!(any.kind() == CellKind::Float(num::kind::Float::Any));
 		check(&any, v1, v2);
 
-		fn check<T: IsCellValue + PartialEq + Clone + Debug>(cell: &Cell, v1: T, v2: T) {
+		fn check<T: IsValue + PartialEq + Clone + Debug>(cell: &Cell, v1: T, v2: T) {
 			// check that we don't cast to the wrong type
 			assert!(cell.get::<String>().is_none());
 
@@ -504,6 +511,8 @@ mod tests {
 			data: u32,
 			cnt: &'a AtomicUsize,
 		}
+
+		impl<'a> HasTraits for X<'a> {}
 
 		impl<'a> PartialEq for X<'a> {
 			fn eq(&self, other: &Self) -> bool {

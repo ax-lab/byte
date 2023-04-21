@@ -1,5 +1,6 @@
 use crate::core::error::*;
 use crate::core::input::*;
+use crate::has_traits;
 use crate::lexer::*;
 
 pub struct Literal;
@@ -12,7 +13,7 @@ impl IsToken for Literal {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct UnclosedLiteral;
 
 impl IsError for UnclosedLiteral {
@@ -20,6 +21,8 @@ impl IsError for UnclosedLiteral {
 		write!(f, "unclosed string literal")
 	}
 }
+
+has_traits!(UnclosedLiteral);
 
 impl Matcher for Literal {
 	fn try_match(&self, next: char, input: &mut Cursor, errors: &mut ErrorList) -> Option<Token> {

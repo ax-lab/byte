@@ -57,8 +57,14 @@ pub struct Node {
 	value: Arc<Mutex<InnerNodeValue>>,
 }
 
+impl PartialEq for Node {
+	fn eq(&self, other: &Self) -> bool {
+		self.id == other.id
+	}
+}
+
 /// Root trait implemented for a [`Node`] underlying value.
-pub trait IsNode: HasTraits + Display {
+pub trait IsNode: IsValue + Display + Debug {
 	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval;
 
 	fn span(&self) -> Option<Span> {

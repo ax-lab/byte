@@ -1,9 +1,10 @@
 use crate::core::error::*;
 use crate::core::input::*;
+use crate::has_traits;
 use crate::lexer::*;
 use crate::vm::operators::*;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum NodeError {
 	At(String, Box<NodeError>),
 	Expected(&'static str, TokenAt),
@@ -12,6 +13,8 @@ pub enum NodeError {
 	ExpectedIndent(Span),
 	InvalidToken(Span),
 }
+
+has_traits!(NodeError);
 
 impl IsError for NodeError {
 	fn output(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

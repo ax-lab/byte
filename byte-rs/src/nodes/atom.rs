@@ -5,7 +5,7 @@ use crate::vm::operators::*;
 
 use super::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Atom(TokenAt);
 
 has_traits!(Atom: IsExprValueNode, IsOperatorNode);

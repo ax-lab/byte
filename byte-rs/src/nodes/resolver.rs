@@ -381,10 +381,16 @@ mod tests {
 		);
 	}
 
-	#[derive(Debug)]
+	#[derive(Debug, Clone)]
 	struct SimpleNode {
 		name: String,
 		out: Arc<Mutex<Vec<String>>>,
+	}
+
+	impl PartialEq for SimpleNode {
+		fn eq(&self, other: &Self) -> bool {
+			false
+		}
 	}
 
 	has_traits!(SimpleNode);
@@ -408,6 +414,18 @@ mod tests {
 		name: String,
 		next: Mutex<usize>,
 		out: Arc<Mutex<Vec<String>>>,
+	}
+
+	impl Clone for ComplexNode {
+		fn clone(&self) -> Self {
+			unreachable!()
+		}
+	}
+
+	impl PartialEq for ComplexNode {
+		fn eq(&self, other: &Self) -> bool {
+			false
+		}
 	}
 
 	impl ComplexNode {

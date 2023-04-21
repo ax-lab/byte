@@ -114,69 +114,69 @@ impl InnerValue {
 }
 
 impl num::Int {
-	pub fn new(typ: kind::Int, val: num::Int) -> Value {
+	pub fn new(typ: num::kind::Int, val: num::Int) -> Value {
 		Value(Type::Int(typ), InnerValue { int: val })
 	}
 
 	pub fn i8(value: i8) -> Value {
-		Self::new(kind::Int::I8, num::Int { i8: value })
+		Self::new(num::kind::Int::I8, num::Int { i8: value })
 	}
 
 	pub fn i16(value: i16) -> Value {
-		Self::new(kind::Int::I16, num::Int { i16: value })
+		Self::new(num::kind::Int::I16, num::Int { i16: value })
 	}
 
 	pub fn i32(value: i32) -> Value {
-		Self::new(kind::Int::I32, num::Int { i32: value })
+		Self::new(num::kind::Int::I32, num::Int { i32: value })
 	}
 
 	pub fn i64(value: i64) -> Value {
-		Self::new(kind::Int::I64, num::Int { i64: value })
+		Self::new(num::kind::Int::I64, num::Int { i64: value })
 	}
 
 	pub fn isize(value: isize) -> Value {
-		Self::new(kind::Int::ISize, num::Int { isize: value })
+		Self::new(num::kind::Int::ISize, num::Int { isize: value })
 	}
 
 	pub fn u8(value: u8) -> Value {
-		Self::new(kind::Int::U8, num::Int { u8: value })
+		Self::new(num::kind::Int::U8, num::Int { u8: value })
 	}
 
 	pub fn u16(value: u16) -> Value {
-		Self::new(kind::Int::U16, num::Int { u16: value })
+		Self::new(num::kind::Int::U16, num::Int { u16: value })
 	}
 
 	pub fn u32(value: u32) -> Value {
-		Self::new(kind::Int::U32, num::Int { u32: value })
+		Self::new(num::kind::Int::U32, num::Int { u32: value })
 	}
 
 	pub fn u64(value: u64) -> Value {
-		Self::new(kind::Int::U64, num::Int { u64: value })
+		Self::new(num::kind::Int::U64, num::Int { u64: value })
 	}
 
 	pub fn usize(value: usize) -> Value {
-		Self::new(kind::Int::USize, num::Int { usize: value })
+		Self::new(num::kind::Int::USize, num::Int { usize: value })
 	}
 
 	pub fn any(value: num::AnyInt) -> Value {
-		Self::new(kind::Int::Any, num::Int { any: value })
+		Self::new(num::kind::Int::Any, num::Int { any: value })
 	}
 }
 
 impl num::Float {
-	pub fn new(typ: kind::Float, val: num::Float) -> Value {
+	pub fn new(typ: num::kind::Float, val: num::Float) -> Value {
 		Value(Type::Float(typ), InnerValue { float: val })
 	}
 
 	pub fn f32(value: f32) -> Value {
-		Self::new(kind::Float::F32, num::Float { f32: value })
+		Self::new(num::kind::Float::F32, num::Float { f32: value })
 	}
 
 	pub fn f64(value: f64) -> Value {
-		Self::new(kind::Float::F64, num::Float { f64: value })
+		Self::new(num::kind::Float::F64, num::Float { f64: value })
 	}
 
 	pub fn any(value: f64) -> Value {
-		Self::new(kind::Float::Any, num::Float { any: value })
+		Self::new(num::kind::Float::Any, num::Float { any: value })
 	}
 }

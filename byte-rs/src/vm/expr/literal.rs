@@ -24,7 +24,7 @@ impl IsExpr for Literal {
 		match self {
 			Literal::Bool(..) => Type::Bool,
 			Literal::String(..) => StrValue::get_type(),
-			Literal::Integer(..) => Type::Int(kind::Int::Any),
+			Literal::Integer(..) => Type::Int(num::kind::Int::Any),
 		}
 	}
 }

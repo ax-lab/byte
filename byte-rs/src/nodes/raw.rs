@@ -6,6 +6,7 @@ use crate::vm::operators::*;
 
 use super::*;
 
+#[derive(Clone, PartialEq)]
 pub struct Raw {
 	expr: NodeExprList,
 }
@@ -43,6 +44,7 @@ impl std::fmt::Debug for Raw {
 	}
 }
 
+#[derive(Clone, PartialEq)]
 pub enum RawExpr {
 	Unary(OpUnary, Node),
 	Binary(OpBinary, Node, Node),
@@ -110,6 +112,7 @@ impl std::fmt::Debug for RawExpr {
 // Expression parsing
 //----------------------------------------------------------------------------//
 
+#[derive(Clone, PartialEq)]
 pub struct NodeExprList {
 	scope: Scope,
 	list: Vec<Node>,
@@ -342,7 +345,7 @@ impl NodeExprList {
 		let next = node.val();
 		let next = next.read().unwrap();
 		let next = &**next;
-		let expr = to_trait!(next, IsExprValueNode);
+		let expr = get_trait!(next, IsExprValueNode);
 		if let Some(expr) = expr {
 			expr.is_value()
 		} else if node.is_done() {
@@ -356,7 +359,7 @@ impl NodeExprList {
 		let next = self.next()?.val();
 		let next = next.read().unwrap();
 		let next = &**next;
-		let node = to_trait!(next, IsOperatorNode);
+		let node = get_trait!(next, IsOperatorNode);
 		node.and_then(|x| x.get_unary_pre())
 	}
 
@@ -364,7 +367,7 @@ impl NodeExprList {
 		let next = self.next()?.val();
 		let next = next.read().unwrap();
 		let next = &**next;
-		let node = to_trait!(next, IsOperatorNode);
+		let node = get_trait!(next, IsOperatorNode);
 		node.and_then(|x| x.get_binary())
 	}
 
@@ -372,7 +375,7 @@ impl NodeExprList {
 		let next = self.next()?.val();
 		let next = next.read().unwrap();
 		let next = &**next;
-		let node = to_trait!(next, IsOperatorNode);
+		let node = get_trait!(next, IsOperatorNode);
 		node.and_then(|x| x.get_ternary())
 	}
 }
