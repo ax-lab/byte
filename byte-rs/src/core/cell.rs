@@ -1,13 +1,8 @@
 use std::any::Any;
 use std::any::TypeId;
 use std::fmt::*;
-use std::ops::Deref;
-use std::ops::DerefMut;
 use std::panic::UnwindSafe;
 use std::sync::Arc;
-use std::sync::RwLock;
-use std::sync::RwLockReadGuard;
-use std::sync::RwLockWriteGuard;
 
 use super::num;
 use super::util::*;
@@ -15,9 +10,9 @@ use super::util::*;
 /// Trait for any generic value that can be used with a [`Cell`].
 ///
 /// This trait provides a blanket implementation for all supported values.
-pub trait IsValue: CanBox + DynClone + DynEq {}
+pub trait IsCellValue: CanBox + DynClone + DynEq {}
 
-impl<T: CanBox + DynClone + DynEq> IsValue for T {}
+impl<T: CanBox + DynClone + DynEq> IsCellValue for T {}
 
 pub trait CanBox: Any + Send + Sync + UnwindSafe {}
 
@@ -25,11 +20,11 @@ impl<T: Any + Send + Sync + UnwindSafe> CanBox for T {}
 
 /// Dynamic clone trait. Provides a blanket implementation for [`Clone`] types.
 pub trait DynClone {
-	fn clone_box(&self) -> Arc<dyn IsValue>;
+	fn clone_box(&self) -> Arc<dyn IsCellValue>;
 }
 
 impl<T: CanBox + Clone + DynEq> DynClone for T {
-	fn clone_box(&self) -> Arc<dyn IsValue> {
+	fn clone_box(&self) -> Arc<dyn IsCellValue> {
 		Arc::new(self.clone())
 	}
 }
@@ -56,6 +51,7 @@ pub struct Cell {
 	data: CellData,
 }
 
+#[allow(unused)]
 impl Cell {
 	pub fn unit() -> Cell {
 		Cell {
@@ -89,7 +85,7 @@ impl Cell {
 		}
 	}
 
-	pub fn from<T: IsValue>(value: T) -> Cell {
+	pub fn from<T: IsCellValue>(value: T) -> Cell {
 		when_type!(value: T =>
 			bool {
 				return Cell {
@@ -319,7 +315,7 @@ union CellData {
 #[derive(Copy, Clone)]
 struct CellPtr {
 	id: TypeId,
-	ptr: *const dyn IsValue,
+	ptr: *const dyn IsCellValue,
 }
 
 unsafe impl Send for CellPtr {}
@@ -328,8 +324,8 @@ unsafe impl Sync for CellPtr {}
 impl UnwindSafe for CellPtr {}
 
 impl CellPtr {
-	pub fn new<T: IsValue>(value: T) -> Self {
-		let ptr: Arc<dyn IsValue> = Arc::new(value);
+	pub fn new<T: IsCellValue>(value: T) -> Self {
+		let ptr: Arc<dyn IsCellValue> = Arc::new(value);
 		CellPtr {
 			id: TypeId::of::<T>(),
 			ptr: Arc::into_raw(ptr),
@@ -340,11 +336,11 @@ impl CellPtr {
 		self.id
 	}
 
-	pub fn as_ref(&self) -> &dyn IsValue {
+	pub fn as_ref(&self) -> &dyn IsCellValue {
 		unsafe { self.ptr.as_ref() }.unwrap()
 	}
 
-	pub fn get_mut(&mut self) -> *mut dyn IsValue {
+	pub fn get_mut(&mut self) -> *mut dyn IsCellValue {
 		unsafe {
 			let arc = std::mem::ManuallyDrop::new(Arc::from_raw(self.ptr));
 			let mut arc = if Arc::strong_count(&arc) != 1 {
@@ -357,16 +353,6 @@ impl CellPtr {
 			};
 			let ptr = Arc::get_mut(&mut arc).unwrap();
 			ptr
-		}
-	}
-
-	pub fn copy(&self) -> CellPtr {
-		let ptr = self.ptr;
-		let ptr = unsafe { self.ptr.as_ref().unwrap() };
-		let ptr = ptr.clone_box();
-		CellPtr {
-			id: self.id,
-			ptr: Arc::into_raw(ptr),
 		}
 	}
 }
@@ -387,7 +373,7 @@ pub enum CellKind {
 //----------------------------------------------------------------------------//
 
 const _: () = {
-	fn assert<T: IsValue>() {}
+	fn assert<T: IsCellValue>() {}
 
 	fn assert_all() {
 		assert::<Cell>();
@@ -412,7 +398,7 @@ mod tests {
 		assert!(never.is_never());
 
 		// bool
-		let mut bool = Cell::from(true);
+		let bool = Cell::from(true);
 		check(&bool, true, false);
 
 		let bool = Cell::from(false);
@@ -474,7 +460,7 @@ mod tests {
 		assert!(any.is_any_float());
 		check(&any, v1, v2);
 
-		fn check<T: IsValue + PartialEq + Clone + Debug>(cell: &Cell, v1: T, v2: T) {
+		fn check<T: IsCellValue + PartialEq + Clone + Debug>(cell: &Cell, v1: T, v2: T) {
 			// check that we don't cast to the wrong type
 			assert!(cell.get::<String>().is_none());
 
@@ -559,7 +545,7 @@ mod tests {
 		// So far we only created one instance
 		assert_eq!(count(), 1);
 
-		let mut value = cell.get_mut::<X>().unwrap();
+		let value = cell.get_mut::<X>().unwrap();
 		assert_eq!(count(), 1); // we are the single instance, so no copy
 		drop(value);
 
@@ -576,7 +562,7 @@ mod tests {
 		drop(value);
 
 		// Check that we can get a mutable reference, this will copy
-		let mut value = cell.get_mut::<X>().unwrap();
+		let value = cell.get_mut::<X>().unwrap();
 		assert_eq!(count(), 2);
 		assert_eq!(value.data, 42);
 

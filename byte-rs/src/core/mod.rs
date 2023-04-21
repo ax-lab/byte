@@ -1,9 +1,7 @@
 pub mod any;
-#[allow(unused)]
 pub mod cell;
 pub mod error;
 pub mod input;
-#[allow(unused)]
 pub mod num;
 pub mod str;
 pub mod util;
