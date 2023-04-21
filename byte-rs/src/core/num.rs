@@ -188,6 +188,25 @@ impl Int {
 		}
 		None
 	}
+
+	pub fn eq(&self, other: &Int, kind: kind::Int) -> bool {
+		let res = unsafe {
+			match kind {
+				kind::Int::Any => self.any == other.any,
+				kind::Int::I8 => self.i8 == other.i8,
+				kind::Int::U8 => self.u8 == other.u8,
+				kind::Int::I16 => self.i16 == other.i16,
+				kind::Int::I32 => self.i32 == other.i32,
+				kind::Int::I64 => self.i64 == other.i64,
+				kind::Int::U16 => self.u16 == other.u16,
+				kind::Int::U32 => self.u32 == other.u32,
+				kind::Int::U64 => self.u64 == other.u64,
+				kind::Int::ISize => self.isize == other.isize,
+				kind::Int::USize => self.usize == other.usize,
+			}
+		};
+		res
+	}
 }
 
 #[derive(Copy, Clone)]
@@ -250,6 +269,17 @@ impl Float {
 			}
 		}
 		None
+	}
+
+	pub fn eq(&self, other: &Float, kind: kind::Float) -> bool {
+		let res = unsafe {
+			match kind {
+				kind::Float::Any => self.any == other.any,
+				kind::Float::F32 => self.f32 == other.f32,
+				kind::Float::F64 => self.f64 == other.f64,
+			}
+		};
+		res
 	}
 }
 

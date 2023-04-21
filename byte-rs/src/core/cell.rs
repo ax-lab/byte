@@ -12,58 +12,48 @@ use std::sync::RwLockWriteGuard;
 use super::num;
 use super::util::*;
 
-/// Trait for values that can be used in a [`Cell`] and other dynamic contexts.
+/// Trait for any generic value that can be used with a [`Cell`].
 ///
 /// This trait provides a blanket implementation for all supported values.
-pub trait IsValue: CanBox + DynClone {}
+pub trait IsValue: CanBox + DynClone + DynEq {}
 
-impl<T: CanBox + DynClone> IsValue for T {}
+impl<T: CanBox + DynClone + DynEq> IsValue for T {}
 
 pub trait CanBox: Any + Send + Sync + UnwindSafe {}
 
 impl<T: Any + Send + Sync + UnwindSafe> CanBox for T {}
 
-/// Blanket trait providing dynamic cloning capabilities for types that
-/// implement the [`Clone`] trait.
+/// Dynamic clone trait. Provides a blanket implementation for [`Clone`] types.
 pub trait DynClone {
 	fn clone_box(&self) -> Arc<dyn IsValue>;
 }
 
-impl<T: CanBox + Clone> DynClone for T {
+impl<T: CanBox + Clone + DynEq> DynClone for T {
 	fn clone_box(&self) -> Arc<dyn IsValue> {
 		Arc::new(self.clone())
 	}
 }
 
-/// Cell that can store any kind of value and provide dynamic type binding
-/// to that value.
+/// Dynamic equality trait. Provides a blanket implementation for [`Eq`] types.
+pub trait DynEq {
+	fn is_eq(&self, other: &Cell) -> bool;
+}
+
+impl<T: CanBox + PartialEq> DynEq for T {
+	fn is_eq(&self, other: &Cell) -> bool {
+		if let Some(other) = other.get::<T>() {
+			self == other
+		} else {
+			false
+		}
+	}
+}
+
+/// Stores a dynamically typed value with [`Arc`] style sharing and copy
+/// on write semantics.
 pub struct Cell {
 	kind: CellKind,
 	data: CellData,
-}
-
-impl Clone for Cell {
-	fn clone(&self) -> Self {
-		if let CellKind::Other = self.kind {
-			unsafe {
-				Arc::increment_strong_count(self.data.other.ptr);
-			};
-		}
-		Cell {
-			kind: self.kind,
-			data: self.data,
-		}
-	}
-}
-
-impl Drop for Cell {
-	fn drop(&mut self) {
-		if let CellKind::Other = self.kind {
-			unsafe {
-				Arc::decrement_strong_count(self.data.other.ptr);
-			};
-		}
-	}
 }
 
 impl Cell {
@@ -140,6 +130,10 @@ impl Cell {
 		}
 	}
 
+	pub fn kind(&self) -> CellKind {
+		self.kind
+	}
+
 	pub fn is_unit(&self) -> bool {
 		self.kind == CellKind::Unit
 	}
@@ -148,7 +142,23 @@ impl Cell {
 		self.kind == CellKind::Never
 	}
 
-	pub fn get<T: IsValue>(&self) -> Option<&T> {
+	pub fn is_int(&self) -> bool {
+		matches!(self.kind, CellKind::Int(..))
+	}
+
+	pub fn is_float(&self) -> bool {
+		matches!(self.kind, CellKind::Float(..))
+	}
+
+	pub fn is_any_int(&self) -> bool {
+		self.kind == CellKind::Int(num::kind::Int::Any)
+	}
+
+	pub fn is_any_float(&self) -> bool {
+		self.kind == CellKind::Float(num::kind::Float::Any)
+	}
+
+	pub fn get<T: CanBox>(&self) -> Option<&T> {
 		match self.kind {
 			CellKind::Never | CellKind::Unit => None,
 			CellKind::Bool => {
@@ -176,7 +186,7 @@ impl Cell {
 		}
 	}
 
-	pub fn get_mut<T: IsValue>(&mut self) -> Option<&mut T> {
+	pub fn get_mut<T: CanBox>(&mut self) -> Option<&mut T> {
 		match self.kind {
 			CellKind::Never | CellKind::Unit => None,
 			CellKind::Bool => {
@@ -201,6 +211,67 @@ impl Cell {
 		}
 	}
 }
+
+//----------------------------------------------------------------------------//
+// Cell traits
+//----------------------------------------------------------------------------//
+
+impl Clone for Cell {
+	fn clone(&self) -> Self {
+		if let CellKind::Other = self.kind {
+			unsafe {
+				Arc::increment_strong_count(self.data.other.ptr);
+			};
+		}
+		Cell {
+			kind: self.kind,
+			data: self.data,
+		}
+	}
+}
+
+impl Drop for Cell {
+	fn drop(&mut self) {
+		if let CellKind::Other = self.kind {
+			unsafe {
+				Arc::decrement_strong_count(self.data.other.ptr);
+			};
+		}
+	}
+}
+
+impl PartialEq for Cell {
+	fn eq(&self, other: &Self) -> bool {
+		if self.kind == other.kind {
+			match self.kind {
+				CellKind::Unit => true,
+				CellKind::Never => true,
+				CellKind::Bool => unsafe { self.data.bool == other.data.bool },
+				CellKind::Int(kind) => unsafe { self.data.int.eq(&other.data.int, kind) },
+				CellKind::Float(kind) => unsafe { self.data.float.eq(&other.data.float, kind) },
+				CellKind::Other => {
+					let ptr = unsafe { self.data.other };
+					let ptr = ptr.as_ref();
+					ptr.is_eq(other)
+				}
+			}
+		} else if self.kind == CellKind::Other {
+			let ptr = unsafe { self.data.other };
+			let ptr = ptr.as_ref();
+			ptr.is_eq(other)
+		} else if other.kind == CellKind::Other {
+			let ptr = unsafe { other.data.other };
+			let ptr = ptr.as_ref();
+			ptr.is_eq(self)
+		} else {
+			false
+		}
+	}
+}
+
+//----------------------------------------------------------------------------//
+// Utility types
+//----------------------------------------------------------------------------//
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -233,6 +304,10 @@ impl CellPtr {
 
 	pub fn id(&self) -> TypeId {
 		self.id
+	}
+
+	pub fn as_ref(&self) -> &dyn IsValue {
+		unsafe { self.ptr.as_ref() }.unwrap()
 	}
 
 	pub fn get_mut(&mut self) -> *mut dyn IsValue {
@@ -271,6 +346,10 @@ pub enum CellKind {
 	Float(num::kind::Float),
 	Other,
 }
+
+//----------------------------------------------------------------------------//
+// Tests & assertions
+//----------------------------------------------------------------------------//
 
 const _: () = {
 	fn assert<T: IsValue>() {}
@@ -350,12 +429,14 @@ mod tests {
 		let v1: num::AnyInt = 42;
 		let v2: num::AnyInt = 123;
 		let any = Cell::any_int(v1);
+		assert!(any.is_any_int());
 		check(&any, v1, v2);
 
 		// any
 		let v1: num::AnyFloat = 42.0;
 		let v2: num::AnyFloat = 123.0;
 		let any = Cell::any_float(v1);
+		assert!(any.is_any_float());
 		check(&any, v1, v2);
 
 		fn check<T: IsValue + PartialEq + Clone + Debug>(cell: &Cell, v1: T, v2: T) {
@@ -382,6 +463,10 @@ mod tests {
 
 			// make sure the clone does not change
 			assert_eq!(*saved.get::<T>().unwrap(), v1);
+
+			// make sure a cell is equal to its clone
+			assert!(cell == cell.clone());
+			assert!(cell != saved);
 		}
 	}
 
@@ -397,6 +482,12 @@ mod tests {
 		struct X<'a> {
 			data: u32,
 			cnt: &'a AtomicUsize,
+		}
+
+		impl<'a> PartialEq for X<'a> {
+			fn eq(&self, other: &Self) -> bool {
+				self.data == other.data
+			}
 		}
 
 		impl<'a> X<'a> {
@@ -441,6 +532,9 @@ mod tests {
 		let saved = cell.clone();
 		assert_eq!(count(), 1); // clone is copy-on-write
 
+		// Test equality
+		assert!(cell == saved);
+
 		// Check that we can get a reference to the value
 		let value = cell.get::<X>().unwrap();
 		assert_eq!(value.data, 42);
@@ -454,6 +548,8 @@ mod tests {
 		// Change the value
 		value.data = 123;
 		drop(value);
+
+		assert!(cell != saved);
 
 		// Check that the change affected the original...
 		let value = cell.get::<X>().unwrap();
