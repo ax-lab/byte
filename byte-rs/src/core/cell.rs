@@ -101,6 +101,13 @@ impl Cell {
 			Cell {
 				return value;
 			}
+
+			&str {
+				return Cell {
+					kind: CellKind::Str,
+					data: CellData { str: value }
+				}
+			}
 		);
 
 		let value = match num::Int::from(value) {
@@ -169,6 +176,14 @@ impl Cell {
 					None
 				}
 			}
+			CellKind::Str => {
+				if TypeId::of::<T>() == TypeId::of::<&str>() {
+					let ptr = unsafe { std::mem::transmute(&self.data.str) };
+					Some(ptr)
+				} else {
+					None
+				}
+			}
 			CellKind::Int(kind) => unsafe { self.data.int.get::<T>(kind) },
 			CellKind::Float(kind) => unsafe { self.data.float.get::<T>(kind) },
 			CellKind::Other => {
@@ -197,6 +212,14 @@ impl Cell {
 					None
 				}
 			}
+			CellKind::Str => {
+				if TypeId::of::<T>() == TypeId::of::<&str>() {
+					let ptr = unsafe { std::mem::transmute(&mut self.data.str) };
+					Some(ptr)
+				} else {
+					None
+				}
+			}
 			CellKind::Int(kind) => unsafe { self.data.int.get_mut::<T>(kind) },
 			CellKind::Float(kind) => unsafe { self.data.float.get_mut::<T>(kind) },
 			CellKind::Other => {
@@ -208,6 +231,14 @@ impl Cell {
 					None
 				}
 			}
+		}
+	}
+
+	pub fn as_str(&self) -> Option<&str> {
+		match self.kind {
+			CellKind::Str => unsafe { Some(self.data.str) },
+			CellKind::Other => self.get::<String>().map(|x| x.as_str()),
+			_ => None,
 		}
 	}
 }
@@ -242,29 +273,31 @@ impl Drop for Cell {
 
 impl PartialEq for Cell {
 	fn eq(&self, other: &Self) -> bool {
-		if self.kind == other.kind {
+		if self.kind == CellKind::Str || other.kind == CellKind::Str {
+			self.as_str() == other.as_str()
+		} else if self.kind != other.kind && other.kind == CellKind::Other {
+			other.eq(self)
+		} else {
 			match self.kind {
-				CellKind::Unit => true,
-				CellKind::Never => true,
-				CellKind::Bool => unsafe { self.data.bool == other.data.bool },
-				CellKind::Int(kind) => unsafe { self.data.int.eq(&other.data.int, kind) },
-				CellKind::Float(kind) => unsafe { self.data.float.eq(&other.data.float, kind) },
+				CellKind::Unit => other.kind == self.kind,
+				CellKind::Never => other.kind == self.kind,
+				CellKind::Bool => {
+					other.kind == self.kind && unsafe { self.data.bool == other.data.bool }
+				}
+				CellKind::Str => self.as_str() == other.as_str(),
+				CellKind::Int(kind) => {
+					other.kind == self.kind && unsafe { self.data.int.eq(&other.data.int, kind) }
+				}
+				CellKind::Float(kind) => {
+					other.kind == self.kind
+						&& unsafe { self.data.float.eq(&other.data.float, kind) }
+				}
 				CellKind::Other => {
 					let ptr = unsafe { self.data.other };
 					let ptr = ptr.as_ref();
 					ptr.is_eq(other)
 				}
 			}
-		} else if self.kind == CellKind::Other {
-			let ptr = unsafe { self.data.other };
-			let ptr = ptr.as_ref();
-			ptr.is_eq(other)
-		} else if other.kind == CellKind::Other {
-			let ptr = unsafe { other.data.other };
-			let ptr = ptr.as_ref();
-			ptr.is_eq(self)
-		} else {
-			false
 		}
 	}
 }
@@ -279,6 +312,7 @@ union CellData {
 	bool: bool,
 	int: num::Int,
 	float: num::Float,
+	str: &'static str,
 	other: CellPtr,
 }
 
@@ -342,6 +376,7 @@ pub enum CellKind {
 	Unit,
 	Never,
 	Bool,
+	Str,
 	Int(num::kind::Int),
 	Float(num::kind::Float),
 	Other,
@@ -566,5 +601,51 @@ mod tests {
 
 		// ...both must be properly dropped at the end
 		assert_eq!(count(), 0);
+	}
+
+	#[test]
+	fn strings() {
+		let a = Cell::from("abc");
+		let b = Cell::from("abc");
+		let c = Cell::from("123");
+
+		// make sure we are using the static str kind
+		assert_eq!(a.kind(), CellKind::Str);
+		assert_eq!(b.kind(), CellKind::Str);
+		assert_eq!(c.kind(), CellKind::Str);
+
+		// test retrieving values directly
+		assert!(a.get::<&str>() == Some(&"abc"));
+		assert!(b.clone().get::<&str>() == Some(&"abc"));
+		assert!(c.get::<&str>() == Some(&"123"));
+
+		// test comparison
+		assert!(a == b);
+		assert!(a != c);
+
+		// test as_str
+		assert_eq!(a.as_str(), Some("abc"));
+		assert_eq!(b.as_str(), Some("abc"));
+		assert_eq!(c.as_str(), Some("123"));
+
+		// test owned strings
+		let a = Cell::from(String::from("abc"));
+		let b = Cell::from(String::from("abc"));
+		let c = Cell::from(String::from("123"));
+
+		assert!(a == b);
+		assert!(a != c);
+
+		assert_eq!(a.as_str(), Some("abc"));
+		assert_eq!(b.as_str(), Some("abc"));
+		assert_eq!(c.as_str(), Some("123"));
+
+		// test comparison between different string types
+		assert!(Cell::from("123") == Cell::from(String::from("123")));
+		assert!(Cell::from(String::from("123")) == Cell::from("123"));
+
+		// test with non-string types
+		let x = Cell::from(123);
+		assert!(x.as_str() == None);
 	}
 }
