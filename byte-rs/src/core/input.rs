@@ -1,5 +1,7 @@
 use std::{path::Path, sync::Arc};
 
+use crate::core::repr::*;
+
 /// Tab-width considered when computing column and indentation.
 pub const TAB_WIDTH: usize = 4;
 
@@ -37,6 +39,26 @@ impl Input {
 		};
 		Input {
 			internal: data.into(),
+		}
+	}
+}
+
+fmt_from_repr!(Input);
+
+impl HasRepr for Input {
+	fn output_repr(&self, output: &Repr) {
+		let debug = output.is_debug();
+		let full = if debug {
+			output.format() == ReprFormat::Full
+		} else {
+			false
+		};
+		if full {
+			output.write(format!("Input({} -- {} bytes)", self.name(), self.len()));
+		} else if debug {
+			output.write(format!("Input({})", self.name()));
+		} else {
+			output.write(self.name());
 		}
 	}
 }
@@ -84,12 +106,6 @@ impl PartialEq for Input {
 
 impl Eq for Input {}
 
-impl std::fmt::Display for Input {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.internal.name)
-	}
-}
-
 /// Span indexes a range of text from an [`Input`].
 #[derive(Clone, Eq, PartialEq)]
 pub struct Span {
@@ -132,20 +148,28 @@ impl Span {
 	}
 }
 
-impl std::fmt::Debug for Span {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		let src = self.src().name();
-		if self.sta == self.end {
-			write!(f, "`{}`@{}", src, self.sta)
-		} else {
-			write!(f, "`{}`@{}…{}", src, self.sta, self.end)
-		}
-	}
-}
+fmt_from_repr!(Span);
 
-impl std::fmt::Display for Span {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.sta)
+impl HasRepr for Span {
+	fn output_repr(&self, output: &Repr) {
+		let debug = output.is_debug();
+		if debug {
+			output.write("Span(");
+		}
+
+		if output.format() > ReprFormat::Compact {
+			output.write(format!("{} at ", self.src().name()));
+		}
+		self.sta
+			.output_repr(&output.with(ReprMode::Display, ReprFormat::Compact));
+		if self.end != self.sta && output.format() > ReprFormat::Minimal {
+			output.write("…");
+			self.end
+				.output_repr(&output.with(ReprMode::Display, ReprFormat::Minimal));
+		}
+		if debug {
+			output.write(")")
+		}
 	}
 }
 
@@ -267,14 +291,19 @@ impl PartialEq for Cursor {
 
 impl Eq for Cursor {}
 
-impl std::fmt::Display for Cursor {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "L{}:{:02}", self.row() + 1, self.col() + 1)
-	}
-}
+fmt_from_repr!(Cursor);
 
-impl std::fmt::Debug for Cursor {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self)
+impl HasRepr for Cursor {
+	fn output_repr(&self, output: &Repr) {
+		let line = self.row() + 1;
+		let column = self.col() + 1;
+		if !output.is_debug() && output.format() > ReprFormat::Compact {
+			output.write(format!("line {line}, column {column}"));
+		} else {
+			if output.format() > ReprFormat::Minimal {
+				output.write("L");
+			}
+			output.write(format!("{line}:{column:02}"));
+		}
 	}
 }
