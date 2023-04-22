@@ -1,4 +1,4 @@
-use std::{path::Path, sync::Arc};
+use std::{io::Write, path::Path, sync::Arc};
 
 use crate::core::repr::*;
 
@@ -46,7 +46,7 @@ impl Input {
 fmt_from_repr!(Input);
 
 impl HasRepr for Input {
-	fn output_repr(&self, output: &Repr) {
+	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
 		let debug = output.is_debug();
 		let full = if debug {
 			output.format() == ReprFormat::Full
@@ -54,11 +54,11 @@ impl HasRepr for Input {
 			false
 		};
 		if full {
-			output.write(format!("Input({} -- {} bytes)", self.name(), self.len()));
+			write!(output, "Input({} -- {} bytes)", self.name(), self.len())
 		} else if debug {
-			output.write(format!("Input({})", self.name()));
+			write!(output, "Input({})", self.name())
 		} else {
-			output.write(self.name());
+			write!(output, "{}", self.name())
 		}
 	}
 }
@@ -151,25 +151,24 @@ impl Span {
 fmt_from_repr!(Span);
 
 impl HasRepr for Span {
-	fn output_repr(&self, output: &Repr) {
+	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
 		let debug = output.is_debug();
 		if debug {
-			output.write("Span(");
+			write!(output, "Span(")?;
 		}
 
 		if output.format() > ReprFormat::Compact {
-			output.write(format!("{} at ", self.src().name()));
+			write!(output, "{} at ", self.src().name())?;
 		}
-		self.sta
-			.output_repr(&output.with(ReprMode::Display, ReprFormat::Compact));
+		self.sta.output_repr(&mut output.compact().display())?;
 		if self.end != self.sta && output.format() > ReprFormat::Minimal {
-			output.write("…");
-			self.end
-				.output_repr(&output.with(ReprMode::Display, ReprFormat::Minimal));
+			let _ = write!(output, "…");
+			self.end.output_repr(&mut output.minimal().display())?;
 		}
 		if debug {
-			output.write(")")
+			write!(output, ")")?;
 		}
+		Ok(())
 	}
 }
 
@@ -294,16 +293,16 @@ impl Eq for Cursor {}
 fmt_from_repr!(Cursor);
 
 impl HasRepr for Cursor {
-	fn output_repr(&self, output: &Repr) {
+	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
 		let line = self.row() + 1;
 		let column = self.col() + 1;
 		if !output.is_debug() && output.format() > ReprFormat::Compact {
-			output.write(format!("line {line}, column {column}"));
+			write!(output, "line {line}, column {column}")
 		} else {
 			if output.format() > ReprFormat::Minimal {
-				output.write("L");
+				write!(output, "L")?;
 			}
-			output.write(format!("{line}:{column:02}"));
+			write!(output, "{line}:{column:02}")
 		}
 	}
 }

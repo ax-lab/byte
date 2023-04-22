@@ -1,3 +1,6 @@
+use std::io::Write;
+
+use crate::core::repr::*;
 use crate::lexer::*;
 use crate::nodes::*;
 
@@ -24,16 +27,23 @@ pub fn parse(input: crate::core::input::Input) {
 		std::process::exit(1);
 	}
 
+	let mut repr = Repr::new(ReprMode::Debug, ReprFormat::Full);
+	let repr = &mut repr;
 	for (i, it) in list.into_iter().enumerate() {
-		let span = if let Some(span) = it.span() {
-			format!("{span:?}")
-		} else {
-			String::new()
-		};
-		println!("\n>>> Node {}: {span}\n\n{it:#?}", i + 1);
+		let _ = write!(repr, "\n>>> Node {}", i + 1);
+		if let Some(span) = it.span() {
+			let _ = write!(repr, " from {span}");
+		}
+		let _ = write!(repr, "\n\n");
+		let _ = it.output_repr(&mut repr.indented().compact().display());
+		let _ = write!(repr, "\n\n-- DEBUG REPR --\n\n");
+
+		let repr = &mut repr.indented();
+		let _ = it.output_repr(repr);
+		let _ = write!(repr, "\n");
 	}
 
-	println!();
+	println!("{repr}");
 	std::process::exit(0);
 }
 

@@ -7,6 +7,10 @@ use super::*;
 /// To implement this trait use the [`has_traits`] macro. To retrieve a trait
 /// from a [`HasTraits`] value use the [`to_trait`] macro.
 pub trait HasTraits {
+	fn type_name(&self) -> &'static str {
+		std::any::type_name::<Self>()
+	}
+
 	fn get_trait(&self, type_id: TypeId) -> Option<&dyn HasTraits> {
 		let _ = type_id;
 		None

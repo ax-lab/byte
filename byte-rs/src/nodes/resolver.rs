@@ -305,6 +305,8 @@ impl NodeQueueInner {
 mod tests {
 	use std::cell::Cell;
 
+	use crate::repr_from_fmt;
+
 	use super::*;
 
 	#[test]
@@ -393,6 +395,7 @@ mod tests {
 	}
 
 	has_traits!(SimpleNode: IsNode);
+	repr_from_fmt!(SimpleNode);
 
 	impl IsNode for SimpleNode {
 		fn eval(&mut self, _: &mut ErrorList) -> NodeEval {
@@ -443,6 +446,7 @@ mod tests {
 	}
 
 	has_traits!(ComplexNode: IsNode);
+	repr_from_fmt!(ComplexNode);
 
 	impl IsNode for ComplexNode {
 		fn eval(&mut self, _: &mut ErrorList) -> NodeEval {

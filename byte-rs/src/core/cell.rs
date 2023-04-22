@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::any::TypeId;
 use std::fmt::*;
+use std::io::Write;
 use std::panic::UnwindSafe;
 use std::sync::Arc;
 
@@ -344,8 +345,8 @@ repr_from_fmt!(String);
 repr_from_fmt!(&str);
 
 impl HasRepr for () {
-	fn output_repr(&self, output: &Repr) {
-		output.write(format!("{self:?}"))
+	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
+		write!(output, "{self:?}")
 	}
 }
 

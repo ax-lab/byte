@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use super::cell::*;
 use super::num::*;
 use super::repr::*;
@@ -92,6 +94,21 @@ impl HasTraits for Value {
 	}
 }
 
+impl HasRepr for Value {
+	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
+		let repr = get_trait!(self, HasRepr);
+		if let Some(repr) = repr {
+			repr.output_repr(output)
+		} else {
+			if output.is_debug() {
+				write!(output, "{self:?}")
+			} else {
+				write!(output, "{self}")
+			}
+		}
+	}
+}
+
 //--------------------------------------------------------------------------------------------------------------------//
 // Utility traits
 //--------------------------------------------------------------------------------------------------------------------//
@@ -113,7 +130,12 @@ impl std::fmt::Debug for Value {
 		if let Some(repr) = repr {
 			repr.fmt_debug(f)
 		} else {
-			write!(f, "Value({:?})", self.cell.kind())
+			let kind = self.cell.kind();
+			if kind == CellKind::Other {
+				write!(f, "Value({})", self.cell.as_value().unwrap().type_name())
+			} else {
+				write!(f, "Value({:?})", self.cell.kind())
+			}
 		}
 	}
 }

@@ -1,3 +1,6 @@
+use std::io::Write;
+
+use crate::core::repr::HasRepr;
 use crate::core::str::*;
 use crate::lang::*;
 use crate::lexer::*;
@@ -14,7 +17,7 @@ impl From<TokenAt> for Atom {
 	}
 }
 
-has_traits!(Atom: IsNode, IsExprValueNode, IsOperatorNode);
+has_traits!(Atom: IsNode, HasRepr, IsExprValueNode, IsOperatorNode);
 
 impl IsNode for Atom {
 	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval {
@@ -23,6 +26,20 @@ impl IsNode for Atom {
 
 	fn span(&self) -> Option<Span> {
 		Some(self.0.span())
+	}
+}
+
+impl HasRepr for Atom {
+	fn output_repr(&self, output: &mut repr::Repr) -> std::io::Result<()> {
+		let token = &self.0;
+		if output.is_debug() {
+			write!(output, "Atom(")?;
+			write!(output, "{token}")?;
+			write!(output, ")")?;
+		} else {
+			write!(output, "{token}")?;
+		}
+		Ok(())
 	}
 }
 

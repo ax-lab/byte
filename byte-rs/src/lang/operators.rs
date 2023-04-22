@@ -24,6 +24,29 @@ impl OpUnary {
 		};
 		Some(op)
 	}
+
+	pub fn is_posfix(&self) -> bool {
+		match self {
+			OpUnary::PosIncrement | OpUnary::PosDecrement => true,
+			_ => false,
+		}
+	}
+}
+
+impl std::fmt::Display for OpUnary {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		let symbol = match self {
+			OpUnary::Not => "not",
+			OpUnary::Plus => "+",
+			OpUnary::Minus => "-",
+			OpUnary::Negate => "!",
+			OpUnary::PreIncrement => "++",
+			OpUnary::PreDecrement => "--",
+			OpUnary::PosIncrement => "++",
+			OpUnary::PosDecrement => "--",
+		};
+		write!(f, "{symbol}")
+	}
 }
 
 impl OpBinary {
@@ -44,6 +67,23 @@ impl OpBinary {
 	}
 }
 
+impl std::fmt::Display for OpBinary {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		let symbol = match self {
+			OpBinary::Add => "+",
+			OpBinary::Sub => "-",
+			OpBinary::Mul => "*",
+			OpBinary::Div => "/",
+			OpBinary::Mod => "%",
+			OpBinary::Assign => "=",
+			OpBinary::Equal => "==",
+			OpBinary::And => "and",
+			OpBinary::Or => "or",
+		};
+		write!(f, "{symbol}")
+	}
+}
+
 impl OpTernary {
 	pub fn get(token: &str) -> Option<(OpTernary, &'static str)> {
 		let op = match token {
@@ -51,6 +91,12 @@ impl OpTernary {
 			_ => return None,
 		};
 		Some(op)
+	}
+
+	pub fn get_symbol(&self) -> (&'static str, &'static str) {
+		match self {
+			OpTernary::Conditional => ("?", ":"),
+		}
 	}
 }
 

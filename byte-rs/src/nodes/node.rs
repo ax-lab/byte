@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuar
 
 use crate::core::error::*;
 use crate::core::input::*;
+use crate::core::repr::*;
 use crate::core::str::*;
 use crate::core::*;
 use crate::vm::expr::Expr;
@@ -67,7 +68,7 @@ impl PartialEq for Node {
 }
 
 /// Root trait implemented for a [`Node`] underlying value.
-pub trait IsNode: IsValue + Display + Debug {
+pub trait IsNode: IsValue + HasRepr {
 	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval;
 
 	fn span(&self) -> Option<Span> {
@@ -253,27 +254,28 @@ impl<T: IsNode> From<T> for Node {
 	}
 }
 
+impl HasRepr for Node {
+	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
+		self.val().output_repr(output)
+	}
+}
+
 impl Debug for Node {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		let span = self.span();
-		let node = &*self.val();
-		write!(f, "{node:?}")?;
-		if let Some(span) = span {
-			write!(f, " at {span}")?;
-		}
-		Ok(())
+		let node = self.node.read().unwrap();
+		write!(f, "{node:?}")
 	}
 }
 
 impl Display for Node {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		let node = &*self.val();
+		let node = self.node.read().unwrap();
 		write!(f, "{node}")
 	}
 }
 
 //----------------------------------------------------------------------------//
-// Internals
+// Reference types
 //----------------------------------------------------------------------------//
 
 /// Locked read reference to an [`IsNode`].

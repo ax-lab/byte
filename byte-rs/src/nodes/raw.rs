@@ -1,11 +1,14 @@
 use std::collections::VecDeque;
+use std::io::Write;
 
 use crate::core::input::*;
+use crate::core::repr::*;
 use crate::lexer::*;
 use crate::vm::operators::*;
 
 use super::*;
 
+/// Raw list of unprocessed atom nodes.
 #[derive(Clone, PartialEq)]
 pub struct Raw {
 	expr: NodeExprList,
@@ -19,7 +22,7 @@ impl Raw {
 	}
 }
 
-has_traits!(Raw: IsNode);
+has_traits!(Raw: IsNode, HasRepr);
 
 impl IsNode for Raw {
 	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval {
@@ -27,23 +30,25 @@ impl IsNode for Raw {
 	}
 }
 
-impl std::fmt::Display for Raw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{self:?}")
-	}
-}
-
-impl std::fmt::Debug for Raw {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "Raw {{")?;
-		for (i, it) in self.expr.list.iter().enumerate() {
-			write!(f, "\n    {it:?}")?;
+impl HasRepr for Raw {
+	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
+		if self.expr.list.len() == 0 {
+			return write!(output, "Raw()");
 		}
-		write!(f, "\n}}")?;
+		write!(output, "Raw(\n")?;
+		{
+			let mut output = output.indented();
+			for it in self.expr.list.iter() {
+				it.output_repr(&mut output)?;
+				write!(output, "\n")?;
+			}
+		}
+		write!(output, ")")?;
 		Ok(())
 	}
 }
 
+/// Raw expression node.
 #[derive(Clone, PartialEq)]
 pub enum RawExpr {
 	Unary(OpUnary, Node),
@@ -51,7 +56,7 @@ pub enum RawExpr {
 	Ternary(OpTernary, Node, Node, Node),
 }
 
-has_traits!(RawExpr: IsNode);
+has_traits!(RawExpr: IsNode, HasRepr);
 
 impl IsNode for RawExpr {
 	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval {
@@ -90,21 +95,92 @@ impl IsNode for RawExpr {
 	}
 }
 
-impl std::fmt::Display for RawExpr {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{self:?}")
-	}
-}
-
-impl std::fmt::Debug for RawExpr {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			Self::Unary(op, val) => write!(f, "Unary:{op:?}({val:?})"),
-			Self::Binary(op, lhs, rhs) => write!(f, "Binary:{op:?}(\n    {lhs:?}\n    {rhs:?}\n)"),
-			Self::Ternary(op, a, b, c) => {
-				write!(f, "Ternary:{op:?}(\n    {a:?}\n    {b:?}\n    {c:?}\n    )")
-			}
+impl HasRepr for RawExpr {
+	fn output_repr(&self, output: &mut repr::Repr) -> std::io::Result<()> {
+		let compact = output.format() < ReprFormat::Full;
+		if output.is_debug() {
+			match self {
+				RawExpr::Unary(op, a) => {
+					write!(output, "Unary::{op:?}(")?;
+					if compact {
+						write!(output, " ")?;
+						a.output_repr(output)?;
+					} else {
+						let mut output = output.indented();
+						write!(output, "\n");
+						a.output_repr(&mut output)?;
+						write!(output, "\n")?;
+					}
+					write!(output, ")")?;
+				}
+				RawExpr::Binary(op, a, b) => {
+					write!(output, "Binary::{op:?}(")?;
+					if compact {
+						write!(output, " ")?;
+						a.output_repr(output)?;
+						write!(output, ", ")?;
+						b.output_repr(output)?;
+					} else {
+						let mut output = output.indented();
+						write!(output, "\n");
+						a.output_repr(&mut output)?;
+						write!(output, "\n")?;
+						b.output_repr(&mut output)?;
+						write!(output, "\n")?;
+					}
+					write!(output, ")")?;
+				}
+				RawExpr::Ternary(op, a, b, c) => {
+					write!(output, "Ternary::{op:?}(")?;
+					if compact {
+						write!(output, " ")?;
+						a.output_repr(output)?;
+						write!(output, ", ")?;
+						b.output_repr(output)?;
+						write!(output, ", ")?;
+						c.output_repr(output)?;
+					} else {
+						let mut output = output.indented();
+						write!(output, "\n");
+						a.output_repr(&mut output)?;
+						write!(output, "\n")?;
+						b.output_repr(&mut output)?;
+						write!(output, "\n")?;
+						c.output_repr(&mut output)?;
+						write!(output, "\n")?;
+					}
+					write!(output, ")")?;
+				}
+			};
+		} else {
+			write!(output, "(")?;
+			match self {
+				RawExpr::Unary(op, a) => {
+					if op.is_posfix() {
+						a.output_repr(output)?;
+						write!(output, "{op}")?;
+					} else {
+						a.output_repr(output)?;
+						write!(output, "{op}")?;
+					}
+				}
+				RawExpr::Binary(op, a, b) => {
+					a.output_repr(output)?;
+					write!(output, " {op} ")?;
+					b.output_repr(output)?;
+				}
+				RawExpr::Ternary(op, a, b, c) => {
+					let (s1, s2) = op.get_symbol();
+					a.output_repr(output)?;
+					write!(output, " {s1} ")?;
+					b.output_repr(output)?;
+					write!(output, " {s2} ")?;
+					c.output_repr(output)?;
+				}
+			};
+			write!(output, ")")?;
 		}
+		Ok(())
 	}
 }
 
@@ -119,12 +195,6 @@ pub struct NodeExprList {
 	next: usize,
 	ops: VecDeque<(Op, Node)>,
 	values: VecDeque<Node>,
-}
-
-impl std::fmt::Debug for NodeExprList {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{:?}", self.list)
-	}
 }
 
 impl NodeExprList {
