@@ -47,8 +47,7 @@ impl NodeResolver {
 	fn process_queue(mut queue: Arc<NodeQueue>, errors: Arc<Mutex<ErrorList>>) {
 		while let Some(mut node) = queue.take_next() {
 			let eval = {
-				let value = node.val();
-				let mut value = value.write().unwrap();
+				let mut value = node.val_mut();
 				let result = std::panic::catch_unwind(move || {
 					let mut eval_errors = ErrorList::new();
 					let result = value.eval(&mut eval_errors);
@@ -393,7 +392,7 @@ mod tests {
 		}
 	}
 
-	has_traits!(SimpleNode);
+	has_traits!(SimpleNode: IsNode);
 
 	impl IsNode for SimpleNode {
 		fn eval(&mut self, _: &mut ErrorList) -> NodeEval {
@@ -443,7 +442,7 @@ mod tests {
 		}
 	}
 
-	has_traits!(ComplexNode);
+	has_traits!(ComplexNode: IsNode);
 
 	impl IsNode for ComplexNode {
 		fn eval(&mut self, _: &mut ErrorList) -> NodeEval {
@@ -484,7 +483,7 @@ mod tests {
 						name: format!("{}: 2 - Final", self.name),
 						out,
 					};
-					NodeEval::NewValue(Box::new(d))
+					NodeEval::NewValue(Value::from(d))
 				}
 
 				_ => panic!("invalid state"),

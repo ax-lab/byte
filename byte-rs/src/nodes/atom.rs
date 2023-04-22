@@ -8,13 +8,13 @@ use super::*;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Atom(TokenAt);
 
-has_traits!(Atom: IsExprValueNode, IsOperatorNode);
-
 impl From<TokenAt> for Atom {
 	fn from(value: TokenAt) -> Self {
 		Atom(value)
 	}
 }
+
+has_traits!(Atom: IsNode, IsExprValueNode, IsOperatorNode);
 
 impl IsNode for Atom {
 	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval {

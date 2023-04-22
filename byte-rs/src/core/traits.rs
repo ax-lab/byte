@@ -11,6 +11,10 @@ pub trait HasTraits {
 		let _ = type_id;
 		None
 	}
+
+	fn get_trait_mut(&mut self, type_id: TypeId) -> Option<&mut dyn HasTraits> {
+		unsafe { std::mem::transmute(self.get_trait(type_id)) }
+	}
 }
 
 /// Implements the [`HasTraits`] macros for a type, expanding to an `impl`
@@ -80,6 +84,22 @@ macro_rules! get_trait {
 }
 
 #[macro_export]
+macro_rules! get_trait_mut {
+	($me:expr, $target:path) => {{
+		use crate::core::traits::HasTraits;
+		use ::std::any::TypeId;
+
+		fn cast_value(p: &mut dyn HasTraits) -> &mut dyn $target {
+			unsafe { std::mem::transmute(p) }
+		}
+
+		let me = $me;
+		let id = TypeId::of::<dyn $target>();
+		HasTraits::get_trait_mut(me, id).map(|x| cast_value(x))
+	}};
+}
+
+#[macro_export]
 macro_rules! some_trait {
 	($me:expr, $type_id:ident, $typ:path) => {
 		if ($type_id == ::std::any::TypeId::of::<dyn $typ>()) {
@@ -93,6 +113,7 @@ macro_rules! some_trait {
 }
 
 pub use get_trait;
+pub use get_trait_mut;
 pub use has_traits;
 pub use some_trait;
 

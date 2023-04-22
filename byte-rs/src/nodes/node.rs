@@ -2,9 +2,10 @@ use std::any::{Any, TypeId};
 use std::cell::{Ref, RefCell};
 use std::collections::VecDeque;
 use std::fmt::{Debug, Display};
-use std::ops::Deref;
+use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{self, AtomicU64};
-use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard};
+use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::core::error::*;
 use crate::core::input::*;
@@ -54,7 +55,9 @@ use super::*;
 #[derive(Clone)]
 pub struct Node {
 	id: u64,
-	value: Arc<Mutex<InnerNodeValue>>,
+	node: Arc<RwLock<Value>>,
+	span: Arc<RwLock<Option<Span>>>,
+	done: Arc<RwLock<bool>>,
 }
 
 impl PartialEq for Node {
@@ -112,17 +115,14 @@ impl Node {
 		// Create the inner value. This can change if the underlying `IsNode`
 		// changes.
 		let span = node.span();
-		let node: Box<dyn IsNode> = Box::new(node);
-		let node = Arc::new(RwLock::new(node));
-		let value = InnerNodeValue {
-			node,
-			done: false,
-			span,
-		};
-
-		// Wrap everything in a shared mutex.
-		let value = Arc::new(Mutex::new(value));
-		Node { id, value }
+		let node = Value::from(node);
+		assert!(get_trait!(&node, IsNode).is_some());
+		Node {
+			id,
+			done: Default::default(),
+			node: Arc::new(RwLock::new(node)),
+			span: Arc::new(RwLock::new(span)),
+		}
 	}
 
 	pub fn new_at<T: IsNode>(node: T, span: Option<Span>) -> Self {
@@ -138,46 +138,52 @@ impl Node {
 	}
 
 	pub fn span(&self) -> Option<Span> {
-		let value = self.value.lock().unwrap();
-		value.span.clone()
+		let span = self.span.read().unwrap();
+		span.clone()
 	}
 
-	pub fn val(&self) -> Arc<RwLock<Box<dyn IsNode>>> {
-		let value = self.value.lock().unwrap();
-		value.node.clone()
+	pub fn get<T: IsNode>(&self) -> Option<NodeValueRef<T>> {
+		let node = self.node.read().unwrap();
+		if node.get::<T>().is_some() {
+			Some(NodeValueRef {
+				node,
+				_phantom: Default::default(),
+			})
+		} else {
+			None
+		}
 	}
 
-	pub fn get<T: IsNode>(&self) -> Option<NodeRef<T>> {
-		let value = self.value.lock().unwrap();
-		value.get_value()
+	pub fn get_mut<T: IsNode>(&mut self) -> Option<NodeValueRefMut<T>> {
+		let mut node = self.node.write().unwrap();
+		if node.get::<T>().is_some() {
+			Some(NodeValueRefMut {
+				node,
+				_phantom: Default::default(),
+			})
+		} else {
+			None
+		}
 	}
 
-	pub fn set(&mut self, node: Box<dyn IsNode>) {
-		let mut value = self.value.lock().unwrap();
-		if value.done {
+	pub fn set(&mut self, node: Value) {
+		assert!(get_trait!(&node, IsNode).is_some());
+
+		let done = self.done.read().unwrap();
+		if *done {
+			drop(done);
 			panic!("cannot set value for a resolved node");
 		}
 
-		let node = Arc::new(RwLock::new(node));
-		let new_value = InnerNodeValue {
-			node,
-			done: value.done,
-			span: value.span.clone(),
-		};
-		*value = new_value;
+		let mut my_node = self.node.write().unwrap();
+		*my_node = node;
 	}
 
 	pub fn set_from_node(&mut self, other: Node) {
-		let other = {
-			let value = other.value.lock().unwrap();
-			InnerNodeValue {
-				done: value.done,
-				node: value.node.clone(),
-				span: value.span.clone(),
-			}
-		};
-		let mut value = self.value.lock().unwrap();
-		*value = other;
+		let node = { other.node.read().unwrap().clone() };
+		let span = other.span();
+		self.set(node);
+		self.set_span(span);
 	}
 
 	pub fn at(mut self, span: Span) -> Self {
@@ -186,24 +192,33 @@ impl Node {
 	}
 
 	pub fn is_done(&self) -> bool {
-		let value = self.value.lock().unwrap();
-		value.done
+		*self.done.read().unwrap()
 	}
 
 	pub fn set_done(&mut self) {
-		let mut value = self.value.lock().unwrap();
-		value.done = true;
+		let mut done = self.done.write().unwrap();
+		*done = true;
 	}
 
 	pub fn set_span(&mut self, span: Option<Span>) {
-		let mut value = self.value.lock().unwrap();
-		value.span = span;
+		let mut my_span = self.span.write().unwrap();
+		*my_span = span;
 	}
 
 	pub fn get_span(a: &Node, b: &Node) -> Option<Span> {
 		let a = a.span();
 		let b = b.span();
 		Span::from_range(a, b)
+	}
+
+	pub fn val(&self) -> NodeRef {
+		let node = self.node.read().unwrap();
+		NodeRef { node }
+	}
+
+	pub fn val_mut(&mut self) -> NodeRefMut {
+		let node = self.node.write().unwrap();
+		NodeRefMut { node }
 	}
 }
 
@@ -214,10 +229,10 @@ pub enum NodeEval {
 
 	/// Node evaluated to a new [`IsNode`] value. The value will replace the
 	/// current node and continue being evaluated.
-	NewValue(Box<dyn IsNode>),
+	NewValue(Value),
 
 	/// Same as [`NodeEval::NewValue`] but also sets a new position.
-	NewValueAndPos(Box<dyn IsNode>, Span),
+	NewValueAndPos(Value, Span),
 
 	/// Similar to [`NodeEval::NewValue`] but uses the content of the given
 	/// node.
@@ -240,13 +255,8 @@ impl<T: IsNode> From<T> for Node {
 
 impl Debug for Node {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		let (node, span) = {
-			let value = self.value.lock().unwrap();
-			let node = value.node.clone();
-			let span = value.span.clone();
-			(node, span)
-		};
-		let node = node.read().unwrap_or_else(|err| err.into_inner());
+		let span = self.span();
+		let node = &*self.val();
 		write!(f, "{node:?}")?;
 		if let Some(span) = span {
 			write!(f, " at {span}")?;
@@ -257,11 +267,7 @@ impl Debug for Node {
 
 impl Display for Node {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		let node = {
-			let value = self.value.lock().unwrap();
-			value.node.clone()
-		};
-		let node = node.read().unwrap();
+		let node = &*self.val();
 		write!(f, "{node}")
 	}
 }
@@ -270,38 +276,68 @@ impl Display for Node {
 // Internals
 //----------------------------------------------------------------------------//
 
-struct InnerNodeValue {
-	done: bool,
-	span: Option<Span>,
-	node: Arc<RwLock<Box<dyn IsNode>>>,
+/// Locked read reference to an [`IsNode`].
+pub struct NodeRef<'a> {
+	node: RwLockReadGuard<'a, Value>,
 }
 
-impl InnerNodeValue {
-	pub fn get_value<T: IsNode>(&self) -> Option<NodeRef<T>> {
-		let guard = self.node.read().unwrap();
-		let value = &**guard;
-		if value.type_id() == TypeId::of::<T>() {
-			let guard = unsafe { std::mem::transmute(guard) };
-			let node = NodeRef {
-				node: self.node.clone(),
-				guard,
-			};
-			Some(node)
-		} else {
-			None
-		}
+impl<'a> Deref for NodeRef<'a> {
+	type Target = dyn IsNode;
+
+	fn deref(&self) -> &Self::Target {
+		get_trait!(&*self.node, IsNode).unwrap()
 	}
 }
 
-pub struct NodeRef<T: IsNode> {
-	node: Arc<RwLock<Box<dyn IsNode>>>,
-	guard: RwLockReadGuard<'static, Box<T>>,
+/// Locked write reference to a mutable [`IsNode`].
+pub struct NodeRefMut<'a> {
+	node: RwLockWriteGuard<'a, Value>,
 }
 
-impl<T: IsNode> Deref for NodeRef<T> {
+impl<'a> Deref for NodeRefMut<'a> {
+	type Target = dyn IsNode;
+
+	fn deref(&self) -> &Self::Target {
+		get_trait!(&*self.node, IsNode).unwrap()
+	}
+}
+
+impl<'a> DerefMut for NodeRefMut<'a> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		get_trait_mut!(&mut *self.node, IsNode).unwrap()
+	}
+}
+
+/// Locked read reference to an [`IsNode`] value.
+pub struct NodeValueRef<'a, T: IsNode> {
+	node: RwLockReadGuard<'a, Value>,
+	_phantom: PhantomData<T>,
+}
+
+impl<'a, T: IsNode> Deref for NodeValueRef<'a, T> {
 	type Target = T;
 
 	fn deref(&self) -> &Self::Target {
-		&self.guard
+		self.node.get().unwrap()
+	}
+}
+
+/// Locked write reference to a mutable [`IsNode`] value.
+pub struct NodeValueRefMut<'a, T: IsNode> {
+	node: RwLockWriteGuard<'a, Value>,
+	_phantom: PhantomData<T>,
+}
+
+impl<'a, T: IsNode> Deref for NodeValueRefMut<'a, T> {
+	type Target = T;
+
+	fn deref(&self) -> &Self::Target {
+		self.node.get().unwrap()
+	}
+}
+
+impl<'a, T: IsNode> DerefMut for NodeValueRefMut<'a, T> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		self.node.get_mut().unwrap()
 	}
 }

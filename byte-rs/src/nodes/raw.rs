@@ -11,8 +11,6 @@ pub struct Raw {
 	expr: NodeExprList,
 }
 
-has_traits!(Raw);
-
 impl Raw {
 	pub fn new(list: Vec<Node>, scope: Scope) -> Self {
 		Self {
@@ -20,6 +18,8 @@ impl Raw {
 		}
 	}
 }
+
+has_traits!(Raw: IsNode);
 
 impl IsNode for Raw {
 	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval {
@@ -51,7 +51,7 @@ pub enum RawExpr {
 	Ternary(OpTernary, Node, Node, Node),
 }
 
-has_traits!(RawExpr);
+has_traits!(RawExpr: IsNode);
 
 impl IsNode for RawExpr {
 	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval {
@@ -343,9 +343,7 @@ impl NodeExprList {
 	pub fn is_value(&mut self) -> Option<bool> {
 		let node = self.next()?;
 		let next = node.val();
-		let next = next.read().unwrap();
-		let next = &**next;
-		let expr = get_trait!(next, IsExprValueNode);
+		let expr = get_trait!(&*next, IsExprValueNode);
 		if let Some(expr) = expr {
 			expr.is_value()
 		} else if node.is_done() {
@@ -357,25 +355,19 @@ impl NodeExprList {
 
 	pub fn get_unary_pre(&self) -> Option<OpUnary> {
 		let next = self.next()?.val();
-		let next = next.read().unwrap();
-		let next = &**next;
-		let node = get_trait!(next, IsOperatorNode);
+		let node = get_trait!(&*next, IsOperatorNode);
 		node.and_then(|x| x.get_unary_pre())
 	}
 
 	pub fn get_binary(&self) -> Option<OpBinary> {
 		let next = self.next()?.val();
-		let next = next.read().unwrap();
-		let next = &**next;
-		let node = get_trait!(next, IsOperatorNode);
+		let node = get_trait!(&*next, IsOperatorNode);
 		node.and_then(|x| x.get_binary())
 	}
 
 	pub fn get_ternary(&mut self) -> Option<(OpTernary, &'static str)> {
 		let next = self.next()?.val();
-		let next = next.read().unwrap();
-		let next = &**next;
-		let node = get_trait!(next, IsOperatorNode);
+		let node = get_trait!(&*next, IsOperatorNode);
 		node.and_then(|x| x.get_ternary())
 	}
 }
