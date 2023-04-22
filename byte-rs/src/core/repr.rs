@@ -36,7 +36,23 @@ macro_rules! fmt_from_repr {
 	};
 }
 
+#[macro_export]
+macro_rules! repr_from_fmt {
+	($t:ty) => {
+		impl crate::core::repr::HasRepr for $t {
+			fn output_repr(&self, output: &Repr) {
+				if output.is_debug() {
+					output.write(format!("{self:?}"));
+				} else {
+					output.write(format!("{self}"));
+				}
+			}
+		}
+	};
+}
+
 pub use fmt_from_repr;
+pub use repr_from_fmt;
 
 #[derive(Clone)]
 pub struct Repr {

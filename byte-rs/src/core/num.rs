@@ -1,6 +1,7 @@
 use std::any::TypeId;
 
 use super::util::*;
+use super::*;
 
 pub type AnyInt = u64;
 pub type AnyFloat = f64;
@@ -207,6 +208,25 @@ impl Int {
 		};
 		res
 	}
+
+	pub fn as_ref(&self, kind: kind::Int) -> &dyn IsValue {
+		let res: &dyn IsValue = unsafe {
+			match kind {
+				kind::Int::Any => &self.any,
+				kind::Int::I8 => &self.i8,
+				kind::Int::U8 => &self.u8,
+				kind::Int::I16 => &self.i16,
+				kind::Int::I32 => &self.i32,
+				kind::Int::I64 => &self.i64,
+				kind::Int::U16 => &self.u16,
+				kind::Int::U32 => &self.u32,
+				kind::Int::U64 => &self.u64,
+				kind::Int::ISize => &self.isize,
+				kind::Int::USize => &self.usize,
+			}
+		};
+		res
+	}
 }
 
 #[derive(Copy, Clone)]
@@ -277,6 +297,17 @@ impl Float {
 				kind::Float::Any => self.any == other.any,
 				kind::Float::F32 => self.f32 == other.f32,
 				kind::Float::F64 => self.f64 == other.f64,
+			}
+		};
+		res
+	}
+
+	pub fn as_ref(&self, kind: kind::Float) -> &dyn IsValue {
+		let res: &dyn IsValue = unsafe {
+			match kind {
+				kind::Float::Any => &self.any,
+				kind::Float::F32 => &self.f32,
+				kind::Float::F64 => &self.f64,
 			}
 		};
 		res

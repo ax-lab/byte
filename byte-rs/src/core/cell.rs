@@ -7,6 +7,7 @@ use std::sync::Arc;
 use super::*;
 
 use super::num;
+use super::repr::*;
 use super::util::*;
 use super::HasTraits;
 
@@ -99,6 +100,13 @@ impl Cell {
 					data: CellData { str: value }
 				}
 			}
+
+			() {
+				return Cell {
+					kind: CellKind::Unit,
+					data: CellData { unit: value }
+				}
+			}
 		);
 
 		let value = match num::Int::from(value) {
@@ -134,7 +142,15 @@ impl Cell {
 
 	pub fn get<T: CanBox>(&self) -> Option<&T> {
 		match self.kind {
-			CellKind::Never | CellKind::Unit => None,
+			CellKind::Never => None,
+			CellKind::Unit => {
+				if TypeId::of::<T>() == TypeId::of::<()>() {
+					let ptr = unsafe { std::mem::transmute(&self.data.unit) };
+					Some(ptr)
+				} else {
+					None
+				}
+			}
 			CellKind::Bool => {
 				if TypeId::of::<T>() == TypeId::of::<bool>() {
 					let ptr = unsafe { std::mem::transmute(&self.data.bool) };
@@ -210,11 +226,21 @@ impl Cell {
 	}
 
 	pub fn as_value(&self) -> Option<&dyn IsValue> {
-		if self.kind == CellKind::Other {
-			let data = unsafe { &self.data.other };
-			Some(data.as_ref())
-		} else {
-			None
+		match self.kind {
+			CellKind::Unit => None,
+			CellKind::Never => None,
+			CellKind::Bool => Some(unsafe { &self.data.bool }),
+			CellKind::Str => Some(unsafe { &self.data.str }),
+			CellKind::Int(kind) => Some(unsafe { self.data.int.as_ref(kind) }),
+			CellKind::Float(kind) => Some(unsafe { self.data.float.as_ref(kind) }),
+			CellKind::Other => {
+				if self.kind == CellKind::Other {
+					let data = unsafe { &self.data.other };
+					Some(data.as_ref())
+				} else {
+					None
+				}
+			}
 		}
 	}
 }
@@ -278,25 +304,62 @@ impl PartialEq for Cell {
 	}
 }
 
-has_traits!(i8);
-has_traits!(i16);
-has_traits!(i32);
-has_traits!(i64);
-has_traits!(isize);
+has_traits!(i8: HasRepr);
+has_traits!(i16: HasRepr);
+has_traits!(i32: HasRepr);
+has_traits!(i64: HasRepr);
+has_traits!(isize: HasRepr);
 
-has_traits!(u8);
-has_traits!(u16);
-has_traits!(u32);
-has_traits!(u64);
-has_traits!(usize);
+has_traits!(u8: HasRepr);
+has_traits!(u16: HasRepr);
+has_traits!(u32: HasRepr);
+has_traits!(u64: HasRepr);
+has_traits!(usize: HasRepr);
 
-has_traits!(f32);
-has_traits!(f64);
+has_traits!(f32: HasRepr);
+has_traits!(f64: HasRepr);
 
-has_traits!(bool);
-has_traits!(String);
+has_traits!(bool: HasRepr);
+has_traits!(String: HasRepr);
 
-impl HasTraits for &str {}
+repr_from_fmt!(i8);
+repr_from_fmt!(i16);
+repr_from_fmt!(i32);
+repr_from_fmt!(i64);
+repr_from_fmt!(isize);
+
+repr_from_fmt!(u8);
+repr_from_fmt!(u16);
+repr_from_fmt!(u32);
+repr_from_fmt!(u64);
+repr_from_fmt!(usize);
+
+repr_from_fmt!(f32);
+repr_from_fmt!(f64);
+
+repr_from_fmt!(bool);
+repr_from_fmt!(String);
+repr_from_fmt!(&str);
+
+impl HasRepr for () {
+	fn output_repr(&self, output: &Repr) {
+		output.write(format!("{self:?}"))
+	}
+}
+
+impl HasTraits for &str {
+	fn get_trait(&self, type_id: TypeId) -> Option<&dyn HasTraits> {
+		some_trait!(self, type_id, HasRepr);
+		None
+	}
+}
+
+impl HasTraits for () {
+	fn get_trait(&self, type_id: TypeId) -> Option<&dyn HasTraits> {
+		some_trait!(self, type_id, HasRepr);
+		None
+	}
+}
 
 //----------------------------------------------------------------------------//
 // Utility types
@@ -306,6 +369,7 @@ impl HasTraits for &str {}
 #[derive(Copy, Clone)]
 union CellData {
 	bool: bool,
+	unit: (),
 	int: num::Int,
 	float: num::Float,
 	str: &'static str,
@@ -391,11 +455,15 @@ mod tests {
 	fn simple_types() {
 		// unit
 		let unit = Cell::unit();
-		assert!(unit.kind() == CellKind::Unit);
+		assert_eq!(unit.kind(), CellKind::Unit);
+
+		let unit = Cell::from(());
+		assert_eq!(unit.kind(), CellKind::Unit);
+		assert_eq!(unit.get::<()>(), Some(&()));
 
 		// never
 		let never = Cell::never();
-		assert!(never.kind() == CellKind::Never);
+		assert_eq!(never.kind(), CellKind::Never);
 
 		// bool
 		let bool = Cell::from(true);
@@ -461,6 +529,8 @@ mod tests {
 		check(&any, v1, v2);
 
 		fn check<T: IsValue + PartialEq + Clone + Debug>(cell: &Cell, v1: T, v2: T) {
+			let repr = format!("{v2:?}");
+
 			// check that we don't cast to the wrong type
 			assert!(cell.get::<String>().is_none());
 
@@ -488,6 +558,10 @@ mod tests {
 			// make sure a cell is equal to its clone
 			assert!(cell == cell.clone());
 			assert!(cell != saved);
+
+			// assert that value formatting works
+			let value: Value = cell.into();
+			assert_eq!(repr, format!("{value:?}"));
 		}
 	}
 

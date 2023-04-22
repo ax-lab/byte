@@ -79,8 +79,22 @@ macro_rules! get_trait {
 	}};
 }
 
+#[macro_export]
+macro_rules! some_trait {
+	($me:expr, $type_id:ident, $typ:path) => {
+		if ($type_id == ::std::any::TypeId::of::<dyn $typ>()) {
+			unsafe {
+				let me = $me as &dyn $typ;
+				let me = std::mem::transmute(me);
+				return Some(me);
+			}
+		}
+	};
+}
+
 pub use get_trait;
 pub use has_traits;
+pub use some_trait;
 
 //--------------------------------------------------------------------------------------------------------------------//
 // Tests

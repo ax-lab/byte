@@ -1,5 +1,6 @@
 use super::cell::*;
 use super::num::*;
+use super::repr::*;
 use super::traits::*;
 
 /// Trait for any generic value that can be used with a [`Cell`].
@@ -88,6 +89,32 @@ impl Value {
 impl HasTraits for Value {
 	fn get_trait(&self, type_id: std::any::TypeId) -> Option<&dyn HasTraits> {
 		self.cell.as_value()?.get_trait(type_id)
+	}
+}
+
+//--------------------------------------------------------------------------------------------------------------------//
+// Utility traits
+//--------------------------------------------------------------------------------------------------------------------//
+
+impl std::fmt::Display for Value {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		let repr = get_trait!(self, HasRepr);
+		if let Some(repr) = repr {
+			repr.fmt_display(f)
+		} else {
+			write!(f, "{self:?}")
+		}
+	}
+}
+
+impl std::fmt::Debug for Value {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		let repr = get_trait!(self, HasRepr);
+		if let Some(repr) = repr {
+			repr.fmt_debug(f)
+		} else {
+			write!(f, "Value({:?})", self.cell.kind())
+		}
 	}
 }
 
