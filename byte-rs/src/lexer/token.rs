@@ -1,22 +1,16 @@
-use std::any::TypeId;
-use std::panic::UnwindSafe;
+use crate::core::*;
 
-use crate::core::any::*;
-use crate::core::input::*;
+use input::*;
 
 /// Trait for custom token types returned as [`Token::Other`].
-pub trait IsToken: 'static + Sized {
-	type Value: Clone + IsAnyValue;
+pub trait IsToken: Sized {
+	type Value: IsValue;
 
 	fn name() -> &'static str;
 
-	fn token(value: Self::Value) -> Token {
-		let value = Value::new(value);
-		Token::Other(TokenValue {
-			name: Self::name(),
-			token: TypeId::of::<Self>(),
-			value,
-		})
+	fn token(data: Self::Value) -> Token {
+		let data = TokenValue::new::<Self>(data);
+		Token::Other(data)
 	}
 }
 
@@ -41,25 +35,17 @@ pub enum Token {
 	Other(TokenValue),
 }
 
-impl UnwindSafe for Token {}
-
 impl Token {
 	pub fn is<T: IsToken>(&self) -> bool {
 		match self {
-			Token::Other(value) => value.token == TypeId::of::<T>(),
+			Token::Other(value) => value.get::<T>().is_some(),
 			_ => false,
 		}
 	}
 
 	pub fn get<T: IsToken>(&self) -> Option<&T::Value> {
 		match self {
-			Token::Other(data) => {
-				if data.token == TypeId::of::<T>() {
-					data.value.get()
-				} else {
-					None
-				}
-			}
+			Token::Other(data) => data.get::<T>(),
 			_ => None,
 		}
 	}
@@ -149,26 +135,32 @@ impl std::fmt::Debug for TokenAt {
 }
 
 /// Holds the value of a custom [`Token::Other`].
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct TokenValue {
 	name: &'static str,
-	token: TypeId,
-	value: Value,
+	data: Value,
+}
+
+impl TokenValue {
+	pub fn new<T: IsToken>(data: T::Value) -> Self {
+		Self {
+			name: T::name(),
+			data: Value::from(data),
+		}
+	}
+
+	pub fn get<T: IsToken>(&self) -> Option<&T::Value> {
+		self.data.get()
+	}
 }
 
 impl std::fmt::Display for TokenValue {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		if self.value.get::<()>().is_none() {
-			write!(f, "{} `{}`", self.name, self.value)
+		if self.data.get::<()>().is_none() {
+			write!(f, "{} `{}`", self.name, self.data)
 		} else {
 			write!(f, "{}", self.name)
 		}
-	}
-}
-
-impl PartialEq for TokenValue {
-	fn eq(&self, other: &Self) -> bool {
-		self.token == other.token && self.value == other.value
 	}
 }
 
@@ -177,7 +169,7 @@ impl Eq for TokenValue {}
 impl std::fmt::Debug for TokenValue {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{}{{ ", self.name)?;
-		self.value.fmt(f)?;
+		self.data.fmt(f)?;
 		write!(f, " }}")
 	}
 }
