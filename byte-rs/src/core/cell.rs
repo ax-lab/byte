@@ -304,6 +304,8 @@ impl PartialEq for Cell {
 	}
 }
 
+impl Eq for Cell {}
+
 has_traits!(i8: HasRepr);
 has_traits!(i16: HasRepr);
 has_traits!(i32: HasRepr);

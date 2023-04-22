@@ -1,6 +1,7 @@
 use std::fmt::*;
 
 use crate::core::num::*;
+use crate::core::*;
 
 use super::expr::*;
 use super::*;
@@ -19,7 +20,7 @@ impl IsExpr for Print {
 				print!(" ");
 			}
 			let val = expr.val().eval(rt);
-			if val.typ() != &Type::Unit {
+			if !val.is_unit() {
 				empty = false;
 				print!("{val}");
 			}
@@ -35,57 +36,9 @@ impl IsExpr for Print {
 	}
 }
 
-impl std::fmt::Display for Value {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		print::print_value(self.typ(), self.val(), f)
-	}
-}
-
-impl std::fmt::Debug for Value {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "⸨")?;
-		write!(f, "{:?}:=", self.typ())?;
-		print::print_value(self.typ(), self.val(), f)?;
-		write!(f, "⸩")
-	}
-}
-
 impl std::fmt::Debug for Type {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		print::print_type(self, f)
-	}
-}
-
-fn print_value(typ: &Type, val: &InnerValue, f: &mut Formatter) -> Result {
-	match typ {
-		Type::Never => write!(f, "!"),
-		Type::Unit => write!(f, "()"),
-		Type::Bool => write!(f, "{}", unsafe { val.bool }),
-		Type::Int(typ) => {
-			let val = unsafe { &val.int };
-			match typ {
-				kind::Int::Any => write!(f, "{}", unsafe { val.any }),
-				kind::Int::I8 => write!(f, "{}", unsafe { val.i8 }),
-				kind::Int::U8 => write!(f, "{}", unsafe { val.u8 }),
-				kind::Int::I16 => write!(f, "{}", unsafe { val.i16 }),
-				kind::Int::I32 => write!(f, "{}", unsafe { val.i32 }),
-				kind::Int::I64 => write!(f, "{}", unsafe { val.i64 }),
-				kind::Int::U16 => write!(f, "{}", unsafe { val.u16 }),
-				kind::Int::U32 => write!(f, "{}", unsafe { val.u32 }),
-				kind::Int::U64 => write!(f, "{}", unsafe { val.u64 }),
-				kind::Int::ISize => write!(f, "{}", unsafe { val.isize }),
-				kind::Int::USize => write!(f, "{}", unsafe { val.usize }),
-			}
-		}
-		Type::Float(typ) => {
-			let val = unsafe { &val.float };
-			match typ {
-				kind::Float::Any => write!(f, "{}", unsafe { val.any }),
-				kind::Float::F32 => write!(f, "{}", unsafe { val.f32 }),
-				kind::Float::F64 => write!(f, "{}", unsafe { val.f64 }),
-			}
-		}
-		Type::Other(typ) => typ.get().fmt_val(val, f),
 	}
 }
 
@@ -94,6 +47,7 @@ fn print_type(typ: &Type, f: &mut Formatter) -> Result {
 		Type::Never => write!(f, "Never"),
 		Type::Unit => write!(f, "Unit"),
 		Type::Bool => write!(f, "Bool"),
+		Type::String => write!(f, "String"),
 		Type::Int(typ) => match typ {
 			kind::Int::Any => write!(f, "Int⟨_⟩"),
 			kind::Int::I8 => write!(f, "Int⟨8⟩"),
@@ -113,7 +67,7 @@ fn print_type(typ: &Type, f: &mut Formatter) -> Result {
 			kind::Float::F64 => write!(f, "Float⟨64⟩"),
 		},
 		Type::Other(typ) => {
-			write!(f, "Type({})", typ.get())
+			write!(f, "Type({:?})", typ)
 		}
 	}
 }

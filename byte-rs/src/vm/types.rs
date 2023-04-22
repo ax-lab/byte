@@ -1,26 +1,21 @@
 use std::any::TypeId;
-use std::fmt::Display;
 use std::sync::Arc;
 
 use crate::core::num::*;
+use crate::core::*;
 
 use super::*;
 
-pub trait IsType: 'static + Display {
-	fn val_type_id(&self) -> TypeId;
-
-	fn fmt_val(&self, value: &InnerValue, f: &mut std::fmt::Formatter) -> std::fmt::Result;
-
-	fn drop_val(&self, value: &mut InnerValue);
-
-	fn clone_val(&self, value: &InnerValue) -> InnerValue;
+pub trait IsType: IsValue {
+	fn get_as_type(&self) -> &dyn IsType;
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum Type {
 	Unit,
 	Never,
 	Bool,
+	String,
 	Int(kind::Int),
 	Float(kind::Float),
 	Other(OtherType),
@@ -28,20 +23,27 @@ pub enum Type {
 
 impl Type {
 	pub fn new<T: IsType>(typ: T) -> Self {
-		let typ = Box::new(typ);
-		let typ = Box::leak(typ) as *const dyn IsType;
+		let typ = Value::from(typ);
 		Type::Other(OtherType(typ))
 	}
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
-pub struct OtherType(*const dyn IsType);
+#[derive(Clone, Eq, PartialEq)]
+pub struct OtherType(Value);
 
 impl OtherType {
+	pub fn new<T: IsType>(value: T) -> Self {
+		let value = Value::from(value);
+		assert!(get_trait!(&value, IsType).is_some());
+		OtherType(value)
+	}
 	pub fn get(&self) -> &dyn IsType {
-		unsafe { self.0.as_ref().unwrap() }
+		get_trait!(&self.0, IsType).unwrap()
 	}
 }
 
-unsafe impl Send for OtherType {}
-unsafe impl Sync for OtherType {}
+impl std::fmt::Debug for OtherType {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "Type({:?})", self.0)
+	}
+}

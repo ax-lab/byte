@@ -12,7 +12,7 @@ impl<T: CanBox + DynClone + DynEq + HasTraits> IsValue for T {}
 
 /// Holds a generic value with support for dynamic typing, ARC sharing, and
 /// copy-on-write semantics.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Value {
 	cell: Cell,
 }

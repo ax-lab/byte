@@ -100,7 +100,7 @@ impl Atom {
 					let expr = Expr::new(expr::Literal::Integer(*value));
 					Some(expr)
 				} else if let Some(value) = token.get::<Literal>() {
-					let expr = Expr::new(expr::Literal::String(Str::from(value.clone())));
+					let expr = Expr::new(expr::Literal::String(value.clone()));
 					Some(expr)
 				} else {
 					None
