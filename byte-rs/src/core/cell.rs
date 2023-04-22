@@ -10,13 +10,6 @@ use super::num;
 use super::util::*;
 use super::HasTraits;
 
-/// Trait for any generic value that can be used with a [`Cell`].
-///
-/// This trait provides a blanket implementation for all supported values.
-pub trait IsValue: CanBox + DynClone + DynEq + HasTraits {}
-
-impl<T: CanBox + DynClone + DynEq + HasTraits> IsValue for T {}
-
 pub trait CanBox: Any + Send + Sync + UnwindSafe {}
 
 impl<T: Any + Send + Sync + UnwindSafe> CanBox for T {}
