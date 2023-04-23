@@ -19,13 +19,7 @@ pub fn parse(input: crate::core::input::Input) {
 
 	resolver.wait();
 
-	let errors = scope.errors();
-	if !errors.empty() {
-		super::print_error_list(errors);
-		std::process::exit(1);
-	}
-
-	let errors = resolver.errors();
+	let errors = global_scope.errors();
 	if !errors.empty() {
 		super::print_error_list(errors);
 		std::process::exit(1);

@@ -11,11 +11,11 @@ use super::*;
 #[derive(Clone)]
 pub struct Scope {
 	data: Arc<RwLock<ScopeData>>,
+	errors: Arc<RwLock<ErrorList>>,
 }
 
 #[derive(Default)]
 pub struct ScopeData {
-	errors: ErrorList,
 	root: Option<Scope>,
 	parent: Option<Scope>,
 	children: Vec<Scope>,
@@ -27,11 +27,8 @@ impl Scope {
 		let data = ScopeData {
 			..Default::default()
 		};
-		Self::new_with_data(data)
-	}
-
-	fn new_with_data(data: ScopeData) -> Self {
-		Scope {
+		Self {
+			errors: Arc::new(RwLock::new(ErrorList::new())),
 			data: Arc::new(RwLock::new(data)),
 		}
 	}
@@ -67,7 +64,10 @@ impl Scope {
 			parent: Some(self.clone()),
 			..Default::default()
 		};
-		let child = Self::new_with_data(child);
+		let child = Scope {
+			errors: self.errors.clone(),
+			data: Arc::new(RwLock::new(child)),
+		};
 		data.children.push(child.clone());
 		child
 	}
@@ -82,37 +82,26 @@ impl Scope {
 			previous: Some(self.clone()),
 			..Default::default()
 		};
-		let next = Self::new_with_data(next);
+		let next = Scope {
+			errors: self.errors.clone(),
+			data: Arc::new(RwLock::new(next)),
+		};
 		next
 	}
 
-	pub fn errors_mut(
-		&mut self,
-	) -> ScopeRefMut<ErrorList, impl Fn(&mut ScopeData) -> &mut ErrorList> {
-		self.get_ref_mut(|data| &mut data.errors)
+	pub fn errors_mut(&mut self) -> ScopeErrorsRefMut {
+		ScopeErrorsRefMut {
+			errors: self.errors.write().unwrap(),
+		}
 	}
 
 	pub fn has_errors(&self) -> bool {
-		let data = self.data.read().unwrap();
-		if !data.errors.empty() {
-			true
-		} else {
-			for it in data.children.iter() {
-				if it.has_errors() {
-					return true;
-				}
-			}
-			false
-		}
+		let errors = self.errors.read().unwrap();
+		!errors.empty()
 	}
 
 	pub fn errors(&self) -> ErrorList {
-		let me = self.data.read().unwrap();
-		let mut errors = me.errors.clone();
-		for it in me.children.iter() {
-			errors.append(it.errors());
-		}
-		errors
+		self.errors.read().unwrap().clone()
 	}
 
 	pub fn get(&self, name: Str) -> ScopeCell {
@@ -139,6 +128,28 @@ pub struct ScopeCell {}
 impl ScopeCell {
 	pub fn resolve(&self) {
 		todo!()
+	}
+}
+
+//--------------------------------------------------------------------------------------------------------------------//
+// Reference types
+//--------------------------------------------------------------------------------------------------------------------//
+
+pub struct ScopeErrorsRefMut<'a> {
+	errors: RwLockWriteGuard<'a, ErrorList>,
+}
+
+impl<'a> Deref for ScopeErrorsRefMut<'a> {
+	type Target = ErrorList;
+
+	fn deref(&self) -> &Self::Target {
+		&self.errors
+	}
+}
+
+impl<'a> DerefMut for ScopeErrorsRefMut<'a> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.errors
 	}
 }
 

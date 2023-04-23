@@ -22,17 +22,12 @@ impl NodeResolver {
 
 		for _ in 0..NUM_RESOLVERS {
 			let queue = result.queue.clone();
-			let errors = result.errors.clone();
 			thread::spawn(move || {
-				Self::process_queue(queue, errors);
+				Self::process_queue(queue);
 			});
 		}
 
 		result
-	}
-
-	pub fn errors(&self) -> ErrorList {
-		self.errors.lock().unwrap().clone()
 	}
 
 	pub fn resolve(&mut self, node: Node) {
@@ -44,7 +39,7 @@ impl NodeResolver {
 		self.queue.wait();
 	}
 
-	fn process_queue(mut queue: Arc<NodeQueue>, errors: Arc<Mutex<ErrorList>>) {
+	fn process_queue(mut queue: Arc<NodeQueue>) {
 		while let Some(mut node) = queue.take_next() {
 			let eval = {
 				let mut scope = node.scope();
