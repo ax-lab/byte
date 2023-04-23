@@ -15,9 +15,9 @@ pub struct Raw {
 }
 
 impl Raw {
-	pub fn new(list: Vec<Node>, scope: Scope) -> Self {
+	pub fn new(list: Vec<Node>) -> Self {
 		Self {
-			expr: NodeExprList::new(list, scope),
+			expr: NodeExprList::new(list),
 		}
 	}
 }
@@ -25,8 +25,8 @@ impl Raw {
 has_traits!(Raw: IsNode, HasRepr);
 
 impl IsNode for Raw {
-	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval {
-		self.expr.reduce(errors)
+	fn eval(&mut self, scope: &mut Scope) -> NodeEval {
+		self.expr.reduce(scope)
 	}
 }
 
@@ -59,7 +59,7 @@ pub enum RawExpr {
 has_traits!(RawExpr: IsNode, HasRepr);
 
 impl IsNode for RawExpr {
-	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval {
+	fn eval(&mut self, scope: &mut Scope) -> NodeEval {
 		let mut deps = Vec::new();
 		match self {
 			RawExpr::Unary(_, a) => {
@@ -190,7 +190,6 @@ impl HasRepr for RawExpr {
 
 #[derive(Clone)]
 pub struct NodeExprList {
-	scope: Scope,
 	list: Vec<Node>,
 	next: usize,
 	ops: VecDeque<(Op, Node)>,
@@ -198,9 +197,8 @@ pub struct NodeExprList {
 }
 
 impl NodeExprList {
-	pub fn new(list: Vec<Node>, scope: Scope) -> Self {
+	pub fn new(list: Vec<Node>) -> Self {
 		Self {
-			scope,
 			list,
 			next: 0,
 			ops: Default::default(),
@@ -208,7 +206,7 @@ impl NodeExprList {
 		}
 	}
 
-	pub fn reduce(&mut self, errors: &mut ErrorList) -> NodeEval {
+	pub fn reduce(&mut self, scope: &mut Scope) -> NodeEval {
 		if self.next >= self.list.len() {
 			return self.check_pending();
 		}
@@ -218,7 +216,7 @@ impl NodeExprList {
 				// the unary operator doesn't affect other operators on the stack
 				// because it binds forward to the next operator
 				let op = Op::Unary(op);
-				self.push_op(op, self.next().unwrap().clone());
+				self.push_op(scope, op, self.next().unwrap().clone());
 				self.advance();
 			}
 
@@ -229,6 +227,7 @@ impl NodeExprList {
 					self.advance();
 				}
 				Some(false) => {
+					let mut errors = scope.errors_mut();
 					errors.at(next.and_then(|x| x.span()), "expected a value expression");
 					return NodeEval::Complete;
 				}
@@ -245,18 +244,19 @@ impl NodeExprList {
 				let node = self.next().unwrap().clone();
 				self.advance();
 				let op = Op::Ternary(op);
-				self.push_op(op, node.clone());
+				self.push_op(scope, op, node.clone());
 
 				if let Some(index) = self.find_symbol(end) {
 					let mut tail = self.list.split_off(index + 1);
 
 					// Create a raw with the sub expression and append it as a node
 					let expr = self.list.split_off(self.next);
-					let expr = Raw::new(expr, self.scope.clone());
-					let expr = Node::new(expr);
+					let expr = Raw::new(expr);
+					let expr = Node::new(expr, scope.clone());
 					self.list.push(expr.clone());
 					self.list.append(&mut tail);
 				} else {
+					let mut errors = scope.errors_mut();
 					errors.at(
 						node.span(),
 						format!("symbol `{end}` for ternary operator {node} not found"),
@@ -266,7 +266,7 @@ impl NodeExprList {
 			} else if let Some(op) = self.get_binary() {
 				let node = self.next().unwrap().clone();
 				let op = Op::Binary(op);
-				self.push_op(op, node);
+				self.push_op(scope, op, node);
 				self.advance();
 			} else {
 				break;
@@ -275,11 +275,12 @@ impl NodeExprList {
 
 		// pop any remaining operators on the stack.
 		while self.ops.len() > 0 {
-			self.pop_stack();
+			self.pop_stack(scope);
 		}
 
 		// check that there was no unparsed portion of the expression
 		if self.next < self.values.len() {
+			let mut errors = scope.errors_mut();
 			if errors.empty() {
 				errors.at(self.values[self.next].span(), "expected end of expression");
 			}
@@ -287,6 +288,7 @@ impl NodeExprList {
 		}
 
 		if self.values.len() == 0 {
+			let mut errors = scope.errors_mut();
 			if errors.empty() {
 				let sta = self.list.first().and_then(|x| x.span());
 				let end = self.list.last().and_then(|x| x.span());
@@ -326,10 +328,10 @@ impl NodeExprList {
 	//------------------------------------------------------------------------//
 
 	/// Push a new operator onto the stack.
-	fn push_op(&mut self, op: Op, node: Node) {
+	fn push_op(&mut self, scope: &mut Scope, op: Op, node: Node) {
 		while let Some((top, ..)) = self.ops.back() {
 			if top < &op {
-				self.pop_stack();
+				self.pop_stack(scope);
 			} else {
 				break;
 			}
@@ -339,7 +341,7 @@ impl NodeExprList {
 
 	/// Pop a single operator and its operands from the stack and push the
 	/// resulting operation.
-	fn pop_stack(&mut self) {
+	fn pop_stack(&mut self, scope: &mut Scope) {
 		let ops = &mut self.ops;
 		let values = &mut self.values;
 		let (op, op_node) = ops.pop_back().unwrap();
@@ -348,7 +350,7 @@ impl NodeExprList {
 				let expr = values.pop_back().unwrap();
 				let span = Node::get_span(&op_node, &expr);
 				let expr = RawExpr::Unary(op, expr);
-				let expr = Node::new_at(expr, span);
+				let expr = Node::new_at(expr, scope.clone(), span);
 				values.push_back(expr);
 			}
 			Op::Binary(op) => {
@@ -356,7 +358,7 @@ impl NodeExprList {
 				let lhs = values.pop_back().unwrap();
 				let span = Node::get_span(&lhs, &rhs);
 				let expr = RawExpr::Binary(op, lhs, rhs);
-				let expr = Node::new_at(expr, span);
+				let expr = Node::new_at(expr, scope.clone(), span);
 				values.push_back(expr);
 			}
 			Op::Ternary(op) => {
@@ -365,7 +367,7 @@ impl NodeExprList {
 				let a = values.pop_back().unwrap();
 				let span = Node::get_span(&a, &c);
 				let expr = RawExpr::Ternary(op, a, b, c);
-				let expr = Node::new_at(expr, span);
+				let expr = Node::new_at(expr, scope.clone(), span);
 				values.push_back(expr);
 			}
 		}

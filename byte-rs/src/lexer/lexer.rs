@@ -43,6 +43,13 @@ struct State {
 	indent: Indent,
 }
 
+impl Default for Lexer {
+	fn default() -> Self {
+		let input = Input::open_str("empty", "");
+		Lexer::new(input.start(), Scanner::new())
+	}
+}
+
 impl Lexer {
 	pub fn new(input: Cursor, scanner: Scanner) -> Self {
 		Lexer {

@@ -1,64 +1,136 @@
-use crate::core::str::*;
+use std::{
+	ops::{Deref, DerefMut},
+	sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
+};
 
-/// Maintain and resolve symbol definitions during parsing.
-///
-/// Scopes form an hierarchy that can be constructed using the `child`
-/// and `inherit` methods.
-///
-/// Cloning a scope just copies the reference. The clone will still refer
-/// to the same scope.
-#[derive(Clone, PartialEq)]
-pub struct Scope {}
+use crate::{core::str::*, lexer::Lexer};
+
+use super::*;
+
+/// A scope maintains the state necessary for the node parsing.
+#[derive(Clone)]
+pub struct Scope {
+	data: Arc<RwLock<ScopeData>>,
+}
+
+#[derive(Default)]
+pub struct ScopeData {
+	errors: ErrorList,
+	root: Option<Scope>,
+	parent: Option<Scope>,
+	children: Vec<Scope>,
+	previous: Option<Scope>,
+}
 
 impl Scope {
-	pub fn new() -> Scope {
-		Scope {}
+	pub fn new() -> Self {
+		let data = ScopeData {
+			..Default::default()
+		};
+		Self::new_with_data(data)
 	}
 
-	/// Return the root scope for the current hierarchy.
+	fn new_with_data(data: ScopeData) -> Self {
+		Scope {
+			data: Arc::new(RwLock::new(data)),
+		}
+	}
+
+	/// Returns the root scope for the current hierarchy. Will return the
+	/// current scope if it's the root.
 	pub fn root(&self) -> Scope {
-		todo!()
+		let data = self.data.read().unwrap();
+		if let Some(root) = &data.root {
+			root.clone()
+		} else {
+			self.clone()
+		}
 	}
 
-	/// Returns a reference to the parent scope for this scope, unless this is
-	/// the root.
-	///
-	/// Note that calling parent on a scope will prevent [`make_own`] for the
-	/// entire hierarchy up to the parent.
+	/// Returns the parent scope for the current scope or [`None`] if this is
+	/// the root scope.
 	pub fn parent(&self) -> Option<Scope> {
-		todo!()
+		let data = self.data.read().unwrap();
+		if let Some(parent) = &data.parent {
+			Some(parent.clone())
+		} else {
+			None
+		}
 	}
 
-	/// Transform an inherited scope into its own.
-	///
-	/// By default, inherited scopes just apply all changes to their parents
-	/// but making a scope into its own will isolate all changes to itself.
-	///
-	/// **IMPORTANT:** This must be called as soon as possible, before any
-	/// changes are made to the scope or [`parent`] is accessed.
-	pub fn make_own(&mut self) {
-		todo!()
-	}
-
-	/// Inherit a scope down a level from the current one.
-	///
-	/// Inherited scopes will see everything in the parent. By default, any
-	/// changes to an inherit scope will still apply to the parent unless the
-	/// scope is made into its own with [`make_own`].
-	pub fn inherit(&self) -> Scope {
-		todo!()
-	}
-
-	/// Creates a child scope. This is exactly equivalent to `inherit`
-	/// followed up by `make_own`.
-	pub fn child(&self) -> Scope {
-		let mut child = self.inherit();
-		child.make_own();
+	/// Creates a new child scope. A child scope can see definitions from the
+	/// parent scope, but is its own defined scope.
+	pub fn new_child(&mut self) -> Scope {
+		let mut data = self.data.write().unwrap();
+		let child = ScopeData {
+			root: data.root.clone().or(Some(self.clone())),
+			parent: Some(self.clone()),
+			..Default::default()
+		};
+		let child = Self::new_with_data(child);
+		data.children.push(child.clone());
 		child
+	}
+
+	/// Creates a new scope with the same level and definitions as the current
+	/// scope, but isolating further changes from the current scope.
+	pub fn inherit(&self) -> Scope {
+		let data = self.data.read().unwrap();
+		let next = ScopeData {
+			root: data.root.clone(),
+			parent: data.parent.clone(),
+			previous: Some(self.clone()),
+			..Default::default()
+		};
+		let next = Self::new_with_data(next);
+		next
+	}
+
+	pub fn errors_mut(
+		&mut self,
+	) -> ScopeRefMut<ErrorList, impl Fn(&mut ScopeData) -> &mut ErrorList> {
+		self.get_ref_mut(|data| &mut data.errors)
+	}
+
+	pub fn has_errors(&self) -> bool {
+		let data = self.data.read().unwrap();
+		if !data.errors.empty() {
+			true
+		} else {
+			for it in data.children.iter() {
+				if it.has_errors() {
+					return true;
+				}
+			}
+			false
+		}
+	}
+
+	pub fn errors(&self) -> ErrorList {
+		let me = self.data.read().unwrap();
+		let mut errors = me.errors.clone();
+		for it in me.children.iter() {
+			errors.append(it.errors());
+		}
+		errors
 	}
 
 	pub fn get(&self, name: Str) -> ScopeCell {
 		todo!()
+	}
+
+	fn get_ref<T, F: Fn(&ScopeData) -> &T>(&self, read: F) -> ScopeRef<T, F> {
+		ScopeRef {
+			data: self.data.read().unwrap(),
+			read,
+		}
+	}
+
+	fn get_ref_mut<T, F: Fn(&mut ScopeData) -> &mut T>(&self, read: F) -> ScopeRefMut<T, F> {
+		ScopeRefMut {
+			data: self.data.write().unwrap(),
+			read,
+		}
 	}
 }
 
@@ -67,5 +139,42 @@ pub struct ScopeCell {}
 impl ScopeCell {
 	pub fn resolve(&self) {
 		todo!()
+	}
+}
+
+pub struct ScopeRef<'a, T, F: Fn(&ScopeData) -> &T> {
+	data: RwLockReadGuard<'a, ScopeData>,
+	read: F,
+}
+
+impl<'a, T, F: Fn(&ScopeData) -> &T> Deref for ScopeRef<'a, T, F> {
+	type Target = T;
+
+	fn deref(&self) -> &Self::Target {
+		let read = &self.read;
+		read(&*self.data)
+	}
+}
+
+pub struct ScopeRefMut<'a, T, F: Fn(&mut ScopeData) -> &mut T> {
+	data: RwLockWriteGuard<'a, ScopeData>,
+	read: F,
+}
+
+impl<'a, T, F: Fn(&mut ScopeData) -> &mut T> Deref for ScopeRefMut<'a, T, F> {
+	type Target = T;
+
+	#[allow(mutable_transmutes)]
+	fn deref(&self) -> &Self::Target {
+		let read = &self.read;
+		let data = &*self.data;
+		read(unsafe { std::mem::transmute(data) })
+	}
+}
+
+impl<'a, T, F: Fn(&mut ScopeData) -> &mut T> DerefMut for ScopeRefMut<'a, T, F> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		let read = &self.read;
+		read(&mut *self.data)
 	}
 }

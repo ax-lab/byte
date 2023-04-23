@@ -7,16 +7,19 @@ use crate::vm::Op;
 
 pub fn parse(input: crate::core::input::Input) {
 	let mut lexer = open(input);
+	let mut global_scope = Scope::new();
+	let mut scope = global_scope.new_child();
 	let mut list = Vec::new();
 	let mut resolver = NodeResolver::new();
-	while let Some(next) = parse_next(&mut lexer) {
+	while let Some(next) = parse_next(&mut lexer, &mut scope) {
 		list.push(next.clone());
+		scope = next.scope().inherit();
 		resolver.resolve(next);
 	}
 
 	resolver.wait();
 
-	let errors = lexer.errors();
+	let errors = scope.errors();
 	if !errors.empty() {
 		super::print_error_list(errors);
 		std::process::exit(1);
@@ -69,21 +72,26 @@ pub fn open(input: crate::core::input::Input) -> Lexer {
 	lexer
 }
 
-fn parse_next(lexer: &mut Lexer) -> Option<Node> {
+fn parse_next(lexer: &mut Lexer, scope: &mut Scope) -> Option<Node> {
 	if lexer.next().is_none() {
 		None
 	} else {
-		let mut expr = Vec::new();
-		while lexer.next().is_some() {
-			let next = lexer.read();
-			if next.token() == Token::Break {
-				break;
-			}
-			let next = Node::new(Atom::from(next));
-			expr.push(next);
-		}
-		let expr = Raw::new(expr, Scope::new());
-		let expr = Node::new(expr);
+		let expr = { read_line(&mut *lexer, scope.clone()) };
+		let expr = Raw::new(expr);
+		let expr = Node::new(expr, scope.clone());
 		Some(expr)
 	}
+}
+
+fn read_line(lexer: &mut Lexer, scope: Scope) -> Vec<Node> {
+	let mut expr = Vec::new();
+	while lexer.next().is_some() {
+		let next = lexer.read();
+		if next.token() == Token::Break {
+			break;
+		}
+		let next = Node::new(Atom::from(next), scope.clone());
+		expr.push(next);
+	}
+	expr
 }

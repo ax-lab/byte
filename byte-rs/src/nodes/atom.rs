@@ -20,7 +20,7 @@ impl From<TokenAt> for Atom {
 has_traits!(Atom: IsNode, HasRepr, IsExprValueNode, IsOperatorNode);
 
 impl IsNode for Atom {
-	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval {
+	fn eval(&mut self, scope: &mut Scope) -> NodeEval {
 		NodeEval::Complete
 	}
 

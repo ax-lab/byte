@@ -56,6 +56,7 @@ use super::*;
 #[derive(Clone)]
 pub struct Node {
 	id: u64,
+	scope: Scope,
 	node: Arc<RwLock<Value>>,
 	span: Arc<RwLock<Option<Span>>>,
 	done: Arc<RwLock<bool>>,
@@ -69,7 +70,7 @@ impl PartialEq for Node {
 
 /// Root trait implemented for a [`Node`] underlying value.
 pub trait IsNode: IsValue + HasRepr {
-	fn eval(&mut self, errors: &mut ErrorList) -> NodeEval;
+	fn eval(&mut self, scope: &mut Scope) -> NodeEval;
 
 	fn span(&self) -> Option<Span> {
 		None
@@ -107,7 +108,7 @@ pub trait IsOperatorNode {
 }
 
 impl Node {
-	pub fn new<T: IsNode>(node: T) -> Self {
+	pub fn new<T: IsNode>(node: T, scope: Scope) -> Self {
 		// Generate a unique ID for each instance. The ID will remain constant
 		// even if the underlying value changes and is preserved by cloning.
 		static ID: AtomicU64 = AtomicU64::new(0);
@@ -120,16 +121,21 @@ impl Node {
 		assert!(get_trait!(&node, IsNode).is_some());
 		Node {
 			id,
+			scope,
 			done: Default::default(),
 			node: Arc::new(RwLock::new(node)),
 			span: Arc::new(RwLock::new(span)),
 		}
 	}
 
-	pub fn new_at<T: IsNode>(node: T, span: Option<Span>) -> Self {
-		let mut node = Self::new(node);
+	pub fn new_at<T: IsNode>(node: T, scope: Scope, span: Option<Span>) -> Self {
+		let mut node = Self::new(node, scope);
 		node.set_span(span);
 		node
+	}
+
+	pub fn scope(&self) -> Scope {
+		self.scope.clone()
 	}
 
 	/// Globally unique identifier for the node. This does not change with
@@ -247,12 +253,6 @@ pub enum NodeEval {
 //----------------------------------------------------------------------------//
 // Trait implementations
 //----------------------------------------------------------------------------//
-
-impl<T: IsNode> From<T> for Node {
-	fn from(value: T) -> Self {
-		Node::new(value)
-	}
-}
 
 impl HasRepr for Node {
 	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
