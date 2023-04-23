@@ -387,8 +387,8 @@ impl Scope for ScopeParenthesized {
 	}
 
 	fn apply(&mut self, input: &dyn Stream, as_parent: bool) -> Action {
-		if let Some(open) = self.open.front() {
-			if input.next().symbol() == open.get_closing() {
+		if let Some(_) = self.open.front() {
+			if input.next().symbol() == Some(")") {
 				if self.open.len() == 1 && as_parent {
 					return Action::Stop;
 				}
@@ -400,7 +400,7 @@ impl Scope for ScopeParenthesized {
 					Action::Output
 				}
 			} else {
-				if let Some(_) = input.next().get_closing() {
+				if let Some("(") = input.next().symbol() {
 					self.open.push_front(input.next());
 				}
 				Action::Output
@@ -408,7 +408,7 @@ impl Scope for ScopeParenthesized {
 		} else {
 			let next = input.next();
 			assert!(
-				next.get_closing().is_some(),
+				next.symbol() == Some("("),
 				"scope does not start at a valid parenthesized symbol (got {next} at {})",
 				next.span()
 			);
@@ -420,7 +420,7 @@ impl Scope for ScopeParenthesized {
 	fn leave(&self, input: &dyn Stream) -> Option<NodeError> {
 		if let Some(open) = self.open.front() {
 			let next = input.next();
-			let end = open.get_closing().unwrap();
+			let end = ")";
 			Some(
 				NodeError::ExpectedSymbol(end, next.span())
 					.at(format!("opening `{open}` at {}", open.span())),

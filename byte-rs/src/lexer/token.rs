@@ -92,13 +92,6 @@ impl TokenAt {
 	pub fn as_none(&self) -> TokenAt {
 		TokenAt(self.span(), Token::None)
 	}
-
-	pub fn get_closing(&self) -> Option<&'static str> {
-		match self.1 {
-			Token::Symbol("(") => Some(")"),
-			_ => return None,
-		}
-	}
 }
 
 impl std::fmt::Display for TokenAt {
