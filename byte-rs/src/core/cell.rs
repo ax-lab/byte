@@ -2,7 +2,6 @@ use std::any::Any;
 use std::any::TypeId;
 use std::fmt::*;
 use std::io::Write;
-use std::panic::UnwindSafe;
 use std::sync::Arc;
 
 use super::*;
@@ -12,9 +11,9 @@ use super::repr::*;
 use super::util::*;
 use super::HasTraits;
 
-pub trait CanBox: Any + Send + Sync + UnwindSafe {}
+pub trait CanBox: Any + Send + Sync {}
 
-impl<T: Any + Send + Sync + UnwindSafe> CanBox for T {}
+impl<T: Any + Send + Sync> CanBox for T {}
 
 /// Dynamic clone trait. Provides a blanket implementation for [`Clone`] types.
 pub trait DynClone {
@@ -387,8 +386,6 @@ struct CellPtr {
 
 unsafe impl Send for CellPtr {}
 unsafe impl Sync for CellPtr {}
-
-impl UnwindSafe for CellPtr {}
 
 impl CellPtr {
 	pub fn new<T: IsValue>(value: T) -> Self {
