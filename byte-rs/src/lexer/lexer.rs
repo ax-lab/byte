@@ -1,6 +1,6 @@
-use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::RwLock;
 
 use crate::core::error::*;
 use crate::core::input::*;
@@ -22,10 +22,19 @@ use super::*;
 ///
 /// The lexer can be reconfigured during parsing, either from the input source
 /// text or by the parser itself.
-#[derive(Clone)]
 pub struct Lexer {
 	state: State,
-	next: RefCell<Rc<VecDeque<(TokenAt, State)>>>,
+	next: RwLock<Arc<VecDeque<(TokenAt, State)>>>,
+}
+
+impl Clone for Lexer {
+	fn clone(&self) -> Self {
+		let next = self.next.read().unwrap().clone();
+		Self {
+			state: self.state.clone(),
+			next: RwLock::new(next),
+		}
+	}
 }
 
 #[derive(Clone)]
@@ -41,7 +50,7 @@ impl Lexer {
 				stream: TokenStream::new(input, scanner),
 				indent: Indent::new(),
 			},
-			next: RefCell::new(Rc::new(VecDeque::new())),
+			next: RwLock::new(Arc::new(VecDeque::new())),
 		}
 	}
 
@@ -56,8 +65,8 @@ impl Lexer {
 	}
 
 	pub fn config<F: FnOnce(&mut Scanner)>(&mut self, config: F) {
-		let mut next = self.next.borrow_mut();
-		*next = Rc::new(VecDeque::new());
+		let mut next = self.next.write().unwrap();
+		*next = Arc::new(VecDeque::new());
 		self.state.stream.config(config);
 	}
 
@@ -75,7 +84,7 @@ impl Lexer {
 
 	pub fn lookahead(&self, n: usize) -> TokenAt {
 		{
-			let next = self.next.borrow();
+			let next = self.next.read().unwrap();
 			if let Some((token, ..)) = next.get(n) {
 				return token.clone();
 			} else if let Some((last, ..)) = next.back() {
@@ -85,8 +94,8 @@ impl Lexer {
 			}
 		}
 
-		let mut next = self.next.borrow_mut();
-		let next = Rc::make_mut(&mut next);
+		let mut next = self.next.write().unwrap();
+		let next = Arc::make_mut(&mut next);
 		let mut state = next
 			.back()
 			.map(|x| x.1.clone())
@@ -107,8 +116,8 @@ impl Lexer {
 	}
 
 	pub fn read(&mut self) -> TokenAt {
-		let mut next = self.next.borrow_mut();
-		let next = Rc::make_mut(&mut next);
+		let mut next = self.next.write().unwrap();
+		let next = Arc::make_mut(&mut next);
 		if let Some((token, state)) = next.pop_front() {
 			self.state = state;
 			return token;

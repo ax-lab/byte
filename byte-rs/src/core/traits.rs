@@ -1,5 +1,9 @@
-use std::any::TypeId;
+use std::{
+	any::{Any, TypeId},
+	sync::Arc,
+};
 
+use super::cell::*;
 use super::*;
 
 /// Provides dynamic typing with traits.
@@ -20,6 +24,44 @@ pub trait HasTraits {
 		unsafe { std::mem::transmute(self.get_trait(type_id)) }
 	}
 }
+
+//--------------------------------------------------------------------------------------------------------------------//
+// Common traits
+//--------------------------------------------------------------------------------------------------------------------//
+
+pub trait CanBox: Any + Send + Sync {}
+
+impl<T: Any + Send + Sync> CanBox for T {}
+
+/// Dynamic clone trait. Provides a blanket implementation for [`Clone`] types.
+pub trait HasClone {
+	fn clone_box(&self) -> Arc<dyn IsValue>;
+}
+
+impl<T: CanBox + Clone + HasTraits> HasClone for T {
+	fn clone_box(&self) -> Arc<dyn IsValue> {
+		Arc::new(self.clone())
+	}
+}
+
+/// Dynamic equality trait. Provides a blanket implementation for [`Eq`] types.
+pub trait HasEq {
+	fn is_eq(&self, other: &Cell) -> bool;
+}
+
+impl<T: CanBox + PartialEq> HasEq for T {
+	fn is_eq(&self, other: &Cell) -> bool {
+		if let Some(other) = other.get::<T>() {
+			self == other
+		} else {
+			false
+		}
+	}
+}
+
+//--------------------------------------------------------------------------------------------------------------------//
+// Helper macros
+//--------------------------------------------------------------------------------------------------------------------//
 
 /// Implements the [`HasTraits`] macros for a type, expanding to an `impl`
 /// block.

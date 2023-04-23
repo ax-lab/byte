@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::core::error::*;
 use crate::core::input::*;
@@ -24,7 +24,7 @@ use super::*;
 /// raw text parsing.
 #[derive(Clone)]
 pub struct TokenStream {
-	scanner: Rc<Scanner>,
+	scanner: Arc<Scanner>,
 
 	/// Current input position.
 	input: Cursor,
@@ -38,7 +38,7 @@ impl TokenStream {
 		TokenStream {
 			errors: ErrorList::new(),
 			input,
-			scanner: Rc::new(scanner),
+			scanner: Arc::new(scanner),
 		}
 	}
 
@@ -55,7 +55,7 @@ impl TokenStream {
 	}
 
 	pub fn config<F: FnOnce(&mut Scanner)>(&mut self, config: F) {
-		let scanner = Rc::make_mut(&mut self.scanner);
+		let scanner = Arc::make_mut(&mut self.scanner);
 		config(scanner)
 	}
 

@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::core::error::*;
 use crate::core::input::*;
@@ -13,7 +13,7 @@ use super::*;
 /// indentation, skipping comments and empty lines.
 #[derive(Clone)]
 pub struct Scanner {
-	scanners: Vec<Rc<dyn Matcher>>,
+	scanners: Vec<Arc<dyn Matcher>>,
 	symbols: SymbolTable,
 }
 
@@ -26,7 +26,7 @@ impl Scanner {
 	}
 
 	pub fn add_matcher<T: Matcher + 'static>(&mut self, scanner: T) {
-		self.scanners.push(Rc::new(scanner));
+		self.scanners.push(Arc::new(scanner));
 	}
 
 	pub fn add_symbol(&mut self, symbol: &'static str, value: Token) {

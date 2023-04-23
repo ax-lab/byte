@@ -9,7 +9,7 @@ use crate::vm::operators::*;
 use super::*;
 
 /// Raw list of unprocessed atom nodes.
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct Raw {
 	expr: NodeExprList,
 }
@@ -188,7 +188,7 @@ impl HasRepr for RawExpr {
 // Expression parsing
 //----------------------------------------------------------------------------//
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct NodeExprList {
 	scope: Scope,
 	list: Vec<Node>,

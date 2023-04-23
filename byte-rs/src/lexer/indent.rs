@@ -1,6 +1,6 @@
-use std::{
-	rc::Rc,
-	sync::atomic::{AtomicUsize, Ordering},
+use std::sync::{
+	atomic::{AtomicUsize, Ordering},
+	Arc,
 };
 
 use crate::core::error::*;
@@ -11,7 +11,7 @@ use super::*;
 /// Manages the state and apply basic lexing rules for indentation.
 #[derive(Clone)]
 pub struct Indent {
-	current: Option<Rc<IndentLevel>>,
+	current: Option<Arc<IndentLevel>>,
 	closing: Option<IndentRegion>,
 }
 
@@ -155,10 +155,10 @@ impl Indent {
 	fn push(&mut self, kind: Kind) {
 		let prev = self.current.take();
 		let new_level = IndentLevel { kind, prev };
-		self.current = Some(Rc::new(new_level));
+		self.current = Some(Arc::new(new_level));
 	}
 
-	fn pop(&mut self) -> Rc<IndentLevel> {
+	fn pop(&mut self) -> Arc<IndentLevel> {
 		let current = self.current.take();
 		let current = current.expect("pop empty indent stack");
 		self.current = current.prev.clone();
@@ -171,7 +171,7 @@ pub struct IndentRegion(usize);
 
 struct IndentLevel {
 	kind: Kind,
-	prev: Option<Rc<IndentLevel>>,
+	prev: Option<Arc<IndentLevel>>,
 }
 
 impl IndentLevel {

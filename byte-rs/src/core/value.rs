@@ -8,13 +8,13 @@ use super::traits::*;
 /// Trait for any generic value that can be used with a [`Cell`].
 ///
 /// This trait provides a blanket implementation for all supported values.
-pub trait IsValue: CanBox + DynClone + DynEq + HasTraits {}
+pub trait IsValue: CanBox + HasClone + HasTraits {}
 
-impl<T: CanBox + DynClone + DynEq + HasTraits> IsValue for T {}
+impl<T: CanBox + HasClone + HasTraits> IsValue for T {}
 
 /// Holds a generic value with support for dynamic typing, ARC sharing, and
 /// copy-on-write semantics.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Value {
 	cell: Cell,
 }

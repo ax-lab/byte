@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::any::TypeId;
 use std::fmt::*;
 use std::io::Write;
@@ -8,38 +7,8 @@ use super::*;
 
 use super::num;
 use super::repr::*;
+use super::traits::*;
 use super::util::*;
-use super::HasTraits;
-
-pub trait CanBox: Any + Send + Sync {}
-
-impl<T: Any + Send + Sync> CanBox for T {}
-
-/// Dynamic clone trait. Provides a blanket implementation for [`Clone`] types.
-pub trait DynClone {
-	fn clone_box(&self) -> Arc<dyn IsValue>;
-}
-
-impl<T: CanBox + Clone + DynEq + HasTraits> DynClone for T {
-	fn clone_box(&self) -> Arc<dyn IsValue> {
-		Arc::new(self.clone())
-	}
-}
-
-/// Dynamic equality trait. Provides a blanket implementation for [`Eq`] types.
-pub trait DynEq {
-	fn is_eq(&self, other: &Cell) -> bool;
-}
-
-impl<T: CanBox + PartialEq> DynEq for T {
-	fn is_eq(&self, other: &Cell) -> bool {
-		if let Some(other) = other.get::<T>() {
-			self == other
-		} else {
-			false
-		}
-	}
-}
 
 /// Stores a dynamically typed value with [`Arc`] style sharing and copy
 /// on write semantics.
@@ -297,7 +266,11 @@ impl PartialEq for Cell {
 				CellKind::Other => {
 					let ptr = unsafe { self.data.other };
 					let ptr = ptr.as_ref();
-					ptr.is_eq(other)
+					if let Some(ptr) = get_trait!(ptr, HasEq) {
+						ptr.is_eq(other)
+					} else {
+						false
+					}
 				}
 			}
 		}
@@ -306,23 +279,23 @@ impl PartialEq for Cell {
 
 impl Eq for Cell {}
 
-has_traits!(i8: HasRepr);
-has_traits!(i16: HasRepr);
-has_traits!(i32: HasRepr);
-has_traits!(i64: HasRepr);
-has_traits!(isize: HasRepr);
+has_traits!(i8: HasRepr, HasEq, HasEq);
+has_traits!(i16: HasRepr, HasEq, HasEq);
+has_traits!(i32: HasRepr, HasEq, HasEq);
+has_traits!(i64: HasRepr, HasEq, HasEq);
+has_traits!(isize: HasRepr, HasEq, HasEq);
 
-has_traits!(u8: HasRepr);
-has_traits!(u16: HasRepr);
-has_traits!(u32: HasRepr);
-has_traits!(u64: HasRepr);
-has_traits!(usize: HasRepr);
+has_traits!(u8: HasRepr, HasEq, HasEq);
+has_traits!(u16: HasRepr, HasEq, HasEq);
+has_traits!(u32: HasRepr, HasEq, HasEq);
+has_traits!(u64: HasRepr, HasEq, HasEq);
+has_traits!(usize: HasRepr, HasEq, HasEq);
 
-has_traits!(f32: HasRepr);
-has_traits!(f64: HasRepr);
+has_traits!(f32: HasRepr, HasEq, HasEq);
+has_traits!(f64: HasRepr, HasEq, HasEq);
 
-has_traits!(bool: HasRepr);
-has_traits!(String: HasRepr);
+has_traits!(bool: HasRepr, HasEq, HasEq);
+has_traits!(String: HasRepr, HasEq, HasEq);
 
 repr_from_fmt!(i8);
 repr_from_fmt!(i16);
@@ -440,7 +413,6 @@ const _: () = {
 	fn assert<T: IsValue>() {}
 
 	fn assert_all() {
-		//assert::<Cell>();
 		assert::<String>();
 		assert::<u32>();
 	}
@@ -574,27 +546,32 @@ mod tests {
 		static COUNTER: AtomicUsize = AtomicUsize::new(0);
 		let count = || COUNTER.load(Ordering::SeqCst) as usize;
 
-		struct X<'a> {
+		struct X {
 			data: u32,
-			cnt: &'a AtomicUsize,
+			cnt: &'static AtomicUsize,
 		}
 
-		impl<'a> HasTraits for X<'a> {}
+		impl HasTraits for X {
+			fn get_trait(&self, type_id: TypeId) -> Option<&dyn HasTraits> {
+				some_trait!(self, type_id, HasEq);
+				None
+			}
+		}
 
-		impl<'a> PartialEq for X<'a> {
+		impl PartialEq for X {
 			fn eq(&self, other: &Self) -> bool {
 				self.data == other.data
 			}
 		}
 
-		impl<'a> X<'a> {
-			pub fn new(data: u32, cnt: &'a AtomicUsize) -> Self {
+		impl X {
+			pub fn new(data: u32, cnt: &'static AtomicUsize) -> Self {
 				cnt.fetch_add(1, Ordering::SeqCst);
 				Self { data, cnt }
 			}
 		}
 
-		impl<'a> Clone for X<'a> {
+		impl Clone for X {
 			fn clone(&self) -> Self {
 				self.cnt.fetch_add(1, Ordering::SeqCst);
 				Self {
@@ -604,7 +581,7 @@ mod tests {
 			}
 		}
 
-		impl<'a> Drop for X<'a> {
+		impl Drop for X {
 			fn drop(&mut self) {
 				self.cnt.fetch_sub(1, Ordering::SeqCst);
 			}

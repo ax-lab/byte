@@ -1,10 +1,11 @@
+use crate::core::traits::*;
 use crate::core::*;
 
 use input::*;
 
 /// Trait for custom token types returned as [`Token::Other`].
 pub trait IsToken: Sized {
-	type Value: IsValue;
+	type Value: IsValue + HasEq;
 
 	fn name() -> &'static str;
 
