@@ -160,8 +160,8 @@ impl HasRepr for RawExpr {
 						a.output_repr(output)?;
 						write!(output, "{op}")?;
 					} else {
-						a.output_repr(output)?;
 						write!(output, "{op}")?;
+						a.output_repr(output)?;
 					}
 				}
 				RawExpr::Binary(op, a, b) => {

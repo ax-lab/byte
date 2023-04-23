@@ -1,6 +1,24 @@
+//! Language specific rules for operators, such as symbols and precedence.
+
 use std::cmp::Ordering;
 
+use crate::lexer::*;
 use crate::vm::operators::*;
+
+impl Op {
+	pub fn add_symbols(scanner: &mut Scanner) {
+		scanner.add_symbol("+", Token::Symbol("+"));
+		scanner.add_symbol("-", Token::Symbol("-"));
+		scanner.add_symbol("*", Token::Symbol("*"));
+		scanner.add_symbol("/", Token::Symbol("/"));
+		scanner.add_symbol("%", Token::Symbol("%"));
+		scanner.add_symbol("--", Token::Symbol("--"));
+		scanner.add_symbol("++", Token::Symbol("++"));
+		scanner.add_symbol("!", Token::Symbol("!"));
+		scanner.add_symbol("=", Token::Symbol("="));
+		scanner.add_symbol("==", Token::Symbol("=="));
+	}
+}
 
 impl OpUnary {
 	pub fn get_prefix(symbol: &str) -> Option<OpUnary> {

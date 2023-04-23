@@ -3,6 +3,7 @@ use std::io::Write;
 use crate::core::repr::*;
 use crate::lexer::*;
 use crate::nodes::*;
+use crate::vm::Op;
 
 pub fn parse(input: crate::core::input::Input) {
 	let mut lexer = open(input);
@@ -63,12 +64,7 @@ pub fn open(input: crate::core::input::Input) -> Lexer {
 		scanner.add_symbol(";", Token::Symbol(";"));
 		scanner.add_symbol(":", Token::Symbol(":"));
 
-		scanner.add_symbol("=", Token::Symbol("="));
-		scanner.add_symbol("+", Token::Symbol("+"));
-		scanner.add_symbol("-", Token::Symbol("-"));
-		scanner.add_symbol("%", Token::Symbol("%"));
-		scanner.add_symbol("==", Token::Symbol("=="));
-		scanner.add_symbol("..", Token::Symbol(".."));
+		Op::add_symbols(scanner);
 	});
 	lexer
 }
