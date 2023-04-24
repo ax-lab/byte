@@ -1,3 +1,6 @@
+use std::io::Write;
+
+use crate::core::repr::*;
 use crate::core::traits::*;
 use crate::core::*;
 
@@ -95,41 +98,47 @@ impl TokenAt {
 	}
 }
 
-impl std::fmt::Display for TokenAt {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match &self.1 {
-			Token::None => {
-				write!(f, "end of input")
+impl HasRepr for TokenAt {
+	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
+		if output.is_debug() {
+			write!(output, "<{:?}", self.1)?;
+			if output.is_full() {
+				write!(output, " ")?;
+				self.0.output_repr(output)?;
 			}
-			Token::Invalid => {
-				write!(f, "invalid token")
+			write!(output, ">")?;
+		} else {
+			match &self.1 {
+				Token::None => {
+					write!(output, "end of input")?;
+				}
+				Token::Invalid => {
+					write!(output, "invalid token")?;
+				}
+				Token::Break => {
+					write!(output, "line break")?;
+				}
+				Token::Indent => {
+					write!(output, "indent")?;
+				}
+				Token::Dedent => {
+					write!(output, "dedent")?;
+				}
+				Token::Symbol(sym) => write!(output, "`{sym}`")?,
+				Token::Identifier => {
+					write!(output, "`{}`", self.span().text())?;
+				}
+				Token::Other(value) => value.output_repr(output)?,
 			}
-			Token::Break => {
-				write!(f, "line break")
-			}
-			Token::Indent => {
-				write!(f, "indent")
-			}
-			Token::Dedent => {
-				write!(f, "dedent")
-			}
-			Token::Symbol(sym) => write!(f, "`{sym}`"),
-			Token::Identifier => {
-				write!(f, "`{}`", self.span().text())
-			}
-			Token::Other(value) => write!(f, "{value}"),
 		}
+		Ok(())
 	}
 }
 
-impl std::fmt::Debug for TokenAt {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "<{:?} {:?}>", self.1, self.0)
-	}
-}
+fmt_from_repr!(TokenAt);
 
 /// Holds the value of a custom [`Token::Other`].
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct TokenValue {
 	name: &'static str,
 	data: Value,
@@ -148,22 +157,17 @@ impl TokenValue {
 	}
 }
 
-impl std::fmt::Display for TokenValue {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		if self.data.get::<()>().is_none() {
-			write!(f, "{} `{}`", self.name, self.data)
+impl HasRepr for TokenValue {
+	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
+		if output.is_debug() {
+			write!(output, "<{} ", self.name)?;
+			self.data.output_repr(output)?;
+			write!(output, ">")?;
 		} else {
-			write!(f, "{}", self.name)
+			self.data.output_repr(output)?;
 		}
+		Ok(())
 	}
 }
 
-impl Eq for TokenValue {}
-
-impl std::fmt::Debug for TokenValue {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}{{ ", self.name)?;
-		self.data.fmt(f)?;
-		write!(f, " }}")
-	}
-}
+fmt_from_repr!(TokenValue);

@@ -2,6 +2,7 @@ use std::any::{Any, TypeId};
 use std::cell::{Ref, RefCell};
 use std::collections::VecDeque;
 use std::fmt::{Debug, Display};
+use std::io::Write;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{self, AtomicU64};
@@ -116,7 +117,6 @@ impl Node {
 
 		// Create the inner value. This can change if the underlying `IsNode`
 		// changes.
-		let span = node.span();
 		let node = Value::from(node);
 		assert!(get_trait!(&node, IsNode).is_some());
 		Node {
@@ -124,13 +124,15 @@ impl Node {
 			scope,
 			done: Default::default(),
 			node: Arc::new(RwLock::new(node)),
-			span: Arc::new(RwLock::new(span)),
+			span: Arc::new(RwLock::new(None)),
 		}
 	}
 
 	pub fn new_at<T: IsNode>(node: T, scope: Scope, span: Option<Span>) -> Self {
 		let mut node = Self::new(node, scope);
-		node.set_span(span);
+		if span.is_some() {
+			node.set_span(span);
+		}
 		node
 	}
 
@@ -145,8 +147,15 @@ impl Node {
 	}
 
 	pub fn span(&self) -> Option<Span> {
-		let span = self.span.read().unwrap();
-		span.clone()
+		let span = {
+			let span = self.span.read().unwrap();
+			span.clone()
+		};
+		span.or_else(|| self.val().span())
+	}
+
+	pub fn is<T: IsNode>(&self) -> bool {
+		self.get::<T>().is_some()
 	}
 
 	pub fn get<T: IsNode>(&self) -> Option<NodeValueRef<T>> {
@@ -268,7 +277,14 @@ pub enum NodeEval {
 
 impl HasRepr for Node {
 	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
-		self.val().output_repr(output)
+		self.val().output_repr(output)?;
+		if output.is_debug() && !output.is_compact() {
+			if let Some(span) = self.span() {
+				write!(output, " @")?;
+				span.output_repr(&mut output.minimal().display())?;
+			}
+		}
+		Ok(())
 	}
 }
 

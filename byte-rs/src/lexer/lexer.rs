@@ -60,8 +60,8 @@ impl Lexer {
 		self.state.is_parenthesis(token)
 	}
 
-	pub fn pop_indent_levels(&mut self, levels: usize) {
-		self.state.indent.pop_levels(levels);
+	pub fn pop_indent_levels(&mut self, levels: usize) -> Result<(), ()> {
+		self.state.indent.pop_levels(levels)
 	}
 
 	pub fn config<F: FnOnce(&mut Scanner)>(&mut self, config: F) {

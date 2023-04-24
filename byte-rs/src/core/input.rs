@@ -146,6 +146,12 @@ impl Span {
 	pub fn text(&self) -> &str {
 		self.sta.src.text(self)
 	}
+
+	pub fn short(&self) -> String {
+		let mut repr = Repr::new(ReprMode::Display, ReprFormat::Minimal);
+		let _ = self.output_repr(&mut repr);
+		repr.to_string()
+	}
 }
 
 fmt_from_repr!(Span);

@@ -75,12 +75,25 @@ fn parse_next(lexer: &mut Lexer, scope: &mut Scope) -> Option<Node> {
 	if lexer.next().is_none() {
 		None
 	} else {
-		let expr = parse_expr_list(lexer, scope.clone(), Stop::None);
-		Some(expr)
+		let next = parse_line(lexer, scope, Stop::None, true);
+		if next.len() == 0 {}
+
+		match next.len() {
+			0 => {
+				let next = lexer.next();
+				scope.error_if(Some(next.span()), format!("expected statement, got {next}"));
+				None
+			}
+			1 => next.into_iter().next(),
+			_ => {
+				let scope = next[0].scope();
+				Some(Node::new(Block::new(next), scope))
+			}
+		}
 	}
 }
 
-fn parse_expr_block(lexer: &mut Lexer, mut scope: Scope, limit: Stop) -> Node {
+fn parse_expr_group(lexer: &mut Lexer, mut scope: Scope, limit: Stop) -> Node {
 	let next = lexer.next();
 	if next.token() == Token::Break {
 		lexer.read();
@@ -95,20 +108,11 @@ fn parse_expr_block(lexer: &mut Lexer, mut scope: Scope, limit: Stop) -> Node {
 			false
 		};
 
-		let mut list = Vec::new();
-		loop {
-			let next = parse_expr_list(lexer, scope.clone(), limit);
-			scope = next.scope().inherit();
-			list.push(next);
-
-			let next = lexer.next();
-			match next.token() {
-				Token::Break => {
-					lexer.read();
-				}
-				_ => break,
-			}
-		}
+		let block = if let Some(block) = parse_block(lexer, scope.clone(), limit) {
+			block
+		} else {
+			Node::new(Block::new(Vec::new()), scope.clone())
+		};
 
 		if indented {
 			let next = lexer.next();
@@ -120,98 +124,173 @@ fn parse_expr_block(lexer: &mut Lexer, mut scope: Scope, limit: Stop) -> Node {
 					.at(Some(next.span()), format!("dedent expected, got {next}"));
 			}
 		}
-
-		if !limit.should_stop(lexer) {
-			let next = lexer.next();
-			match next.token() {
-				Token::None | Token::Break => {}
-				_ => scope.errors_mut().at(
-					Some(next.span()),
-					format!("unexpected {next} at the end of expression"),
-				),
-			}
-		}
-		if list.len() == 1 {
-			list[0].clone()
-		} else {
-			Node::new(Block::new(list), scope)
-		}
+		block
 	} else {
-		let expr = parse_expr(lexer, scope.clone(), limit);
-		Node::new(Raw::new(expr), scope)
+		if let Some(expr) = parse_expr_with_block(lexer, scope.clone(), limit) {
+			expr
+		} else {
+			Node::new(Raw::new(Vec::new()), scope)
+		}
 	}
 }
 
-fn parse_expr_list(lexer: &mut Lexer, root_scope: Scope, limit: Stop) -> Node {
-	let mut list: Vec<Node> = Vec::new();
-	let mut scope = root_scope.clone();
-	loop {
-		let expr = parse_expr(lexer, scope.clone(), limit);
-		if expr.len() > 0 {
-			let expr = Node::new(Raw::new(expr), scope.clone());
-			scope = expr.scope().inherit();
-			list.push(expr);
+fn parse_block(lexer: &mut Lexer, mut scope: Scope, limit: Stop) -> Option<Node> {
+	let mut block = Vec::new();
+	while !limit.should_stop(lexer) {
+		let mut next = parse_line(lexer, &mut scope, limit, false);
+		if next.len() == 0 || lexer.has_errors() || scope.has_errors() {
+			break;
 		}
 
-		let next = lexer.next();
-		if next.token() == Token::Symbol(":") && lexer.lookahead(1).token() == Token::Break {
-			lexer.skip(2);
-			if list.len() != 1 {
-				scope.errors_mut().at(
-					Some(next.span()),
-					format!("blocks are not allowed in multi-expression lines"),
-				);
-			} else {
-				let next = lexer.next();
-				if next.token() == Token::Indent {
-					lexer.read();
-					let expr = list[0].clone();
-					let block = parse_expr_block(lexer, scope.new_child(), limit);
-					return Node::new(BlockExpr::new(expr, block), scope.clone());
-				} else {
-					scope
-						.errors_mut()
-						.at(Some(next.span()), format!("expected indented block"));
-				}
-			}
+		block.append(&mut next);
+	}
+
+	match block.len() {
+		0 => None,
+		1 => Some(block.into_iter().next().unwrap()),
+		_ => Some(Node::new(Block::new(block), scope)),
+	}
+}
+
+fn parse_line(lexer: &mut Lexer, scope: &mut Scope, limit: Stop, top_level: bool) -> Vec<Node> {
+	let mut block = Vec::new();
+	let mut is_block = false;
+	while !limit.should_stop(lexer) {
+		if lexer.has_errors() || scope.has_errors() {
+			break;
 		}
 
-		if !limit.should_stop(lexer) {
-			let next = lexer.next();
-			match next.token() {
-				Token::None | Token::Break => {
-					lexer.read();
-					break;
-				}
-				Token::Symbol(";") => {
-					lexer.read();
-				}
-				_ => {
-					if list.len() != 1 {
-						// expression lists don't allow extended syntaxes and such
-						scope.errors_mut().at(
-							Some(next.span()),
-							format!("unexpected {next} in expression line"),
-						)
-					}
-					break;
-				}
-			}
+		if let Some(next) = parse_expr_with_block(lexer, scope.clone(), limit) {
+			*scope = next.scope().inherit();
+			is_block = next.is::<BlockExpr>();
+			block.push(next);
 		} else {
 			break;
 		}
+
+		let next = lexer.next();
+		match next.token() {
+			Token::None => {}
+			Token::Break => {
+				break;
+			}
+			Token::Symbol(";") => {
+				lexer.read();
+				if lexer.next().token() == Token::Break {
+					lexer.read();
+				}
+			}
+			_ => {
+				if is_block {
+					break;
+				}
+			}
+		}
 	}
-	if list.len() == 0 {
-		Node::new(Raw::new(Vec::new()), scope)
-	} else if list.len() == 1 {
-		list[0].clone()
-	} else {
-		Node::new(Block::new(list), scope)
+
+	// Check if the block stopped at a valid point
+	if !limit.should_stop(lexer) && !lexer.has_errors() && !scope.has_errors() && !is_block {
+		let next = lexer.next();
+		let valid = match next.token() {
+			Token::None => true,
+			Token::Break => {
+				lexer.read();
+				true
+			}
+			Token::Dedent if !top_level => true,
+			_ => false,
+		};
+		if !valid {
+			scope
+				.errors_mut()
+				.at(Some(next.span()), format!("unexpected {next} after block"))
+		}
 	}
+
+	block
 }
 
-/// Parse an expression and stops at the next significant token.
-fn parse_expr(lexer: &mut Lexer, scope: Scope, limit: Stop) -> Vec<Node> {
+/// Parse a single expression with an optional indented block.
+fn parse_expr_with_block(lexer: &mut Lexer, scope: Scope, limit: Stop) -> Option<Node> {
+	// parse the basic expression
+	let expr = parse_expr(lexer, scope.clone(), limit);
+	if expr.len() == 0 {
+		return None;
+	}
+
+	let expr = Node::new(Raw::new(expr), scope);
+	let mut scope = expr.scope();
+	let mut has_block = false;
+
+	// parse indented block, if any
+	let next = lexer.next();
+	let node = if next.token() == Token::Symbol(":") && lexer.lookahead(1).token() == Token::Break {
+		let colon = next.clone();
+		if lexer.lookahead(2).token() != Token::Indent {
+			scope.errors_mut().at(
+				Some(colon.span()),
+				format!("a block start must be followed by an indented block"),
+			);
+
+			// skip just the colon and return the expression
+			lexer.read();
+			return Some(expr);
+		}
+
+		// skip to the start of the block
+		lexer.skip(3);
+		has_block = true;
+
+		let mut block_scope = scope.new_child();
+		let block = if let Some(block) = parse_block(lexer, block_scope.clone(), limit) {
+			block
+		} else {
+			block_scope.error_if(Some(colon.span()), "empty block is not allowed");
+			return Some(expr);
+		};
+
+		let next = lexer.next();
+		if next.token() == Token::Dedent {
+			lexer.read();
+		} else {
+			block_scope.error_if(
+				Some(next.span()),
+				format!(
+					"`:` block at {}: expected dedent, got {next}",
+					colon.span().sta
+				),
+			);
+		}
+
+		let node = Node::new(BlockExpr::new(expr, block), scope);
+		node
+	} else {
+		expr
+	};
+
+	// Check if the expression stopped at a valid point
+	let mut scope = node.scope();
+	if !limit.should_stop(lexer) && !lexer.has_errors() && !scope.has_errors() && !has_block {
+		let next = lexer.next();
+		let valid = match next.token() {
+			Token::None => true,
+			Token::Break => true,
+			Token::Dedent => true,
+			_ => false,
+		};
+		if !valid {
+			scope.errors_mut().at(
+				Some(next.span()),
+				format!("unexpected {next} after expression"),
+			)
+		}
+	}
+
+	Some(node)
+}
+
+/// Parse a plain expression, stopping at the first unsupported token.
+fn parse_expr(lexer: &mut Lexer, mut scope: Scope, limit: Stop) -> Vec<Node> {
 	let mut expr = Vec::new();
 	let mut level = 0;
 	let mut done = false;
@@ -252,9 +331,13 @@ fn parse_expr(lexer: &mut Lexer, scope: Scope, limit: Stop) -> Vec<Node> {
 		};
 	}
 
+	// restore indentation to the level at the start of the expression
 	if level > 0 {
-		// restore indentation to the level at the start of the expression
-		lexer.pop_indent_levels(level);
+		if lexer.pop_indent_levels(level).is_err() {
+			scope
+				.errors_mut()
+				.at(Some(lexer.next().span()), "invalid indentation");
+		}
 	}
 
 	expr
@@ -289,14 +372,14 @@ fn parse_atom(lexer: &mut Lexer, mut scope: Scope, limit: Stop) -> Option<Node> 
 		let node = if let Some(end_symbol) = lexer.is_parenthesis(&next) {
 			let mut scope = scope.new_child();
 			let sta = next;
-			let node = parse_expr_block(lexer, scope.clone(), Stop::Symbol(end_symbol));
+			let node = parse_expr_group(lexer, scope.clone(), Stop::Symbol(end_symbol));
 			let end = lexer.next();
 			if end.symbol() != Some(end_symbol) {
 				scope.errors_mut().at(
 					Some(end.span()),
 					format!(
-						"expected end `{end_symbol}` for {sta} from {} in grouped expression",
-						sta.span().sta
+						"{sta} parenthesized expression at {}: expected ending `{end_symbol}`, got {end}",
+						sta.span().short()
 					),
 				);
 			} else {

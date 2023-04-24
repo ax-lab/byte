@@ -44,7 +44,7 @@ impl IsNode for BlockExpr {
 impl HasRepr for BlockExpr {
 	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
 		if output.is_debug() {
-			write!(output, "Block(")?;
+			write!(output, "BlockExpr(")?;
 			{
 				let mut output = output.indented();
 				write!(output, "\n")?;
@@ -55,7 +55,7 @@ impl HasRepr for BlockExpr {
 			write!(output, "\n)")?;
 		} else {
 			self.expr.output_repr(output)?;
-			write!(output, "{{\n")?;
+			write!(output, " {{\n")?;
 			{
 				let mut output = output.indented();
 				self.block.output_repr(&mut output)?;
@@ -104,33 +104,22 @@ impl IsNode for Block {
 
 impl HasRepr for Block {
 	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
-		let full = output.is_full();
 		{
 			let mut output = if output.is_debug() {
-				write!(output, "Block(")?;
+				write!(output, "Block(\n")?;
 				output.indented()
 			} else {
 				output.clone()
 			};
 			for (i, it) in self.nodes.iter().enumerate() {
-				write!(
-					output,
-					"{}",
-					if full {
-						"\n"
-					} else {
-						if i > 0 {
-							"; "
-						} else {
-							""
-						}
-					}
-				)?;
+				if i > 0 {
+					write!(output, "\n",)?;
+				}
 				it.output_repr(&mut output)?;
 			}
 		}
 		if output.is_debug() {
-			write!(output, ")")?;
+			write!(output, "\n)")?;
 		}
 
 		Ok(())

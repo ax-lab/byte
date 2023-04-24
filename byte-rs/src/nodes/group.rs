@@ -43,20 +43,15 @@ impl IsExprValueNode for Group {
 
 impl HasRepr for Group {
 	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
-		let full = output.is_full();
 		if output.is_debug() {
-			write!(output, "Group ")?;
+			write!(output, "Group")?;
 		}
-		write!(output, "{}", self.sta.symbol().unwrap_or("!?"))?;
-		if full {
-			write!(output, "\n")?;
+		write!(output, "{}\n", self.sta.symbol().unwrap_or("!?"))?;
+		{
 			let mut output = output.indented();
 			self.node.output_repr(&mut output)?;
 			write!(output, "\n")?;
-		} else {
-			self.node.output_repr(output)?;
-		};
-
+		}
 		write!(output, "{}", self.end.symbol().unwrap_or("?!"))?;
 		Ok(())
 	}

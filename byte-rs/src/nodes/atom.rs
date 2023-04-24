@@ -34,7 +34,7 @@ impl HasRepr for Atom {
 		let token = &self.0;
 		if output.is_debug() {
 			write!(output, "Atom(")?;
-			write!(output, "{token}")?;
+			token.output_repr(&mut output.minimal())?;
 			write!(output, ")")?;
 		} else {
 			write!(output, "{token}")?;

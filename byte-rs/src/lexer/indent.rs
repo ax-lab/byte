@@ -32,11 +32,23 @@ impl Indent {
 		}
 	}
 
-	pub fn pop_levels(&mut self, levels: usize) {
+	pub fn pop_levels(&mut self, levels: usize) -> Result<(), ()> {
 		for _ in 0..levels {
-			let next = self.pop();
-			assert!(!matches!(next.kind, Kind::Block { .. }))
+			let ok = if let Some(current) = &self.current {
+				if let Kind::Level(..) = current.kind {
+					self.pop();
+					true
+				} else {
+					false
+				}
+			} else {
+				false
+			};
+			if !ok {
+				return Err(());
+			}
 		}
+		Ok(())
 	}
 
 	pub fn check_for_closed_regions(&mut self, next: &TokenAt) -> bool {
@@ -149,7 +161,7 @@ impl Indent {
 						if new_level > base_level {
 							// ...don't allow a dedent between two levels
 							errors.add(Error::new(LexerError::InvalidDedentIndent).at(input.pos()));
-							Some(Token::Invalid)
+							None
 						} else {
 							// ...all good, generate the Token::Dedent
 							Some(Token::Dedent)
@@ -158,7 +170,7 @@ impl Indent {
 					Kind::Block { .. } => {
 						// cannot dedent out of an enclosed region
 						errors.add(Error::new(LexerError::InvalidDedentInRegion).at(input.pos()));
-						Some(Token::Invalid)
+						None
 					}
 				}
 			} else {

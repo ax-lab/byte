@@ -113,6 +113,12 @@ impl Scope {
 		self.errors.read().unwrap().clone()
 	}
 
+	pub fn error_if<T: ToString>(&mut self, span: Option<Span>, error: T) {
+		if !self.has_errors() {
+			self.errors_mut().at(span, error);
+		}
+	}
+
 	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn get(&self, name: Str) -> ScopeCell {
