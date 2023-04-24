@@ -72,6 +72,18 @@ impl TokenAt {
 		self.1.clone()
 	}
 
+	pub fn column(&self) -> usize {
+		self.span().sta.col()
+	}
+
+	pub fn indent(&self) -> usize {
+		self.span().sta.indent()
+	}
+
+	pub fn first_of_line(&self) -> bool {
+		self.column() == self.indent()
+	}
+
 	pub fn symbol(&self) -> Option<&str> {
 		let str = match &self.1 {
 			Token::Symbol(symbol) => *symbol,

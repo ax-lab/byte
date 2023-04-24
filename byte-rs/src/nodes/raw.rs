@@ -290,10 +290,10 @@ impl NodeExprList {
 		}
 
 		// check that there was no unparsed portion of the expression
-		if self.next < self.values.len() {
+		if self.next < self.list.len() {
 			let mut errors = scope.errors_mut();
 			if errors.empty() {
-				errors.at(self.values[self.next].span(), "expected end of expression");
+				errors.at(self.list[self.next].span(), "expected end of expression");
 			}
 			return NodeEval::Complete;
 		}

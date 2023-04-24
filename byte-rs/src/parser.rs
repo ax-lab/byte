@@ -155,15 +155,16 @@ fn parse_block(lexer: &mut Lexer, mut scope: Scope, limit: Stop) -> Option<Node>
 
 fn parse_line(lexer: &mut Lexer, scope: &mut Scope, limit: Stop, top_level: bool) -> Vec<Node> {
 	let mut block = Vec::new();
-	let mut is_block = false;
+	let mut is_complete = false;
 	while !limit.should_stop(lexer) {
 		if lexer.has_errors() || scope.has_errors() {
 			break;
 		}
 
-		if let Some(next) = parse_expr_with_block(lexer, scope.clone(), limit) {
+		let (next, complete) = parse_expr_with_block(lexer, scope.clone(), limit);
+		is_complete = complete;
+		if let Some(next) = next {
 			*scope = next.scope().inherit();
-			is_block = next.is::<BlockExpr>();
 			block.push(next);
 		} else {
 			break;
@@ -182,7 +183,7 @@ fn parse_line(lexer: &mut Lexer, scope: &mut Scope, limit: Stop, top_level: bool
 				}
 			}
 			_ => {
-				if is_block {
+				if is_complete {
 					break;
 				}
 			}
@@ -190,7 +191,7 @@ fn parse_line(lexer: &mut Lexer, scope: &mut Scope, limit: Stop, top_level: bool
 	}
 
 	// Check if the block stopped at a valid point
-	if !limit.should_stop(lexer) && !lexer.has_errors() && !scope.has_errors() && !is_block {
+	if !limit.should_stop(lexer) && !lexer.has_errors() && !scope.has_errors() && !is_complete {
 		let next = lexer.next();
 		let valid = match next.token() {
 			Token::None => true,
@@ -212,74 +213,74 @@ fn parse_line(lexer: &mut Lexer, scope: &mut Scope, limit: Stop, top_level: bool
 }
 
 /// Parse a single expression with an optional indented block.
-fn parse_expr_with_block(lexer: &mut Lexer, scope: Scope, limit: Stop) -> Option<Node> {
+fn parse_expr_with_block(lexer: &mut Lexer, scope: Scope, limit: Stop) -> (Option<Node>, bool) {
 	// parse the basic expression
-	let expr = parse_expr(lexer, scope.clone(), limit);
+	let (expr, is_complete) = parse_expr(lexer, scope.clone(), limit);
 	if expr.len() == 0 {
-		return None;
+		return (None, false);
 	}
 
 	let expr = Node::new(Raw::new(expr), scope);
 	let mut scope = expr.scope();
-	let mut has_block = false;
 
 	// parse indented block, if any
 	let next = lexer.next();
-	let node = if next.token() == Token::Symbol(":") && lexer.lookahead(1).token() == Token::Break {
-		let colon = next.clone();
-		if lexer.lookahead(2).token() != Token::Indent {
-			scope.errors_mut().at(
-				Some(colon.span()),
-				format!("a block start must be followed by an indented block"),
-			);
+	let (node, is_complete) =
+		if next.token() == Token::Symbol(":") && lexer.lookahead(1).token() == Token::Break {
+			let colon = next.clone();
+			if lexer.lookahead(2).token() != Token::Indent {
+				scope.errors_mut().at(
+					Some(colon.span()),
+					format!("a block start must be followed by an indented block"),
+				);
 
-			// skip just the colon and return the expression
-			lexer.read();
-			return Some(expr);
-		}
+				// skip just the colon and return the expression
+				lexer.read();
+				return (Some(expr), is_complete);
+			}
 
-		// skip to the start of the block
-		lexer.skip(3);
-		has_block = true;
+			// skip to the start of the block
+			lexer.skip(3);
 
-		let mut block_scope = scope.new_child();
-		let block = if let Some(block) = parse_block(lexer, block_scope.clone(), limit) {
-			block
+			let mut block_scope = scope.new_child();
+			let block = if let Some(block) = parse_block(lexer, block_scope.clone(), limit) {
+				block
+			} else {
+				block_scope.error_if(Some(colon.span()), "empty block is not allowed");
+				return (Some(expr), true);
+			};
+
+			let next = lexer.next();
+			if next.token() == Token::Dedent {
+				lexer.read();
+			} else {
+				block_scope.error_if(
+					Some(next.span()),
+					format!(
+						"`:` block at {}: expected dedent, got {next}",
+						colon.span().sta
+					),
+				);
+			}
+
+			let node = Node::new(BlockExpr::new(expr, block), scope);
+			(node, true)
 		} else {
-			block_scope.error_if(Some(colon.span()), "empty block is not allowed");
-			return Some(expr);
+			(expr, is_complete)
 		};
-
-		let next = lexer.next();
-		if next.token() == Token::Dedent {
-			lexer.read();
-		} else {
-			block_scope.error_if(
-				Some(next.span()),
-				format!(
-					"`:` block at {}: expected dedent, got {next}",
-					colon.span().sta
-				),
-			);
-		}
-
-		let node = Node::new(BlockExpr::new(expr, block), scope);
-		node
-	} else {
-		expr
-	};
 
 	// Check if the expression stopped at a valid point
 	let mut scope = node.scope();
-	if !limit.should_stop(lexer) && !lexer.has_errors() && !scope.has_errors() && !has_block {
+	if !limit.should_stop(lexer) && !is_complete && !lexer.has_errors() && !scope.has_errors() {
 		let next = lexer.next();
-		let valid = match next.token() {
-			Token::None => true,
-			Token::Break => true,
-			Token::Dedent => true,
-			Token::Symbol(";") => true,
-			_ => false,
-		};
+		let valid = next.first_of_line()
+			|| match next.token() {
+				Token::None => true,
+				Token::Break => true,
+				Token::Dedent => true,
+				Token::Symbol(";") => true,
+				_ => false,
+			};
 		if !valid {
 			scope.errors_mut().at(
 				Some(next.span()),
@@ -288,14 +289,15 @@ fn parse_expr_with_block(lexer: &mut Lexer, scope: Scope, limit: Stop) -> Option
 		}
 	}
 
-	Some(node)
+	(Some(node), is_complete)
 }
 
 /// Parse a plain expression, stopping at the first unsupported token.
-fn parse_expr(lexer: &mut Lexer, mut scope: Scope, limit: Stop) -> Vec<Node> {
+fn parse_expr(lexer: &mut Lexer, mut scope: Scope, limit: Stop) -> (Vec<Node>, bool) {
 	let mut expr = Vec::new();
 	let mut level = 0;
 	let mut done = false;
+	let mut is_complete = false;
 	while !done {
 		// parse a sequence of atoms
 		while let Some(atom) = parse_atom(lexer, scope.clone(), limit) {
@@ -317,13 +319,17 @@ fn parse_expr(lexer: &mut Lexer, mut scope: Scope, limit: Stop) -> Vec<Node> {
 					// consume the dedent and decrease the expression level
 					level -= 1;
 					lexer.skip(2);
-					true
+					if level == 0 {
+						is_complete = true
+					}
+					level > 0
 				} else if level > 0 {
 					// consume the line break if we are indented
 					lexer.read();
 					true
 				} else {
-					// stop at the line break otherwise
+					is_complete = true;
+					lexer.read();
 					false
 				};
 				!continues
@@ -342,7 +348,7 @@ fn parse_expr(lexer: &mut Lexer, mut scope: Scope, limit: Stop) -> Vec<Node> {
 		}
 	}
 
-	expr
+	(expr, is_complete)
 }
 
 /// Parse an expression atom.
