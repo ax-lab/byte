@@ -3,7 +3,8 @@ use std::{
 	sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
-use crate::{core::str::*, lexer::Lexer};
+use crate::core::str::*;
+use crate::lexer::*;
 
 use super::*;
 
@@ -32,6 +33,10 @@ impl Scope {
 			data: Arc::new(RwLock::new(data)),
 		}
 	}
+
+	//----------------------------------------------------------------------------------------------------------------//
+	// Hierarchy
+	//----------------------------------------------------------------------------------------------------------------//
 
 	/// Returns the root scope for the current hierarchy. Will return the
 	/// current scope if it's the root.
@@ -89,6 +94,10 @@ impl Scope {
 		next
 	}
 
+	//----------------------------------------------------------------------------------------------------------------//
+	// Error handling
+	//----------------------------------------------------------------------------------------------------------------//
+
 	pub fn errors_mut(&mut self) -> ScopeErrorsRefMut {
 		ScopeErrorsRefMut {
 			errors: self.errors.write().unwrap(),
@@ -103,6 +112,8 @@ impl Scope {
 	pub fn errors(&self) -> ErrorList {
 		self.errors.read().unwrap().clone()
 	}
+
+	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn get(&self, name: Str) -> ScopeCell {
 		todo!()

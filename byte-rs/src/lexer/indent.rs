@@ -12,7 +12,7 @@ use super::*;
 #[derive(Clone)]
 pub struct Indent {
 	current: Option<Arc<IndentLevel>>,
-	closing: Option<IndentRegion>,
+	closing: Option<IndentBlock>,
 }
 
 impl Default for Indent {
@@ -32,7 +32,37 @@ impl Indent {
 		}
 	}
 
-	pub fn open_region(&mut self) -> IndentRegion {
+	pub fn pop_levels(&mut self, levels: usize) {
+		for _ in 0..levels {
+			let next = self.pop();
+			assert!(!matches!(next.kind, Kind::Block { .. }))
+		}
+	}
+
+	pub fn check_for_closed_regions(&mut self, next: &TokenAt) -> bool {
+		if self.closing.is_some() {
+			false
+		} else {
+			let mut current = self.current.clone();
+			while let Some(node) = current {
+				match node.kind {
+					Kind::Level(_) => {}
+					Kind::Block { id, region, .. } => {
+						if region.should_close(next) {
+							self.close_region(IndentBlock(id));
+							return true;
+						} else if !region.is_soft() {
+							return false;
+						}
+					}
+				}
+				current = node.prev.clone();
+			}
+			false
+		}
+	}
+
+	pub fn open_region(&mut self, region: IndentRegion) -> IndentBlock {
 		static ID_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 		if self.closing.is_some() {
@@ -41,16 +71,17 @@ impl Indent {
 		let id = ID_COUNTER.fetch_add(1, Ordering::SeqCst);
 		self.push(Kind::Block {
 			level: self.level(),
+			region,
 			id,
 		});
-		IndentRegion(id)
+		IndentBlock(id)
 	}
 
-	pub fn close_region(&mut self, region: IndentRegion) {
+	pub fn close_region(&mut self, block: IndentBlock) {
 		if self.closing.is_some() {
 			panic!("close_region: already closing an indent region");
 		}
-		self.closing = Some(region);
+		self.closing = Some(block);
 	}
 
 	pub fn check_indent(&mut self, input: &Cursor, errors: &mut ErrorList) -> Option<TokenAt> {
@@ -66,13 +97,13 @@ impl Indent {
 	fn check_indent_token(&mut self, input: &Cursor, errors: &mut ErrorList) -> Option<Token> {
 		// Closing a region takes precedence over anything. If we are closing a
 		// region, generate any pending Dedent before processing anything.
-		if let Some(IndentRegion(close_id)) = self.closing {
+		if let Some(IndentBlock(close_id)) = self.closing {
 			match self.pop().kind {
 				Kind::Level(..) => return Some(Token::Dedent),
-				Kind::Block { id, .. } => {
+				Kind::Block { id, region, .. } => {
 					if id == close_id {
 						self.closing = None;
-					} else {
+					} else if !region.is_soft() {
 						panic!("unbalanced indent region closing");
 					}
 				}
@@ -166,8 +197,33 @@ impl Indent {
 	}
 }
 
+#[derive(Copy, Clone)]
+pub enum IndentRegion {
+	UntilSymbol(&'static str),
+}
+
+impl IndentRegion {
+	fn should_close(&self, next: &TokenAt) -> bool {
+		if next.is_none() {
+			true
+		} else {
+			match self {
+				IndentRegion::UntilSymbol(symbol) => next.symbol() == Some(symbol),
+			}
+		}
+	}
+
+	/// Returns true if this is a soft region that can be closed with the
+	/// parent region.
+	fn is_soft(&self) -> bool {
+		match self {
+			IndentRegion::UntilSymbol(_) => false,
+		}
+	}
+}
+
 #[derive(Clone)]
-pub struct IndentRegion(usize);
+pub struct IndentBlock(usize);
 
 struct IndentLevel {
 	kind: Kind,
@@ -185,5 +241,9 @@ impl IndentLevel {
 
 enum Kind {
 	Level(usize),
-	Block { level: usize, id: usize },
+	Block {
+		level: usize,
+		id: usize,
+		region: IndentRegion,
+	},
 }

@@ -97,7 +97,7 @@ impl IsNode for RawExpr {
 
 impl HasRepr for RawExpr {
 	fn output_repr(&self, output: &mut repr::Repr) -> std::io::Result<()> {
-		let compact = output.format() < ReprFormat::Full;
+		let compact = output.is_compact();
 		if output.is_debug() {
 			match self {
 				RawExpr::Unary(op, a) => {
@@ -221,6 +221,7 @@ impl NodeExprList {
 			}
 
 			let next = self.next().cloned();
+			let saved = next.clone();
 			match self.is_value() {
 				Some(true) => {
 					self.values.push_back(next.unwrap());
@@ -228,7 +229,17 @@ impl NodeExprList {
 				}
 				Some(false) => {
 					let mut errors = scope.errors_mut();
-					errors.at(next.and_then(|x| x.span()), "expected a value expression");
+					errors.at(
+						next.and_then(|x| x.span()),
+						format!(
+							"expected a value expression -- {}",
+							if let Some(next) = &saved {
+								next.repr_for_msg()
+							} else {
+								format!("got none")
+							}
+						),
+					);
 					return NodeEval::Complete;
 				}
 				None => {

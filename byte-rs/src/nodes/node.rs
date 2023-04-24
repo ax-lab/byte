@@ -227,6 +227,18 @@ impl Node {
 		let node = self.node.write().unwrap();
 		NodeRefMut { node }
 	}
+
+	pub fn repr_for_msg(&self) -> String {
+		let mut repr = Repr::new(ReprMode::Debug, ReprFormat::Minimal);
+		let _ = self.output_repr(&mut repr);
+		let repr = repr.to_string();
+		if repr.contains('\n') {
+			let lines: Vec<_> = repr.lines().map(|x| format!("    {x}")).collect();
+			format!("\n\n{}\n", lines.join("\n"))
+		} else {
+			repr
+		}
+	}
 }
 
 /// Possible `eval` results for an [`IsNode`].

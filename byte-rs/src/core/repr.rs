@@ -120,6 +120,14 @@ impl Repr {
 	pub fn is_debug(&self) -> bool {
 		self.mode() == ReprMode::Debug
 	}
+
+	pub fn is_compact(&self) -> bool {
+		!self.is_full()
+	}
+
+	pub fn is_full(&self) -> bool {
+		self.format() == ReprFormat::Full
+	}
 }
 
 impl std::io::Write for Repr {

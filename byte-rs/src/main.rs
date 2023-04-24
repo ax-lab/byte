@@ -89,20 +89,25 @@ fn main() {
 					parser::parse(source.clone());
 				}
 
-				let mut context = lexer::open(source);
+				let mut lexer = lexer::open(source);
 				if list_tokens {
-					while context.next().is_some() {
-						let next = context.next();
+					let mut n = 1;
+					while lexer.next().is_some() {
+						let next = lexer.next();
 						let token = next.token();
 						let span = next.span();
 						let text = span.text();
-						println!("{span}: {:10}  =  {token:?}", format!("{text:?}"));
-						context.advance();
+						println!(
+							"\n>>> {n:03}. {span}:\n    {:10}  =  {token:?}",
+							format!("{text:?}")
+						);
+						lexer.advance();
+						n += 1;
 					}
-					print_errors(&context);
+					print_errors(&lexer);
 					std::process::exit(0);
 				}
-				old::eval::run(context, list_ast);
+				old::eval::run(lexer, list_ast);
 			}
 			Err(msg) => {
 				eprintln!("\n[error] open file: {msg}\n");

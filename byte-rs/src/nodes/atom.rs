@@ -8,7 +8,7 @@ use crate::vm::operators::*;
 
 use super::*;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone)]
 pub struct Atom(TokenAt);
 
 impl From<TokenAt> for Atom {

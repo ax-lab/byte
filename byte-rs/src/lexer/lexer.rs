@@ -37,12 +37,6 @@ impl Clone for Lexer {
 	}
 }
 
-#[derive(Clone)]
-struct State {
-	stream: TokenStream,
-	indent: Indent,
-}
-
 impl Default for Lexer {
 	fn default() -> Self {
 		let input = Input::open_str("empty", "");
@@ -56,19 +50,18 @@ impl Lexer {
 			state: State {
 				stream: TokenStream::new(input, scanner),
 				indent: Indent::new(),
+				unread: VecDeque::new(),
 			},
 			next: RwLock::new(Arc::new(VecDeque::new())),
 		}
 	}
 
-	#[allow(unused)]
-	pub fn start_indent(&mut self) -> IndentRegion {
-		self.state.indent.open_region()
+	pub fn is_parenthesis(&self, token: &TokenAt) -> Option<&'static str> {
+		self.state.is_parenthesis(token)
 	}
 
-	#[allow(unused)]
-	pub fn end_indent(&mut self, region: IndentRegion) {
-		self.state.indent.close_region(region);
+	pub fn pop_indent_levels(&mut self, levels: usize) {
+		self.state.indent.pop_levels(levels);
 	}
 
 	pub fn config<F: FnOnce(&mut Scanner)>(&mut self, config: F) {
@@ -132,22 +125,65 @@ impl Lexer {
 			self.state.read()
 		}
 	}
+
+	pub fn skip(&mut self, count: usize) {
+		for _ in 0..count {
+			self.read();
+		}
+	}
+}
+
+#[derive(Clone)]
+struct State {
+	stream: TokenStream,
+	indent: Indent,
+	unread: VecDeque<TokenAt>,
 }
 
 impl State {
+	fn is_parenthesis(&self, token: &TokenAt) -> Option<&'static str> {
+		match token.symbol() {
+			Some("(") => Some(")"),
+			Some("[") => Some("]"),
+			Some("{") => Some("}"),
+			_ => None,
+		}
+	}
+
 	fn read(&mut self) -> TokenAt {
 		use crate::lang::Comment;
 
 		let empty = self.stream.pos().col() == 0;
 		loop {
 			self.stream.skip();
-			let start = self.stream.pos().clone();
+
+			// the start position for the next token
+			let start = self
+				.unread
+				.front()
+				.map(|x| x.span().sta.clone())
+				.unwrap_or_else(|| self.stream.pos().clone());
+
+			// check for indentation tokens
 			let errors = self.stream.errors_mut();
 			let next = if let Some(next) = self.indent.check_indent(&start, errors) {
 				next
 			} else {
-				self.stream.read()
+				self.unread
+					.pop_front()
+					.unwrap_or_else(|| self.stream.read())
 			};
+
+			// parenthesized regions group indentation
+			if let Some(close) = self.is_parenthesis(&next) {
+				self.indent.open_region(IndentRegion::UntilSymbol(close));
+			} else if self.indent.check_for_closed_regions(&next) {
+				// unread the physical token and run the indent logic again to
+				// account for the closed region
+				self.unread.push_front(next);
+				continue;
+			}
+
 			let token = next.token();
 			if token.is::<Comment>() || (empty && token == Token::Break) {
 				continue;
