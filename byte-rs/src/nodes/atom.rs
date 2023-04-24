@@ -1,7 +1,6 @@
 use std::io::Write;
 
 use crate::core::repr::HasRepr;
-use crate::core::str::*;
 use crate::lang::*;
 use crate::lexer::*;
 use crate::vm::operators::*;
@@ -17,10 +16,17 @@ impl From<TokenAt> for Atom {
 	}
 }
 
+impl Atom {
+	pub fn symbol(&self) -> Option<&str> {
+		let Atom(value) = self;
+		value.symbol()
+	}
+}
+
 has_traits!(Atom: IsNode, HasRepr, IsExprValueNode, IsOperatorNode);
 
 impl IsNode for Atom {
-	fn eval(&mut self, scope: &mut Scope) -> NodeEval {
+	fn eval(&mut self, _scope: &mut Scope) -> NodeEval {
 		NodeEval::Complete
 	}
 
@@ -40,13 +46,6 @@ impl HasRepr for Atom {
 			write!(output, "{token}")?;
 		}
 		Ok(())
-	}
-}
-
-impl std::fmt::Display for Atom {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		let Atom(value) = self;
-		write!(f, "{value}")
 	}
 }
 
@@ -90,47 +89,6 @@ impl IsOperatorNode for Atom {
 		if let Some(symbol) = self.symbol() {
 			OpTernary::get(symbol)
 		} else {
-			None
-		}
-	}
-}
-
-impl Atom {
-	pub fn symbol(&self) -> Option<&str> {
-		let Atom(value) = self;
-		value.symbol()
-	}
-
-	fn resolve(&self, scope: &mut Scope, errors: &mut ErrorList) -> Option<Expr> {
-		let Atom(value) = self;
-		let expr = match value.token() {
-			Token::Identifier => {
-				let expr = match value.text() {
-					"true" => Expr::new(expr::Literal::Bool(true)),
-					"false" => Expr::new(expr::Literal::Bool(false)),
-					id => todo!(),
-				};
-				Some(expr)
-			}
-			token @ Token::Other(..) => {
-				if let Some(value) = token.get::<Integer>() {
-					let expr = Expr::new(expr::Literal::Integer(*value));
-					Some(expr)
-				} else if let Some(value) = token.get::<Literal>() {
-					let expr = Expr::new(expr::Literal::String(value.clone()));
-					Some(expr)
-				} else {
-					None
-				}
-			}
-			_ => None,
-		};
-		let span = value.span();
-		if let Some(expr) = expr {
-			let expr = expr.at(span);
-			Some(expr)
-		} else {
-			errors.at(Some(span), format!("{value} is not a value"));
 			None
 		}
 	}

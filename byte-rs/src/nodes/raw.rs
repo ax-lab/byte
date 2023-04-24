@@ -1,9 +1,7 @@
 use std::collections::VecDeque;
 use std::io::Write;
 
-use crate::core::input::*;
 use crate::core::repr::*;
-use crate::lexer::*;
 use crate::vm::operators::*;
 
 use super::*;
@@ -27,6 +25,10 @@ has_traits!(Raw: IsNode, HasRepr);
 impl IsNode for Raw {
 	fn eval(&mut self, scope: &mut Scope) -> NodeEval {
 		self.expr.reduce(scope)
+	}
+
+	fn span(&self) -> Option<Span> {
+		Node::span_from_list(&self.expr.list)
 	}
 }
 
@@ -59,7 +61,7 @@ pub enum RawExpr {
 has_traits!(RawExpr: IsNode, HasRepr);
 
 impl IsNode for RawExpr {
-	fn eval(&mut self, scope: &mut Scope) -> NodeEval {
+	fn eval(&mut self, _scope: &mut Scope) -> NodeEval {
 		let mut deps = Vec::new();
 		match self {
 			RawExpr::Unary(_, a) => {
@@ -93,6 +95,14 @@ impl IsNode for RawExpr {
 			NodeEval::Complete
 		}
 	}
+
+	fn span(&self) -> Option<Span> {
+		match self {
+			RawExpr::Unary(_, a) => a.span(),
+			RawExpr::Binary(_, a, b) => Node::span_from(a, b),
+			RawExpr::Ternary(_, a, _, b) => Node::span_from(a, b),
+		}
+	}
 }
 
 impl HasRepr for RawExpr {
@@ -107,7 +117,7 @@ impl HasRepr for RawExpr {
 						a.output_repr(output)?;
 					} else {
 						let mut output = output.indented();
-						write!(output, "\n");
+						write!(output, "\n")?;
 						a.output_repr(&mut output)?;
 						write!(output, "\n")?;
 					}
@@ -122,7 +132,7 @@ impl HasRepr for RawExpr {
 						b.output_repr(output)?;
 					} else {
 						let mut output = output.indented();
-						write!(output, "\n");
+						write!(output, "\n")?;
 						a.output_repr(&mut output)?;
 						write!(output, "\n")?;
 						b.output_repr(&mut output)?;
@@ -141,7 +151,7 @@ impl HasRepr for RawExpr {
 						c.output_repr(output)?;
 					} else {
 						let mut output = output.indented();
-						write!(output, "\n");
+						write!(output, "\n")?;
 						a.output_repr(&mut output)?;
 						write!(output, "\n")?;
 						b.output_repr(&mut output)?;
@@ -394,15 +404,6 @@ impl NodeExprList {
 
 	pub fn advance(&mut self) {
 		self.next += 1;
-	}
-
-	pub fn skip_symbol(&mut self, expected: &'static str) -> bool {
-		if self.is_symbol_at(self.next, expected) {
-			self.advance();
-			true
-		} else {
-			false
-		}
 	}
 
 	pub fn find_symbol(&self, symbol: &str) -> Option<usize> {

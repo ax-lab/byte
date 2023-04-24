@@ -1,19 +1,12 @@
-use std::any::{Any, TypeId};
-use std::cell::{Ref, RefCell};
-use std::collections::VecDeque;
 use std::fmt::{Debug, Display};
 use std::io::Write;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{self, AtomicU64};
-use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use crate::core::error::*;
-use crate::core::input::*;
 use crate::core::repr::*;
-use crate::core::str::*;
 use crate::core::*;
-use crate::vm::expr::Expr;
 use crate::vm::operators::*;
 
 use super::*;
@@ -73,9 +66,7 @@ impl PartialEq for Node {
 pub trait IsNode: IsValue + HasRepr {
 	fn eval(&mut self, scope: &mut Scope) -> NodeEval;
 
-	fn span(&self) -> Option<Span> {
-		None
-	}
+	fn span(&self) -> Option<Span>;
 }
 
 /// Implemented by nodes which can possibly be used in an expression value
@@ -146,6 +137,18 @@ impl Node {
 		self.id
 	}
 
+	pub fn span_from(a: &Node, b: &Node) -> Option<Span> {
+		Span::from_range(a.span(), b.span())
+	}
+
+	pub fn span_from_list(items: &Vec<Node>) -> Option<Span> {
+		let first = items.first();
+		let last = items.last();
+		let first = first.and_then(|x| x.span());
+		let last = last.and_then(|x| x.span());
+		Span::from_range(first, last)
+	}
+
 	pub fn span(&self) -> Option<Span> {
 		let span = {
 			let span = self.span.read().unwrap();
@@ -154,6 +157,7 @@ impl Node {
 		span.or_else(|| self.val().span())
 	}
 
+	#[allow(unused)]
 	pub fn is<T: IsNode>(&self) -> bool {
 		self.get::<T>().is_some()
 	}
@@ -170,6 +174,7 @@ impl Node {
 		}
 	}
 
+	#[allow(unused)]
 	pub fn get_mut<T: IsNode>(&mut self) -> Option<NodeValueRefMut<T>> {
 		let mut node = self.node.write().unwrap();
 		if node.get::<T>().is_some() {
@@ -200,11 +205,6 @@ impl Node {
 		let span = other.span();
 		self.set(node);
 		self.set_span(span);
-	}
-
-	pub fn at(mut self, span: Span) -> Self {
-		self.set_span(Some(span));
-		self
 	}
 
 	pub fn is_done(&self) -> bool {
@@ -251,6 +251,7 @@ impl Node {
 }
 
 /// Possible `eval` results for an [`IsNode`].
+#[allow(unused)]
 pub enum NodeEval {
 	/// Node is fully resolved, no more processing is required.
 	Complete,
@@ -269,6 +270,31 @@ pub enum NodeEval {
 	/// The node evaluation depends on the given nodes. The nodes will be fully
 	/// resolved before evaluation of the current [`IsNode`] is continued.
 	DependsOn(Vec<Node>),
+}
+
+impl NodeEval {
+	pub fn depends_on(input: &Vec<Node>) -> NodeEval {
+		let pending: Vec<_> = input.iter().filter(|x| !x.is_done()).cloned().collect();
+		if pending.len() > 0 {
+			NodeEval::DependsOn(pending)
+		} else {
+			NodeEval::Complete
+		}
+	}
+
+	pub fn check(&mut self, node: &Node) {
+		if !node.is_done() {
+			match self {
+				NodeEval::Complete => {
+					*self = NodeEval::DependsOn(vec![node.clone()]);
+				}
+				NodeEval::DependsOn(vec) => {
+					vec.push(node.clone());
+				}
+				_ => panic!("NodeEval::check: invalid value"),
+			}
+		}
+	}
 }
 
 //----------------------------------------------------------------------------//

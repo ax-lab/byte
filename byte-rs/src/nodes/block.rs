@@ -1,7 +1,6 @@
 use std::io::Write;
 
 use crate::core::repr::*;
-use crate::lexer::*;
 
 use super::*;
 
@@ -21,23 +20,15 @@ impl BlockExpr {
 has_traits!(BlockExpr: IsNode, HasRepr);
 
 impl IsNode for BlockExpr {
-	fn eval(&mut self, scope: &mut Scope) -> NodeEval {
-		let mut pending = Vec::new();
-		if !self.expr.is_done() {
-			pending.push(self.expr.clone());
-		}
-		if !self.block.is_done() {
-			pending.push(self.block.clone());
-		}
-		if pending.len() > 0 {
-			NodeEval::DependsOn(pending)
-		} else {
-			NodeEval::Complete
-		}
+	fn eval(&mut self, _scope: &mut Scope) -> NodeEval {
+		let mut done = NodeEval::Complete;
+		done.check(&self.expr);
+		done.check(&self.block);
+		done
 	}
 
 	fn span(&self) -> Option<Span> {
-		Span::from_range(self.expr.span(), self.block.span())
+		Node::span_from(&self.expr, &self.block)
 	}
 }
 
@@ -81,18 +72,8 @@ impl Block {
 has_traits!(Block: IsNode, HasRepr);
 
 impl IsNode for Block {
-	fn eval(&mut self, scope: &mut Scope) -> NodeEval {
-		let pending: Vec<Node> = self
-			.nodes
-			.iter()
-			.filter(|x| !x.is_done())
-			.cloned()
-			.collect();
-		if pending.len() == 0 {
-			NodeEval::Complete
-		} else {
-			NodeEval::DependsOn(pending)
-		}
+	fn eval(&mut self, _scope: &mut Scope) -> NodeEval {
+		NodeEval::depends_on(&self.nodes)
 	}
 
 	fn span(&self) -> Option<Span> {

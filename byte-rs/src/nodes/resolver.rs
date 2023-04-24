@@ -10,14 +10,12 @@ const NUM_RESOLVERS: usize = 1;
 
 pub struct NodeResolver {
 	queue: Arc<NodeQueue>,
-	errors: Arc<Mutex<ErrorList>>,
 }
 
 impl NodeResolver {
 	pub fn new() -> Self {
 		let result = Self {
 			queue: Default::default(),
-			errors: Default::default(),
 		};
 
 		for _ in 0..NUM_RESOLVERS {
@@ -39,7 +37,7 @@ impl NodeResolver {
 		self.queue.wait();
 	}
 
-	fn process_queue(mut queue: Arc<NodeQueue>) {
+	fn process_queue(queue: Arc<NodeQueue>) {
 		while let Some(mut node) = queue.take_next() {
 			let eval = {
 				let mut scope = node.scope();
@@ -294,10 +292,7 @@ impl NodeQueueInner {
 
 #[cfg(test)]
 mod tests {
-	use std::cell::Cell;
-
 	use crate::core::repr::*;
-	use crate::lexer::*;
 
 	use super::*;
 
@@ -391,12 +386,6 @@ mod tests {
 		out: Arc<Mutex<Vec<String>>>,
 	}
 
-	impl PartialEq for SimpleNode {
-		fn eq(&self, other: &Self) -> bool {
-			false
-		}
-	}
-
 	has_traits!(SimpleNode: IsNode);
 	repr_from_fmt!(SimpleNode);
 
@@ -405,6 +394,10 @@ mod tests {
 			let mut out = self.out.lock().unwrap();
 			out.push(format!("{} done", self.name));
 			NodeEval::Complete
+		}
+
+		fn span(&self) -> Option<Span> {
+			None
 		}
 	}
 
@@ -424,12 +417,6 @@ mod tests {
 	impl Clone for ComplexNode {
 		fn clone(&self) -> Self {
 			unreachable!()
-		}
-	}
-
-	impl PartialEq for ComplexNode {
-		fn eq(&self, other: &Self) -> bool {
-			false
 		}
 	}
 
@@ -495,6 +482,10 @@ mod tests {
 
 				_ => panic!("invalid state"),
 			}
+		}
+
+		fn span(&self) -> Option<Span> {
+			None
 		}
 	}
 

@@ -4,7 +4,6 @@ use std::{
 };
 
 use crate::core::str::*;
-use crate::lexer::*;
 
 use super::*;
 
@@ -16,6 +15,7 @@ pub struct Scope {
 }
 
 #[derive(Default)]
+#[allow(unused)]
 pub struct ScopeData {
 	root: Option<Scope>,
 	parent: Option<Scope>,
@@ -23,6 +23,7 @@ pub struct ScopeData {
 	previous: Option<Scope>,
 }
 
+#[allow(unused)]
 impl Scope {
 	pub fn new() -> Self {
 		let data = ScopeData {
@@ -141,12 +142,6 @@ impl Scope {
 }
 
 pub struct ScopeCell {}
-
-impl ScopeCell {
-	pub fn resolve(&self) {
-		todo!()
-	}
-}
 
 //--------------------------------------------------------------------------------------------------------------------//
 // Reference types

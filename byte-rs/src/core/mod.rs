@@ -8,5 +8,6 @@ pub mod traits;
 pub mod util;
 pub mod value;
 
+pub use repr::*;
 pub use traits::*;
 pub use value::*;
