@@ -61,6 +61,7 @@ impl Lexer {
 	}
 
 	pub fn pop_indent_levels(&mut self, levels: usize) -> Result<(), ()> {
+		self.flush_next();
 		self.state.indent.pop_levels(levels)
 	}
 
@@ -130,6 +131,12 @@ impl Lexer {
 		for _ in 0..count {
 			self.read();
 		}
+	}
+
+	fn flush_next(&mut self) {
+		let mut next = self.next.write().unwrap();
+		let next = Arc::make_mut(&mut next);
+		next.clear();
 	}
 }
 

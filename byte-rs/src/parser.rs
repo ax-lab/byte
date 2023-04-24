@@ -126,10 +126,11 @@ fn parse_expr_group(lexer: &mut Lexer, mut scope: Scope, limit: Stop) -> Node {
 		}
 		block
 	} else {
-		if let Some(expr) = parse_expr_with_block(lexer, scope.clone(), limit) {
-			expr
-		} else {
-			Node::new(Raw::new(Vec::new()), scope)
+		let expr = parse_line(lexer, &mut scope, limit, false);
+		match expr.len() {
+			0 => Node::new(Raw::new(Vec::new()), scope),
+			1 => expr[0].clone(),
+			_ => Node::new(Block::new(expr), scope),
 		}
 	}
 }
@@ -276,6 +277,7 @@ fn parse_expr_with_block(lexer: &mut Lexer, scope: Scope, limit: Stop) -> Option
 			Token::None => true,
 			Token::Break => true,
 			Token::Dedent => true,
+			Token::Symbol(";") => true,
 			_ => false,
 		};
 		if !valid {
@@ -378,7 +380,7 @@ fn parse_atom(lexer: &mut Lexer, mut scope: Scope, limit: Stop) -> Option<Node> 
 				scope.errors_mut().at(
 					Some(end.span()),
 					format!(
-						"{sta} parenthesized expression at {}: expected ending `{end_symbol}`, got {end}",
+						"{sta} parenthesized expression at {}: expected closing `{end_symbol}`, got {end}",
 						sta.span().short()
 					),
 				);
