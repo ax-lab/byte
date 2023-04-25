@@ -3,8 +3,6 @@ use std::{
 	sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
-use crate::core::str::*;
-
 use super::*;
 
 /// A scope maintains the state necessary for the node parsing.
@@ -122,10 +120,6 @@ impl Scope {
 
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub fn get(&self, name: Str) -> ScopeCell {
-		todo!()
-	}
-
 	fn get_ref<T, F: Fn(&ScopeData) -> &T>(&self, read: F) -> ScopeRef<T, F> {
 		ScopeRef {
 			data: self.data.read().unwrap(),
@@ -140,8 +134,6 @@ impl Scope {
 		}
 	}
 }
-
-pub struct ScopeCell {}
 
 //--------------------------------------------------------------------------------------------------------------------//
 // Reference types

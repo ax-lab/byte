@@ -3,7 +3,6 @@ pub mod error;
 pub mod input;
 pub mod num;
 pub mod repr;
-pub mod str;
 pub mod traits;
 pub mod util;
 pub mod value;

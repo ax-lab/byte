@@ -27,6 +27,16 @@ has_traits!(Atom: IsNode, HasRepr, IsExprValueNode, IsOperatorNode);
 
 impl IsNode for Atom {
 	fn eval(&mut self, _scope: &mut Scope) -> NodeEval {
+		let value = &self.0;
+		match value.token() {
+			Token::Identifier => {
+				let id = value.text();
+				if id == "print" {
+					return NodeEval::NewValue(Value::from(PrintMacro));
+				}
+			}
+			_ => {}
+		}
 		NodeEval::Complete
 	}
 
@@ -50,12 +60,12 @@ impl HasRepr for Atom {
 }
 
 impl IsExprValueNode for Atom {
-	fn is_value(&self) -> Option<bool> {
+	fn is_value(&self) -> bool {
 		let Atom(value) = self;
 		match value.token() {
-			Token::Identifier => Some(true),
-			token @ Token::Other(..) => Some(token.is::<Integer>() || token.is::<Literal>()),
-			_ => Some(false),
+			Token::Identifier => true,
+			token @ Token::Other(..) => token.is::<Integer>() || token.is::<Literal>(),
+			_ => false,
 		}
 	}
 }

@@ -36,8 +36,8 @@ impl IsNode for Group {
 }
 
 impl IsExprValueNode for Group {
-	fn is_value(&self) -> Option<bool> {
-		Some(true)
+	fn is_value(&self) -> bool {
+		true
 	}
 }
 

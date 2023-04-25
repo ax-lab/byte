@@ -204,6 +204,7 @@ pub struct NodeExprList {
 	next: usize,
 	ops: VecDeque<(Op, Node)>,
 	values: VecDeque<Node>,
+	queued: VecDeque<Node>,
 }
 
 impl NodeExprList {
@@ -213,48 +214,86 @@ impl NodeExprList {
 			next: 0,
 			ops: Default::default(),
 			values: Default::default(),
+			queued: Default::default(),
 		}
 	}
 
 	pub fn reduce(&mut self, scope: &mut Scope) -> NodeEval {
-		if self.next >= self.list.len() {
+		if self.next >= self.list.len() && self.queued.len() == 0 {
 			return self.check_pending();
 		}
 
 		loop {
-			while let Some(op) = self.get_unary_pre() {
+			// Protection against an infinite macro expression expansion
+			if self.queued.len() > 1024 && self.queued.len() > self.list.len() * 2 {
+				scope.errors_mut().at(
+					Node::span_from_list(&self.list),
+					"expression expansion overflow",
+				);
+				return NodeEval::Complete;
+			}
+
+			// Only evaluate the expression when the next node is available.
+			if let Some(next) = self.next() {
+				if !next.is_done() {
+					return NodeEval::DependsOn(vec![next.clone()]);
+				}
+			}
+
+			// Check for a macro node
+			if let Some(next) = self.next() {
+				let next = next.clone();
+				let next = next.val();
+				if let Some(next) = get_trait!(&*next, IsMacroNode) {
+					let nodes = Vec::from_iter(
+						self.queued
+							.iter()
+							.chain(self.list[self.next..].iter())
+							.cloned(),
+					);
+					if let Some((new_nodes, mut consumed)) = next.try_parse(&nodes, scope.clone()) {
+						assert!(consumed > 0);
+						while consumed > 0 && self.queued.len() > 0 {
+							self.queued.pop_front();
+							consumed -= 1;
+						}
+						self.next += consumed;
+						for it in new_nodes.into_iter().rev() {
+							self.queued.push_front(it);
+						}
+						continue;
+					}
+				}
+			}
+
+			if let Some(op) = self.get_unary_pre() {
 				// the unary operator doesn't affect other operators on the stack
 				// because it binds forward to the next operator
 				let op = Op::Unary(op);
 				self.push_op(scope, op, self.next().unwrap().clone());
 				self.advance();
+				continue;
 			}
 
 			let next = self.next().cloned();
 			let saved = next.clone();
-			match self.is_value() {
-				Some(true) => {
-					self.values.push_back(next.unwrap());
-					self.advance();
-				}
-				Some(false) => {
-					let mut errors = scope.errors_mut();
-					errors.at(
-						next.and_then(|x| x.span()),
-						format!(
-							"expected a value expression -- {}",
-							if let Some(next) = &saved {
-								next.repr_for_msg()
-							} else {
-								format!("got none")
-							}
-						),
-					);
-					return NodeEval::Complete;
-				}
-				None => {
-					return NodeEval::DependsOn(vec![next.unwrap()]);
-				}
+			if self.is_value() {
+				self.values.push_back(next.unwrap());
+				self.advance();
+			} else {
+				let mut errors = scope.errors_mut();
+				errors.at(
+					next.and_then(|x| x.span()),
+					format!(
+						"expected a value expression -- {}",
+						if let Some(next) = &saved {
+							next.repr_for_msg()
+						} else {
+							format!("got none")
+						}
+					),
+				);
+				return NodeEval::Complete;
 			}
 
 			// TODO: posfix operators (always pop themselves)
@@ -399,11 +438,13 @@ impl NodeExprList {
 	//------------------------------------------------------------------------//
 
 	pub fn next(&self) -> Option<&Node> {
-		self.list.get(self.next)
+		self.queued.front().or(self.list.get(self.next))
 	}
 
 	pub fn advance(&mut self) {
-		self.next += 1;
+		if self.queued.pop_front().is_none() {
+			self.next += 1;
+		}
 	}
 
 	pub fn find_symbol(&self, symbol: &str) -> Option<usize> {
@@ -424,16 +465,17 @@ impl NodeExprList {
 		}
 	}
 
-	pub fn is_value(&mut self) -> Option<bool> {
-		let node = self.next()?;
-		let next = node.val();
-		let expr = get_trait!(&*next, IsExprValueNode);
-		if let Some(expr) = expr {
-			expr.is_value()
-		} else if node.is_done() {
-			Some(false)
+	pub fn is_value(&mut self) -> bool {
+		if let Some(node) = self.next() {
+			let next = node.val();
+			let expr = get_trait!(&*next, IsExprValueNode);
+			if let Some(expr) = expr {
+				expr.is_value()
+			} else {
+				false
+			}
 		} else {
-			None
+			false
 		}
 	}
 

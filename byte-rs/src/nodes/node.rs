@@ -7,7 +7,6 @@ use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::core::repr::*;
 use crate::core::*;
-use crate::vm::operators::*;
 
 use super::*;
 
@@ -60,43 +59,6 @@ impl PartialEq for Node {
 	fn eq(&self, other: &Self) -> bool {
 		self.id == other.id
 	}
-}
-
-/// Root trait implemented for a [`Node`] underlying value.
-pub trait IsNode: IsValue + HasRepr {
-	fn eval(&mut self, scope: &mut Scope) -> NodeEval;
-
-	fn span(&self) -> Option<Span>;
-}
-
-/// Implemented by nodes which can possibly be used in an expression value
-/// context.
-pub trait IsExprValueNode {
-	/// Returns if this node can be used as a value in an expression.
-	///
-	/// The node may return [`None`] if it's unresolved and needs to wait
-	/// to determine if it's a value or not.
-	fn is_value(&self) -> Option<bool>;
-}
-
-/// Implemented by nodes which can resolve to an operand in an expression
-/// context.
-pub trait IsOperatorNode {
-	/// Return the corresponding unary operator if this is a valid
-	/// prefix unary operator symbol.
-	fn get_unary_pre(&self) -> Option<OpUnary>;
-
-	/// Return the corresponding unary operator if this is a valid
-	/// posfix unary operator symbol.
-	fn get_unary_pos(&self) -> Option<OpUnary>;
-
-	/// Return the corresponding binary operator if this is a valid
-	/// binary operator symbol.
-	fn get_binary(&self) -> Option<OpBinary>;
-
-	/// Return the corresponding ternary operator and delimiter symbol
-	/// if this is a valid ternary operator symbol.
-	fn get_ternary(&self) -> Option<(OpTernary, &'static str)>;
 }
 
 impl Node {

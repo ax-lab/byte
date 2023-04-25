@@ -1,13 +1,18 @@
 use crate::core::error::*;
 use crate::core::*;
-use crate::vm::expr::{self, Expr};
 
 use input::*;
+
+mod node;
+pub use node::*;
+
+mod node_traits;
+pub use node_traits::*;
 
 mod atom;
 mod block;
 mod group;
-mod node;
+mod list;
 mod print;
 mod raw;
 mod resolver;
@@ -16,7 +21,7 @@ mod scope;
 pub use atom::*;
 pub use block::*;
 pub use group::*;
-pub use node::*;
+pub use list::*;
 pub use print::*;
 pub use raw::*;
 pub use resolver::*;

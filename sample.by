@@ -9,22 +9,19 @@ for i in 1..MAX-1:
 print sum
 #)
 
-# (
-true
-false
-1 + 2 * 3 / 4 * (3 + 2)
+#(
 
-x + 1:
-	1 + 2 + 3
+2 * 3 / (2 + 1) + (
 	a + b
+	b + c
+)
 
-1 + 2
-	+ 3
-	+ (
-		5*1
-		6*2
-	)
-
-1 2 3
 #)
 
+#:(
+
+print 'The answer to life, the universe, and everything is', ANSWER
+
+# const ANSWER = 10 * 4 + 2
+
+#)
