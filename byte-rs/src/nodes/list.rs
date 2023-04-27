@@ -10,7 +10,7 @@ pub struct List {
 }
 
 impl List {
-	pub fn from(input: &[Node], separator: &'static str, scope: Scope) -> Node {
+	pub fn from(input: &[Node], separator: &'static str) -> Node {
 		let items = input.split(|x| {
 			x.get::<Atom>()
 				.map(|x| x.symbol() == Some(separator))
@@ -22,7 +22,7 @@ impl List {
 			.map(|it| {
 				last_empty = it.len() == 0;
 				let node = Raw::new(it.to_vec());
-				let node = Node::new(node, scope.clone());
+				let node = Node::new(node);
 				node
 			})
 			.collect();
@@ -30,14 +30,14 @@ impl List {
 			items.pop();
 		}
 
-		Node::new(List { items }, scope)
+		Node::new(List { items })
 	}
 }
 
 has_traits!(List: IsNode, HasRepr);
 
 impl IsNode for List {
-	fn eval(&mut self, _scope: &mut Scope) -> NodeEval {
+	fn eval(&mut self) -> NodeEval {
 		NodeEval::depends_on(&self.items)
 	}
 

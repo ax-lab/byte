@@ -18,7 +18,7 @@ impl Print {
 has_traits!(Print: IsNode, IsExprValueNode, HasRepr);
 
 impl IsNode for Print {
-	fn eval(&mut self, _scope: &mut Scope) -> NodeEval {
+	fn eval(&mut self) -> NodeEval {
 		let mut done = NodeEval::Complete;
 		done.check(&self.args);
 		done
@@ -74,7 +74,7 @@ pub struct PrintMacro;
 has_traits!(PrintMacro: IsNode, HasRepr, IsMacroNode);
 
 impl IsNode for PrintMacro {
-	fn eval(&mut self, _scope: &mut Scope) -> NodeEval {
+	fn eval(&mut self) -> NodeEval {
 		NodeEval::Complete
 	}
 
@@ -84,10 +84,10 @@ impl IsNode for PrintMacro {
 }
 
 impl IsMacroNode for PrintMacro {
-	fn try_parse(&self, nodes: &[Node], scope: Scope) -> Option<(Vec<Node>, usize)> {
+	fn try_parse(&self, nodes: &[Node]) -> Option<(Vec<Node>, usize)> {
 		// the first node is ourselves
-		let args = List::from(&nodes[1..], ",", scope.clone());
-		let node = Node::new(Print::new(args), scope);
+		let args = List::from(&nodes[1..], ",");
+		let node = Node::new(Print::new(args));
 		Some((vec![node], nodes.len()))
 	}
 }

@@ -20,7 +20,7 @@ impl BlockExpr {
 has_traits!(BlockExpr: IsNode, HasRepr);
 
 impl IsNode for BlockExpr {
-	fn eval(&mut self, _scope: &mut Scope) -> NodeEval {
+	fn eval(&mut self) -> NodeEval {
 		let mut done = NodeEval::Complete;
 		done.check(&self.expr);
 		done.check(&self.block);
@@ -72,7 +72,7 @@ impl Block {
 has_traits!(Block: IsNode, HasRepr);
 
 impl IsNode for Block {
-	fn eval(&mut self, _scope: &mut Scope) -> NodeEval {
+	fn eval(&mut self) -> NodeEval {
 		NodeEval::depends_on(&self.nodes)
 	}
 

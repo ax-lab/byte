@@ -16,7 +16,6 @@ mod list;
 mod print;
 mod raw;
 mod resolver;
-mod scope;
 
 pub use atom::*;
 pub use block::*;
@@ -25,4 +24,3 @@ pub use list::*;
 pub use print::*;
 pub use raw::*;
 pub use resolver::*;
-pub use scope::*;

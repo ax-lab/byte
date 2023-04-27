@@ -49,10 +49,10 @@ use super::*;
 #[derive(Clone)]
 pub struct Node {
 	id: u64,
-	scope: Scope,
 	node: Arc<RwLock<Value>>,
 	span: Arc<RwLock<Option<Span>>>,
 	done: Arc<RwLock<bool>>,
+	errors: Arc<RwLock<ErrorList>>,
 }
 
 impl PartialEq for Node {
@@ -62,7 +62,12 @@ impl PartialEq for Node {
 }
 
 impl Node {
-	pub fn new<T: IsNode>(node: T, scope: Scope) -> Self {
+	#[allow(unused)]
+	pub fn root() -> Self {
+		todo!()
+	}
+
+	pub fn new<T: IsNode>(node: T) -> Self {
 		// Generate a unique ID for each instance. The ID will remain constant
 		// even if the underlying value changes and is preserved by cloning.
 		static ID: AtomicU64 = AtomicU64::new(0);
@@ -74,23 +79,19 @@ impl Node {
 		assert!(get_trait!(&node, IsNode).is_some());
 		Node {
 			id,
-			scope,
 			done: Default::default(),
 			node: Arc::new(RwLock::new(node)),
 			span: Arc::new(RwLock::new(None)),
+			errors: Arc::new(RwLock::new(ErrorList::new())),
 		}
 	}
 
-	pub fn new_at<T: IsNode>(node: T, scope: Scope, span: Option<Span>) -> Self {
-		let mut node = Self::new(node, scope);
+	pub fn new_at<T: IsNode>(node: T, span: Option<Span>) -> Self {
+		let mut node = Self::new(node);
 		if span.is_some() {
 			node.set_span(span);
 		}
 		node
-	}
-
-	pub fn scope(&self) -> Scope {
-		self.scope.clone()
 	}
 
 	/// Globally unique identifier for the node. This does not change with
@@ -98,6 +99,10 @@ impl Node {
 	pub fn id(&self) -> u64 {
 		self.id
 	}
+
+	//================================================================================================================//
+	// Span
+	//================================================================================================================//
 
 	pub fn span_from(a: &Node, b: &Node) -> Option<Span> {
 		Span::from_range(a.span(), b.span())
@@ -118,6 +123,40 @@ impl Node {
 		};
 		span.or_else(|| self.val().span())
 	}
+
+	pub fn set_span(&mut self, span: Option<Span>) {
+		let mut my_span = self.span.write().unwrap();
+		*my_span = span;
+	}
+
+	pub fn get_span(a: &Node, b: &Node) -> Option<Span> {
+		let a = a.span();
+		let b = b.span();
+		Span::from_range(a, b)
+	}
+
+	//================================================================================================================//
+	// Error handling
+	//================================================================================================================//
+
+	pub fn errors_mut(&mut self) -> NodeErrorListMut {
+		NodeErrorListMut {
+			errors: self.errors.write().unwrap(),
+		}
+	}
+
+	pub fn has_errors(&self) -> bool {
+		let errors = self.errors.read().unwrap();
+		!errors.empty()
+	}
+
+	pub fn errors(&self) -> ErrorList {
+		self.errors.read().unwrap().clone()
+	}
+
+	//================================================================================================================//
+	// Value
+	//================================================================================================================//
 
 	#[allow(unused)]
 	pub fn is<T: IsNode>(&self) -> bool {
@@ -176,17 +215,6 @@ impl Node {
 	pub fn set_done(&mut self) {
 		let mut done = self.done.write().unwrap();
 		*done = true;
-	}
-
-	pub fn set_span(&mut self, span: Option<Span>) {
-		let mut my_span = self.span.write().unwrap();
-		*my_span = span;
-	}
-
-	pub fn get_span(a: &Node, b: &Node) -> Option<Span> {
-		let a = a.span();
-		let b = b.span();
-		Span::from_range(a, b)
 	}
 
 	pub fn val(&self) -> NodeRef {
@@ -290,9 +318,9 @@ impl Display for Node {
 	}
 }
 
-//----------------------------------------------------------------------------//
+//--------------------------------------------------------------------------------------------------------------------//
 // Reference types
-//----------------------------------------------------------------------------//
+//--------------------------------------------------------------------------------------------------------------------//
 
 /// Locked read reference to an [`IsNode`].
 pub struct NodeRef<'a> {
@@ -357,5 +385,24 @@ impl<'a, T: IsNode> Deref for NodeValueRefMut<'a, T> {
 impl<'a, T: IsNode> DerefMut for NodeValueRefMut<'a, T> {
 	fn deref_mut(&mut self) -> &mut Self::Target {
 		self.node.get_mut().unwrap()
+	}
+}
+
+/// Locked write reference to an [`ErrorList`].
+pub struct NodeErrorListMut<'a> {
+	errors: RwLockWriteGuard<'a, ErrorList>,
+}
+
+impl<'a> Deref for NodeErrorListMut<'a> {
+	type Target = ErrorList;
+
+	fn deref(&self) -> &Self::Target {
+		&self.errors
+	}
+}
+
+impl<'a> DerefMut for NodeErrorListMut<'a> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.errors
 	}
 }

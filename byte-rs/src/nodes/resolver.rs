@@ -40,10 +40,9 @@ impl NodeResolver {
 	fn process_queue(queue: Arc<NodeQueue>) {
 		while let Some(mut node) = queue.take_next() {
 			let eval = {
-				let mut scope = node.scope();
 				let mut value = node.val_mut();
 				let result = std::panic::catch_unwind(move || {
-					let result = value.eval(&mut scope);
+					let result = value.eval();
 					result
 				});
 				match result {
@@ -54,8 +53,8 @@ impl NodeResolver {
 							.map(|x| x.to_string())
 							.or_else(|| err.downcast_ref::<String>().cloned())
 							.unwrap_or_default();
-						let mut scope = node.scope();
-						let mut errors = scope.errors_mut();
+						let mut node_err = node.clone();
+						let mut errors = node_err.errors_mut();
 						errors.add(Error::new(format!(
 							"eval panicked: {err:?}\n\n{}\n\n{node:?}\n",
 							">>> Node <<<"
@@ -298,29 +297,19 @@ mod tests {
 
 	#[test]
 	fn test_queue_simple() {
-		let scope = Scope::new();
 		let out = Arc::new(Mutex::new(Vec::new()));
-		let a = Node::new(
-			SimpleNode {
-				name: "A".into(),
-				out: out.clone(),
-			},
-			scope.clone(),
-		);
-		let b = Node::new(
-			SimpleNode {
-				name: "B".into(),
-				out: out.clone(),
-			},
-			scope.clone(),
-		);
-		let c = Node::new(
-			SimpleNode {
-				name: "C".into(),
-				out: out.clone(),
-			},
-			scope.clone(),
-		);
+		let a = Node::new(SimpleNode {
+			name: "A".into(),
+			out: out.clone(),
+		});
+		let b = Node::new(SimpleNode {
+			name: "B".into(),
+			out: out.clone(),
+		});
+		let c = Node::new(SimpleNode {
+			name: "C".into(),
+			out: out.clone(),
+		});
 
 		let mut resolver = NodeResolver::new();
 		resolver.resolve(a.clone());
@@ -339,10 +328,9 @@ mod tests {
 
 	#[test]
 	fn test_queue_complex() {
-		let scope = Scope::new();
 		let out = Arc::new(Mutex::new(Vec::new()));
-		let c1 = Node::new(ComplexNode::new("C1", out.clone()), scope.clone());
-		let c2 = Node::new(ComplexNode::new("C2", out.clone()), scope.clone());
+		let c1 = Node::new(ComplexNode::new("C1", out.clone()));
+		let c2 = Node::new(ComplexNode::new("C2", out.clone()));
 
 		let mut resolver = NodeResolver::new();
 		resolver.resolve(c1.clone());
@@ -390,7 +378,7 @@ mod tests {
 	repr_from_fmt!(SimpleNode);
 
 	impl IsNode for SimpleNode {
-		fn eval(&mut self, _: &mut Scope) -> NodeEval {
+		fn eval(&mut self) -> NodeEval {
 			let mut out = self.out.lock().unwrap();
 			out.push(format!("{} done", self.name));
 			NodeEval::Complete
@@ -439,7 +427,7 @@ mod tests {
 	repr_from_fmt!(ComplexNode);
 
 	impl IsNode for ComplexNode {
-		fn eval(&mut self, scope: &mut Scope) -> NodeEval {
+		fn eval(&mut self) -> NodeEval {
 			let mut next = self.next.lock().unwrap();
 			let state = *next;
 			*next += 1;
@@ -456,8 +444,8 @@ mod tests {
 						name: format!("{}: 0 - B", self.name),
 						out,
 					};
-					let a = Node::new(a, scope.clone());
-					let b = Node::new(b, scope.clone());
+					let a = Node::new(a);
+					let b = Node::new(b);
 					NodeEval::DependsOn(vec![a, b])
 				}
 				1 => {
@@ -467,7 +455,7 @@ mod tests {
 						name: format!("{}: 1 - C", self.name),
 						out,
 					};
-					let c = Node::new(c, scope.clone());
+					let c = Node::new(c);
 					NodeEval::DependsOn(vec![c])
 				}
 				2 => {

@@ -75,6 +75,10 @@ impl Lexer {
 		self.state.stream.errors().clone()
 	}
 
+	pub fn error_at<T: ToString>(&mut self, span: Option<Span>, error: T) {
+		self.state.stream.errors_mut().at(span, error)
+	}
+
 	pub fn add_error(&mut self, error: Error) {
 		self.state.stream.errors_mut().add(error)
 	}

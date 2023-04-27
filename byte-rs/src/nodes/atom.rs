@@ -26,7 +26,7 @@ impl Atom {
 has_traits!(Atom: IsNode, HasRepr, IsExprValueNode, IsOperatorNode);
 
 impl IsNode for Atom {
-	fn eval(&mut self, _scope: &mut Scope) -> NodeEval {
+	fn eval(&mut self) -> NodeEval {
 		let value = &self.0;
 		match value.token() {
 			Token::Identifier => {
