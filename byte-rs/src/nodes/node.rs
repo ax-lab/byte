@@ -166,6 +166,18 @@ impl Node {
 		self.link.read().unwrap().next.clone()
 	}
 
+	pub fn node_at(&self, mut n: usize) -> Option<Node> {
+		let mut curr = self.clone();
+		for _ in 0..n {
+			if let Some(node) = curr.next() {
+				curr = node;
+			} else {
+				return None;
+			}
+		}
+		Some(curr)
+	}
+
 	pub fn head(&self) -> Node {
 		self.get_list()
 			.map(|x| x.read().unwrap().head.clone())
@@ -189,6 +201,64 @@ impl Node {
 		} else {
 			drop(list);
 			panic!("node already has a parent");
+		}
+	}
+
+	pub fn extract(&mut self) {
+		let mut curr = self.link.write().unwrap();
+		let mut list = curr.as_list(self);
+		let mut list = list.write().unwrap();
+
+		// update previous link
+		if let Some(ref prev) = curr.prev {
+			let mut prev = prev.link.write().unwrap();
+			prev.next = curr.next.clone();
+		} else if let Some(ref next) = curr.next {
+			list.head = next.clone();
+		}
+
+		// update next link
+		if let Some(ref next) = curr.next {
+			let mut next = next.link.write().unwrap();
+			next.prev = curr.prev.clone();
+		} else if let Some(ref prev) = curr.prev {
+			list.last = prev.clone();
+		}
+
+		drop(list);
+		curr.prev = None;
+		curr.next = None;
+		curr.list = None;
+	}
+
+	pub fn split_next(&mut self) -> Option<Node> {
+		let mut curr = self.link.write().unwrap();
+		let mut list = curr.as_list(self);
+		let mut list = list.write().unwrap();
+		if let Some(ref next) = curr.next {
+			let mut next = next.clone();
+			let mut next_link = next.link.write().unwrap();
+			next_link.list = Some(Arc::new(RwLock::new(NodeList {
+				parent: list.parent.clone(),
+				head: next.clone(),
+				last: list.last.clone(),
+			})));
+
+			let new_list = next_link.list.clone();
+			let mut iter = next_link.next.clone();
+			while let Some(node) = iter {
+				let mut link = node.link.write().unwrap();
+				link.list = new_list.clone();
+				iter = link.next.clone();
+			}
+
+			list.last = self.clone();
+			curr.next = None;
+
+			drop(next_link);
+			Some(next)
+		} else {
+			None
 		}
 	}
 
@@ -887,6 +957,83 @@ mod tests {
 
 		assert!(!node.is_detached());
 		assert!(node.parent() == Some(root));
+	}
+
+	#[test]
+	fn test_extract() {
+		let root = Node::new_root();
+		let mut n1 = Node::new_detached(Test(1));
+		n1.set_parent(&root);
+
+		n1.push_value(Test(2));
+		n1.push_value(Test(3));
+		n1.push_value(Test(4));
+		n1.push_value(Test(5));
+
+		let mut n3 = n1.node_at(2).unwrap();
+		n3.extract();
+
+		check_list(&n1, "[ 1, 2, 4, 5 ]");
+		check_list(&n3, "3");
+		assert!(n3.is_detached());
+		assert!(n3.parent().is_none());
+		assert!(n1.parent() == Some(root.clone()));
+
+		let n2 = n1.node_at(1).unwrap();
+		n1.extract();
+
+		check_list(&n2, "[ 2, 4, 5 ]");
+		check_list(&n1, "1");
+		assert!(n1.is_detached());
+		assert!(n1.parent().is_none());
+		assert!(n2.parent() == Some(root.clone()));
+		assert!(n2.head() == n2);
+
+		let mut n5 = n2.node_at(2).unwrap();
+		n5.extract();
+
+		check_list(&n2, "[ 2, 4 ]");
+		check_list(&n5, "5");
+		assert!(n1.is_detached());
+		assert!(n1.parent().is_none());
+		assert!(n2.parent() == Some(root.clone()));
+	}
+
+	#[test]
+	fn test_split() {
+		let root = Node::new_root();
+		let mut n1 = Node::new_detached(Test(1));
+		n1.set_parent(&root);
+
+		n1.push_value(Test(2));
+		n1.push_value(Test(3));
+		n1.push_value(Test(4));
+		n1.push_value(Test(5));
+
+		let mut n3 = n1.node_at(2).unwrap();
+
+		let n4 = n3.split_next().unwrap();
+
+		assert!(n1.last().split_next().is_none());
+		assert!(n4.last().split_next().is_none());
+
+		check_list(&n1, "[ 1, 2, 3 ]");
+		check_list(&n4, "[ 4, 5 ]");
+
+		check_list_p(&n3, "3");
+		assert!(n3.head() == n1);
+
+		assert!(n1.parent().as_ref() == Some(&root));
+		assert!(n4.parent().as_ref() == Some(&root));
+
+		let n2 = n1.split_next().unwrap();
+		check_list(&n1, "1");
+		check_list(&n2, "[ 2, 3 ]");
+
+		assert!(n1.parent().as_ref() == Some(&root));
+		assert!(n2.parent().as_ref() == Some(&root));
+		assert!(n2.last() == n3);
+		assert!(n3.head() == n2);
 	}
 
 	//================================================================================================================//
