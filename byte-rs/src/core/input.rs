@@ -12,7 +12,7 @@ pub fn is_space(char: char) -> bool {
 
 /// Input text stream for the compiler. Can be cloned and shared with low
 /// overhead.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Input {
 	internal: Arc<InputData>,
 }
@@ -63,6 +63,7 @@ impl HasRepr for Input {
 	}
 }
 
+#[derive(Default)]
 struct InputData {
 	name: String,
 	data: Vec<u8>,
@@ -107,7 +108,7 @@ impl PartialEq for Input {
 impl Eq for Input {}
 
 /// Span indexes a range of text from an [`Input`].
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Default, Eq, PartialEq)]
 pub struct Span {
 	pub sta: Cursor,
 	pub end: Cursor,
@@ -183,7 +184,7 @@ impl HasRepr for Span {
 ///
 /// This type is lightweight and can be easily copied to save and backtrack to
 /// an input position.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Cursor {
 	src: Input,
 	row: usize,

@@ -18,7 +18,7 @@ impl Print {
 has_traits!(Print: IsNode, IsExprValueNode, HasRepr);
 
 impl IsNode for Print {
-	fn eval(&mut self) -> NodeEval {
+	fn eval(&self, _node: Node) -> NodeEval {
 		let mut done = NodeEval::Complete;
 		done.check(&self.args);
 		done
@@ -74,7 +74,7 @@ pub struct PrintMacro;
 has_traits!(PrintMacro: IsNode, HasRepr, IsMacroNode);
 
 impl IsNode for PrintMacro {
-	fn eval(&mut self) -> NodeEval {
+	fn eval(&self, _node: Node) -> NodeEval {
 		NodeEval::Complete
 	}
 

@@ -37,7 +37,7 @@ impl List {
 has_traits!(List: IsNode, HasRepr);
 
 impl IsNode for List {
-	fn eval(&mut self) -> NodeEval {
+	fn eval(&self, _node: Node) -> NodeEval {
 		NodeEval::depends_on(&self.items)
 	}
 

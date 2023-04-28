@@ -1,5 +1,6 @@
 use std::{
 	collections::{HashMap, HashSet, VecDeque},
+	panic::AssertUnwindSafe,
 	sync::{Arc, Condvar, Mutex},
 	thread,
 };
@@ -40,11 +41,12 @@ impl NodeResolver {
 	fn process_queue(queue: Arc<NodeQueue>) {
 		while let Some(mut node) = queue.take_next() {
 			let eval = {
-				let mut value = node.val_mut();
-				let result = std::panic::catch_unwind(move || {
-					let result = value.eval();
+				let value_node = node.clone();
+				let value = node.val();
+				let result = std::panic::catch_unwind(AssertUnwindSafe(move || {
+					let result = value.eval(value_node);
 					result
-				});
+				}));
 				match result {
 					Ok(value) => value,
 					Err(err) => {
@@ -68,17 +70,7 @@ impl NodeResolver {
 					node.set_done();
 					queue.complete(node);
 				}
-				NodeEval::NewValue(value) => {
-					node.set(value);
-					queue.add_again_with_dependencies(node, Vec::new());
-				}
-				NodeEval::NewValueAndPos(value, span) => {
-					node.set(value);
-					node.set_span(Some(span));
-					queue.add_again_with_dependencies(node, Vec::new());
-				}
-				NodeEval::FromNode(other) => {
-					node.set_from_node(other);
+				NodeEval::Changed => {
 					queue.add_again_with_dependencies(node, Vec::new());
 				}
 				NodeEval::DependsOn(deps) => {
@@ -378,7 +370,7 @@ mod tests {
 	repr_from_fmt!(SimpleNode);
 
 	impl IsNode for SimpleNode {
-		fn eval(&mut self) -> NodeEval {
+		fn eval(&self, _node: Node) -> NodeEval {
 			let mut out = self.out.lock().unwrap();
 			out.push(format!("{} done", self.name));
 			NodeEval::Complete
@@ -427,7 +419,7 @@ mod tests {
 	repr_from_fmt!(ComplexNode);
 
 	impl IsNode for ComplexNode {
-		fn eval(&mut self) -> NodeEval {
+		fn eval(&self, mut node: Node) -> NodeEval {
 			let mut next = self.next.lock().unwrap();
 			let state = *next;
 			*next += 1;
@@ -465,7 +457,8 @@ mod tests {
 						name: format!("{}: 2 - Final", self.name),
 						out,
 					};
-					NodeEval::NewValue(Value::from(d))
+					node.set(Value::from(d));
+					NodeEval::Changed
 				}
 
 				_ => panic!("invalid state"),

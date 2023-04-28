@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std::io::Write;
+use std::sync::{Arc, RwLock};
 
 use crate::core::repr::*;
 use crate::vm::operators::*;
@@ -9,13 +10,13 @@ use super::*;
 /// Raw list of unprocessed atom nodes.
 #[derive(Clone)]
 pub struct Raw {
-	expr: NodeExprList,
+	expr: Arc<RwLock<NodeExprList>>,
 }
 
 impl Raw {
 	pub fn new(list: Vec<Node>) -> Self {
 		Self {
-			expr: NodeExprList::new(list),
+			expr: Arc::new(RwLock::new(NodeExprList::new(list))),
 		}
 	}
 }
@@ -23,24 +24,26 @@ impl Raw {
 has_traits!(Raw: IsNode, HasRepr);
 
 impl IsNode for Raw {
-	fn eval(&mut self) -> NodeEval {
-		self.expr.reduce()
+	fn eval(&self, node: Node) -> NodeEval {
+		self.expr.write().unwrap().reduce(node)
 	}
 
 	fn span(&self) -> Option<Span> {
-		Node::span_from_list(&self.expr.list)
+		Node::span_from_list(&self.expr.read().unwrap().list)
 	}
 }
 
 impl HasRepr for Raw {
 	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
-		if self.expr.list.len() == 0 {
+		let list = self.expr.read().unwrap();
+		let list = &list.list;
+		if list.len() == 0 {
 			return write!(output, "Raw()");
 		}
 		write!(output, "Raw(\n")?;
 		{
 			let mut output = output.indented();
-			for it in self.expr.list.iter() {
+			for it in list.iter() {
 				it.output_repr(&mut output)?;
 				write!(output, "\n")?;
 			}
@@ -61,7 +64,7 @@ pub enum RawExpr {
 has_traits!(RawExpr: IsNode, HasRepr);
 
 impl IsNode for RawExpr {
-	fn eval(&mut self) -> NodeEval {
+	fn eval(&self, _node: Node) -> NodeEval {
 		let mut deps = Vec::new();
 		match self {
 			RawExpr::Unary(_, a) => {
@@ -218,7 +221,7 @@ impl NodeExprList {
 		}
 	}
 
-	pub fn reduce(&mut self) -> NodeEval {
+	pub fn reduce(&mut self, mut node: Node) -> NodeEval {
 		if self.next >= self.list.len() && self.queued.len() == 0 {
 			return self.check_pending();
 		}
@@ -362,7 +365,8 @@ impl NodeExprList {
 		} else {
 			assert!(self.values.len() == 1);
 			let expr = self.values.pop_back().unwrap();
-			NodeEval::FromNode(expr)
+			node.set_value_from_node(&expr);
+			NodeEval::Changed
 		}
 	}
 
@@ -413,7 +417,7 @@ impl NodeExprList {
 				let expr = values.pop_back().unwrap();
 				let span = Node::get_span(&op_node, &expr);
 				let expr = RawExpr::Unary(op, expr);
-				let expr = Node::new_at(expr, span);
+				let expr = Node::new(expr).at(span);
 				values.push_back(expr);
 			}
 			Op::Binary(op) => {
@@ -421,7 +425,7 @@ impl NodeExprList {
 				let lhs = values.pop_back().unwrap();
 				let span = Node::get_span(&lhs, &rhs);
 				let expr = RawExpr::Binary(op, lhs, rhs);
-				let expr = Node::new_at(expr, span);
+				let expr = Node::new(expr).at(span);
 				values.push_back(expr);
 			}
 			Op::Ternary(op) => {
@@ -430,7 +434,7 @@ impl NodeExprList {
 				let a = values.pop_back().unwrap();
 				let span = Node::get_span(&a, &c);
 				let expr = RawExpr::Ternary(op, a, b, c);
-				let expr = Node::new_at(expr, span);
+				let expr = Node::new(expr).at(span);
 				values.push_back(expr);
 			}
 		}

@@ -26,13 +26,14 @@ impl Atom {
 has_traits!(Atom: IsNode, HasRepr, IsExprValueNode, IsOperatorNode);
 
 impl IsNode for Atom {
-	fn eval(&mut self) -> NodeEval {
+	fn eval(&self, mut node: Node) -> NodeEval {
 		let value = &self.0;
 		match value.token() {
 			Token::Identifier => {
 				let id = value.text();
 				if id == "print" {
-					return NodeEval::NewValue(Value::from(PrintMacro));
+					node.set(Value::from(PrintMacro));
+					return NodeEval::Changed;
 				}
 			}
 			_ => {}

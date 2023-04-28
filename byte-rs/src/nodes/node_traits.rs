@@ -16,7 +16,7 @@ use super::*;
 
 /// Root trait implemented for any [`Node`] value.
 pub trait IsNode: IsValue + HasRepr {
-	fn eval(&mut self) -> NodeEval;
+	fn eval(&self, node: Node) -> NodeEval;
 
 	fn span(&self) -> Option<Span>;
 }

@@ -22,7 +22,7 @@ impl Group {
 has_traits!(Group: IsNode, HasRepr, IsExprValueNode);
 
 impl IsNode for Group {
-	fn eval(&mut self) -> NodeEval {
+	fn eval(&self, _node: Node) -> NodeEval {
 		if self.node.is_done() {
 			NodeEval::Complete
 		} else {
