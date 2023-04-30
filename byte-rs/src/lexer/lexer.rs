@@ -56,6 +56,10 @@ impl Lexer {
 		}
 	}
 
+	pub fn has_errors(&self) -> bool {
+		!self.state.stream.errors().empty()
+	}
+
 	pub fn is_parenthesis(&self, token: &TokenAt) -> Option<&'static str> {
 		self.state.is_parenthesis(token)
 	}
@@ -77,14 +81,6 @@ impl Lexer {
 
 	pub fn error_at<T: ToString>(&mut self, span: Option<Span>, error: T) {
 		self.state.stream.errors_mut().at(span, error)
-	}
-
-	pub fn add_error(&mut self, error: Error) {
-		self.state.stream.errors_mut().add_error(error)
-	}
-
-	pub fn pos(&self) -> Cursor {
-		self.state.stream.pos().clone()
 	}
 
 	pub fn lookahead(&self, n: usize) -> TokenAt {

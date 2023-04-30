@@ -47,6 +47,7 @@ impl Token {
 		}
 	}
 
+	#[allow(unused)]
 	pub fn get<T: IsToken>(&self) -> Option<&T::Value> {
 		match self {
 			Token::Other(data) => data.get::<T>(),
@@ -93,20 +94,12 @@ impl TokenAt {
 		Some(str)
 	}
 
-	pub fn is_some(&self) -> bool {
-		self.1 != Token::None
-	}
-
 	pub fn is_none(&self) -> bool {
 		self.1 == Token::None
 	}
 
 	pub fn text(&self) -> &str {
 		self.0.text()
-	}
-
-	pub fn as_none(&self) -> TokenAt {
-		TokenAt(self.span(), Token::None)
 	}
 }
 

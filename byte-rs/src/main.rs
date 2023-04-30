@@ -6,19 +6,12 @@ mod lang;
 mod lexer;
 mod nodes;
 mod parser;
-
-#[allow(unused)]
 mod vm;
 
-mod old;
-
 fn main() {
-	use old::stream::Stream;
-
 	let mut done = false;
 	let mut files = Vec::new();
 	let mut list_tokens = false;
-	let mut list_ast = false;
 	let mut eval_list = Vec::new();
 	let mut next_is_eval = false;
 	let mut is_blocks = false;
@@ -40,10 +33,6 @@ fn main() {
 				}
 				"--tokens" => {
 					list_tokens = true;
-					false
-				}
-				"--ast" => {
-					list_ast = true;
 					false
 				}
 				"--eval" => {
@@ -75,10 +64,8 @@ fn main() {
 		std::process::exit(1);
 	}
 
-	for it in eval_list.into_iter() {
-		let context = lexer::open(core::input::Input::open_str("eval", &it));
-		let result = old::eval::run(context, false);
-		println!("{result}");
+	for _it in eval_list.into_iter() {
+		todo!()
 	}
 
 	for file in files {
@@ -88,25 +75,10 @@ fn main() {
 					parser::parse(source.clone());
 				}
 
-				let mut lexer = lexer::open(source);
+				let mut _lexer = lexer::open(source);
 				if list_tokens {
-					let mut n = 1;
-					while lexer.next().is_some() {
-						let next = lexer.next();
-						let token = next.token();
-						let span = next.span();
-						let text = span.text();
-						println!(
-							"\n>>> {n:03}. {span}:\n    {:10}  =  {token:?}",
-							format!("{text:?}")
-						);
-						lexer.advance();
-						n += 1;
-					}
-					print_errors(&lexer);
-					std::process::exit(0);
+					todo!();
 				}
-				old::eval::run(lexer, list_ast);
 			}
 			Err(msg) => {
 				eprintln!("\n[error] open file: {msg}\n");
@@ -114,10 +86,6 @@ fn main() {
 			}
 		}
 	}
-}
-
-fn print_errors(ctx: &lexer::Lexer) {
-	print_error_list(ctx.errors());
 }
 
 fn print_error_list(errors: crate::core::error::ErrorList) {

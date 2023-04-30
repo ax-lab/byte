@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 pub mod code;
 pub mod operators;
 pub mod runtime;

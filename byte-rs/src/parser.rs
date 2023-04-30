@@ -3,7 +3,6 @@ use std::io::Write;
 use crate::core::repr::*;
 use crate::lexer::*;
 use crate::nodes::*;
-use crate::old::stream::Stream;
 use crate::vm::Op;
 
 pub fn parse(input: crate::core::input::Input) {

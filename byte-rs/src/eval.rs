@@ -3,7 +3,6 @@
 use crate::core::input::*;
 use crate::core::*;
 use crate::nodes;
-use crate::old::stream::Stream;
 use crate::parser;
 use crate::vm::*;
 
