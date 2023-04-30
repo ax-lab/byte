@@ -9,6 +9,8 @@ mod parser;
 mod vm;
 
 fn main() {
+	println!("{}", byte::hello());
+
 	let mut done = false;
 	let mut files = Vec::new();
 	let mut list_tokens = false;
