@@ -44,7 +44,7 @@ impl Code {
 ///
 /// Provides interior mutability for adding new data and low-overhead clone
 /// using reference counting.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct CodeData {
 	store: Rc<RefCell<CodeDataStore>>,
 }
@@ -86,6 +86,7 @@ impl CodeData {
 	}
 }
 
+#[derive(Default)]
 struct CodeDataStore {
 	data: Vec<u8>,
 	hash: HashMap<Vec<u8>, RawData>,

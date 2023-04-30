@@ -10,45 +10,48 @@ use super::*;
 /// Raw list of unprocessed atom nodes.
 #[derive(Clone)]
 pub struct Raw {
-	expr: Arc<RwLock<NodeExprList>>,
+	parser: Option<RawExprParser>,
 }
 
 impl Raw {
-	pub fn new(list: Vec<Node>) -> Self {
-		Self {
-			expr: Arc::new(RwLock::new(NodeExprList::new(list))),
-		}
+	pub fn new(expr: Node) -> Node {
+		let span = expr.span();
+		let node = Self {
+			parser: Some(RawExprParser::new(expr)),
+		};
+		Node::new(node).at(span)
+	}
+
+	pub fn empty() -> Self {
+		Self { parser: None }
 	}
 }
 
 has_traits!(Raw: IsNode, HasRepr);
 
 impl IsNode for Raw {
-	fn eval(&self, node: Node) -> NodeEval {
-		self.expr.write().unwrap().reduce(node)
-	}
-
-	fn span(&self) -> Option<Span> {
-		Node::span_from_list(&self.expr.read().unwrap().list)
+	fn eval(&self, mut node: Node) -> NodeEval {
+		if let Some(parser) = self.parser.as_ref() {
+			parser.reduce(node)
+		} else {
+			node.errors_mut().add(format!("empty expression"));
+			NodeEval::Complete
+		}
 	}
 }
 
 impl HasRepr for Raw {
 	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
-		let list = self.expr.read().unwrap();
-		let list = &list.list;
-		if list.len() == 0 {
-			return write!(output, "Raw()");
-		}
-		write!(output, "Raw(\n")?;
-		{
-			let mut output = output.indented();
-			for it in list.iter() {
-				it.output_repr(&mut output)?;
-				write!(output, "\n")?;
+		if let Some(ref parser) = self.parser {
+			write!(output, "Raw(")?;
+			{
+				let mut output = output.indented();
+				parser.expr.output_list(&mut output)?;
 			}
+			write!(output, ")")?;
+		} else {
+			write!(output, "Raw()")?;
 		}
-		write!(output, ")")?;
 		Ok(())
 	}
 }
@@ -62,6 +65,26 @@ pub enum RawExpr {
 }
 
 has_traits!(RawExpr: IsNode, HasRepr);
+
+impl RawExpr {
+	pub fn new_unary(op: OpUnary, op_node: Node, a: Node) -> Node {
+		let span = Span::from_range(op_node.span(), a.span());
+		let node = RawExpr::Unary(op, a);
+		Node::new(node).at(span)
+	}
+
+	pub fn new_binary(op: OpBinary, a: Node, b: Node) -> Node {
+		let span = Span::from_range(a.span(), b.span());
+		let node = RawExpr::Binary(op, a, b);
+		Node::new(node).at(span)
+	}
+
+	pub fn new_ternary(op: OpTernary, a: Node, b: Node, c: Node) -> Node {
+		let span = Span::from_range(a.span(), c.span());
+		let node = RawExpr::Ternary(op, a, b, c);
+		Node::new(node).at(span)
+	}
+}
 
 impl IsNode for RawExpr {
 	fn eval(&self, _node: Node) -> NodeEval {
@@ -96,14 +119,6 @@ impl IsNode for RawExpr {
 			NodeEval::DependsOn(deps)
 		} else {
 			NodeEval::Complete
-		}
-	}
-
-	fn span(&self) -> Option<Span> {
-		match self {
-			RawExpr::Unary(_, a) => a.span(),
-			RawExpr::Binary(_, a, b) => Node::span_from(a, b),
-			RawExpr::Ternary(_, a, _, b) => Node::span_from(a, b),
 		}
 	}
 }
@@ -202,90 +217,57 @@ impl HasRepr for RawExpr {
 //----------------------------------------------------------------------------//
 
 #[derive(Clone)]
-pub struct NodeExprList {
-	list: Vec<Node>,
-	next: usize,
-	ops: VecDeque<(Op, Node)>,
-	values: VecDeque<Node>,
-	queued: VecDeque<Node>,
+struct RawExprParser {
+	expr: Node,
+	state: Arc<RwLock<RawExprParserState>>,
 }
 
-impl NodeExprList {
-	pub fn new(list: Vec<Node>) -> Self {
+struct RawExprParserState {
+	next: Option<Node>,
+	ops: VecDeque<(Op, Node)>,
+	values: VecDeque<Node>,
+}
+
+impl RawExprParser {
+	pub fn new(expr: Node) -> Self {
 		Self {
-			list,
-			next: 0,
-			ops: Default::default(),
-			values: Default::default(),
-			queued: Default::default(),
+			expr: expr.clone(),
+			state: Arc::new(RwLock::new(RawExprParserState {
+				next: Some(expr),
+				ops: Default::default(),
+				values: Default::default(),
+			})),
 		}
 	}
 
-	pub fn reduce(&mut self, mut node: Node) -> NodeEval {
-		if self.next >= self.list.len() && self.queued.len() == 0 {
-			return self.check_pending();
-		}
-
+	pub fn reduce(&self, mut node: Node) -> NodeEval {
+		let mut state = self.state.write().unwrap();
 		loop {
-			// Protection against an infinite macro expression expansion
-			if self.queued.len() > 1024 && self.queued.len() > self.list.len() * 2 {
-				self.list[0].clone().errors_mut().at(
-					Node::span_from_list(&self.list),
-					"expression expansion overflow",
-				);
-				return NodeEval::Complete;
-			}
-
 			// Only evaluate the expression when the next node is available.
-			if let Some(next) = self.next() {
+			if let Some(next) = state.next() {
 				if !next.is_done() {
 					return NodeEval::DependsOn(vec![next.clone()]);
 				}
 			}
 
-			// Check for a macro node
-			if let Some(next) = self.next() {
-				let next = next.clone();
-				let next = next.val();
-				if let Some(next) = get_trait!(&*next, IsMacroNode) {
-					let nodes = Vec::from_iter(
-						self.queued
-							.iter()
-							.chain(self.list[self.next..].iter())
-							.cloned(),
-					);
-					if let Some((new_nodes, mut consumed)) = next.try_parse(&nodes) {
-						assert!(consumed > 0);
-						while consumed > 0 && self.queued.len() > 0 {
-							self.queued.pop_front();
-							consumed -= 1;
-						}
-						self.next += consumed;
-						for it in new_nodes.into_iter().rev() {
-							self.queued.push_front(it);
-						}
-						continue;
-					}
-				}
-			}
-
-			if let Some(op) = self.get_unary_pre() {
+			if let Some(op) = state.get_unary_pre() {
 				// the unary operator doesn't affect other operators on the stack
 				// because it binds forward to the next operator
 				let op = Op::Unary(op);
-				self.push_op(op, self.next().unwrap().clone());
-				self.advance();
+				let node = state.next().clone().unwrap();
+				state.push_op(op, node);
+				state.advance();
 				continue;
 			}
 
-			let next = self.next().cloned();
+			let next = state.next();
 			let saved = next.clone();
-			if self.is_value() {
-				self.values.push_back(next.unwrap());
-				self.advance();
+			if state.is_value() {
+				state.values.push_back(next.unwrap());
+				state.advance();
 			} else {
-				let mut errors = next.clone().or(self.list.last().cloned()).unwrap();
-				let mut errors = errors.errors_mut();
+				let mut expr = self.expr.clone();
+				let mut errors = expr.errors_mut();
 				errors.at(
 					next.and_then(|x| x.span()),
 					format!(
@@ -304,92 +286,80 @@ impl NodeExprList {
 
 			// Ternary and binary operators work similarly, but the ternary will
 			// parse the middle expression as parenthesized.
-			if let Some((op, end)) = self.get_ternary() {
-				let node = self.next().unwrap().clone();
-				self.advance();
+			if let Some((op, end)) = state.get_ternary() {
+				let node = state.next().unwrap();
 				let op = Op::Ternary(op);
-				self.push_op(op, node.clone());
+				state.push_op(op, node.clone());
 
-				if let Some(index) = self.find_symbol(end) {
-					let mut tail = self.list.split_off(index + 1);
+				if let Some(mut node) = state.find_symbol(end) {
+					let tail = node.split_next();
+					node.extract();
 
-					// Create a raw with the sub expression and append it as a node
-					let expr = self.list.split_off(self.next);
-					let expr = Raw::new(expr);
-					let expr = Node::new(expr);
-					self.list.push(expr.clone());
-					self.list.append(&mut tail);
+					if let Some(..) = tail {
+						// Create a raw with the sub expression and append it as a node
+						let expr = Raw::new(node);
+						state.values.push_back(expr);
+						state.next = tail;
+					} else {
+						let mut expr = self.expr.clone();
+						let mut errors = expr.errors_mut();
+						errors.at(
+							node.span(),
+							format!("expected expression for ternary operator after {node}"),
+						);
+						return NodeEval::Complete;
+					}
 				} else {
-					let mut errors = self.list[0].errors_mut();
+					let mut expr = self.expr.clone();
+					let mut errors = expr.errors_mut();
 					errors.at(
 						node.span(),
 						format!("symbol `{end}` for ternary operator {node} not found"),
 					);
 					return NodeEval::Complete;
 				}
-			} else if let Some(op) = self.get_binary() {
-				let node = self.next().unwrap().clone();
+			} else if let Some(op) = state.get_binary() {
+				let node = state.next().unwrap().clone();
 				let op = Op::Binary(op);
-				self.push_op(op, node);
-				self.advance();
+				state.push_op(op, node);
+				state.advance();
 			} else {
 				break;
 			}
 		}
 
 		// pop any remaining operators on the stack.
-		while self.ops.len() > 0 {
-			self.pop_stack();
+		while state.ops.len() > 0 {
+			state.pop_stack();
 		}
 
 		// check that there was no unparsed portion of the expression
-		if self.next < self.list.len() {
-			let mut errors = self.list[0].clone();
-			let mut errors = errors.errors_mut();
+		if let Some(ref next) = state.next {
+			let mut expr = self.expr.clone();
+			let mut errors = expr.errors_mut();
 			if errors.empty() {
-				errors.at(self.list[self.next].span(), "expected end of expression");
+				errors.at(next.span(), "expected end of expression");
 			}
 			return NodeEval::Complete;
 		}
 
-		if self.values.len() == 0 {
-			let mut errors = self.list[0].clone();
-			let mut errors = errors.errors_mut();
+		if state.values.len() == 0 {
+			let mut expr = self.expr.clone();
+			let mut errors = expr.errors_mut();
 			if errors.empty() {
-				let sta = self.list.first().and_then(|x| x.span());
-				let end = self.list.last().and_then(|x| x.span());
-				let span = Span::from_range(sta, end);
-				errors.at(span, "invalid expression");
+				errors.add("invalid expression");
 			}
-			self.check_pending()
+			NodeEval::Complete
 		} else {
-			assert!(self.values.len() == 1);
-			let expr = self.values.pop_back().unwrap();
+			assert!(state.values.len() == 1);
+			let expr = state.values.pop_back().unwrap();
 			node.set_value_from_node(&expr);
 			NodeEval::Changed
 		}
 	}
+}
 
-	/// If there are nodes pending evaluation return [`NodeEval::DependsOn`],
-	/// otherwise returns [`NodeEval::Complete`].
-	///
-	/// Expression parsing is greedy. It parses a node as soon as it can be
-	/// identified as an expression part. As such, nodes may remain pending
-	/// even after the parsing is complete.
-	fn check_pending(&self) -> NodeEval {
-		let pending = self
-			.list
-			.iter()
-			.filter(|x| x.is_done())
-			.cloned()
-			.collect::<Vec<_>>();
-		if pending.len() > 0 {
-			NodeEval::DependsOn(pending)
-		} else {
-			NodeEval::Complete
-		}
-	}
-
+impl RawExprParserState {
 	//------------------------------------------------------------------------//
 	// Stack manipulation
 	//------------------------------------------------------------------------//
@@ -415,26 +385,20 @@ impl NodeExprList {
 		match op {
 			Op::Unary(op) => {
 				let expr = values.pop_back().unwrap();
-				let span = Node::get_span(&op_node, &expr);
-				let expr = RawExpr::Unary(op, expr);
-				let expr = Node::new(expr).at(span);
+				let expr = RawExpr::new_unary(op, op_node, expr);
 				values.push_back(expr);
 			}
 			Op::Binary(op) => {
 				let rhs = values.pop_back().unwrap();
 				let lhs = values.pop_back().unwrap();
-				let span = Node::get_span(&lhs, &rhs);
-				let expr = RawExpr::Binary(op, lhs, rhs);
-				let expr = Node::new(expr).at(span);
+				let expr = RawExpr::new_binary(op, lhs, rhs);
 				values.push_back(expr);
 			}
 			Op::Ternary(op) => {
 				let c = values.pop_back().unwrap();
 				let b = values.pop_back().unwrap();
 				let a = values.pop_back().unwrap();
-				let span = Node::get_span(&a, &c);
-				let expr = RawExpr::Ternary(op, a, b, c);
-				let expr = Node::new(expr).at(span);
+				let expr = RawExpr::new_ternary(op, a, b, c);
 				values.push_back(expr);
 			}
 		}
@@ -444,32 +408,25 @@ impl NodeExprList {
 	// Helpers
 	//------------------------------------------------------------------------//
 
-	pub fn next(&self) -> Option<&Node> {
-		self.queued.front().or(self.list.get(self.next))
+	pub fn next(&self) -> Option<Node> {
+		self.next.clone()
 	}
 
 	pub fn advance(&mut self) {
-		if self.queued.pop_front().is_none() {
-			self.next += 1;
-		}
+		self.next = self.next.as_ref().and_then(|x| x.next())
 	}
 
-	pub fn find_symbol(&self, symbol: &str) -> Option<usize> {
-		for i in self.next..self.list.len() {
-			if self.is_symbol_at(i, symbol) {
-				return Some(i);
+	pub fn find_symbol(&self, symbol: &str) -> Option<Node> {
+		let mut next = self.next();
+		while let Some(node) = next {
+			if let Some(atom) = node.get::<Atom>() {
+				if atom.symbol() == Some(symbol) {
+					return Some(node.clone());
+				}
 			}
+			next = node.next();
 		}
 		None
-	}
-
-	pub fn is_symbol_at(&self, index: usize, symbol: &str) -> bool {
-		let node = &self.list[index];
-		if let Some(node) = node.get::<Atom>() {
-			node.symbol() == Some(symbol)
-		} else {
-			false
-		}
 	}
 
 	pub fn is_value(&mut self) -> bool {

@@ -14,8 +14,10 @@ pub struct Group {
 }
 
 impl Group {
-	pub fn new(sta: TokenAt, end: TokenAt, node: Node) -> Self {
-		Group { sta, end, node }
+	pub fn new(sta: TokenAt, end: TokenAt, node: Node) -> Node {
+		let span = Span::from_range(Some(sta.span()), Some(end.span()));
+		let node = Group { sta, end, node };
+		Node::new(node).at(span)
 	}
 }
 
@@ -28,10 +30,6 @@ impl IsNode for Group {
 		} else {
 			NodeEval::DependsOn(vec![self.node.clone()])
 		}
-	}
-
-	fn span(&self) -> Option<Span> {
-		Span::from_range(Some(self.sta.span()), Some(self.end.span()))
 	}
 }
 

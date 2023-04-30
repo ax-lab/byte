@@ -68,7 +68,7 @@ impl Scanner {
 				token
 			} else {
 				(*input, *errors) = saved;
-				errors.add(Error::new(LexerError::InvalidSymbol).at(Span {
+				errors.add_error(Error::new(LexerError::InvalidSymbol).at(Span {
 					sta: start,
 					end: input.clone(),
 				}));

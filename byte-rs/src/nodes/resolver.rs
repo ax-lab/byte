@@ -57,7 +57,7 @@ impl NodeResolver {
 							.unwrap_or_default();
 						let mut node_err = node.clone();
 						let mut errors = node_err.errors_mut();
-						errors.add(Error::new(format!(
+						errors.add_error(Error::new(format!(
 							"eval panicked: {err:?}\n\n{}\n\n{node:?}\n",
 							">>> Node <<<"
 						)));
@@ -375,10 +375,6 @@ mod tests {
 			out.push(format!("{} done", self.name));
 			NodeEval::Complete
 		}
-
-		fn span(&self) -> Option<Span> {
-			None
-		}
 	}
 
 	impl std::fmt::Display for SimpleNode {
@@ -463,10 +459,6 @@ mod tests {
 
 				_ => panic!("invalid state"),
 			}
-		}
-
-		fn span(&self) -> Option<Span> {
-			None
 		}
 	}
 

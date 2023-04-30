@@ -10,8 +10,10 @@ pub struct Print {
 }
 
 impl Print {
-	pub fn new(args: Node) -> Self {
-		Print { args }
+	pub fn new(head: Node, args: Node) -> Node {
+		let span = Span::from_range(head.span(), args.span());
+		let node = Print { args };
+		Node::new(node).at(span)
 	}
 }
 
@@ -22,10 +24,6 @@ impl IsNode for Print {
 		let mut done = NodeEval::Complete;
 		done.check(&self.args);
 		done
-	}
-
-	fn span(&self) -> Option<Span> {
-		self.args.span()
 	}
 }
 
@@ -71,24 +69,19 @@ impl HasRepr for Print {
 #[derive(Clone)]
 pub struct PrintMacro;
 
-has_traits!(PrintMacro: IsNode, HasRepr, IsMacroNode);
+has_traits!(PrintMacro: IsNode, HasRepr);
 
 impl IsNode for PrintMacro {
-	fn eval(&self, _node: Node) -> NodeEval {
-		NodeEval::Complete
-	}
-
-	fn span(&self) -> Option<Span> {
-		None
-	}
-}
-
-impl IsMacroNode for PrintMacro {
-	fn try_parse(&self, nodes: &[Node]) -> Option<(Vec<Node>, usize)> {
-		// the first node is ourselves
-		let args = List::from(&nodes[1..], ",");
-		let node = Node::new(Print::new(args));
-		Some((vec![node], nodes.len()))
+	fn eval(&self, mut node: Node) -> NodeEval {
+		let (list, span) = if let Some(next) = node.split_next() {
+			(List::from(next, ","), None)
+		} else {
+			(List::empty(None), node.span())
+		};
+		let print = Print::new(node.clone(), list);
+		node.set_value_from_node(&print);
+		node.set_span(span);
+		NodeEval::Changed
 	}
 }
 

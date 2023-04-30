@@ -1,6 +1,7 @@
 use std::env;
 
 mod core;
+mod eval;
 mod lang;
 mod lexer;
 mod nodes;

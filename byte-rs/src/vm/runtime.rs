@@ -7,6 +7,12 @@ pub struct Runtime {
 }
 
 impl Runtime {
+	pub fn new() -> Self {
+		Runtime {
+			data: Default::default(),
+		}
+	}
+
 	pub fn exec(&self, code: &[Inst]) {
 		let mut pc = 0;
 		while pc < code.len() {

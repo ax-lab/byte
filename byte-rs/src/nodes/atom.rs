@@ -10,9 +10,12 @@ use super::*;
 #[derive(Clone)]
 pub struct Atom(TokenAt);
 
-impl From<TokenAt> for Atom {
-	fn from(value: TokenAt) -> Self {
-		Atom(value)
+impl Atom {
+	pub fn from(value: TokenAt) -> Node {
+		let span = value.span();
+		let mut node = Node::new(Atom(value));
+		node.set_span(Some(span));
+		node
 	}
 }
 
@@ -39,10 +42,6 @@ impl IsNode for Atom {
 			_ => {}
 		}
 		NodeEval::Complete
-	}
-
-	fn span(&self) -> Option<Span> {
-		Some(self.0.span())
 	}
 }
 

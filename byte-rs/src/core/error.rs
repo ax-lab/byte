@@ -72,6 +72,32 @@ impl Default for ErrorList {
 	}
 }
 
+impl Debug for ErrorList {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		use std::io::Write;
+
+		if self.empty() {
+			write!(f, "<no errors>")
+		} else {
+			let mut repr = Repr::new(ReprMode::Debug, ReprFormat::Full);
+			let _ = write!(repr, "<Errors:\n");
+			{
+				let mut repr = repr.indented();
+				for (i, it) in self.list().into_iter().enumerate() {
+					let _ = write!(repr, "[{}] ", i + 1);
+					if let Some(span) = it.span() {
+						let _ = write!(repr, " at {}", span);
+					}
+					let mut repr = repr.indented();
+					let _ = write!(repr, "\n{it}\n");
+				}
+			}
+			let _ = write!(repr, ">");
+			write!(f, "{repr}")
+		}
+	}
+}
+
 #[allow(unused)]
 impl ErrorList {
 	pub fn new() -> ErrorList {
@@ -84,11 +110,15 @@ impl ErrorList {
 
 	pub fn append(&mut self, errors: ErrorList) {
 		for err in errors.list().into_iter() {
-			self.add(err);
+			self.add_error(err);
 		}
 	}
 
-	pub fn add(&mut self, error: Error) {
+	pub fn add<T: ToString>(&mut self, error: T) {
+		self.add_error(Error::new(error.to_string()))
+	}
+
+	pub fn add_error(&mut self, error: Error) {
 		let prev = std::mem::take(&mut self.head);
 		let node = ErrorNode { error, prev };
 		self.head = Some(Arc::new(node));
@@ -109,7 +139,7 @@ impl ErrorList {
 		} else {
 			error
 		};
-		self.add(error)
+		self.add_error(error)
 	}
 }
 

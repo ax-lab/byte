@@ -121,14 +121,15 @@ impl Node {
 		// changes.
 		let node = Value::from(value);
 		assert!(get_trait!(&node, IsNode).is_some());
-		Node {
+		let node = Node {
 			id,
 			done: Default::default(),
 			node: Arc::new(RwLock::new(node)),
 			span: Arc::new(RwLock::new(None)),
 			errors: Default::default(),
 			link: Default::default(),
-		}
+		};
+		node
 	}
 
 	/// Globally unique identifier for the node. This does not change with
@@ -190,18 +191,13 @@ impl Node {
 			.unwrap_or_else(|| self.clone())
 	}
 
-	pub fn set_parent(&mut self, parent: &Node) {
+	fn set_parent(&mut self, parent: &Node) {
 		let list = {
 			let mut link = self.link.write().unwrap();
 			link.as_list(self)
 		};
 		let mut list = list.write().unwrap();
-		if list.parent.is_none() {
-			list.parent = Some(parent.clone());
-		} else {
-			drop(list);
-			panic!("node already has a parent");
-		}
+		list.parent = Some(parent.clone());
 	}
 
 	pub fn extract(&mut self) {
@@ -486,11 +482,7 @@ impl Node {
 	}
 
 	pub fn span(&self) -> Option<Span> {
-		let span = {
-			let span = self.span.read().unwrap();
-			span.clone()
-		};
-		span.or_else(|| self.val().span())
+		self.span.read().unwrap().clone()
 	}
 
 	pub fn set_span(&mut self, span: Option<Span>) {
@@ -665,6 +657,33 @@ impl Node {
 		}
 		Ok(())
 	}
+
+	pub fn output_list(&self, output: &mut Repr) -> std::io::Result<()> {
+		if output.is_compact() {
+			write!(output, "[ ")?;
+			self.output_own_repr(output)?;
+			let mut next = self.next();
+			while let Some(node) = next {
+				write!(output, ", ")?;
+				node.output_own_repr(output)?;
+				next = node.next();
+			}
+			write!(output, " ]")?;
+		} else {
+			{
+				let mut output = output.indented();
+				write!(output, "[\n ")?;
+				self.output_own_repr(&mut output)?;
+				let mut next = self.next();
+				while let Some(node) = next {
+					write!(output, "\n")?;
+					node.output_own_repr(&mut output)?;
+					next = node.next();
+				}
+			}
+		}
+		Ok(())
+	}
 }
 
 impl HasRepr for Node {
@@ -803,10 +822,6 @@ impl IsNode for RootValue {
 	fn eval(&self, _node: Node) -> NodeEval {
 		NodeEval::Complete
 	}
-
-	fn span(&self) -> Option<Span> {
-		None
-	}
 }
 
 impl HasRepr for RootValue {
@@ -823,10 +838,6 @@ has_traits!(NoneValue: IsNode, HasRepr);
 impl IsNode for NoneValue {
 	fn eval(&self, _node: Node) -> NodeEval {
 		NodeEval::Complete
-	}
-
-	fn span(&self) -> Option<Span> {
-		None
 	}
 }
 
@@ -1104,10 +1115,6 @@ mod tests {
 	impl IsNode for Test {
 		fn eval(&self, _node: Node) -> NodeEval {
 			NodeEval::Complete
-		}
-
-		fn span(&self) -> Option<Span> {
-			None
 		}
 	}
 

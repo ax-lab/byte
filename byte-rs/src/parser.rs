@@ -70,13 +70,11 @@ pub fn open(input: crate::core::input::Input) -> Lexer {
 	lexer
 }
 
-fn parse_next(lexer: &mut Lexer) -> Option<Node> {
+pub fn parse_next(lexer: &mut Lexer) -> Option<Node> {
 	if lexer.next().is_none() {
 		None
 	} else {
 		let next = parse_line(lexer, Stop::None, true);
-		if next.len() == 0 {}
-
 		match next.len() {
 			0 => {
 				let next = lexer.next();
@@ -84,7 +82,7 @@ fn parse_next(lexer: &mut Lexer) -> Option<Node> {
 				None
 			}
 			1 => next.into_iter().next(),
-			_ => Some(Node::new(Block::new(next))),
+			_ => Some(Block::new(next)),
 		}
 	}
 }
@@ -105,7 +103,7 @@ fn parse_expr_group(lexer: &mut Lexer, limit: Stop) -> Node {
 		let block = if let Some(block) = parse_block(lexer, limit) {
 			block
 		} else {
-			Node::new(Block::new(Vec::new()))
+			Block::new(Vec::new())
 		};
 
 		if indented {
@@ -120,9 +118,9 @@ fn parse_expr_group(lexer: &mut Lexer, limit: Stop) -> Node {
 	} else {
 		let expr = parse_line(lexer, limit, false);
 		match expr.len() {
-			0 => Node::new(Raw::new(Vec::new())),
+			0 => Node::new(Raw::empty()),
 			1 => expr[0].clone(),
-			_ => Node::new(Block::new(expr)),
+			_ => Block::new(expr),
 		}
 	}
 }
@@ -141,7 +139,7 @@ fn parse_block(lexer: &mut Lexer, limit: Stop) -> Option<Node> {
 	match block.len() {
 		0 => None,
 		1 => Some(block.into_iter().next().unwrap()),
-		_ => Some(Node::new(Block::new(block))),
+		_ => Some(Block::new(block.clone())),
 	}
 }
 
@@ -205,12 +203,13 @@ fn parse_line(lexer: &mut Lexer, limit: Stop, top_level: bool) -> Vec<Node> {
 fn parse_expr_with_block(lexer: &mut Lexer, limit: Stop) -> (Option<Node>, bool) {
 	// parse the basic expression
 	let (expr, is_complete) = parse_expr(lexer, limit);
-	if expr.len() == 0 {
+	let expr = if let Some(expr) = expr {
+		expr
+	} else {
 		return (None, false);
-	}
+	};
 
-	let expr = Node::new(Raw::new(expr));
-
+	let node = Raw::new(expr.clone());
 	// parse indented block, if any
 	let next = lexer.next();
 	let (node, is_complete) =
@@ -224,7 +223,7 @@ fn parse_expr_with_block(lexer: &mut Lexer, limit: Stop) -> (Option<Node>, bool)
 
 				// skip just the colon and return the expression
 				lexer.read();
-				return (Some(expr), is_complete);
+				return (Some(node), is_complete);
 			}
 
 			// skip to the start of the block
@@ -236,7 +235,7 @@ fn parse_expr_with_block(lexer: &mut Lexer, limit: Stop) -> (Option<Node>, bool)
 				if !lexer.has_errors() {
 					lexer.error_at(Some(colon.span()), "empty block is not allowed");
 				}
-				return (Some(expr), true);
+				return (Some(node), true);
 			};
 
 			let next = lexer.next();
@@ -252,10 +251,10 @@ fn parse_expr_with_block(lexer: &mut Lexer, limit: Stop) -> (Option<Node>, bool)
 				);
 			}
 
-			let node = Node::new(BlockExpr::new(expr, block));
-			(node, true)
+			let block_expr = BlockExpr::new(node.clone(), block.clone());
+			(block_expr, true)
 		} else {
-			(expr, is_complete)
+			(node, is_complete)
 		};
 
 	// Check if the expression stopped at a valid point
@@ -281,15 +280,19 @@ fn parse_expr_with_block(lexer: &mut Lexer, limit: Stop) -> (Option<Node>, bool)
 }
 
 /// Parse a plain expression, stopping at the first unsupported token.
-fn parse_expr(lexer: &mut Lexer, limit: Stop) -> (Vec<Node>, bool) {
-	let mut expr = Vec::new();
+fn parse_expr(lexer: &mut Lexer, limit: Stop) -> (Option<Node>, bool) {
+	let mut expr: Option<Node> = None;
 	let mut level = 0;
 	let mut done = false;
 	let mut is_complete = false;
 	while !done {
 		// parse a sequence of atoms
 		while let Some(atom) = parse_atom(lexer, limit) {
-			expr.push(atom);
+			if let Some(ref mut expr) = expr {
+				expr.push(atom);
+			} else {
+				expr = Some(atom);
+			}
 		}
 
 		// check for a stop condition
@@ -378,9 +381,10 @@ fn parse_atom(lexer: &mut Lexer, limit: Stop) -> Option<Node> {
 			} else {
 				lexer.read();
 			}
-			Node::new(Group::new(sta, end, node))
+
+			Group::new(sta, end, node.clone())
 		} else {
-			Node::new(Atom::from(next))
+			Atom::from(next)
 		};
 		Some(node)
 	}

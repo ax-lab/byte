@@ -10,27 +10,48 @@ pub struct List {
 }
 
 impl List {
-	pub fn from(input: &[Node], separator: &'static str) -> Node {
-		let items = input.split(|x| {
-			x.get::<Atom>()
+	pub fn from(mut head: Node, separator: &'static str) -> Node {
+		let mut list = Vec::new();
+		let mut curr = head.clone();
+		loop {
+			let sep = curr
+				.get::<Atom>()
 				.map(|x| x.symbol() == Some(separator))
-				.unwrap_or(false)
-		});
-
-		let mut last_empty = false;
-		let mut items: Vec<Node> = items
-			.map(|it| {
-				last_empty = it.len() == 0;
-				let node = Raw::new(it.to_vec());
-				let node = Node::new(node);
-				node
-			})
-			.collect();
-		if last_empty {
-			items.pop();
+				.unwrap_or(false);
+			if sep {
+				let next = curr.split_next();
+				if curr == head {
+					// TODO: empty item? check hanging separator
+				} else {
+					curr.extract();
+					list.push(head);
+				}
+				if let Some(next) = next {
+					head = next;
+					curr = head.clone();
+				} else {
+					break;
+				}
+			} else {
+				if let Some(next) = curr.next() {
+					curr = next;
+				} else {
+					break;
+				}
+			}
 		}
 
-		Node::new(List { items })
+		let span = Span::from_range(
+			list.first().and_then(|x| x.span()),
+			list.last().and_then(|x| x.span()),
+		);
+		let node = List { items: list };
+		Node::new(node).at(span)
+	}
+
+	pub fn empty(at: Option<Span>) -> Node {
+		let node = List { items: Vec::new() };
+		Node::new(node).at(at)
 	}
 }
 
@@ -39,10 +60,6 @@ has_traits!(List: IsNode, HasRepr);
 impl IsNode for List {
 	fn eval(&self, _node: Node) -> NodeEval {
 		NodeEval::depends_on(&self.items)
-	}
-
-	fn span(&self) -> Option<Span> {
-		Node::span_from_list(&self.items)
 	}
 }
 

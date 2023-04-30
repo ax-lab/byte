@@ -80,7 +80,7 @@ impl Lexer {
 	}
 
 	pub fn add_error(&mut self, error: Error) {
-		self.state.stream.errors_mut().add(error)
+		self.state.stream.errors_mut().add_error(error)
 	}
 
 	pub fn pos(&self) -> Cursor {

@@ -12,8 +12,10 @@ pub struct BlockExpr {
 }
 
 impl BlockExpr {
-	pub fn new(expr: Node, block: Node) -> Self {
-		BlockExpr { expr, block }
+	pub fn new(expr: Node, block: Node) -> Node {
+		let span = Span::from_range(expr.span(), block.span());
+		let node = BlockExpr { expr, block };
+		Node::new(node).at(span)
 	}
 }
 
@@ -25,10 +27,6 @@ impl IsNode for BlockExpr {
 		done.check(&self.expr);
 		done.check(&self.block);
 		done
-	}
-
-	fn span(&self) -> Option<Span> {
-		Node::span_from(&self.expr, &self.block)
 	}
 }
 
@@ -64,8 +62,12 @@ pub struct Block {
 }
 
 impl Block {
-	pub fn new(nodes: Vec<Node>) -> Self {
-		Block { nodes }
+	pub fn new(nodes: Vec<Node>) -> Node {
+		let sta = nodes.first();
+		let end = nodes.last();
+		let span = Span::from_range(sta.and_then(|x| x.span()), end.and_then(|x| x.span()));
+		let node = Block { nodes };
+		Node::new(node).at(span)
 	}
 }
 
@@ -74,12 +76,6 @@ has_traits!(Block: IsNode, HasRepr);
 impl IsNode for Block {
 	fn eval(&self, _node: Node) -> NodeEval {
 		NodeEval::depends_on(&self.nodes)
-	}
-
-	fn span(&self) -> Option<Span> {
-		let first = self.nodes.first();
-		let last = self.nodes.last();
-		Span::from_range(first.and_then(|x| x.span()), last.and_then(|x| x.span()))
 	}
 }
 

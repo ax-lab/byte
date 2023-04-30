@@ -17,20 +17,6 @@ use super::*;
 /// Root trait implemented for any [`Node`] value.
 pub trait IsNode: IsValue + HasRepr {
 	fn eval(&self, node: Node) -> NodeEval;
-
-	fn span(&self) -> Option<Span>;
-}
-
-//====================================================================================================================//
-// Macro traits
-//====================================================================================================================//
-
-/// Provides macro expansion in a [`Raw`] expression.
-///
-/// An [`IsMacroNode`] must be implemented by any node that can either parse as
-/// a macro or resolve to a macro.
-pub trait IsMacroNode {
-	fn try_parse(&self, nodes: &[Node]) -> Option<(Vec<Node>, usize)>;
 }
 
 //====================================================================================================================//
