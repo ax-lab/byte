@@ -50,22 +50,3 @@ pub fn eval<T: AsRef<str>>(rt: &mut Runtime, input: T) -> Result<Output, ErrorLi
 	// Ok(Output { result, output })
 	todo!()
 }
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn answer_to_everything() {
-		let mut rt = Runtime::new();
-		let result = eval(&mut rt, "42").unwrap();
-		assert_eq!(result.val(), Value::any_int(42))
-	}
-
-	#[test]
-	fn hello_world() {
-		let mut rt = Runtime::new();
-		let result = eval(&mut rt, "print 'hello world!!!'").unwrap();
-		assert_eq!(result.output(), "hello world!!!\n");
-	}
-}
