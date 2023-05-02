@@ -17,7 +17,7 @@ pub fn is_space(char: char) -> bool {
 }
 
 /// Input file or text for the compiler.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Input(Arc<InputData>);
 
 impl Input {
@@ -46,7 +46,7 @@ impl Input {
 	}
 
 	pub fn start(&self) -> Cursor {
-		todo!()
+		Cursor::from(self)
 	}
 
 	pub fn bytes<R: RangeBounds<usize>>(&self, span: R) -> &[u8] {
@@ -78,14 +78,6 @@ struct InputData {
 // Traits and helper code
 //====================================================================================================================//
 
-// Default empty value
-
-impl Default for Input {
-	fn default() -> Self {
-		Input::new("(empty)", "")
-	}
-}
-
 // Conversion from strings
 
 impl<T: Into<String>> From<T> for Input {
@@ -114,6 +106,13 @@ impl std::fmt::Debug for Input {
 
 impl std::fmt::Display for Input {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.name())
+		let name = self.name();
+		if name != "" {
+			write!(f, "{}", self.name())
+		} else if self.len() == 0 {
+			write!(f, "(empty)")
+		} else {
+			write!(f, "")
+		}
 	}
 }

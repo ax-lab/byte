@@ -215,6 +215,10 @@ impl<'a> Repr<'a> {
 		self.with(self.mode, ReprFormat::Minimal)
 	}
 
+	pub fn full(&self) -> Self {
+		self.with(self.mode, ReprFormat::Full)
+	}
+
 	pub fn mode(&self) -> ReprMode {
 		self.mode
 	}
@@ -225,6 +229,10 @@ impl<'a> Repr<'a> {
 
 	pub fn is_debug(&self) -> bool {
 		self.mode() == ReprMode::Debug
+	}
+
+	pub fn is_display(&self) -> bool {
+		self.mode() == ReprMode::Display
 	}
 
 	pub fn is_compact(&self) -> bool {

@@ -10,12 +10,26 @@ use super::*;
 //====================================================================================================================//
 
 pub trait IsValue: Any + Send + Sync + HasRepr + HasTraits {
-	fn as_comparable(&self) -> Option<&dyn Comparable> {
-		get_trait!(self, Comparable)
+	fn as_value(&self) -> &dyn IsValue;
+
+	fn with_equality(&self) -> Option<&dyn WithEquality> {
+		get_trait!(self, WithEquality)
+	}
+
+	fn span(&self) -> Option<Span> {
+		if let Some(value) = get_trait!(self, WithSpan) {
+			value.span()
+		} else {
+			None
+		}
 	}
 }
 
-impl<T: Any + Send + Sync + HasRepr + HasTraits> IsValue for T {}
+impl<T: Any + Send + Sync + HasRepr + HasTraits> IsValue for T {
+	fn as_value(&self) -> &dyn IsValue {
+		self
+	}
+}
 
 //====================================================================================================================//
 // Value type
@@ -68,7 +82,7 @@ impl HasRepr for Value {
 
 impl PartialEq for Value {
 	fn eq(&self, other: &Self) -> bool {
-		if let Some(comparable) = self.as_comparable() {
+		if let Some(comparable) = self.with_equality() {
 			comparable.is_equal(other)
 		} else {
 			Arc::as_ptr(&self.data) == Arc::as_ptr(&other.data)

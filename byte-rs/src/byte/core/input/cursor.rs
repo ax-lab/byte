@@ -15,6 +15,16 @@ pub struct Cursor {
 }
 
 impl Cursor {
+	pub fn from(input: &Input) -> Self {
+		Cursor {
+			input: input.clone(),
+			row: 0,
+			col: 0,
+			offset: 0,
+			indent: 0,
+		}
+	}
+
 	/// Source input.
 	pub fn input(&self) -> &Input {
 		&self.input

@@ -30,11 +30,11 @@ impl<T: HasTraits> HasTraits for Option<T> {
 // Common traits
 //====================================================================================================================//
 
-pub trait Comparable {
+pub trait WithEquality {
 	fn is_equal(&self, other: &Value) -> bool;
 }
 
-impl<T: IsValue + PartialEq> Comparable for T {
+impl<T: IsValue + PartialEq> WithEquality for T {
 	fn is_equal(&self, other: &Value) -> bool {
 		if let Some(other) = other.get::<T>() {
 			self == other
@@ -42,6 +42,10 @@ impl<T: IsValue + PartialEq> Comparable for T {
 			false
 		}
 	}
+}
+
+pub trait WithSpan {
+	fn span(&self) -> Option<Span>;
 }
 
 //====================================================================================================================//
@@ -174,24 +178,24 @@ pub use with_trait;
 // Traits for standard types
 //====================================================================================================================//
 
-has_traits!(String: Comparable);
-has_traits!(bool: Comparable);
-has_traits!((): Comparable);
-has_traits!(i8: Comparable);
-has_traits!(i16: Comparable);
-has_traits!(i32: Comparable);
-has_traits!(i64: Comparable);
-has_traits!(i128: Comparable);
-has_traits!(isize: Comparable);
-has_traits!(u8: Comparable);
-has_traits!(u16: Comparable);
-has_traits!(u32: Comparable);
-has_traits!(u64: Comparable);
-has_traits!(u128: Comparable);
-has_traits!(usize: Comparable);
-has_traits!(f32: Comparable);
-has_traits!(f64: Comparable);
-has_traits!(&'static str: Comparable);
+has_traits!(String: WithEquality);
+has_traits!(bool: WithEquality);
+has_traits!((): WithEquality);
+has_traits!(i8: WithEquality);
+has_traits!(i16: WithEquality);
+has_traits!(i32: WithEquality);
+has_traits!(i64: WithEquality);
+has_traits!(i128: WithEquality);
+has_traits!(isize: WithEquality);
+has_traits!(u8: WithEquality);
+has_traits!(u16: WithEquality);
+has_traits!(u32: WithEquality);
+has_traits!(u64: WithEquality);
+has_traits!(u128: WithEquality);
+has_traits!(usize: WithEquality);
+has_traits!(f32: WithEquality);
+has_traits!(f64: WithEquality);
+has_traits!(&'static str: WithEquality);
 
 //====================================================================================================================//
 // Tests

@@ -72,7 +72,10 @@ impl HasRepr for Span {
 		}
 
 		if output.format() > ReprFormat::Compact {
-			write!(output, "{}:", self.input())?;
+			let input = self.input().name();
+			if input != "" {
+				write!(output, "{input}:")?;
+			}
 		}
 		write!(output, "{}", self.sta)?;
 		if self.end != self.sta && (!output.is_minimal() || output.is_debug()) {
