@@ -100,7 +100,7 @@ impl HasRepr for ErrorAt {
 }
 
 impl WithSpan for ErrorAt {
-	fn span(&self) -> Option<Span> {
+	fn get_span(&self) -> Option<Span> {
 		self.span.clone()
 	}
 }

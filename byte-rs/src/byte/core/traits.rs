@@ -45,7 +45,7 @@ impl<T: IsValue + PartialEq> WithEquality for T {
 }
 
 pub trait WithSpan {
-	fn span(&self) -> Option<Span>;
+	fn get_span(&self) -> Option<Span>;
 }
 
 //====================================================================================================================//

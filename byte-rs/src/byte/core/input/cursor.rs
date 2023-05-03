@@ -25,6 +25,11 @@ impl Cursor {
 		}
 	}
 
+	/// True if the current position is at the start of the line.
+	pub fn is_new_line(&self) -> bool {
+		self.col == 0
+	}
+
 	/// Source input.
 	pub fn input(&self) -> &Input {
 		&self.input

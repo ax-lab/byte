@@ -1,7 +1,10 @@
 pub mod core;
+pub mod lexer;
+pub mod nodes;
 pub mod runtime;
 
 pub use crate::core::*;
+pub use crate::nodes::*;
 pub use crate::runtime::Runtime;
 
 type Result<T> = std::result::Result<T, Errors>;

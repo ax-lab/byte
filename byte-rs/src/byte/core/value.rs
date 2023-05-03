@@ -18,7 +18,7 @@ pub trait IsValue: Any + Send + Sync + HasRepr + HasTraits {
 
 	fn span(&self) -> Option<Span> {
 		if let Some(value) = get_trait!(self, WithSpan) {
-			value.span()
+			value.get_span()
 		} else {
 			None
 		}
