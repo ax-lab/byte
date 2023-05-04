@@ -4,10 +4,9 @@ use super::*;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Token {
-	None,
+	EndOfInput,
 	Invalid,
 	Break,
-	Identifier(Span),
 	Symbol(&'static str),
 }
 
@@ -21,7 +20,7 @@ impl HasRepr for Token {
 			write!(output, "<{:?}>", self)?;
 		} else {
 			match self {
-				Token::None => {
+				Token::EndOfInput => {
 					write!(output, "end of input")?;
 				}
 				Token::Invalid => {
@@ -31,9 +30,6 @@ impl HasRepr for Token {
 					write!(output, "line break")?;
 				}
 				Token::Symbol(sym) => write!(output, "`{sym}`")?,
-				Token::Identifier(span) => {
-					write!(output, "`{}`", span.text())?;
-				}
 			}
 		}
 		Ok(())

@@ -1,12 +1,6 @@
 use std::env;
 
-mod core;
-mod eval;
-mod lang;
-mod lexer;
-mod nodes;
-mod parser;
-mod vm;
+use byte::core::*;
 
 fn main() {
 	let mut done = false;
@@ -69,13 +63,12 @@ fn main() {
 	}
 
 	for file in files {
-		match core::input::Input::open_file(&file) {
-			Ok(source) => {
+		match Input::open(&file) {
+			Ok(_source) => {
 				if is_blocks {
-					parser::parse(source.clone());
+					todo!()
 				}
 
-				let mut _lexer = lexer::open(source);
 				if list_tokens {
 					todo!();
 				}
@@ -85,24 +78,6 @@ fn main() {
 				std::process::exit(1);
 			}
 		}
-	}
-}
-
-fn print_error_list(errors: crate::core::error::ErrorList) {
-	if !errors.empty() {
-		let mut has_errors = false;
-		for (i, it) in errors.list().into_iter().enumerate() {
-			if !has_errors {
-				eprintln!("\n---- Errors ----\n");
-				has_errors = true;
-			}
-			eprint!("[Error {}] {it}", i + 1);
-			if let Some(span) = it.span() {
-				eprint!(" at {}", span);
-			}
-			eprintln!();
-		}
-		eprintln!();
 	}
 }
 

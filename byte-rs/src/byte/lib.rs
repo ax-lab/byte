@@ -1,4 +1,5 @@
 pub mod core;
+pub mod lang;
 pub mod lexer;
 pub mod nodes;
 pub mod runtime;

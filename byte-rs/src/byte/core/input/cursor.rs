@@ -109,6 +109,22 @@ impl Cursor {
 			None
 		}
 	}
+
+	pub fn peek(&self) -> Option<char> {
+		let mut copy = self.clone();
+		copy.read()
+	}
+
+	pub fn try_read(&mut self, expected: char) -> bool {
+		let mut copy = self.clone();
+		if let Some(next) = copy.read() {
+			if next == expected {
+				*self = copy;
+				return true;
+			}
+		}
+		false
+	}
 }
 
 //====================================================================================================================//

@@ -65,7 +65,12 @@ impl SymbolTable {
 }
 
 impl Matcher for SymbolTable {
-	fn try_match(&self, next: char, input: &mut Cursor, _errors: &mut Errors) -> Option<Node> {
+	fn try_match(&self, cursor: &mut Cursor, _errors: &mut Errors) -> Option<Node> {
+		let next = if let Some(next) = cursor.read() {
+			next
+		} else {
+			return None;
+		};
 		let state = self.get_next(0, next);
 		let (mut state, valid) = if let Some((state, valid)) = state {
 			(state, valid)
@@ -73,12 +78,12 @@ impl Matcher for SymbolTable {
 			return None;
 		};
 
-		let mut last_pos = input.clone();
+		let mut last_pos = cursor.clone();
 		let mut valid = if valid { Some((last_pos, state)) } else { None };
 
-		while let Some(next) = input.read() {
+		while let Some(next) = cursor.read() {
 			if let Some((next, is_valid)) = self.get_next(state, next) {
-				(state, last_pos) = (next, input.clone());
+				(state, last_pos) = (next, cursor.clone());
 				if is_valid {
 					valid = Some((last_pos, state));
 				}
@@ -87,7 +92,7 @@ impl Matcher for SymbolTable {
 			}
 		}
 		if let Some((pos, index)) = valid {
-			*input = pos;
+			*cursor = pos;
 			Some(self.states[index].value.clone().unwrap())
 		} else {
 			None
@@ -131,8 +136,7 @@ mod tests {
 		let mut cursor = input.start();
 		for (i, expected) in expected.iter().cloned().enumerate() {
 			let pos = cursor.clone();
-			let char = cursor.read().expect("unexpected end of input");
-			let next = symbols.try_match(char, &mut cursor, &mut errors);
+			let next = symbols.try_match(&mut cursor, &mut errors);
 			let end = cursor.clone();
 
 			assert!(errors.empty());
