@@ -12,6 +12,10 @@ pub struct Errors {
 }
 
 impl Errors {
+	pub fn new() -> Self {
+		Self::default()
+	}
+
 	pub fn empty(&self) -> bool {
 		self.list.len() == 0
 	}

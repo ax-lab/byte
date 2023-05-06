@@ -5,7 +5,7 @@ use crate::lexer::*;
 use crate::nodes::*;
 
 #[derive(Copy, Clone, Eq, PartialEq)]
-pub struct Integer(u128);
+pub struct Integer(pub u128);
 
 impl IsNode for Integer {}
 
@@ -20,6 +20,8 @@ impl HasRepr for Integer {
 		}
 	}
 }
+
+fmt_from_repr!(Integer);
 
 pub struct IntegerMatcher;
 
@@ -46,6 +48,12 @@ impl Matcher for IntegerMatcher {
 
 			_ => None,
 		}
+	}
+}
+
+impl Node {
+	pub fn get_integer(&self) -> Option<Integer> {
+		self.get::<Integer>().cloned()
 	}
 }
 

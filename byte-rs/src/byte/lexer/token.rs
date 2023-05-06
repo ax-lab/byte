@@ -35,3 +35,17 @@ impl HasRepr for Token {
 		Ok(())
 	}
 }
+
+impl Node {
+	pub fn get_token(&self) -> Option<Token> {
+		self.get::<Token>().cloned()
+	}
+
+	pub fn is_token<T: FnOnce(Token) -> bool>(&self, pred: T) -> bool {
+		self.get_token().map(|x| pred(x)).unwrap_or_default()
+	}
+
+	pub fn is_end(&self) -> bool {
+		self.is_token(|x| x == Token::EndOfInput)
+	}
+}

@@ -80,3 +80,44 @@ impl TokenStream {
 		next.clear();
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::lang::*;
+
+	#[test]
+	fn basic_lexing() {
+		let mut input = open("1 + 2 * 3\n4");
+		let mut nodes = Vec::new();
+		let mut errors = Errors::new();
+		loop {
+			let node = input.read(&mut errors);
+			if !node.is_end() {
+				nodes.push(node);
+			} else {
+				break;
+			}
+		}
+
+		assert!(nodes.len() == 7);
+		assert_eq!(nodes[0].get_integer(), Some(Integer(1)));
+		assert_eq!(nodes[1].get_token(), Some(Token::Symbol("+")));
+		assert_eq!(nodes[2].get_integer(), Some(Integer(2)));
+		assert_eq!(nodes[3].get_token(), Some(Token::Symbol("*")));
+		assert_eq!(nodes[4].get_integer(), Some(Integer(3)));
+		assert_eq!(nodes[5].get_token(), Some(Token::Break));
+		assert_eq!(nodes[6].get_integer(), Some(Integer(4)));
+	}
+
+	fn open(input: &str) -> TokenStream {
+		let input = Input::from(input);
+		let mut scanner = Scanner::new();
+		scanner.add_matcher(IntegerMatcher);
+		scanner.add_symbol("+", Token::Symbol("+"));
+		scanner.add_symbol("-", Token::Symbol("-"));
+		scanner.add_symbol("*", Token::Symbol("*"));
+		scanner.add_symbol("/", Token::Symbol("/"));
+		TokenStream::new(input.start(), scanner)
+	}
+}
