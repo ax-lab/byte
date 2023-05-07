@@ -53,7 +53,7 @@ impl Span {
 		self.sta.input().text(sta..end)
 	}
 
-	pub fn sta(&self) -> &Cursor {
+	pub fn start(&self) -> &Cursor {
 		&self.sta
 	}
 

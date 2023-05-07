@@ -9,6 +9,12 @@ pub struct Identifier(Span);
 
 has_traits!(Identifier: IsNode, WithEquality);
 
+impl Identifier {
+	pub fn value(&self) -> &str {
+		self.0.text()
+	}
+}
+
 impl IsNode for Identifier {}
 
 impl HasRepr for Identifier {
@@ -48,5 +54,11 @@ impl Matcher for IdentifierMatcher {
 
 			_ => None,
 		}
+	}
+}
+
+impl Node {
+	pub fn get_identifier(&self) -> Option<&Identifier> {
+		self.get::<Identifier>()
 	}
 }

@@ -70,6 +70,11 @@ impl Cursor {
 		self.offset < self.input.len()
 	}
 
+	/// True at the end of the input.
+	pub fn is_end(&self) -> bool {
+		!self.is_some()
+	}
+
 	/// Read the next character in the input.
 	pub fn read(&mut self) -> Option<char> {
 		let text = self.input.text(self.offset..);
