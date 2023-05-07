@@ -9,12 +9,13 @@ use super::*;
 // Statement
 //====================================================================================================================//
 
+#[derive(Eq, PartialEq)]
 pub struct Statement {
 	expr: Node,
 	block: Option<Node>,
 }
 
-has_traits!(Statement: IsNode, WithSpan);
+has_traits!(Statement: IsNode, WithSpan, WithEquality);
 
 impl Statement {
 	pub fn new(expr: Node, block: Option<Node>) -> Node {
@@ -34,6 +35,7 @@ impl HasRepr for Statement {
 				write!(output, "\n")?;
 				block.output_repr(&mut output)?;
 			}
+			write!(output, ">")?;
 		} else {
 			self.expr.output_repr(&mut output.compact())?;
 			if let Some(block) = &self.block {
@@ -56,11 +58,12 @@ impl WithSpan for Statement {
 // RawExpr
 //====================================================================================================================//
 
+#[derive(Eq, PartialEq)]
 pub struct RawExpr {
 	expr: Vec<Node>,
 }
 
-has_traits!(RawExpr: IsNode, WithSpan);
+has_traits!(RawExpr: IsNode, WithSpan, WithEquality);
 
 impl RawExpr {
 	pub fn new(expr: Vec<Node>) -> Node {
@@ -134,7 +137,7 @@ fn parse_statement<T: TokenStream>(
 					break;
 				}
 			}
-			None => {}
+			None => expr.push(next),
 		}
 	}
 
@@ -211,6 +214,61 @@ mod tests {
 
 		let blocks = read("\n# some comment\n\n# another comment\n");
 		assert!(blocks.len() == 0);
+	}
+
+	#[test]
+	fn lines() {
+		let blocks = read("1\n2 3\n# comment\n4 5\n6\n");
+		let a = RawExpr::new(vec![n(1)]);
+		let b = RawExpr::new(vec![n(2), n(3)]);
+		let c = RawExpr::new(vec![n(4), n(5)]);
+		let d = RawExpr::new(vec![n(6)]);
+		check(
+			blocks,
+			vec![
+				Statement::new(a, None),
+				Statement::new(b, None),
+				Statement::new(c, None),
+				Statement::new(d, None),
+			],
+		)
+	}
+
+	fn check(actual: Vec<Node>, expected: Vec<Node>) {
+		if actual != expected {
+			let mut output = std::io::stderr().lock();
+			let mut output = Repr::new(&mut output, ReprMode::Debug, ReprFormat::Full);
+
+			let _ = write!(output, "\nActual:\n");
+			{
+				let mut output = output.indented();
+				for (i, it) in actual.iter().enumerate() {
+					let _ = write!(output, "\n[{i}] ");
+					let _ = it.output_repr(&mut output);
+				}
+				let _ = write!(output, "\n");
+			}
+
+			let _ = write!(output, "\nExpected:\n");
+			{
+				let mut output = output.indented();
+				for (i, it) in expected.iter().enumerate() {
+					let _ = write!(output, "\n[{i}] ");
+					let _ = it.output_repr(&mut output);
+				}
+				let _ = write!(output, "\n");
+			}
+			let _ = write!(output, "\n");
+		}
+		assert_eq!(actual, expected);
+	}
+
+	fn n(value: u128) -> Node {
+		Node::from(Integer(value))
+	}
+
+	fn _s(symbol: &'static str) -> Node {
+		Node::from(Token::Symbol(symbol))
 	}
 
 	fn read(input: &str) -> Vec<Node> {

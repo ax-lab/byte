@@ -4,7 +4,7 @@ use crate::core::*;
 
 pub trait IsNode: IsValue {}
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone)]
 pub struct Node {
 	data: Value,
 	span: Option<Span>,
@@ -165,3 +165,11 @@ impl Node {
 		})
 	}
 }
+
+impl PartialEq for Node {
+	fn eq(&self, other: &Self) -> bool {
+		self.data == other.data
+	}
+}
+
+impl Eq for Node {}
