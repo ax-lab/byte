@@ -44,7 +44,7 @@ impl Scanner {
 		let node = self.read_next(cursor, errors);
 		node.map(|node| {
 			if node.span().is_none() {
-				node.at(Some(Span::new(&start, cursor)))
+				node.at(Some(Span::from(&start, cursor)))
 			} else {
 				node
 			}
@@ -52,7 +52,7 @@ impl Scanner {
 	}
 
 	fn skip(&self, cursor: &mut Cursor) {
-		let is_start = cursor.is_new_line();
+		let is_start = cursor.location().is_line_start();
 		let mut saved = cursor.clone();
 		while let Some(next) = cursor.read() {
 			if is_space(next) || (is_start && next == '\n') {
@@ -84,7 +84,7 @@ impl Scanner {
 			if let Some(token) = self.symbols.try_match(input, errors) {
 				Some(token)
 			} else {
-				errors.add("invalid symbol".at_span(Span::new(&start, input)));
+				errors.add("invalid symbol".at(Span::from(&start, input)));
 				Some(Node::from(Token::Invalid))
 			}
 		} else {

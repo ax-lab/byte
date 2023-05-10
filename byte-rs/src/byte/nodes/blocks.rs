@@ -15,7 +15,7 @@ pub struct Statement {
 	block: Option<Node>,
 }
 
-has_traits!(Statement: IsNode, WithSpan, WithEquality);
+has_traits!(Statement: IsNode, WithEquality);
 
 impl Statement {
 	pub fn new(expr: Node, block: Option<Node>) -> Node {
@@ -48,12 +48,6 @@ impl HasRepr for Statement {
 	}
 }
 
-impl WithSpan for Statement {
-	fn get_span(&self) -> Option<Span> {
-		Span::from_range(self.expr.span(), self.block.as_ref().and_then(|x| x.span()))
-	}
-}
-
 //====================================================================================================================//
 // RawExpr
 //====================================================================================================================//
@@ -63,7 +57,7 @@ pub struct RawExpr {
 	expr: Vec<Node>,
 }
 
-has_traits!(RawExpr: IsNode, WithSpan, WithEquality);
+has_traits!(RawExpr: IsNode, WithEquality);
 
 impl RawExpr {
 	pub fn new(expr: Vec<Node>) -> Node {
@@ -79,12 +73,6 @@ impl HasRepr for RawExpr {
 		Node::output_repr_list(output, &self.expr, " ")?;
 		Node::output_repr_end(output, ">", ")")?;
 		Ok(())
-	}
-}
-
-impl WithSpan for RawExpr {
-	fn get_span(&self) -> Option<Span> {
-		Node::span_for_list(&self.expr)
 	}
 }
 
@@ -146,13 +134,13 @@ fn parse_statement<T: TokenStream>(
 }
 
 fn skip_empty<T: TokenStream>(input: &mut T, errors: &mut Errors, stop: StopCondition) {
-	use crate::lang::Comment;
+	use crate::lang::CommentToken;
 
 	while let Some(next) = input.next() {
 		if stop.should_stop(&next) {
 			break;
 		}
-		if next.is_token(|token| token == &Token::Break) || next.is::<Comment>() {
+		if next.is_token(|token| token == &Token::Break) || next.is::<CommentToken>() {
 			input.read(errors);
 		} else {
 			break;
@@ -183,7 +171,7 @@ impl StopCondition {
 
 	pub fn should_stop(&self, next: &Node) -> bool {
 		if let Some(span) = next.span() {
-			if span.start().indent() < self.level {
+			if span.location().indent() < self.level {
 				return true;
 			}
 		}
@@ -271,7 +259,7 @@ mod tests {
 		Node::from(Token::Symbol(symbol))
 	}
 
-	fn read(input: &str) -> Vec<Node> {
+	fn read(input: &'static str) -> Vec<Node> {
 		let mut blocks = open(input);
 		let mut output = Vec::new();
 		let mut errors = Errors::new();
@@ -282,7 +270,7 @@ mod tests {
 		output
 	}
 
-	fn open(input: &str) -> BlockParser<InputTokenStream> {
+	fn open(input: &'static str) -> BlockParser<InputTokenStream> {
 		let mut scanner = Scanner::new();
 		scanner.add_matcher(IntegerMatcher);
 		scanner.add_matcher(CommentMatcher);
@@ -301,7 +289,7 @@ mod tests {
 		scanner.add_symbol("}", Token::Symbol("}"));
 
 		let input = Input::from(input);
-		let input = InputTokenStream::new(input.start(), scanner);
+		let input = InputTokenStream::new(input.cursor(), scanner);
 		let block = BlockParser::new(input);
 		block
 	}

@@ -48,7 +48,7 @@ impl Matcher for IdentifierMatcher {
 					}
 				}
 
-				let span = Span::new(&start, cursor);
+				let span = Span::from(&start, cursor);
 				Some(Node::from(Identifier(span)))
 			}
 

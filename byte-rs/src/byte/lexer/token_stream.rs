@@ -58,7 +58,7 @@ impl InputTokenStream {
 			if let Some((node, ..)) = next.get(n) {
 				return Some(node.clone());
 			} else if let Some((_, cursor, ..)) = next.back() {
-				if cursor.is_end() {
+				if cursor.at_end() {
 					return None;
 				}
 			}
@@ -144,7 +144,7 @@ mod tests {
 		assert_eq!(nodes[6].get_integer(), Some(Integer(4)));
 	}
 
-	fn open(input: &str) -> InputTokenStream {
+	fn open(input: &'static str) -> InputTokenStream {
 		let input = Input::from(input);
 		let mut scanner = Scanner::new();
 		scanner.add_matcher(IntegerMatcher);
@@ -152,6 +152,6 @@ mod tests {
 		scanner.add_symbol("-", Token::Symbol("-"));
 		scanner.add_symbol("*", Token::Symbol("*"));
 		scanner.add_symbol("/", Token::Symbol("/"));
-		InputTokenStream::new(input.start(), scanner)
+		InputTokenStream::new(input.cursor(), scanner)
 	}
 }

@@ -2,124 +2,90 @@ use super::*;
 
 /// Cursor indexes a position in an [`Input`] and provides methods for reading
 /// characters from that position forward.
-///
-/// This type is lightweight and can be easily copied to save and backtrack to
-/// an input position.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Cursor {
-	input: Input,
-	row: usize,
-	col: usize,
-	offset: usize,
-	indent: usize,
+	src: Input,
+	pos: usize,
+	end: usize,
+	location: Location,
 }
 
 impl Cursor {
-	pub fn from(input: &Input) -> Self {
+	pub(crate) fn new(src: Input, pos: usize, end: usize, location: Location) -> Self {
+		assert!(end <= src.len());
+		assert!(pos <= end);
 		Cursor {
-			input: input.clone(),
-			row: 0,
-			col: 0,
-			offset: 0,
-			indent: 0,
+			src,
+			pos,
+			end,
+			location,
 		}
 	}
 
-	/// True if the current position is at the start of the line.
-	pub fn is_new_line(&self) -> bool {
-		self.col == 0
+	/// Location for this cursor.
+	pub fn location(&self) -> Location {
+		self.location
 	}
 
-	/// Source input.
+	/// Source input for this cursor.
 	pub fn input(&self) -> &Input {
-		&self.input
+		&self.src
 	}
 
-	/// Line number for the current position starting at 1.
-	pub fn line(&self) -> usize {
-		self.row + 1
-	}
-
-	/// Column number for the current position.
-	///
-	/// The column number starts at 1 and increments by 1 for each character,
-	/// except for tabs which will set the column to the next tab stop column
-	/// given by [`TAB_WIDTH`].
-	pub fn column(&self) -> usize {
-		self.col + 1
+	/// Span from this cursor to the end of the input.
+	pub fn span(&self) -> Span {
+		Span::new(self.src.clone(), self.pos, self.end, self.location)
 	}
 
 	/// Byte offset for the current position from the start of the input.
 	pub fn offset(&self) -> usize {
-		self.offset
-	}
-
-	/// Indentation level for the current line.
-	///
-	/// This is zero at the start of the line and is incremented for each
-	/// leading space character, until a non-space character is found.
-	///
-	/// As with `column()`, tab characters will expand to the next tab stop
-	/// as given by [`TAB_WIDTH`].
-	pub fn indent(&self) -> usize {
-		self.indent
+		self.pos
 	}
 
 	/// True when not at the end of the input.
-	pub fn is_some(&self) -> bool {
-		self.offset < self.input.len()
+	pub fn has_next(&self) -> bool {
+		self.pos < self.end
 	}
 
 	/// True at the end of the input.
-	pub fn is_end(&self) -> bool {
-		!self.is_some()
+	pub fn at_end(&self) -> bool {
+		!self.has_next()
 	}
 
-	/// Read the next character in the input.
+	/// Read the next character in the input and move the cursor forward.
 	pub fn read(&mut self) -> Option<char> {
-		let text = self.input.text(self.offset..);
+		let text = self.src.range(self.pos..);
 		if let Some(next) = text.chars().next() {
-			// increment indentation until we find the first non-space character
-			let is_leading_space = self.indent == self.col;
-
 			// update offset to next char
-			self.offset += next.len_utf8();
+			self.pos += next.len_utf8();
 
 			// translate CR and CR+LF to a single LF
 			let next = if next == '\r' && text.len() > 1 {
 				if text.as_bytes()[1] == '\n' as u8 {
-					self.offset += 1;
+					self.pos += 1;
 				}
 				'\n'
 			} else {
 				next
 			};
 
-			// update position
-			if next == '\n' {
-				self.row += 1;
-				self.col = 0;
-			} else if next == '\t' {
-				self.col += TAB_WIDTH - (self.col % TAB_WIDTH)
-			} else {
-				self.col += 1;
-			}
+			// update the location
+			self.location.advance(next);
 
-			// update indentation
-			if next == '\n' || (is_space(next) && is_leading_space) {
-				self.indent = self.col;
-			}
 			Some(next)
 		} else {
 			None
 		}
 	}
 
+	/// Peek at the next character in the input without changing the cursor.
 	pub fn peek(&self) -> Option<char> {
 		let mut copy = self.clone();
 		copy.read()
 	}
 
+	/// Read the next character only if it's the given expected character,
+	/// otherwise the cursor is not changed.
 	pub fn try_read(&mut self, expected: char) -> bool {
 		let mut copy = self.clone();
 		if let Some(next) = copy.read() {
@@ -138,19 +104,27 @@ impl Cursor {
 
 impl std::fmt::Display for Cursor {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}:{}", self.line(), self.column())
+		if let Some(name) = self.src.name() {
+			write!(f, "{}:{}", name, self.location)
+		} else {
+			write!(f, "{}", self.location)
+		}
 	}
 }
 
 impl std::fmt::Debug for Cursor {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "<pos {}:{self}>", self.input)
+		if let Some(name) = self.src.name() {
+			write!(f, "<cursor {}:{:?}>", name, self.location)
+		} else {
+			write!(f, "<cursor {:?}>", self.location)
+		}
 	}
 }
 
 impl PartialEq for Cursor {
 	fn eq(&self, other: &Self) -> bool {
-		self.input == other.input && self.offset == other.offset
+		self.src == other.src && self.pos == other.pos
 	}
 }
 

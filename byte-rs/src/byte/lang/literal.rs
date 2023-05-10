@@ -44,15 +44,15 @@ impl Matcher for LiteralMatcher {
 					let end = cursor.clone();
 					match cursor.read() {
 						Some('\'') => {
-							let span = Span::new(&pos, &end);
+							let span = Span::from(&pos, &end);
 							let value = span.text().to_string();
 							break Some(Node::from(Literal(value)));
 						}
 
 						None => {
-							let span = Span::new(&pos, &end);
+							let span = Span::from(&pos, &end);
 							let value = span.text().to_string();
-							errors.add("unclosed string literal".at_span(span));
+							errors.add("unclosed string literal".at(span));
 							break Some(Node::from(Literal(value)));
 						}
 

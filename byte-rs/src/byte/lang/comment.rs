@@ -5,13 +5,13 @@ use crate::lexer::*;
 use crate::nodes::*;
 
 #[derive(Eq, PartialEq)]
-pub struct Comment(Span);
+pub struct CommentToken(Span);
 
-has_traits!(Comment: IsNode, WithEquality);
+has_traits!(CommentToken: IsNode, WithEquality);
 
-impl IsNode for Comment {}
+impl IsNode for CommentToken {}
 
-impl HasRepr for Comment {
+impl HasRepr for CommentToken {
 	fn output_repr(&self, output: &mut Repr<'_>) -> std::io::Result<()> {
 		if output.is_debug() {
 			write!(output, "Comment({})", self.0)
@@ -57,8 +57,8 @@ impl Matcher for CommentMatcher {
 					*cursor = pos;
 				}
 
-				let span = Span::new(&start, cursor);
-				Some(Node::from(Comment(span)))
+				let span = Span::from(&start, cursor);
+				Some(Node::from(CommentToken(span)))
 			}
 
 			_ => None,

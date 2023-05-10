@@ -1,6 +1,4 @@
-use std::io::Write;
-
-use crate::core::*;
+use super::*;
 
 pub trait IsNode: IsValue {}
 
@@ -32,8 +30,14 @@ impl Node {
 		self.data.get::<T>().is_some()
 	}
 
+	pub fn span(&self) -> Option<Span> {
+		self.data.get_span()
+	}
+
 	pub fn indent(&self) -> usize {
-		self.span().map(|x| x.start().indent()).unwrap()
+		self.span()
+			.map(|x| x.location().indent())
+			.unwrap_or_default()
 	}
 }
 
@@ -137,32 +141,8 @@ impl Node {
 
 impl HasTraits for Node {
 	fn get_trait(&self, type_id: std::any::TypeId) -> Option<&dyn HasTraits> {
-		with_trait!(self, type_id, WithSpan);
 		with_trait!(self, type_id, WithEquality);
 		self.data.get_trait(type_id)
-	}
-}
-
-impl WithSpan for Node {
-	fn get_span(&self) -> Option<Span> {
-		self.data.span().or(self.span.clone())
-	}
-}
-
-impl Node {
-	pub fn span_for_list(nodes: &[Node]) -> Option<Span> {
-		let span = Span::from_range(
-			nodes.first().and_then(|x| x.span()),
-			nodes.last().and_then(|x| x.span()),
-		);
-		span.or_else(|| {
-			nodes.first().and_then(|x| {
-				x.span().map(|x| {
-					let start = x.start();
-					Span::new(&start, &start)
-				})
-			})
-		})
 	}
 }
 

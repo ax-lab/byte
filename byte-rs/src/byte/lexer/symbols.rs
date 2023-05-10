@@ -133,14 +133,14 @@ mod tests {
 	fn check_symbols(symbols: &SymbolTable, input: &'static str, expected: &[&'static str]) {
 		let mut errors = Errors::default();
 		let input = Input::from(input);
-		let mut cursor = input.start();
+		let mut cursor = input.cursor();
 		for (i, expected) in expected.iter().cloned().enumerate() {
 			let pos = cursor.clone();
 			let next = symbols.try_match(&mut cursor, &mut errors);
 			let end = cursor.clone();
 
 			assert!(errors.empty());
-			let text = Span::new(&pos, &end);
+			let text = Span::from(&pos, &end);
 			let text = text.text();
 			if let Some(Token::Symbol(actual)) = next.as_ref().unwrap().get::<Token>() {
 				assert_eq!(
