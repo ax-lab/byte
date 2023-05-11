@@ -29,6 +29,12 @@ impl Location {
 		}
 	}
 
+	/// Return the location but with the given line.
+	pub fn with_line(mut self, line: usize) -> Self {
+		self.line = line;
+		self
+	}
+
 	/// Advance the location position given the next character in the input.
 	pub fn advance(&mut self, next: char) {
 		let is_leading_space = self.is_indent();
@@ -96,6 +102,30 @@ impl Location {
 	/// the line.
 	pub fn is_indent(&self) -> bool {
 		self.column == self.indent
+	}
+
+	/// Output a location with an optional file name and label.
+	pub fn output_location(
+		&self,
+		output: &mut Repr,
+		name: Option<&str>,
+		label: &str,
+	) -> std::io::Result<()> {
+		use std::io::Write;
+
+		if name.is_some() || self.line > 0 {
+			write!(output, "{label}")?;
+		}
+		if let Some(name) = name {
+			write!(output, "{name}")?;
+			if self.line > 0 {
+				write!(output, ":")?;
+			}
+		}
+		if self.line > 0 {
+			write!(output, "{self}")?;
+		}
+		Ok(())
 	}
 }
 

@@ -11,7 +11,7 @@ use super::*;
 /// Besides the text, the span also carries a [`Location`], which can be
 /// used for debugging and messages, but also has semantical meaning in
 /// the language.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone)]
 pub struct Span {
 	src: Input,
 	pos: usize,
@@ -72,6 +72,12 @@ impl Span {
 		}
 	}
 
+	/// Returns the span without any line information.
+	pub fn without_line(mut self) -> Span {
+		self.location = self.location.with_line(0);
+		self
+	}
+
 	/// Starting location for this span.
 	pub fn location(&self) -> Location {
 		self.location
@@ -129,7 +135,9 @@ impl Span {
 	}
 }
 
-fmt_from_repr!(Span);
+//====================================================================================================================//
+// Traits
+//====================================================================================================================//
 
 impl HasRepr for Span {
 	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
@@ -169,6 +177,26 @@ impl HasRepr for Span {
 		Ok(())
 	}
 }
+
+impl std::fmt::Debug for Span {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		self.fmt_debug(f)
+	}
+}
+
+impl std::fmt::Display for Span {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.text())
+	}
+}
+
+impl PartialEq for Span {
+	fn eq(&self, other: &Self) -> bool {
+		self.location == other.location && self.text() == other.text()
+	}
+}
+
+impl Eq for Span {}
 
 //====================================================================================================================//
 // Value extensions

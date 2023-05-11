@@ -1,6 +1,6 @@
 use super::*;
 
-pub trait IsNode: IsValue {}
+pub trait IsNode: IsValue + WithEquality {}
 
 #[derive(Clone)]
 pub struct Node {
@@ -148,7 +148,7 @@ impl HasTraits for Node {
 
 impl PartialEq for Node {
 	fn eq(&self, other: &Self) -> bool {
-		self.data == other.data
+		self.value().is_equal(&other.data)
 	}
 }
 
