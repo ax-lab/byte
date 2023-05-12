@@ -148,17 +148,3 @@ impl std::fmt::Debug for Location {
 		Ok(())
 	}
 }
-
-impl PartialEq for Location {
-	fn eq(&self, other: &Self) -> bool {
-		// Note that a location without line number matches any line for the
-		// purposes of equality.
-		if self.line > 0 && other.line > 0 && self.line != other.line {
-			false
-		} else {
-			self.column == other.column && self.indent == other.indent
-		}
-	}
-}
-
-impl Eq for Location {}

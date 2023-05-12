@@ -96,6 +96,22 @@ impl Cursor {
 		}
 		false
 	}
+
+	pub fn skip_while<P: Fn(char) -> bool>(&mut self, predicate: P) {
+		let mut copy = self.clone();
+		while let Some(next) = self.read() {
+			if predicate(next) {
+				copy = self.clone();
+			} else {
+				break;
+			}
+		}
+		*self = copy;
+	}
+
+	pub fn skip_spaces(&mut self) {
+		self.skip_while(is_space);
+	}
 }
 
 //====================================================================================================================//

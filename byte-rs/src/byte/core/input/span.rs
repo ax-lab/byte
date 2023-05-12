@@ -192,7 +192,7 @@ impl std::fmt::Display for Span {
 
 impl PartialEq for Span {
 	fn eq(&self, other: &Self) -> bool {
-		self.location == other.location && self.text() == other.text()
+		self.text() == other.text()
 	}
 }
 

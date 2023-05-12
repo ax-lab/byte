@@ -5,7 +5,6 @@ pub trait IsNode: IsValue + WithEquality {}
 #[derive(Clone)]
 pub struct Node {
 	data: Value,
-	span: Option<Span>,
 }
 
 impl Node {
@@ -17,8 +16,16 @@ impl Node {
 		get_trait!(self, IsNode).unwrap()
 	}
 
-	pub fn at(mut self, span: Option<Span>) -> Node {
-		self.span = span.or(self.span);
+	pub fn at(self, span: Option<Span>) -> Node {
+		if let Some(span) = span {
+			self.with_span(span)
+		} else {
+			self
+		}
+	}
+
+	pub fn with_span(mut self, span: Span) -> Node {
+		self.data = self.data.with_span(span);
 		self
 	}
 
@@ -44,10 +51,13 @@ impl Node {
 impl From<Value> for Node {
 	fn from(value: Value) -> Self {
 		assert!(value.is_node());
-		Node {
-			data: value,
-			span: None,
-		}
+		Node { data: value }
+	}
+}
+
+impl<T: IsNode> From<T> for Node {
+	fn from(value: T) -> Self {
+		Value::from(value).into()
 	}
 }
 
