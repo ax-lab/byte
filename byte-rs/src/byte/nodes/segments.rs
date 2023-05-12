@@ -20,6 +20,12 @@ impl Line {
 	pub fn new(indent: usize, items: Vec<Segment>) -> Line {
 		Line { indent, items }
 	}
+
+	pub fn span(&self) -> Span {
+		let start = self.items.first().unwrap().span();
+		let end = self.items.last().unwrap().span();
+		Span::merge(start, end)
+	}
 }
 
 impl HasRepr for Line {
@@ -147,20 +153,23 @@ impl SegmentParser {
 		}
 	}
 
-	pub fn parse(&mut self, input: &mut Cursor) -> Option<Node> {
-		self.parse_line(input).map(|x| x.into())
+	pub fn parse(&mut self, cursor: &mut Cursor) -> Option<Node> {
+		self.parse_line(cursor).map(|line| {
+			let span = line.span();
+			Node::from(line).with_span(span)
+		})
 	}
 
-	fn parse_line(&mut self, input: &mut Cursor) -> Option<Line> {
+	fn parse_line(&mut self, cursor: &mut Cursor) -> Option<Line> {
 		// skip blank line and spaces
-		input.skip_while(|c| c == '\n' || is_space(c));
+		cursor.skip_while(|c| c == '\n' || is_space(c));
 
-		let indent = input.location().indent();
+		let indent = cursor.location().indent();
 
 		let mut items = Vec::new();
-		while let Some(segment) = self.parse_segment(input) {
+		while let Some(segment) = self.parse_segment(cursor) {
 			items.push(segment);
-			if input.try_read('\n') {
+			if cursor.try_read('\n') {
 				break;
 			}
 		}
@@ -172,73 +181,85 @@ impl SegmentParser {
 		}
 	}
 
-	fn parse_segment(&mut self, input: &mut Cursor) -> Option<Segment> {
-		input.skip_spaces();
-		match input.peek() {
-			Some('\n') | None => None,
-			Some(next) => {
-				let start = input.clone();
-				let mut end;
+	fn parse_segment(&mut self, cursor: &mut Cursor) -> Option<Segment> {
+		cursor.skip_spaces();
 
-				let kind = if next == self.comment {
-					//--------------------------------------------------------//
-					// Comment
-					//--------------------------------------------------------//
-
-					input.read();
-					let (multi, mut level) = if input.try_read(self.multi_comment_s) {
-						(true, 1)
-					} else {
-						(false, 0)
-					};
-
-					end = input.clone();
-					loop {
-						match input.read() {
-							Some('\n') if !multi => break,
-							Some(c) => {
-								end = input.clone();
-								if multi {
-									if c == self.multi_comment_s {
-										level += 1;
-									} else if c == self.multi_comment_e {
-										level -= 1;
-										if level == 0 {
-											break;
-										}
-									}
-								}
-								input.skip_spaces();
-							}
-							None => break,
-						}
-					}
-					SegmentKind::Comment
-				} else {
-					//--------------------------------------------------------//
-					// Text
-					//--------------------------------------------------------//
-
-					end = input.clone();
-					while let Some(next) = input.read() {
+		let start = cursor.clone();
+		if self.read_comment(cursor) {
+			Some(Segment {
+				kind: SegmentKind::Comment,
+				span: Span::from(&start, cursor),
+			})
+		} else {
+			match cursor.peek() {
+				Some('\n') | None => None,
+				Some(..) => {
+					let mut end = cursor.clone();
+					while let Some(next) = cursor.read() {
 						if next == '\n' || next == '#' {
 							break;
 						} else {
-							end = input.clone();
-							input.skip_spaces();
+							end = cursor.clone();
+							cursor.skip_spaces();
 						}
 					}
-					SegmentKind::Text
-				};
 
-				if end.offset() > start.offset() {
-					let span = Span::from(&start, &end);
-					*input = end;
-					Some(Segment { kind, span })
-				} else {
-					None
+					if end.offset() > start.offset() {
+						let span = Span::from(&start, &end);
+						*cursor = end;
+						Some(Segment {
+							kind: SegmentKind::Text,
+							span,
+						})
+					} else {
+						None
+					}
 				}
 			}
+		}
+	}
+
+	pub fn read_comment(&self, cursor: &mut Cursor) -> bool {
+		let next = if let Some(next) = cursor.peek() {
+			next
+		} else {
+			return false;
+		};
+
+		if next != self.comment {
+			false
+		} else {
+			cursor.read();
+			let (multi, mut level) = if cursor.try_read(self.multi_comment_s) {
+				(true, 1)
+			} else {
+				(false, 0)
+			};
+
+			let mut end = cursor.clone();
+			loop {
+				match cursor.read() {
+					Some('\n') if !multi => break,
+					Some(c) => {
+						end = cursor.clone();
+						if multi {
+							if c == self.multi_comment_s {
+								level += 1;
+							} else if c == self.multi_comment_e {
+								level -= 1;
+								if level == 0 {
+									break;
+								}
+							}
+						}
+						cursor.skip_spaces();
+					}
+					None => break,
+				}
+			}
+
+			*cursor = end;
+			true
 		}
 	}
 }

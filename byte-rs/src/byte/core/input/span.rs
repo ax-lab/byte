@@ -120,10 +120,10 @@ impl Span {
 	}
 
 	/// Merge two spans from the same input source.
-	pub fn merge(a: Span, b: Span) -> Self {
+	pub fn merge(a: &Span, b: &Span) -> Self {
 		assert!(a.src == b.src);
 		Span {
-			src: a.src,
+			src: a.src.clone(),
 			pos: std::cmp::min(a.pos, b.pos),
 			end: std::cmp::max(a.end, b.end),
 			location: if a.pos < b.pos {
