@@ -1,5 +1,48 @@
 use super::*;
 
+use crate::lexer::SymbolTable;
+
+//====================================================================================================================//
+// Line
+//====================================================================================================================//
+
+#[derive(Eq, PartialEq)]
+pub struct Line {
+	indent: usize,
+	items: Vec<Segment>,
+}
+
+has_traits!(Line: IsNode);
+
+impl IsNode for Line {}
+
+impl Line {
+	pub fn new(indent: usize, items: Vec<Segment>) -> Line {
+		Line { indent, items }
+	}
+}
+
+impl HasRepr for Line {
+	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
+		write!(output, "<Line")?;
+		if !output.is_compact() {
+			let output = &mut output.indented();
+			for it in self.items.iter() {
+				write!(output, "\n")?;
+				it.output_repr(output)?;
+			}
+			write!(output, "\n")?;
+		} else {
+			for it in self.items.iter() {
+				write!(output, " ")?;
+				it.output_repr(output)?;
+			}
+		}
+		write!(output, ">")?;
+		Ok(())
+	}
+}
+
 //====================================================================================================================//
 // Segment
 //====================================================================================================================//
@@ -38,76 +81,6 @@ impl Segment {
 
 	pub fn span(&self) -> &Span {
 		&self.span
-	}
-
-	pub fn parse(input: &mut Cursor) -> Option<Segment> {
-		input.skip_spaces();
-		match input.peek() {
-			Some('\n') | None => None,
-			Some(next) => {
-				let start = input.clone();
-				let mut end;
-
-				let kind = if next == '#' {
-					//--------------------------------------------------------//
-					// Comment
-					//--------------------------------------------------------//
-
-					input.read();
-					let (multi, mut level) = if input.try_read('(') {
-						(true, 1)
-					} else {
-						(false, 0)
-					};
-
-					end = input.clone();
-					loop {
-						match input.read() {
-							Some('\n') if !multi => break,
-							Some(c) => {
-								end = input.clone();
-								if multi {
-									if c == '(' {
-										level += 1;
-									} else if c == ')' {
-										level -= 1;
-										if level == 0 {
-											break;
-										}
-									}
-								}
-								input.skip_spaces();
-							}
-							None => break,
-						}
-					}
-					SegmentKind::Comment
-				} else {
-					//--------------------------------------------------------//
-					// Text
-					//--------------------------------------------------------//
-
-					end = input.clone();
-					while let Some(next) = input.read() {
-						if next == '\n' || next == '#' {
-							break;
-						} else {
-							end = input.clone();
-							input.skip_spaces();
-						}
-					}
-					SegmentKind::Text
-				};
-
-				if end.offset() > start.offset() {
-					let span = Span::from(&start, &end);
-					*input = end;
-					Some(Self { kind, span })
-				} else {
-					None
-				}
-			}
-		}
 	}
 }
 
@@ -149,32 +122,43 @@ impl HasRepr for Segment {
 }
 
 //====================================================================================================================//
-// Line
+// Parser implementation
 //====================================================================================================================//
 
-#[derive(Eq, PartialEq)]
-pub struct Line {
-	indent: usize,
-	items: Vec<Segment>,
+#[derive(Clone)]
+pub struct SegmentParser {
+	comment: char,
+	multi_comment_s: char,
+	multi_comment_e: char,
+	_brackets: SymbolTable<&'static str>,
 }
 
-has_traits!(Line: IsNode);
-
-impl IsNode for Line {}
-
-impl Line {
-	pub fn new(indent: usize, items: Vec<Segment>) -> Line {
-		Line { indent, items }
+impl SegmentParser {
+	pub fn new() -> Self {
+		let mut brackets = SymbolTable::default();
+		brackets.add_symbol("(", ")");
+		brackets.add_symbol("[", "]");
+		brackets.add_symbol("{", "}");
+		Self {
+			comment: '#',
+			multi_comment_s: '(',
+			multi_comment_e: ')',
+			_brackets: brackets,
+		}
 	}
 
-	pub fn parse(input: &mut Cursor) -> Option<Line> {
+	pub fn parse(&mut self, input: &mut Cursor) -> Option<Node> {
+		self.parse_line(input).map(|x| x.into())
+	}
+
+	fn parse_line(&mut self, input: &mut Cursor) -> Option<Line> {
 		// skip blank line and spaces
 		input.skip_while(|c| c == '\n' || is_space(c));
 
 		let indent = input.location().indent();
 
 		let mut items = Vec::new();
-		while let Some(segment) = Segment::parse(input) {
+		while let Some(segment) = self.parse_segment(input) {
 			items.push(segment);
 			if input.try_read('\n') {
 				break;
@@ -187,26 +171,75 @@ impl Line {
 			None
 		}
 	}
-}
 
-impl HasRepr for Line {
-	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
-		write!(output, "<Line")?;
-		if !output.is_compact() {
-			let output = &mut output.indented();
-			for it in self.items.iter() {
-				write!(output, "\n")?;
-				it.output_repr(output)?;
-			}
-			write!(output, "\n")?;
-		} else {
-			for it in self.items.iter() {
-				write!(output, " ")?;
-				it.output_repr(output)?;
+	fn parse_segment(&mut self, input: &mut Cursor) -> Option<Segment> {
+		input.skip_spaces();
+		match input.peek() {
+			Some('\n') | None => None,
+			Some(next) => {
+				let start = input.clone();
+				let mut end;
+
+				let kind = if next == self.comment {
+					//--------------------------------------------------------//
+					// Comment
+					//--------------------------------------------------------//
+
+					input.read();
+					let (multi, mut level) = if input.try_read(self.multi_comment_s) {
+						(true, 1)
+					} else {
+						(false, 0)
+					};
+
+					end = input.clone();
+					loop {
+						match input.read() {
+							Some('\n') if !multi => break,
+							Some(c) => {
+								end = input.clone();
+								if multi {
+									if c == self.multi_comment_s {
+										level += 1;
+									} else if c == self.multi_comment_e {
+										level -= 1;
+										if level == 0 {
+											break;
+										}
+									}
+								}
+								input.skip_spaces();
+							}
+							None => break,
+						}
+					}
+					SegmentKind::Comment
+				} else {
+					//--------------------------------------------------------//
+					// Text
+					//--------------------------------------------------------//
+
+					end = input.clone();
+					while let Some(next) = input.read() {
+						if next == '\n' || next == '#' {
+							break;
+						} else {
+							end = input.clone();
+							input.skip_spaces();
+						}
+					}
+					SegmentKind::Text
+				};
+
+				if end.offset() > start.offset() {
+					let span = Span::from(&start, &end);
+					*input = end;
+					Some(Segment { kind, span })
+				} else {
+					None
+				}
 			}
 		}
-		write!(output, ">")?;
-		Ok(())
 	}
 }
 
@@ -432,9 +465,10 @@ mod tests {
 		let text = Input::new("test.in", text);
 		let mut nodes = Vec::new();
 
+		let mut parser = SegmentParser::new();
 		let mut cursor = text.cursor();
-		while let Some(node) = Line::parse(&mut cursor) {
-			nodes.push(Node::from(node));
+		while let Some(node) = parser.parse(&mut cursor) {
+			nodes.push(node);
 		}
 		nodes
 	}

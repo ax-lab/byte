@@ -8,11 +8,11 @@ use super::*;
 
 /// Configurable symbol table implementing the [`Matcher`] trait.
 #[derive(Clone)]
-pub struct SymbolTable {
-	states: Vec<Entry>,
+pub struct SymbolTable<T: Clone> {
+	states: Vec<Entry<T>>,
 }
 
-impl Default for SymbolTable {
+impl<T: Clone> Default for SymbolTable<T> {
 	fn default() -> Self {
 		let mut out = SymbolTable {
 			states: Default::default(),
@@ -26,13 +26,13 @@ impl Default for SymbolTable {
 }
 
 #[derive(Clone)]
-struct Entry {
-	value: Option<Value>,
+struct Entry<T> {
+	value: Option<T>,
 	next: HashMap<char, usize>,
 }
 
-impl SymbolTable {
-	pub fn add_symbol<T: IsValue>(&mut self, symbol: &'static str, value: T) {
+impl<T: Clone> SymbolTable<T> {
+	pub fn add_symbol(&mut self, symbol: &'static str, value: T) {
 		assert!(symbol.len() > 0);
 		let mut current = 0;
 		for char in symbol.chars() {
@@ -49,10 +49,10 @@ impl SymbolTable {
 				});
 			}
 		}
-		self.states[current].value = Some(Value::from(value));
+		self.states[current].value = Some(value);
 	}
 
-	pub fn parse(&self, input: &mut Cursor) -> Option<Value> {
+	pub fn parse(&self, input: &mut Cursor) -> Option<T> {
 		let next = |input: &mut Cursor, s| input.read().and_then(|c| self.get_next(s, c));
 
 		let (mut state, mut valid) = if let Some((state, is_valid)) = next(input, 0) {
@@ -95,7 +95,7 @@ impl SymbolTable {
 	}
 }
 
-impl Matcher for SymbolTable {
+impl Matcher for SymbolTable<Value> {
 	fn try_match(&self, cursor: &mut Cursor, _errors: &mut Errors) -> Option<Node> {
 		self.parse(cursor).map(|x| x.into())
 	}
@@ -107,14 +107,14 @@ mod tests {
 
 	#[test]
 	fn lexer_should_parse_symbols() {
-		let mut sym = SymbolTable::default();
-		sym.add_symbol("+", Token::Symbol("+"));
-		sym.add_symbol("++", Token::Symbol("++"));
-		sym.add_symbol(".", Token::Symbol("."));
-		sym.add_symbol("..", Token::Symbol(".."));
-		sym.add_symbol("...", Token::Symbol("..."));
-		sym.add_symbol(">", Token::Symbol(">"));
-		sym.add_symbol(">>>>", Token::Symbol("arrow"));
+		let mut sym = SymbolTable::<Value>::default();
+		sym.add_symbol("+", Value::from(Token::Symbol("+")));
+		sym.add_symbol("++", Value::from(Token::Symbol("++")));
+		sym.add_symbol(".", Value::from(Token::Symbol(".")));
+		sym.add_symbol("..", Value::from(Token::Symbol("..")));
+		sym.add_symbol("...", Value::from(Token::Symbol("...")));
+		sym.add_symbol(">", Value::from(Token::Symbol(">")));
+		sym.add_symbol(">>>>", Value::from(Token::Symbol("arrow")));
 
 		let sym = &sym;
 		check_symbols(sym, "", &[]);
@@ -131,7 +131,7 @@ mod tests {
 		check_symbols(sym, ">>>>>>>>", &["arrow", "arrow"]);
 	}
 
-	fn check_symbols(symbols: &SymbolTable, input: &'static str, expected: &[&'static str]) {
+	fn check_symbols(symbols: &SymbolTable<Value>, input: &'static str, expected: &[&'static str]) {
 		let mut errors = Errors::default();
 		let input = Input::from(input);
 		let mut cursor = input.cursor();

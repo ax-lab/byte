@@ -17,7 +17,7 @@ pub trait Matcher: Send + Sync {
 #[derive(Clone)]
 pub struct Scanner {
 	matchers: Arc<Vec<Arc<dyn Matcher>>>,
-	symbols: Arc<SymbolTable>,
+	symbols: Arc<SymbolTable<Value>>,
 }
 
 impl Scanner {
@@ -33,9 +33,9 @@ impl Scanner {
 		matchers.push(Arc::new(matcher));
 	}
 
-	pub fn add_symbol<T: IsNode>(&mut self, symbol: &'static str, value: T) {
+	pub fn add_symbol<T: IsValue>(&mut self, symbol: &'static str, value: T) {
 		let symbols = Arc::make_mut(&mut self.symbols);
-		symbols.add_symbol(symbol, value);
+		symbols.add_symbol(symbol, Value::from(value));
 	}
 
 	pub fn read(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node> {
