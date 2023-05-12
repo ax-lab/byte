@@ -27,12 +27,12 @@ impl Default for SymbolTable {
 
 #[derive(Clone)]
 struct Entry {
-	value: Option<Node>,
+	value: Option<Value>,
 	next: HashMap<char, usize>,
 }
 
 impl SymbolTable {
-	pub fn add_symbol<T: IsNode>(&mut self, symbol: &'static str, value: T) {
+	pub fn add_symbol<T: IsValue>(&mut self, symbol: &'static str, value: T) {
 		assert!(symbol.len() > 0);
 		let mut current = 0;
 		for char in symbol.chars() {
@@ -49,7 +49,38 @@ impl SymbolTable {
 				});
 			}
 		}
-		self.states[current].value = Some(Node::from(value));
+		self.states[current].value = Some(Value::from(value));
+	}
+
+	pub fn parse(&self, input: &mut Cursor) -> Option<Value> {
+		let next = |input: &mut Cursor, s| input.read().and_then(|c| self.get_next(s, c));
+
+		let (mut state, mut valid) = if let Some((state, is_valid)) = next(input, 0) {
+			(
+				state,
+				if is_valid {
+					Some((input.clone(), state))
+				} else {
+					None
+				},
+			)
+		} else {
+			return None;
+		};
+
+		while let Some((next, is_valid)) = next(input, state) {
+			state = next;
+			if is_valid {
+				valid = Some((input.clone(), state));
+			}
+		}
+
+		if let Some((pos, index)) = valid {
+			*input = pos;
+			Some(self.states[index].value.clone().unwrap())
+		} else {
+			None
+		}
 	}
 
 	fn get_next(&self, current: usize, next: char) -> Option<(usize, bool)> {
@@ -66,37 +97,7 @@ impl SymbolTable {
 
 impl Matcher for SymbolTable {
 	fn try_match(&self, cursor: &mut Cursor, _errors: &mut Errors) -> Option<Node> {
-		let next = if let Some(next) = cursor.read() {
-			next
-		} else {
-			return None;
-		};
-		let state = self.get_next(0, next);
-		let (mut state, valid) = if let Some((state, valid)) = state {
-			(state, valid)
-		} else {
-			return None;
-		};
-
-		let mut last_pos = cursor.clone();
-		let mut valid = if valid { Some((last_pos, state)) } else { None };
-
-		while let Some(next) = cursor.read() {
-			if let Some((next, is_valid)) = self.get_next(state, next) {
-				(state, last_pos) = (next, cursor.clone());
-				if is_valid {
-					valid = Some((last_pos, state));
-				}
-			} else {
-				break;
-			}
-		}
-		if let Some((pos, index)) = valid {
-			*cursor = pos;
-			Some(self.states[index].value.clone().unwrap())
-		} else {
-			None
-		}
+		self.parse(cursor).map(|x| x.into())
 	}
 }
 
