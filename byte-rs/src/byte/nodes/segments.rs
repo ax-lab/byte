@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use super::*;
 
 use crate::lexer::SymbolTable;
@@ -136,21 +138,28 @@ pub struct SegmentParser {
 	comment: char,
 	multi_comment_s: char,
 	multi_comment_e: char,
-	_brackets: SymbolTable<&'static str>,
+	brackets: SymbolTable<Bracket>,
+	errors: Errors,
 }
 
 impl SegmentParser {
 	pub fn new() -> Self {
-		let mut brackets = SymbolTable::default();
-		brackets.add_symbol("(", ")");
-		brackets.add_symbol("[", "]");
-		brackets.add_symbol("{", "}");
-		Self {
+		let mut result = Self {
 			comment: '#',
 			multi_comment_s: '(',
 			multi_comment_e: ')',
-			_brackets: brackets,
-		}
+			brackets: Default::default(),
+			errors: Errors::new(),
+		};
+		result.add_brackets("(", ")");
+		result.add_brackets("[", "]");
+		result.add_brackets("{", "}");
+		result
+	}
+
+	pub fn add_brackets(&mut self, sta: &'static str, end: &'static str) {
+		self.brackets.add_symbol(sta, Bracket(sta, end, true));
+		self.brackets.add_symbol(end, Bracket(sta, end, false));
 	}
 
 	pub fn parse(&mut self, cursor: &mut Cursor) -> Option<Node> {
@@ -160,19 +169,75 @@ impl SegmentParser {
 		})
 	}
 
+	pub fn has_errors(&self) -> bool {
+		!self.errors.empty()
+	}
+
+	pub fn errors(&self) -> Errors {
+		self.errors.clone()
+	}
+
+	fn add_error(&mut self, error: Value) {
+		if self.errors.len() < MAX_ERRORS {
+			self.errors.add(error);
+		}
+	}
+
 	fn parse_line(&mut self, cursor: &mut Cursor) -> Option<Line> {
+		// helper to push a text segment to the list
+		let push_text = |items: &mut Vec<Segment>, start: &Cursor, end: &Cursor| {
+			if end.offset() > start.offset() {
+				let span = Span::from(&start, &end);
+				items.push(Segment {
+					kind: SegmentKind::Text,
+					span,
+				});
+			}
+		};
+
 		// skip blank line and spaces
 		cursor.skip_while(|c| c == '\n' || is_space(c));
 
+		// save the line indentation
 		let indent = cursor.location().indent();
 
 		let mut items = Vec::new();
-		while let Some(segment) = self.parse_segment(cursor) {
-			items.push(segment);
-			if cursor.try_read('\n') {
+		let mut start = cursor.clone();
+		let mut end = cursor.clone();
+
+		loop {
+			if self.has_errors() {
 				break;
 			}
+
+			if let Some(segment) = self.parse_non_text_segment(cursor) {
+				// push any preceding text segment
+				push_text(&mut items, &start, &end);
+
+				// add parsed segment
+				items.push(segment);
+
+				// reset text segment
+				cursor.skip_spaces();
+				start = cursor.clone();
+				end = cursor.clone();
+			} else {
+				// read the next char in the text segment
+				match cursor.read() {
+					Some('\n') | None => break,
+					Some(..) => {
+						end = cursor.clone();
+					}
+				}
+			}
 		}
+
+		if self.has_errors() {
+			cursor.skip_while(|c| c != '\n');
+		}
+
+		// push any trailing text segment
+		push_text(&mut items, &start, &end);
 
 		if items.len() > 0 {
 			Some(Line { indent, items })
@@ -181,7 +246,7 @@ impl SegmentParser {
 		}
 	}
 
-	fn parse_segment(&mut self, cursor: &mut Cursor) -> Option<Segment> {
+	fn parse_non_text_segment(&mut self, cursor: &mut Cursor) -> Option<Segment> {
 		cursor.skip_spaces();
 
 		let start = cursor.clone();
@@ -190,36 +255,71 @@ impl SegmentParser {
 				kind: SegmentKind::Comment,
 				span: Span::from(&start, cursor),
 			})
+		} else if let Some(segment) = self.parse_group(cursor) {
+			Some(segment)
 		} else {
-			match cursor.peek() {
-				Some('\n') | None => None,
-				Some(..) => {
-					let mut end = cursor.clone();
-					while let Some(next) = cursor.read() {
-						if next == '\n' || next == '#' {
-							break;
-						} else {
-							end = cursor.clone();
-							cursor.skip_spaces();
-						}
-					}
-
-					if end.offset() > start.offset() {
-						let span = Span::from(&start, &end);
-						*cursor = end;
-						Some(Segment {
-							kind: SegmentKind::Text,
-							span,
-						})
-					} else {
-						None
-					}
-				}
-			}
+			None
 		}
 	}
 
-	pub fn read_comment(&self, cursor: &mut Cursor) -> bool {
+	fn parse_group(&mut self, cursor: &mut Cursor) -> Option<Segment> {
+		let mut stack = if let Some((bracket, span)) = self.brackets.parse_with_span(cursor) {
+			if !bracket.is_opening() {
+				self.add_error(format!("unexpected unmatched `{bracket}`").at(span));
+				return None;
+			}
+			let mut stack = VecDeque::new();
+			stack.push_back((bracket, span));
+			stack
+		} else {
+			return None;
+		};
+
+		let start = cursor.clone();
+		loop {
+			self.skip_blanks(cursor);
+
+			let end = cursor.clone();
+			if let Some((bracket, span)) = self.brackets.parse_with_span(cursor) {
+				let (open, ..) = stack.back().unwrap();
+				if bracket.closes(open) {
+					let (_, open_span) = stack.pop_back().unwrap();
+					if stack.is_empty() {
+						let content = Span::from(&start, &end);
+						let segment = Segment::group(open_span, content, span);
+						return Some(segment);
+					}
+				} else if bracket.is_opening() {
+					stack.push_back((bracket, span));
+				} else {
+					self.add_error(format!("unmatched closing `{bracket}`").at(span));
+				}
+			} else if cursor.read().is_none() {
+				break;
+			}
+		}
+
+		let (bracket, span) = stack.pop_back().unwrap();
+		self.add_error(
+			format!(
+				"the opening `{bracket}` expected a `{}`{}, but found nothing",
+				bracket.closing(),
+				cursor.location().format(" at "),
+			)
+			.at(span),
+		);
+		None
+	}
+
+	fn skip_blanks(&mut self, cursor: &mut Cursor) {
+		let skip = |cursor: &mut Cursor| cursor.skip_while(|c| c == '\n' || is_space(c));
+		skip(cursor);
+		while self.read_comment(cursor) {
+			skip(cursor)
+		}
+	}
+
+	fn read_comment(&mut self, cursor: &mut Cursor) -> bool {
 		let next = if let Some(next) = cursor.peek() {
 			next
 		} else {
@@ -261,6 +361,37 @@ impl SegmentParser {
 			*cursor = end;
 			true
 		}
+	}
+}
+
+#[derive(Copy, Clone)]
+struct Bracket(&'static str, &'static str, bool);
+
+impl Bracket {
+	pub fn is_opening(&self) -> bool {
+		self.2
+	}
+
+	pub fn symbol(&self) -> &'static str {
+		if self.is_opening() {
+			self.0
+		} else {
+			self.1
+		}
+	}
+
+	pub fn closing(&self) -> &'static str {
+		self.1
+	}
+
+	pub fn closes(&self, start: &Bracket) -> bool {
+		!self.is_opening() && start.1 == self.1
+	}
+}
+
+impl std::fmt::Display for Bracket {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.symbol())
 	}
 }
 
@@ -443,14 +574,72 @@ mod tests {
 		);
 	}
 
+	#[test]
+	fn groups() {
+		let input = vec!["(1)"];
+		check(input, vec![Line::new(0, vec![group("(", "1", ")")]).into()]);
+
+		let input = vec!["(a)", "[ 1 2 ]", "{", "    content", "}"];
+		check(
+			input,
+			vec![
+				Line::new(0, vec![group("(", "a", ")")]).into(),
+				Line::new(0, vec![group("[", " 1 2 ", "]")]).into(),
+				Line::new(0, vec![group("{", "\n    content\n", "}")]).into(),
+			],
+		);
+
+		let input = vec!["1 + (2 + 3) * 4"];
+		check(
+			input,
+			vec![Line::new(0, vec![text("1 +"), group("(", "2 + 3", ")"), text("* 4")]).into()],
+		);
+
+		let input = vec!["(([{1}]))"];
+		check(
+			input,
+			vec![Line::new(0, vec![group("(", "([{1}])", ")")]).into()],
+		);
+
+		let content = vec![
+			" # comment 1",
+			"    1",
+			"    #((",
+			"      comment 2",
+			"    ))",
+			"    [ 2, 3 ]",
+			"   # A) comment",
+			"  4",
+			"  ",
+		]
+		.join("\n");
+		let content = content.as_str();
+
+		let input = format!("x + ({content}) + y # end");
+		let input = vec![input.as_str()];
+		check(
+			input,
+			vec![Line::new(
+				0,
+				vec![
+					text("x +"),
+					group("(", content, ")"),
+					text("+ y"),
+					comment("# end"),
+				],
+			)
+			.into()],
+		);
+	}
+
 	//================================================================================================================//
 	// Test harness
 	//================================================================================================================//
 
-	fn check(input: Vec<&'static str>, expected: Vec<Node>) {
+	fn check(input: Vec<&str>, expected: Vec<Node>) {
 		let actual = parse(input);
 		if actual != expected {
-			let mut output = std::io::stderr().lock();
+			let mut output = test_output();
 			let mut output = Repr::new(&mut output, ReprMode::Debug, ReprFormat::Full);
 
 			let _ = write!(output, "\nExpected:\n");
@@ -481,7 +670,7 @@ mod tests {
 		assert_eq!(actual, expected);
 	}
 
-	fn parse(input: Vec<&'static str>) -> Vec<Node> {
+	fn parse(input: Vec<&str>) -> Vec<Node> {
 		let text = input.join("\n");
 		let text = Input::new("test.in", text);
 		let mut nodes = Vec::new();
@@ -491,30 +680,43 @@ mod tests {
 		while let Some(node) = parser.parse(&mut cursor) {
 			nodes.push(node);
 		}
+
+		if parser.has_errors() {
+			let mut output = test_output();
+			let mut output = Repr::new(&mut output, ReprMode::Display, ReprFormat::Full);
+			let _ = parser.errors().output_repr(&mut output);
+			let _ = write!(output, "\n");
+			panic!("Segment parsing generated errors");
+		}
+
 		nodes
+	}
+
+	fn test_output() -> impl std::io::Write {
+		std::io::stderr().lock()
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
 	// Helpers
 	//----------------------------------------------------------------------------------------------------------------//
 
-	fn line(line: &'static str) -> Line {
+	fn line(line: &str) -> Line {
 		Line::new(0, vec![text(line)])
 	}
 
-	fn text(text: &'static str) -> Segment {
+	fn text(text: &str) -> Segment {
 		Segment::text(span(text))
 	}
 
-	fn comment(text: &'static str) -> Segment {
+	fn comment(text: &str) -> Segment {
 		Segment::comment(span(text))
 	}
 
-	fn _group(start: &'static str, text: &'static str, end: &'static str) -> Segment {
+	fn group(start: &str, text: &str, end: &str) -> Segment {
 		Segment::group(span(start), span(text), span(end))
 	}
 
-	fn span(text: &'static str) -> Span {
-		Input::from(text).span().without_line()
+	fn span(text: &str) -> Span {
+		Input::from(text.to_string()).span().without_line()
 	}
 }

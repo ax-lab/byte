@@ -2,6 +2,8 @@ use std::{collections::VecDeque, error::Error, io::Write, sync::Arc};
 
 use super::*;
 
+pub const MAX_ERRORS: usize = 32;
+
 /// List of errors.
 #[derive(Clone, Default)]
 pub struct Errors {

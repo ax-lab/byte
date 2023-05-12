@@ -104,6 +104,16 @@ impl Location {
 		self.column == self.indent
 	}
 
+	/// Format this location as a short string with the given label. If the
+	/// location contains no line information, returns the empty string.
+	pub fn format(&self, label: &str) -> String {
+		if self.line > 0 {
+			format!("{label}{self}")
+		} else {
+			String::new()
+		}
+	}
+
 	/// Output a location with an optional file name and label.
 	pub fn output_location(
 		&self,

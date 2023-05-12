@@ -52,35 +52,43 @@ impl<T: Clone> SymbolTable<T> {
 		self.states[current].value = Some(value);
 	}
 
-	pub fn parse(&self, input: &mut Cursor) -> Option<T> {
+	pub fn parse(&self, cursor: &mut Cursor) -> Option<T> {
+		let start = cursor.clone();
 		let next = |input: &mut Cursor, s| input.read().and_then(|c| self.get_next(s, c));
 
-		let (mut state, mut valid) = if let Some((state, is_valid)) = next(input, 0) {
+		let (mut state, mut valid) = if let Some((state, is_valid)) = next(cursor, 0) {
 			(
 				state,
 				if is_valid {
-					Some((input.clone(), state))
+					Some((cursor.clone(), state))
 				} else {
 					None
 				},
 			)
 		} else {
+			*cursor = start;
 			return None;
 		};
 
-		while let Some((next, is_valid)) = next(input, state) {
+		while let Some((next, is_valid)) = next(cursor, state) {
 			state = next;
 			if is_valid {
-				valid = Some((input.clone(), state));
+				valid = Some((cursor.clone(), state));
 			}
 		}
 
 		if let Some((pos, index)) = valid {
-			*input = pos;
+			*cursor = pos;
 			Some(self.states[index].value.clone().unwrap())
 		} else {
+			*cursor = start;
 			None
 		}
+	}
+
+	pub fn parse_with_span(&self, cursor: &mut Cursor) -> Option<(T, Span)> {
+		let start = cursor.clone();
+		self.parse(cursor).map(|v| (v, Span::from(&start, cursor)))
 	}
 
 	fn get_next(&self, current: usize, next: char) -> Option<(usize, bool)> {
