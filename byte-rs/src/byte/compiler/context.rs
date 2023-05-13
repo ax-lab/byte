@@ -15,6 +15,7 @@ pub struct Context {
 	modules: Arc<Mutex<HashMap<PathBuf, Module>>>,
 	errors: Arc<RwLock<Errors>>,
 	segment_parser: SegmentParser,
+	tracer: DebugLog,
 }
 
 impl Context {
@@ -25,6 +26,7 @@ impl Context {
 			modules: Default::default(),
 			errors: Default::default(),
 			segment_parser: SegmentParser::new(),
+			tracer: Default::default(),
 		}
 	}
 
@@ -53,7 +55,9 @@ impl Context {
 		self.segment_parser.add_brackets("{", "}");
 	}
 
-	pub fn enable_compiler_trace(&mut self) {}
+	pub fn enable_trace_blocks(&mut self) {
+		self.tracer.show_blocks();
+	}
 
 	//----------------------------------------------------------------------------------------------------------------//
 	// Modules
@@ -72,8 +76,7 @@ impl Context {
 			if let Some(module) = modules.get(&full_path).cloned() {
 				Ok(module)
 			} else {
-				let input = Input::open(&full_path)?;
-				let module = Module::from_input(input);
+				let module = Module::from_path(&full_path)?;
 				modules.insert(full_path, module.clone());
 				drop(modules);
 				self.load_module(&module);
@@ -97,6 +100,26 @@ impl Context {
 	}
 
 	fn load_module(&mut self, module: &Module) {
+		let mut segment_parser = self.segment_parser.clone();
+		let mut cursor = module.input().cursor();
+
+		let mut segments = Vec::new();
+		while let Some(next) = segment_parser.parse(&mut cursor) {
+			if segment_parser.has_errors() {
+				break;
+			}
+			segments.push(next);
+		}
+
+		assert!(cursor.at_end());
+
+		if segment_parser.has_errors() {
+			let mut errors = self.errors.write().unwrap();
+			errors.append(segment_parser.errors());
+		} else {
+			self.tracer.dump_blocks(&module, &segments);
+		}
+
 		self.add_error("module loading not implemented".at(module.input().span().without_line()));
 	}
 
@@ -105,4 +128,28 @@ impl Context {
 	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn wait_resolve(&self) {}
+}
+
+//====================================================================================================================//
+// Debugging
+//====================================================================================================================//
+
+#[derive(Clone, Default)]
+struct DebugLog {
+	show_blocks: bool,
+}
+
+impl DebugLog {
+	pub fn show_blocks(&mut self) {
+		self.show_blocks = true;
+	}
+
+	pub fn dump_blocks(&self, module: &Module, nodes: &Vec<Node>) {
+		if self.show_blocks {
+			let mut output = std::io::stdout().lock();
+			let _ = write!(output, "\nInput {}:\n\n", module.input());
+			Repr::dump_list(&mut output, nodes.iter().cloned());
+			let _ = write!(output, "\n");
+		}
+	}
 }

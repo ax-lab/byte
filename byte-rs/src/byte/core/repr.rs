@@ -174,6 +174,18 @@ impl<'a> Repr<'a> {
 		}
 	}
 
+	pub fn dump_list<T: HasRepr, I: IntoIterator<Item = T>>(output: &'a mut dyn Write, items: I) {
+		let mut repr = Repr::new(output, ReprMode::Debug, ReprFormat::Full).indented();
+		for (i, it) in items.into_iter().enumerate() {
+			if i > 0 {
+				let _ = write!(repr, "\n");
+			}
+			let _ = write!(repr, "[{i}] ");
+			let output = &mut repr.indented();
+			let _ = it.output_repr(output);
+		}
+	}
+
 	pub fn string<T: HasRepr>(value: &T, mode: ReprMode, format: ReprFormat) -> String {
 		let mut output = Vec::<u8>::new();
 		let mut writer = Repr::new(&mut output, mode, format);

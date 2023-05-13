@@ -3,7 +3,7 @@ use std::env;
 fn main() {
 	let mut done = false;
 	let mut files = Vec::new();
-	let mut show_trace = false;
+	let mut show_blocks = false;
 	let mut eval_list = Vec::new();
 	let mut next_is_eval = false;
 	for arg in env::args().skip(1) {
@@ -22,8 +22,8 @@ fn main() {
 					print_usage();
 					true
 				}
-				"--trace" => {
-					show_trace = true;
+				"--blocks" => {
+					show_blocks = true;
 					false
 				}
 				"--eval" => {
@@ -52,8 +52,8 @@ fn main() {
 	}
 
 	let mut context = byte::new();
-	if show_trace {
-		context.enable_compiler_trace();
+	if show_blocks {
+		context.enable_trace_blocks();
 	}
 
 	for file in files {

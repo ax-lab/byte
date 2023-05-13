@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use super::*;
 
 /// Represents an isolated module of code.
@@ -7,6 +9,11 @@ pub struct Module {
 }
 
 impl Module {
+	pub fn from_path<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
+		let input = Input::open(path)?;
+		Ok(Self { input })
+	}
+
 	pub fn from_input(input: Input) -> Self {
 		Self { input }
 	}
