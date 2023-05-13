@@ -6,6 +6,7 @@ use std::{
 
 use crate::SegmentParser;
 
+use super::lexer::*;
 use super::*;
 
 /// Holds the entire context for the compiler.
@@ -14,8 +15,9 @@ pub struct Context {
 	base_path: PathBuf,
 	modules: Arc<Mutex<HashMap<PathBuf, Module>>>,
 	errors: Arc<RwLock<Errors>>,
-	segment_parser: SegmentParser,
 	tracer: DebugLog,
+	segment_parser: SegmentParser,
+	scanner: Scanner,
 }
 
 impl Context {
@@ -25,8 +27,9 @@ impl Context {
 			base_path,
 			modules: Default::default(),
 			errors: Default::default(),
-			segment_parser: SegmentParser::new(),
 			tracer: Default::default(),
+			segment_parser: SegmentParser::new(),
+			scanner: Scanner::new(),
 		}
 	}
 
@@ -36,13 +39,20 @@ impl Context {
 		context
 	}
 
-	pub fn add_error<T: IsValue>(&mut self, error: T) {
-		let mut errors = self.errors.write().unwrap();
-		errors.add(error);
-	}
+	//================================================================================================================//
+	// Error handling
+	//================================================================================================================//
 
 	pub fn errors(&self) -> Errors {
 		self.errors.read().unwrap().clone()
+	}
+
+	pub fn add_error<T: IsValue>(&self, error: T) {
+		self.errors.write().unwrap().add(error);
+	}
+
+	pub fn append_errors(&self, errors: Errors) {
+		self.errors.write().unwrap().append(errors);
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
@@ -53,10 +63,28 @@ impl Context {
 		self.segment_parser.add_brackets("(", ")");
 		self.segment_parser.add_brackets("[", "]");
 		self.segment_parser.add_brackets("{", "}");
+
+		use super::lang::*;
+
+		self.scanner.add_matcher(IdentifierMatcher);
+		self.scanner.add_matcher(LiteralMatcher);
+		self.scanner.add_matcher(IntegerMatcher);
+
+		Op::add_symbols(&mut self.scanner);
+		self.scanner.add_symbol(",", Token::Symbol(","));
+		self.scanner.add_symbol(":", Token::Symbol(":"));
 	}
 
 	pub fn enable_trace_blocks(&mut self) {
 		self.tracer.show_blocks();
+	}
+
+	pub fn new_segment_parser(&self) -> SegmentParser {
+		self.segment_parser.clone()
+	}
+
+	pub fn new_scanner(&self) -> Scanner {
+		self.scanner.clone()
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
@@ -76,10 +104,10 @@ impl Context {
 			if let Some(module) = modules.get(&full_path).cloned() {
 				Ok(module)
 			} else {
-				let module = Module::from_path(&full_path)?;
+				let mut module = Module::from_path(&full_path)?;
 				modules.insert(full_path, module.clone());
 				drop(modules);
-				self.load_module(&module);
+				self.load_module(&mut module);
 				Ok(module)
 			}
 		});
@@ -94,33 +122,13 @@ impl Context {
 	}
 
 	pub fn load_input(&mut self, input: Input) -> Module {
-		let module = Module::from_input(input);
-		self.load_module(&module);
+		let mut module = Module::from_input(input);
+		self.load_module(&mut module);
 		module
 	}
 
-	fn load_module(&mut self, module: &Module) {
-		let mut segment_parser = self.segment_parser.clone();
-		let mut cursor = module.input().cursor();
-
-		let mut segments = Vec::new();
-		while let Some(next) = segment_parser.parse(&mut cursor) {
-			if segment_parser.has_errors() {
-				break;
-			}
-			segments.push(next);
-		}
-
-		assert!(cursor.at_end());
-
-		if segment_parser.has_errors() {
-			let mut errors = self.errors.write().unwrap();
-			errors.append(segment_parser.errors());
-		} else {
-			self.tracer.dump_blocks(&module, &segments);
-		}
-
-		self.add_error("module loading not implemented".at(module.input().span().without_line()));
+	fn load_module(&mut self, module: &mut Module) {
+		module.compile_module(self);
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
@@ -128,6 +136,14 @@ impl Context {
 	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn wait_resolve(&self) {}
+
+	//================================================================================================================//
+	// Trace events
+	//================================================================================================================//
+
+	pub fn trace_segments(&self, module: &Module, nodes: &Vec<Node>) {
+		self.tracer.dump_blocks(module, nodes);
+	}
 }
 
 //====================================================================================================================//
