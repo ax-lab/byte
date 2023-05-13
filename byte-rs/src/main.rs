@@ -1,14 +1,11 @@
 use std::env;
 
-use byte::core::*;
-
 fn main() {
 	let mut done = false;
 	let mut files = Vec::new();
-	let mut list_tokens = false;
+	let mut show_trace = false;
 	let mut eval_list = Vec::new();
 	let mut next_is_eval = false;
-	let mut is_blocks = false;
 	for arg in env::args().skip(1) {
 		if next_is_eval {
 			next_is_eval = false;
@@ -25,16 +22,12 @@ fn main() {
 					print_usage();
 					true
 				}
-				"--tokens" => {
-					list_tokens = true;
+				"--trace" => {
+					show_trace = true;
 					false
 				}
 				"--eval" => {
 					next_is_eval = true;
-					false
-				}
-				"--blocks" => {
-					is_blocks = true;
 					false
 				}
 				_ => {
@@ -48,7 +41,7 @@ fn main() {
 		return;
 	}
 
-	if files.len() != 1 && eval_list.len() == 0 {
+	if files.len() == 0 && eval_list.len() == 0 {
 		print_usage();
 		if files.len() != 0 {
 			eprintln!("[error] specify a single file\n");
@@ -58,26 +51,26 @@ fn main() {
 		std::process::exit(1);
 	}
 
-	for _it in eval_list.into_iter() {
-		todo!()
+	let mut context = byte::new();
+	if show_trace {
+		context.enable_compiler_trace();
 	}
 
 	for file in files {
-		match Input::open(&file) {
-			Ok(_source) => {
-				if is_blocks {
-					todo!()
-				}
+		context.load_file(file);
+	}
 
-				if list_tokens {
-					todo!();
-				}
-			}
-			Err(msg) => {
-				eprintln!("\n[error] open file: {msg}\n");
-				std::process::exit(1);
-			}
-		}
+	context.wait_resolve();
+
+	let errors = context.errors();
+	if !errors.empty() {
+		eprintln!("");
+		eprintln!("{errors}");
+		std::process::exit(1);
+	}
+
+	for _it in eval_list.into_iter() {
+		todo!()
 	}
 }
 

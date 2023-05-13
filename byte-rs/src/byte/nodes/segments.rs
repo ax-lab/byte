@@ -144,17 +144,13 @@ pub struct SegmentParser {
 
 impl SegmentParser {
 	pub fn new() -> Self {
-		let mut result = Self {
+		Self {
 			comment: '#',
 			multi_comment_s: '(',
 			multi_comment_e: ')',
 			brackets: Default::default(),
 			errors: Errors::new(),
-		};
-		result.add_brackets("(", ")");
-		result.add_brackets("[", "]");
-		result.add_brackets("{", "}");
-		result
+		}
 	}
 
 	pub fn add_brackets(&mut self, sta: &'static str, end: &'static str) {
@@ -676,6 +672,10 @@ mod tests {
 		let mut nodes = Vec::new();
 
 		let mut parser = SegmentParser::new();
+		parser.add_brackets("(", ")");
+		parser.add_brackets("[", "]");
+		parser.add_brackets("{", "}");
+
 		let mut cursor = text.cursor();
 		while let Some(node) = parser.parse(&mut cursor) {
 			nodes.push(node);
