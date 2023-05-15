@@ -1,44 +1,13 @@
 use super::*;
 
-pub trait TokenStream {
-	fn lookahead(&self, n: usize) -> Option<Node>;
-
-	fn read(&mut self, errors: &mut Errors) -> Option<Node>;
-
-	fn next(&self) -> Option<Node> {
-		self.lookahead(0)
-	}
-}
-
 #[derive(Clone)]
-pub struct ListTokenStream {
-	list: Arc<VecDeque<Node>>,
-	next: usize,
-}
-
-impl TokenStream for ListTokenStream {
-	fn lookahead(&self, n: usize) -> Option<Node> {
-		self.list.get(self.next + n).cloned()
-	}
-
-	fn read(&mut self, _errors: &mut Errors) -> Option<Node> {
-		if let Some(next) = self.list.get(self.next) {
-			self.next += 1;
-			Some(next.clone())
-		} else {
-			None
-		}
-	}
-}
-
-#[derive(Clone)]
-pub struct InputTokenStream {
+pub struct TokenStream {
 	cursor: Cursor,
 	scanner: Scanner,
 	next: Arc<RwLock<Arc<VecDeque<(Node, Cursor, Errors)>>>>,
 }
 
-impl InputTokenStream {
+impl TokenStream {
 	pub fn new(input: Cursor, scanner: Scanner) -> Self {
 		Self {
 			cursor: input,
@@ -50,6 +19,19 @@ impl InputTokenStream {
 	pub fn config<F: FnOnce(&mut Scanner)>(&mut self, config: F) {
 		config(&mut self.scanner);
 		self.flush_next();
+	}
+
+	pub fn cursor(&mut self) -> &Cursor {
+		&self.cursor
+	}
+
+	pub fn cursor_mut(&mut self) -> &mut Cursor {
+		self.flush_next();
+		&mut self.cursor
+	}
+
+	pub fn next(&self) -> Option<Node> {
+		self.lookahead(0)
 	}
 
 	pub fn lookahead(&self, n: usize) -> Option<Node> {
@@ -106,15 +88,47 @@ impl InputTokenStream {
 		let next = Arc::make_mut(&mut next);
 		next.clear();
 	}
-}
 
-impl TokenStream for InputTokenStream {
-	fn lookahead(&self, n: usize) -> Option<Node> {
-		Self::lookahead(self, n)
+	//----------------------------------------------------------------------------------------------------------------//
+	// Parse helpers
+	//----------------------------------------------------------------------------------------------------------------//
+
+	pub fn read_if<P: FnOnce(&Node) -> bool>(
+		&mut self,
+		errors: &mut Errors,
+		predicate: P,
+	) -> Option<Node> {
+		if self.next().as_ref().map(predicate) == Some(true) {
+			self.read(errors)
+		} else {
+			None
+		}
 	}
 
-	fn read(&mut self, errors: &mut Errors) -> Option<Node> {
-		Self::read(self, errors)
+	pub fn read_map<T, P: FnOnce(Node) -> Option<T>>(
+		&mut self,
+		errors: &mut Errors,
+		predicate: P,
+	) -> Option<T> {
+		if let Some(result) = self.next().and_then(predicate) {
+			self.read(errors);
+			Some(result)
+		} else {
+			None
+		}
+	}
+
+	pub fn read_symbol(&mut self, errors: &mut Errors, symbol: &str) -> bool {
+		self.read_if(errors, |x| x.symbol() == Some(symbol))
+			.is_some()
+	}
+
+	pub fn read_map_symbol<T, P: FnOnce(&str) -> Option<T>>(
+		&mut self,
+		errors: &mut Errors,
+		predicate: P,
+	) -> Option<T> {
+		self.read_map(errors, |x| x.symbol().and_then(predicate))
 	}
 }
 
@@ -144,7 +158,7 @@ mod tests {
 		assert_eq!(nodes[6].get_integer(), Some(Integer(4)));
 	}
 
-	fn open(input: &'static str) -> InputTokenStream {
+	fn open(input: &'static str) -> TokenStream {
 		let input = Input::from(input);
 		let mut scanner = Scanner::new();
 		scanner.add_matcher(IntegerMatcher);
@@ -152,6 +166,6 @@ mod tests {
 		scanner.add_symbol("-", Token::Symbol("-"));
 		scanner.add_symbol("*", Token::Symbol("*"));
 		scanner.add_symbol("/", Token::Symbol("/"));
-		InputTokenStream::new(input.cursor(), scanner)
+		TokenStream::new(input.cursor(), scanner)
 	}
 }

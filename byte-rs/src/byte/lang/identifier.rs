@@ -62,3 +62,9 @@ impl Node {
 		self.get::<Identifier>()
 	}
 }
+
+impl TokenStream {
+	pub fn read_identifier(&mut self, errors: &mut Errors) -> Option<Identifier> {
+		self.read_map(errors, |node| node.get_identifier().cloned())
+	}
+}

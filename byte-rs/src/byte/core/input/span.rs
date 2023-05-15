@@ -133,6 +133,10 @@ impl Span {
 			},
 		}
 	}
+
+	pub fn as_str(&self) -> &str {
+		self.text()
+	}
 }
 
 //====================================================================================================================//
@@ -214,10 +218,20 @@ impl Value {
 
 pub trait ValueAtSpan {
 	fn at(self, span: Span) -> Value;
+
+	fn maybe_at(self, span: Option<Span>) -> Value;
 }
 
 impl<T: IsValue> ValueAtSpan for T {
 	fn at(self, span: Span) -> Value {
 		Value::from(self).with_span(span)
+	}
+
+	fn maybe_at(self, span: Option<Span>) -> Value {
+		if let Some(span) = span {
+			self.at(span)
+		} else {
+			Value::from(self)
+		}
 	}
 }
