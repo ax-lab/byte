@@ -1,7 +1,5 @@
 use super::*;
 
-pub trait IsNode: IsValue + WithEquality {}
-
 #[derive(Clone)]
 pub struct Node {
 	data: Value,
@@ -45,6 +43,15 @@ impl Node {
 		self.span()
 			.map(|x| x.location().indent())
 			.unwrap_or_default()
+	}
+
+	pub fn get_field<T: IsValue>(&self) -> Option<&T> {
+		self.data.get_field()
+	}
+
+	pub fn with_field<T: IsValue>(&self, value: T) -> Node {
+		let data = self.data.with_field(value);
+		Node { data }
 	}
 }
 
