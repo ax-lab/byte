@@ -135,7 +135,6 @@ impl TokenStream {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::lang::*;
 
 	#[test]
 	fn basic_lexing() {

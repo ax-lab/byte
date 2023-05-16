@@ -7,6 +7,7 @@ pub enum Token {
 	Invalid,
 	Break,
 	Symbol(&'static str),
+	Word(Span),
 }
 
 has_traits!(Token: IsNode, WithEquality);
@@ -25,7 +26,8 @@ impl HasRepr for Token {
 				Token::Break => {
 					write!(output, "line break")?;
 				}
-				Token::Symbol(sym) => write!(output, "`{sym}`")?,
+				Token::Symbol(str) => write!(output, "`{str}`")?,
+				Token::Word(str) => write!(output, "`{str}`")?,
 			}
 		}
 		Ok(())
@@ -44,11 +46,10 @@ impl Node {
 	pub fn symbol(&self) -> Option<&str> {
 		if let Some(token) = self.get_token() {
 			match token {
-				Token::Symbol(symbol) => Some(*symbol),
+				Token::Symbol(str) => Some(*str),
+				Token::Word(str) => Some(str.as_str()),
 				_ => None,
 			}
-		} else if let Some(id) = self.get_identifier() {
-			Some(id.value())
 		} else {
 			None
 		}

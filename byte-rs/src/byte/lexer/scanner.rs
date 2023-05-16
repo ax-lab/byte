@@ -44,7 +44,7 @@ impl Scanner {
 		let node = self.read_next(cursor, errors);
 		node.map(|node| {
 			if node.span().is_none() {
-				node.at(Some(Span::from(&start, cursor)))
+				node.with_span(Span::from(&start, cursor))
 			} else {
 				node
 			}
