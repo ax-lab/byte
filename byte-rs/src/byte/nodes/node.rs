@@ -35,7 +35,7 @@ impl Node {
 		self.data.get::<T>().is_some()
 	}
 
-	pub fn span(&self) -> Option<Span> {
+	pub fn span(&self) -> Option<&Span> {
 		self.data.get_span()
 	}
 

@@ -207,8 +207,8 @@ impl Eq for Span {}
 //====================================================================================================================//
 
 impl Value {
-	pub fn get_span(&self) -> Option<Span> {
-		self.get_field::<Span>().or_else(|| self.get()).cloned()
+	pub fn get_span(&self) -> Option<&Span> {
+		self.get_field::<Span>().or_else(|| self.get())
 	}
 
 	pub fn with_span(&self, span: Span) -> Value {

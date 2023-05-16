@@ -1,136 +1,150 @@
+use std::{ops::*, sync::Arc};
+
 use super::*;
 
 #[derive(Clone)]
 pub struct TokenStream {
-	cursor: Cursor,
-	scanner: Scanner,
-	next: Arc<RwLock<Arc<VecDeque<(Node, Cursor, Errors)>>>>,
+	stream: Arc<Vec<Node>>,
+	next: usize,
+	end: usize,
 }
 
 impl TokenStream {
-	pub fn new(input: Cursor, scanner: Scanner) -> Self {
+	pub(crate) fn new(list: Arc<Vec<Node>>, start: usize, end: usize) -> Self {
 		Self {
-			cursor: input,
-			scanner,
-			next: Default::default(),
+			stream: list,
+			next: start,
+			end,
 		}
 	}
 
-	pub fn config<F: FnOnce(&mut Scanner)>(&mut self, config: F) {
-		config(&mut self.scanner);
-		self.flush_next();
+	pub fn len(&self) -> usize {
+		self.end - self.next
 	}
 
-	pub fn cursor(&mut self) -> &Cursor {
-		&self.cursor
-	}
-
-	pub fn cursor_mut(&mut self) -> &mut Cursor {
-		self.flush_next();
-		&mut self.cursor
-	}
-
-	pub fn next(&self) -> Option<Node> {
+	pub fn peek(&self) -> Option<&Node> {
 		self.lookahead(0)
 	}
 
-	pub fn lookahead(&self, n: usize) -> Option<Node> {
-		{
-			let next = self.next.read().unwrap();
-			if let Some((node, ..)) = next.get(n) {
-				return Some(node.clone());
-			} else if let Some((_, cursor, ..)) = next.back() {
-				if cursor.at_end() {
-					return None;
-				}
-			}
-		}
-
-		let mut next = self.next.write().unwrap();
-		let next = Arc::make_mut(&mut next);
-		let (mut cursor, mut errors) = next
-			.back()
-			.map(|(_, cursor, errors)| (cursor.clone(), errors.clone()))
-			.unwrap_or_else(|| (self.cursor.clone(), Errors::default()));
-		while n >= next.len() {
-			let node = self.scanner.read(&mut cursor, &mut errors);
-			if let Some(node) = node {
-				next.push_back((node, cursor.clone(), errors.clone()));
-			} else {
-				break;
-			}
-		}
-		next.back().map(|x| x.0.clone())
+	pub fn lookahead(&self, n: usize) -> Option<&Node> {
+		self.list().get(n)
 	}
 
-	pub fn read(&mut self, errors: &mut Errors) -> Option<Node> {
-		let mut next = self.next.write().unwrap();
-		let next = Arc::make_mut(&mut next);
-		if let Some((node, cursor, node_errors)) = next.pop_front() {
-			if node_errors.len() > 0 {
-				errors.append(node_errors);
-			}
-			self.cursor = cursor;
-			return Some(node);
-		} else {
-			self.scanner.read(&mut self.cursor, errors)
-		}
+	pub fn read(&mut self) -> Option<Node> {
+		self.peek().cloned().map(|x| {
+			self.next += 1;
+			x
+		})
 	}
 
-	pub fn skip(&mut self, count: usize, errors: &mut Errors) {
-		for _ in 0..count {
-			self.read(errors);
-		}
+	pub fn skip(&mut self, count: usize) {
+		let next = self.next + count;
+		self.next = std::cmp::min(next, self.end)
 	}
 
-	fn flush_next(&mut self) {
-		let mut next = self.next.write().unwrap();
-		let next = Arc::make_mut(&mut next);
-		next.clear();
+	fn list(&self) -> &[Node] {
+		&self.stream[self.next..self.end]
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
 	// Parse helpers
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub fn read_if<P: FnOnce(&Node) -> bool>(
-		&mut self,
-		errors: &mut Errors,
-		predicate: P,
-	) -> Option<Node> {
-		if self.next().as_ref().map(predicate) == Some(true) {
-			self.read(errors)
+	pub fn read_if<P: FnOnce(&Node) -> bool>(&mut self, predicate: P) -> Option<Node> {
+		if self.peek().map(predicate) == Some(true) {
+			self.read()
 		} else {
 			None
 		}
 	}
 
-	pub fn read_map<T, P: FnOnce(Node) -> Option<T>>(
-		&mut self,
-		errors: &mut Errors,
-		predicate: P,
-	) -> Option<T> {
-		if let Some(result) = self.next().and_then(predicate) {
-			self.read(errors);
+	pub fn read_map<T, P: FnOnce(Node) -> Option<T>>(&mut self, predicate: P) -> Option<T> {
+		if let Some(result) = self.peek().cloned().and_then(predicate) {
+			self.skip(1);
 			Some(result)
 		} else {
 			None
 		}
 	}
 
-	pub fn read_symbol(&mut self, errors: &mut Errors, symbol: &str) -> bool {
-		self.read_if(errors, |x| x.symbol() == Some(symbol))
-			.is_some()
+	pub fn read_symbol(&mut self, symbol: &str) -> bool {
+		self.read_if(|x| x.symbol() == Some(symbol)).is_some()
 	}
 
-	pub fn read_map_symbol<T, P: FnOnce(&str) -> Option<T>>(
-		&mut self,
-		errors: &mut Errors,
-		predicate: P,
-	) -> Option<T> {
-		self.read_map(errors, |x| x.symbol().and_then(predicate))
+	pub fn read_map_symbol<T, P: FnOnce(&str) -> Option<T>>(&mut self, predicate: P) -> Option<T> {
+		self.read_map(|x| x.symbol().and_then(predicate))
 	}
 }
+
+//====================================================================================================================//
+// Traits
+//====================================================================================================================//
+
+impl Iterator for TokenStream {
+	type Item = Node;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		self.read()
+	}
+}
+
+impl Index<usize> for TokenStream {
+	type Output = Node;
+
+	fn index(&self, index: usize) -> &Self::Output {
+		&self.list()[index]
+	}
+}
+
+impl Index<Range<usize>> for TokenStream {
+	type Output = [Node];
+
+	fn index(&self, index: Range<usize>) -> &Self::Output {
+		&self.list()[index]
+	}
+}
+
+impl Index<RangeInclusive<usize>> for TokenStream {
+	type Output = [Node];
+
+	fn index(&self, index: RangeInclusive<usize>) -> &Self::Output {
+		&self.list()[index]
+	}
+}
+
+impl Index<RangeFrom<usize>> for TokenStream {
+	type Output = [Node];
+
+	fn index(&self, index: RangeFrom<usize>) -> &Self::Output {
+		&self.list()[index]
+	}
+}
+
+impl Index<RangeTo<usize>> for TokenStream {
+	type Output = [Node];
+
+	fn index(&self, index: RangeTo<usize>) -> &Self::Output {
+		&self.list()[index]
+	}
+}
+impl Index<RangeToInclusive<usize>> for TokenStream {
+	type Output = [Node];
+
+	fn index(&self, index: RangeToInclusive<usize>) -> &Self::Output {
+		&self.list()[index]
+	}
+}
+impl Index<RangeFull> for TokenStream {
+	type Output = [Node];
+
+	fn index(&self, index: RangeFull) -> &Self::Output {
+		&self.list()[index]
+	}
+}
+
+//====================================================================================================================//
+// Tests
+//====================================================================================================================//
 
 #[cfg(test)]
 mod tests {
@@ -138,15 +152,8 @@ mod tests {
 
 	#[test]
 	fn basic_lexing() {
-		let mut input = open("1 + 2 * 3\n4");
-		let mut nodes = Vec::new();
-		let mut errors = Errors::new();
-		while let Some(node) = input.read(&mut errors) {
-			nodes.push(node);
-		}
-
-		assert!(errors.empty());
-
+		let input = open("1 + 2 * 3\n4");
+		let nodes = input.collect::<Vec<_>>();
 		assert!(nodes.len() == 7);
 		assert_eq!(nodes[0].get_integer(), Some(Integer(1)));
 		assert_eq!(nodes[1].get_token(), Some(&Token::Symbol("+")));
@@ -165,6 +172,12 @@ mod tests {
 		scanner.add_symbol("-", Token::Symbol("-"));
 		scanner.add_symbol("*", Token::Symbol("*"));
 		scanner.add_symbol("/", Token::Symbol("/"));
-		TokenStream::new(input.cursor(), scanner)
+
+		let list = TokenList::parse(input, &mut scanner);
+		if list.has_errors() {
+			println!("{}", list.errors());
+			panic!("Token parsing generated errors");
+		}
+		list.into_iter()
 	}
 }
