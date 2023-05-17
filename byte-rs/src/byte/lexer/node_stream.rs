@@ -3,13 +3,13 @@ use std::{ops::*, sync::Arc};
 use super::*;
 
 #[derive(Clone)]
-pub struct TokenStream {
+pub struct NodeStream {
 	stream: Arc<Vec<Node>>,
 	next: usize,
 	end: usize,
 }
 
-impl TokenStream {
+impl NodeStream {
 	pub(crate) fn new(list: Arc<Vec<Node>>, start: usize, end: usize) -> Self {
 		Self {
 			stream: list,
@@ -80,7 +80,7 @@ impl TokenStream {
 // Traits
 //====================================================================================================================//
 
-impl Iterator for TokenStream {
+impl Iterator for NodeStream {
 	type Item = Node;
 
 	fn next(&mut self) -> Option<Self::Item> {
@@ -88,7 +88,7 @@ impl Iterator for TokenStream {
 	}
 }
 
-impl Index<usize> for TokenStream {
+impl Index<usize> for NodeStream {
 	type Output = Node;
 
 	fn index(&self, index: usize) -> &Self::Output {
@@ -96,7 +96,7 @@ impl Index<usize> for TokenStream {
 	}
 }
 
-impl Index<Range<usize>> for TokenStream {
+impl Index<Range<usize>> for NodeStream {
 	type Output = [Node];
 
 	fn index(&self, index: Range<usize>) -> &Self::Output {
@@ -104,7 +104,7 @@ impl Index<Range<usize>> for TokenStream {
 	}
 }
 
-impl Index<RangeInclusive<usize>> for TokenStream {
+impl Index<RangeInclusive<usize>> for NodeStream {
 	type Output = [Node];
 
 	fn index(&self, index: RangeInclusive<usize>) -> &Self::Output {
@@ -112,7 +112,7 @@ impl Index<RangeInclusive<usize>> for TokenStream {
 	}
 }
 
-impl Index<RangeFrom<usize>> for TokenStream {
+impl Index<RangeFrom<usize>> for NodeStream {
 	type Output = [Node];
 
 	fn index(&self, index: RangeFrom<usize>) -> &Self::Output {
@@ -120,21 +120,21 @@ impl Index<RangeFrom<usize>> for TokenStream {
 	}
 }
 
-impl Index<RangeTo<usize>> for TokenStream {
+impl Index<RangeTo<usize>> for NodeStream {
 	type Output = [Node];
 
 	fn index(&self, index: RangeTo<usize>) -> &Self::Output {
 		&self.list()[index]
 	}
 }
-impl Index<RangeToInclusive<usize>> for TokenStream {
+impl Index<RangeToInclusive<usize>> for NodeStream {
 	type Output = [Node];
 
 	fn index(&self, index: RangeToInclusive<usize>) -> &Self::Output {
 		&self.list()[index]
 	}
 }
-impl Index<RangeFull> for TokenStream {
+impl Index<RangeFull> for NodeStream {
 	type Output = [Node];
 
 	fn index(&self, index: RangeFull) -> &Self::Output {
@@ -164,7 +164,7 @@ mod tests {
 		assert_eq!(nodes[6].get_integer(), Some(Integer(4)));
 	}
 
-	fn open(input: &'static str) -> TokenStream {
+	fn open(input: &'static str) -> NodeStream {
 		let input = Input::from(input);
 		let mut scanner = Scanner::new();
 		scanner.add_matcher(IntegerMatcher);
@@ -173,9 +173,10 @@ mod tests {
 		scanner.add_symbol("*", Token::Symbol("*"));
 		scanner.add_symbol("/", Token::Symbol("/"));
 
-		let list = TokenList::parse(input, &mut scanner);
-		if list.has_errors() {
-			println!("{}", list.errors());
+		let mut errors = Errors::new();
+		let list = NodeList::tokenize(input, &mut scanner, &mut errors);
+		if !errors.empty() {
+			println!("{}", errors);
 			panic!("Token parsing generated errors");
 		}
 		list.into_iter()

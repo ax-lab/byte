@@ -3,19 +3,17 @@ use std::{ops::*, sync::Arc};
 use super::*;
 
 #[derive(Clone)]
-pub struct TokenList {
-	errors: Errors,
+pub struct NodeList {
 	list: Arc<Vec<Node>>,
 }
 
-impl TokenList {
-	/// Parses the given input using the lexer.
-	pub fn parse(input: Input, scanner: &mut Scanner) -> Self {
+impl NodeList {
+	/// Parses the given input using the given [`Scanner`].
+	pub fn tokenize(input: Input, scanner: &mut Scanner, errors: &mut Errors) -> Self {
 		let mut cursor = input.cursor();
-		let mut errors = Errors::new();
 
 		let mut list = Vec::new();
-		while let Some(node) = scanner.read(&mut cursor, &mut errors) {
+		while let Some(node) = scanner.read(&mut cursor, errors) {
 			// TODO: parse lexer directives here
 			list.push(node);
 			if errors.len() > 0 {
@@ -24,15 +22,7 @@ impl TokenList {
 		}
 
 		let list = list.into();
-		Self { errors, list }
-	}
-
-	pub fn has_errors(&self) -> bool {
-		self.errors.len() > 0
-	}
-
-	pub fn errors(&self) -> &Errors {
-		&self.errors
+		Self { list }
 	}
 
 	pub fn len(&self) -> usize {
@@ -43,9 +33,9 @@ impl TokenList {
 		self.list.get(index)
 	}
 
-	pub fn range<T: RangeBounds<usize>>(&self, range: T) -> TokenStream {
+	pub fn range<T: RangeBounds<usize>>(&self, range: T) -> NodeStream {
 		let range = Str::compute_range(range, self.len());
-		TokenStream::new(self.list.clone(), range.start, range.end)
+		NodeStream::new(self.list.clone(), range.start, range.end)
 	}
 
 	pub fn iter(&self) -> impl Iterator<Item = &Node> {
@@ -57,17 +47,17 @@ impl TokenList {
 // Traits
 //====================================================================================================================//
 
-impl IntoIterator for TokenList {
+impl IntoIterator for NodeList {
 	type Item = Node;
 
-	type IntoIter = TokenStream;
+	type IntoIter = NodeStream;
 
 	fn into_iter(self) -> Self::IntoIter {
 		self.range(..)
 	}
 }
 
-impl Index<usize> for TokenList {
+impl Index<usize> for NodeList {
 	type Output = Node;
 
 	fn index(&self, index: usize) -> &Self::Output {
@@ -75,7 +65,7 @@ impl Index<usize> for TokenList {
 	}
 }
 
-impl Index<Range<usize>> for TokenList {
+impl Index<Range<usize>> for NodeList {
 	type Output = [Node];
 
 	fn index(&self, index: Range<usize>) -> &Self::Output {
@@ -83,7 +73,7 @@ impl Index<Range<usize>> for TokenList {
 	}
 }
 
-impl Index<RangeInclusive<usize>> for TokenList {
+impl Index<RangeInclusive<usize>> for NodeList {
 	type Output = [Node];
 
 	fn index(&self, index: RangeInclusive<usize>) -> &Self::Output {
@@ -91,7 +81,7 @@ impl Index<RangeInclusive<usize>> for TokenList {
 	}
 }
 
-impl Index<RangeFrom<usize>> for TokenList {
+impl Index<RangeFrom<usize>> for NodeList {
 	type Output = [Node];
 
 	fn index(&self, index: RangeFrom<usize>) -> &Self::Output {
@@ -99,7 +89,7 @@ impl Index<RangeFrom<usize>> for TokenList {
 	}
 }
 
-impl Index<RangeTo<usize>> for TokenList {
+impl Index<RangeTo<usize>> for NodeList {
 	type Output = [Node];
 
 	fn index(&self, index: RangeTo<usize>) -> &Self::Output {
@@ -107,7 +97,7 @@ impl Index<RangeTo<usize>> for TokenList {
 	}
 }
 
-impl Index<RangeToInclusive<usize>> for TokenList {
+impl Index<RangeToInclusive<usize>> for NodeList {
 	type Output = [Node];
 
 	fn index(&self, index: RangeToInclusive<usize>) -> &Self::Output {
@@ -115,7 +105,7 @@ impl Index<RangeToInclusive<usize>> for TokenList {
 	}
 }
 
-impl Index<RangeFull> for TokenList {
+impl Index<RangeFull> for NodeList {
 	type Output = [Node];
 
 	fn index(&self, index: RangeFull) -> &Self::Output {
