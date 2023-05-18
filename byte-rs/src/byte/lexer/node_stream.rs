@@ -1,25 +1,21 @@
-use std::{ops::*, sync::Arc};
+use std::ops::*;
 
 use super::*;
 
+/// Provides a stream of [`Node`] with helper methods for parsing.
 #[derive(Clone)]
 pub struct NodeStream {
-	stream: Arc<Vec<Node>>,
-	next: usize,
-	end: usize,
+	range: NodeRange,
+	index: usize,
 }
 
 impl NodeStream {
-	pub(crate) fn new(list: Arc<Vec<Node>>, start: usize, end: usize) -> Self {
-		Self {
-			stream: list,
-			next: start,
-			end,
-		}
+	pub fn new(range: NodeRange) -> Self {
+		Self { range, index: 0 }
 	}
 
 	pub fn len(&self) -> usize {
-		self.end - self.next
+		self.range.len() - self.index
 	}
 
 	pub fn peek(&self) -> Option<&Node> {
@@ -27,23 +23,33 @@ impl NodeStream {
 	}
 
 	pub fn lookahead(&self, n: usize) -> Option<&Node> {
-		self.list().get(n)
+		self.range.get(self.index + n)
 	}
 
 	pub fn read(&mut self) -> Option<Node> {
 		self.peek().cloned().map(|x| {
-			self.next += 1;
+			self.index += 1;
 			x
 		})
 	}
 
 	pub fn skip(&mut self, count: usize) {
-		let next = self.next + count;
-		self.next = std::cmp::min(next, self.end)
+		let index = self.index + count;
+		self.index = std::cmp::min(index, self.range.len())
 	}
 
-	fn list(&self) -> &[Node] {
-		&self.stream[self.next..self.end]
+	pub fn range(&self) -> NodeRange {
+		self.range.sub_range(self.index..)
+	}
+
+	pub fn range_to(&self, other: &NodeStream) -> NodeRange {
+		assert!(std::ptr::eq(self.range.as_slice(), other.range.as_slice()));
+		assert!(self.index <= other.index);
+		self.range.sub_range(self.index..other.index)
+	}
+
+	pub fn range_from(&self, other: &NodeStream) -> NodeRange {
+		other.range_to(self)
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
@@ -92,53 +98,7 @@ impl Index<usize> for NodeStream {
 	type Output = Node;
 
 	fn index(&self, index: usize) -> &Self::Output {
-		&self.list()[index]
-	}
-}
-
-impl Index<Range<usize>> for NodeStream {
-	type Output = [Node];
-
-	fn index(&self, index: Range<usize>) -> &Self::Output {
-		&self.list()[index]
-	}
-}
-
-impl Index<RangeInclusive<usize>> for NodeStream {
-	type Output = [Node];
-
-	fn index(&self, index: RangeInclusive<usize>) -> &Self::Output {
-		&self.list()[index]
-	}
-}
-
-impl Index<RangeFrom<usize>> for NodeStream {
-	type Output = [Node];
-
-	fn index(&self, index: RangeFrom<usize>) -> &Self::Output {
-		&self.list()[index]
-	}
-}
-
-impl Index<RangeTo<usize>> for NodeStream {
-	type Output = [Node];
-
-	fn index(&self, index: RangeTo<usize>) -> &Self::Output {
-		&self.list()[index]
-	}
-}
-impl Index<RangeToInclusive<usize>> for NodeStream {
-	type Output = [Node];
-
-	fn index(&self, index: RangeToInclusive<usize>) -> &Self::Output {
-		&self.list()[index]
-	}
-}
-impl Index<RangeFull> for NodeStream {
-	type Output = [Node];
-
-	fn index(&self, index: RangeFull) -> &Self::Output {
-		&self.list()[index]
+		self.lookahead(index).expect("index out of bounds")
 	}
 }
 

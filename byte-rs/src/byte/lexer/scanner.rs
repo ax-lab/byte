@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::symbols::*;
@@ -18,15 +19,23 @@ pub trait Matcher: Send + Sync {
 pub struct Scanner {
 	matchers: Arc<Vec<Arc<dyn Matcher>>>,
 	symbols: Arc<SymbolTable<Value>>,
+	open_brackets: Arc<HashMap<&'static str, &'static str>>,
+	close_brackets: Arc<HashMap<&'static str, &'static str>>,
 }
 
 impl Scanner {
 	pub fn new() -> Scanner {
 		Scanner {
-			matchers: Arc::new(Vec::new()),
-			symbols: Arc::new(SymbolTable::default()),
+			matchers: Default::default(),
+			symbols: Default::default(),
+			open_brackets: Default::default(),
+			close_brackets: Default::default(),
 		}
 	}
+
+	//----------------------------------------------------------------------------------------------------------------//
+	// Configuration
+	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn add_matcher<T: Matcher + 'static>(&mut self, matcher: T) {
 		let matchers = Arc::make_mut(&mut self.matchers);
@@ -37,6 +46,38 @@ impl Scanner {
 		let symbols = Arc::make_mut(&mut self.symbols);
 		symbols.add_symbol(symbol, Value::from(value));
 	}
+
+	pub fn add_bracket_pair(&mut self, open: &'static str, close: &'static str) {
+		let open_map = Arc::make_mut(&mut self.open_brackets);
+		let close_map = Arc::make_mut(&mut self.close_brackets);
+		assert!(!open_map.contains_key(open));
+		assert!(!open_map.contains_key(close));
+		assert!(!close_map.contains_key(open));
+		assert!(!close_map.contains_key(close));
+
+		open_map.insert(open, close);
+		close_map.insert(close, open);
+	}
+
+	pub fn is_opening_bracket(&self, symbol: &str) -> bool {
+		self.closing_bracket_for(symbol).is_some()
+	}
+
+	pub fn is_closing_bracket(&self, symbol: &str) -> bool {
+		self.opening_bracket_for(symbol).is_some()
+	}
+
+	pub fn closing_bracket_for(&self, symbol: &str) -> Option<&'static str> {
+		self.open_brackets.get(symbol).cloned()
+	}
+
+	pub fn opening_bracket_for(&self, symbol: &str) -> Option<&'static str> {
+		self.close_brackets.get(symbol).cloned()
+	}
+
+	//----------------------------------------------------------------------------------------------------------------//
+	// Parsing
+	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn read(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node> {
 		self.skip(cursor);
