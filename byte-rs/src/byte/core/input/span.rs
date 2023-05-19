@@ -137,6 +137,26 @@ impl Span {
 	pub fn as_str(&self) -> &str {
 		self.text()
 	}
+
+	/// Returns a new span consisting only of the start location.
+	pub fn start(&self) -> Span {
+		Self {
+			src: self.src.clone(),
+			pos: self.pos,
+			end: self.pos,
+			location: self.location,
+		}
+	}
+
+	/// Returns a new span consisting only of the end location.
+	pub fn end(&self) -> Span {
+		Self {
+			src: self.src.clone(),
+			pos: self.end,
+			end: self.end,
+			location: self.end_location(),
+		}
+	}
 }
 
 //====================================================================================================================//
@@ -147,26 +167,24 @@ impl HasRepr for Span {
 	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
 		let debug = output.is_debug();
 		if debug {
-			write!(output, "<span ")?;
+			write!(output, "<span")?;
 		}
 
-		if output.format() > ReprFormat::Compact {
-			if let Some(name) = self.src.name() {
-				if name != "" {
-					write!(output, "{name}:")?;
-				}
-			}
-		}
+		let name = if output.format() > ReprFormat::Compact {
+			self.src.name()
+		} else {
+			None
+		};
 
 		let pos = self.location();
 		if output.is_display() {
-			write!(output, "{pos}")?;
+			pos.output_location(output, name, "")?;
 			if output.is_full() && self.len() > 0 && pos.has_line() {
 				let end = self.end_location();
 				write!(output, "…{end}")?;
 			}
 		} else {
-			write!(output, "{pos:?}")?;
+			pos.output_location(output, name, " ")?;
 			if self.len() > 0 {
 				if pos.has_line() {
 					let end = self.end_location();
@@ -175,6 +193,8 @@ impl HasRepr for Span {
 					write!(output, " len={}", self.len())?;
 				}
 			}
+		}
+		if debug {
 			write!(output, ">")?;
 		}
 
@@ -220,6 +240,8 @@ pub trait ValueAtSpan {
 	fn at(self, span: Span) -> Value;
 
 	fn maybe_at(self, span: Option<Span>) -> Value;
+
+	fn at_node(self, node: &crate::nodes::Node) -> Value;
 }
 
 impl<T: IsValue> ValueAtSpan for T {
@@ -233,5 +255,9 @@ impl<T: IsValue> ValueAtSpan for T {
 		} else {
 			Value::from(self)
 		}
+	}
+
+	fn at_node(self, node: &crate::nodes::Node) -> Value {
+		self.maybe_at(node.span().cloned())
 	}
 }

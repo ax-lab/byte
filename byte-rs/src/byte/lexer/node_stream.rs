@@ -33,10 +33,27 @@ impl NodeStream {
 		})
 	}
 
+	pub fn undo(&mut self) {
+		assert!(self.index > 0);
+		self.index -= 1;
+	}
+
 	pub fn skip(&mut self, count: usize) {
 		let index = self.index + count;
 		self.index = std::cmp::min(index, self.range.len())
 	}
+
+	pub fn span(&self) -> Option<Span> {
+		self.range.span_at(self.index)
+	}
+
+	pub fn pos(&self) -> Option<Span> {
+		self.span().map(|x| x.start())
+	}
+
+	//----------------------------------------------------------------------------------------------------------------//
+	// Ranges
+	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn range(&self) -> NodeRange {
 		self.range.sub_range(self.index..)
@@ -79,6 +96,22 @@ impl NodeStream {
 
 	pub fn read_map_symbol<T, P: FnOnce(&str) -> Option<T>>(&mut self, predicate: P) -> Option<T> {
 		self.read_map(|x| x.symbol().and_then(predicate))
+	}
+
+	pub fn skip_empty(&mut self) {
+		loop {
+			if !(self.skip_comments() || self.read_if(|x| x.is_break()).is_some()) {
+				break;
+			}
+		}
+	}
+
+	pub fn skip_comments(&mut self) -> bool {
+		let mut skipped = false;
+		while let Some(..) = self.read_if(|x| x.is::<Comment>()) {
+			skipped = true;
+		}
+		skipped
 	}
 }
 

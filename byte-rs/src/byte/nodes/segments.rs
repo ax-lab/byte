@@ -1,52 +1,90 @@
-use std::collections::VecDeque;
-
 use super::*;
 
-use crate::lexer::SymbolTable;
+pub fn parse_segments(
+	scanner: &Scanner,
+	stream: &mut NodeStream,
+	errors: &mut Errors,
+) -> Vec<Node> {
+	let block = Block::parse(scanner, stream, errors, 0);
+	let result = if let Some(block) = block {
+		block.items.into_iter().map(Node::from).collect()
+	} else {
+		Vec::new()
+	};
+	if errors.empty() {
+		if let Some(next) = stream.peek() {
+			errors.add("unparsed suffix at end of input".at_node(next));
+		}
+	}
+	result
+}
 
 //====================================================================================================================//
-// Line
+// Block
 //====================================================================================================================//
 
 #[derive(Eq, PartialEq)]
-pub struct Line {
-	indent: usize,
+pub struct Block {
 	items: Vec<Segment>,
 }
 
-has_traits!(Line: IsNode);
+has_traits!(Block: IsNode);
 
-impl IsNode for Line {}
-
-impl Line {
-	pub fn new(indent: usize, items: Vec<Segment>) -> Line {
-		Line { indent, items }
+impl Block {
+	pub fn new<T: IntoIterator<Item = Segment>>(segments: T) -> Self {
+		Self {
+			items: segments.into_iter().collect(),
+		}
 	}
 
-	pub fn span(&self) -> Span {
-		let start = self.items.first().unwrap().span();
-		let end = self.items.last().unwrap().span();
-		Span::merge(start, end)
+	fn parse(
+		scanner: &Scanner,
+		stream: &mut NodeStream,
+		errors: &mut Errors,
+		level: usize,
+	) -> Option<Self> {
+		let mut items = Vec::new();
+		while let Some(next) = Segment::parse(scanner, stream, errors, level) {
+			if !next.empty() {
+				items.push(next);
+			}
+			stream.read_if(|x| x.is_symbol(";"));
+			stream.skip_comments();
+			stream.read_if(|x| x.is_break());
+			if !errors.empty() {
+				break;
+			}
+		}
+
+		if items.len() > 0 {
+			Some(Block { items })
+		} else {
+			None
+		}
 	}
 }
 
-impl HasRepr for Line {
+impl IsNode for Block {}
+
+impl HasRepr for Block {
 	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
-		write!(output, "<Line")?;
-		if !output.is_compact() {
+		write!(output, "{{")?;
+
+		{
 			let output = &mut output.indented();
 			for it in self.items.iter() {
 				write!(output, "\n")?;
-				it.output_repr(output)?;
-			}
-			write!(output, "\n")?;
-		} else {
-			for it in self.items.iter() {
-				write!(output, " ")?;
-				it.output_repr(output)?;
+				it.output_repr(&mut output.compact())?;
 			}
 		}
-		write!(output, ">")?;
+
+		if self.items.len() > 0 {
+			write!(output, "\n")?;
+		} else {
+			write!(output, " ")?;
+		}
+		write!(output, "}}")?;
+
 		Ok(())
 	}
 }
@@ -57,409 +95,212 @@ impl HasRepr for Line {
 
 #[derive(Eq, PartialEq)]
 pub struct Segment {
-	span: Span,
-	kind: SegmentKind,
+	line: NodeList,
+	block: Option<Block>,
 }
 
 has_traits!(Segment: IsNode);
 
-impl IsNode for Segment {}
-
 impl Segment {
-	pub fn text(span: Span) -> Segment {
+	pub fn new<T: IntoIterator<Item = Node>>(line: T) -> Self {
+		let line = NodeList::new(line);
+		Self { line, block: None }
+	}
+
+	pub fn new_with_block<T: IntoIterator<Item = Node>>(line: T, block: Block) -> Self {
+		let line = NodeList::new(line);
 		Self {
-			span: span.clone(),
-			kind: SegmentKind::Text,
+			line,
+			block: Some(block),
 		}
 	}
 
-	pub fn comment(span: Span) -> Segment {
-		Self {
-			span: span.clone(),
-			kind: SegmentKind::Comment,
-		}
+	pub fn line(&self) -> &NodeList {
+		&self.line
 	}
 
-	pub fn group(start: Span, span: Span, end: Span) -> Segment {
-		Self {
-			span: span.clone(),
-			kind: SegmentKind::Group(start, end),
-		}
+	pub fn block(&self) -> Option<&Block> {
+		self.block.as_ref()
 	}
 
-	pub fn span(&self) -> &Span {
-		&self.span
+	pub fn empty(&self) -> bool {
+		self.line.len() == 0 && self.block.is_none()
+	}
+
+	fn parse(
+		scanner: &Scanner,
+		stream: &mut NodeStream,
+		errors: &mut Errors,
+		level: usize,
+	) -> Option<Self> {
+		if let Some(next) = stream.peek() {
+			if next.indent() < level || next.is_break() {
+				return None;
+			}
+		} else {
+			return None;
+		}
+
+		let mut block = None;
+		let mut line = Vec::new();
+		stream.skip_comments();
+		while let Some(next) = stream.peek() {
+			if next.is_symbol(";") {
+				stream.undo();
+				break;
+			} else if next.is_break() {
+				if let Some(next) = stream.lookahead(1) {
+					let next_level = next.indent();
+					if next_level > level {
+						stream.read();
+						block = Block::parse(scanner, stream, errors, next_level);
+					}
+				}
+				break;
+			} else if let Some(next) = Group::parse(scanner, stream, errors, level) {
+				line.push(Node::from(next));
+			} else {
+				line.push(stream.read().unwrap());
+			}
+
+			if !errors.empty() {
+				break;
+			}
+
+			stream.skip_comments();
+		}
+
+		let line = NodeList::new(line);
+		Some(Segment { line, block })
 	}
 }
 
-#[derive(Eq, PartialEq)]
-pub enum SegmentKind {
-	Text,
-	Comment,
-	Group(Span, Span),
-}
+impl IsNode for Segment {}
 
 impl HasRepr for Segment {
 	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
-		let output = &mut output.compact();
-		write!(output, "(")?;
-		let end = match &self.kind {
-			SegmentKind::Text => {
-				write!(output, "Text")?;
-				None
-			}
-			SegmentKind::Comment => {
-				write!(output, "Comment")?;
-				None
-			}
-			SegmentKind::Group(start, end) => {
-				write!(output, "Group{start}")?;
-				Some(end)
-			}
+		let multiline = self.line.range(..).multiline();
+
+		write!(output, "<")?;
+		let mut output = if multiline {
+			output.indented()
+		} else {
+			output.clone()
 		};
 
-		Node::output_source(output, &self.span, " ")?;
-
-		if let Some(end) = end {
-			write!(output, "{end}")?;
+		if self.line.len() > 0 {
+			self.line.output_repr(&mut output.compact())?;
+		} else {
+			write!(output, "(empty line)")?;
 		}
-		write!(output, ")")?;
+
+		let multiline = if let Some(ref block) = self.block {
+			let output = &mut output.indented();
+			write!(output, "\n")?;
+			block.output_repr(output)?;
+			true
+		} else {
+			multiline
+		};
+
+		if multiline {
+			write!(output, "\n")?;
+		}
+		write!(output, ">")?;
 
 		Ok(())
 	}
 }
 
 //====================================================================================================================//
-// Parser implementation
+// Group
 //====================================================================================================================//
 
-#[derive(Clone)]
-pub struct SegmentParser {
-	comment: char,
-	multi_comment_s: char,
-	multi_comment_e: char,
-	brackets: SymbolTable<Bracket>,
-	errors: Errors,
+#[derive(Eq, PartialEq)]
+pub struct Group {
+	sta: Node,
+	end: Node,
+	content: NodeList,
 }
 
-impl SegmentParser {
-	pub fn new() -> Self {
-		Self {
-			comment: '#',
-			multi_comment_s: '(',
-			multi_comment_e: ')',
-			brackets: Default::default(),
-			errors: Errors::new(),
-		}
+has_traits!(Group: IsNode);
+
+impl Group {
+	pub fn new(sta: Node, content: NodeList, end: Node) -> Self {
+		Self { sta, end, content }
 	}
 
-	pub fn add_brackets(&mut self, sta: &'static str, end: &'static str) {
-		self.brackets.add_symbol(sta, Bracket(sta, end, true));
-		self.brackets.add_symbol(end, Bracket(sta, end, false));
-	}
-
-	pub fn parse(&mut self, cursor: &mut Cursor) -> Option<Node> {
-		self.parse_line(cursor).map(|line| {
-			let span = line.span();
-			Node::from(line).with_span(span)
-		})
-	}
-
-	pub fn has_errors(&self) -> bool {
-		!self.errors.empty()
-	}
-
-	pub fn errors(&self) -> Errors {
-		self.errors.clone()
-	}
-
-	fn add_error(&mut self, error: Value) {
-		if self.errors.len() < MAX_ERRORS {
-			self.errors.add(error);
-		}
-	}
-
-	fn parse_line(&mut self, cursor: &mut Cursor) -> Option<Line> {
-		// helper to push a text segment to the list
-		let push_text = |items: &mut Vec<Segment>, start: &Cursor, end: &Cursor| {
-			if end.offset() > start.offset() {
-				let span = Span::from(&start, &end);
-				items.push(Segment {
-					kind: SegmentKind::Text,
-					span,
-				});
-			}
-		};
-
-		// skip blank line and spaces
-		cursor.skip_while(|c| c == '\n' || is_space(c));
-
-		// save the line indentation
-		let indent = cursor.location().indent();
-
-		let mut items = Vec::new();
-		let mut start = cursor.clone();
-		let mut end = cursor.clone();
-
-		loop {
-			if self.has_errors() {
-				break;
-			}
-
-			if let Some(segment) = self.parse_non_text_segment(cursor) {
-				// push any preceding text segment
-				push_text(&mut items, &start, &end);
-
-				// add parsed segment
-				items.push(segment);
-
-				// reset text segment
-				cursor.skip_spaces();
-				start = cursor.clone();
-				end = cursor.clone();
-			} else {
-				// read the next char in the text segment
-				match cursor.read() {
-					Some('\n') | None => break,
-					Some(..) => {
-						end = cursor.clone();
-					}
+	fn parse(
+		scanner: &Scanner,
+		stream: &mut NodeStream,
+		errors: &mut Errors,
+		level: usize,
+	) -> Option<Self> {
+		if let Some(end_symbol) = stream
+			.peek()
+			.and_then(|token| token.symbol())
+			.and_then(|symbol| scanner.closing_bracket_for(symbol))
+		{
+			let sta = stream.read().unwrap();
+			let mut end = None;
+			let mut content = Vec::new();
+			while let Some(next) = stream.peek() {
+				let indent = next.indent();
+				if indent < level {
+					errors.add("unexpected dedent".at_node(&next));
+					stream.undo();
+					break;
 				}
-			}
-		}
 
-		if self.has_errors() {
-			cursor.skip_while(|c| c != '\n');
-		}
-
-		// push any trailing text segment
-		push_text(&mut items, &start, &end);
-
-		if items.len() > 0 {
-			Some(Line { indent, items })
-		} else {
-			None
-		}
-	}
-
-	fn parse_non_text_segment(&mut self, cursor: &mut Cursor) -> Option<Segment> {
-		cursor.skip_spaces();
-
-		let start = cursor.clone();
-		if self.read_comment(cursor) {
-			Some(Segment {
-				kind: SegmentKind::Comment,
-				span: Span::from(&start, cursor),
-			})
-		} else if let Some(segment) = self.parse_group(cursor) {
-			Some(segment)
-		} else {
-			None
-		}
-	}
-
-	fn parse_group(&mut self, cursor: &mut Cursor) -> Option<Segment> {
-		let mut stack = if let Some((bracket, span)) = self.brackets.parse_with_span(cursor) {
-			if !bracket.is_opening() {
-				self.add_error(format!("unexpected unmatched `{bracket}`").at(span));
-				return None;
-			}
-			let mut stack = VecDeque::new();
-			stack.push_back((bracket, span));
-			stack
-		} else {
-			return None;
-		};
-
-		let start = cursor.clone();
-		loop {
-			self.skip_blanks(cursor);
-
-			let end = cursor.clone();
-			if let Some((bracket, span)) = self.brackets.parse_with_span(cursor) {
-				let (open, ..) = stack.back().unwrap();
-				if bracket.closes(open) {
-					let (_, open_span) = stack.pop_back().unwrap();
-					if stack.is_empty() {
-						let content = Span::from(&start, &end);
-						let segment = Segment::group(open_span, content, span);
-						return Some(segment);
-					}
-				} else if bracket.is_opening() {
-					stack.push_back((bracket, span));
+				if next.is_symbol(end_symbol) {
+					end = stream.read();
+					break;
+				} else if let Some(group) = Group::parse(scanner, stream, errors, indent) {
+					content.push(Node::from(group));
 				} else {
-					self.add_error(format!("unmatched closing `{bracket}`").at(span));
+					content.push(stream.read().unwrap());
 				}
-			} else if cursor.read().is_none() {
-				break;
 			}
-		}
 
-		let (bracket, span) = stack.pop_back().unwrap();
-		self.add_error(
-			format!(
-				"the opening `{bracket}` expected a `{}`{}, but found nothing",
-				bracket.closing(),
-				cursor.location().format(" at "),
-			)
-			.at(span),
-		);
-		None
-	}
-
-	fn skip_blanks(&mut self, cursor: &mut Cursor) {
-		let skip = |cursor: &mut Cursor| cursor.skip_while(|c| c == '\n' || is_space(c));
-		skip(cursor);
-		while self.read_comment(cursor) {
-			skip(cursor)
-		}
-	}
-
-	fn read_comment(&mut self, cursor: &mut Cursor) -> bool {
-		let next = if let Some(next) = cursor.peek() {
-			next
-		} else {
-			return false;
-		};
-
-		if next != self.comment {
-			false
-		} else {
-			cursor.read();
-			let (multi, mut level) = if cursor.try_read(self.multi_comment_s) {
-				(true, 1)
+			let end = if let Some(end) = end {
+				end
 			} else {
-				(false, 0)
+				errors.add(
+					format!(
+						"`{sta}`{} expected `{end_symbol}`",
+						sta.format_location(" from ")
+					)
+					.maybe_at(stream.pos()),
+				);
+				Node::empty()
 			};
 
-			let mut end = cursor.clone();
-			loop {
-				match cursor.read() {
-					Some('\n') if !multi => break,
-					Some(c) => {
-						end = cursor.clone();
-						if multi {
-							if c == self.multi_comment_s {
-								level += 1;
-							} else if c == self.multi_comment_e {
-								level -= 1;
-								if level == 0 {
-									break;
-								}
-							}
-						}
-						cursor.skip_spaces();
-					}
-					None => break,
-				}
-			}
-
-			*cursor = end;
-			true
-		}
-	}
-}
-
-#[derive(Copy, Clone)]
-struct Bracket(&'static str, &'static str, bool);
-
-impl Bracket {
-	pub fn is_opening(&self) -> bool {
-		self.2
-	}
-
-	pub fn symbol(&self) -> &'static str {
-		if self.is_opening() {
-			self.0
-		} else {
-			self.1
-		}
-	}
-
-	pub fn closing(&self) -> &'static str {
-		self.1
-	}
-
-	pub fn closes(&self, start: &Bracket) -> bool {
-		!self.is_opening() && start.1 == self.1
-	}
-}
-
-impl std::fmt::Display for Bracket {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.symbol())
-	}
-}
-
-//====================================================================================================================//
-// Node extensions
-//====================================================================================================================//
-
-impl Node {
-	pub fn output_source(output: &mut Repr, span: &Span, separator: &str) -> std::io::Result<()> {
-		let output = &mut output.indented();
-		let lines = Self::output_source_and_location(output, span, separator)?;
-		if lines > 1 {
-			write!(output, "\n")?;
-		}
-		Ok(())
-	}
-
-	pub fn output_source_and_location(
-		output: &mut Repr,
-		span: &Span,
-		separator: &str,
-	) -> std::io::Result<usize> {
-		let from = span.location();
-		let name = if output.is_full() {
-			span.input().name()
+			let content = NodeList::new(content);
+			let group = Self { sta, end, content };
+			Some(group)
 		} else {
 			None
-		};
-		let text = span.text().split('\n').collect::<Vec<_>>();
-		let line = span.location().line().unwrap_or_default();
-		let has_pos = line > 0 || name.is_some();
-
-		let lines = if text.len() <= 1 {
-			write!(output, "{separator}`")?;
-			Self::output_source_text(output, span)?;
-			write!(output, "`")?;
-			if has_pos {
-				from.output_location(output, name, " @")?;
-			}
-			1
-		} else {
-			if let Some(name) = name {
-				write!(output, "#{name}")?;
-			}
-			write!(output, "\n")?;
-			Self::output_source_text(output, span)?;
-			text.len()
-		};
-		Ok(lines)
-	}
-
-	pub fn output_source_text(output: &mut Repr, span: &Span) -> std::io::Result<()> {
-		let text = span.text().split('\n').collect::<Vec<_>>();
-		let line = span.location().line().unwrap_or_default();
-		if text.len() <= 1 {
-			let text = text.first().cloned().unwrap_or("");
-			if text.len() == 0 {
-				write!(output, "(empty)")?;
-			} else {
-				write!(output, "{text}")?;
-			}
-		} else {
-			for (i, it) in text.iter().enumerate() {
-				if i > 0 {
-					write!(output, "\n")?;
-				}
-				if line > 0 {
-					write!(output, "{:03}: ", line + i)?;
-				}
-				write!(output, "{it}")?;
-			}
 		}
+	}
+}
+
+impl IsNode for Group {}
+
+impl HasRepr for Group {
+	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
+		let multiline = self.content.range(..).multiline();
+
+		write!(output, "{}", self.sta)?;
+		if multiline {
+			write!(output, "\n")?;
+		}
+
+		self.content.output_repr(&mut output.indented())?;
+
+		if multiline {
+			write!(output, "\n")?;
+		}
+		write!(output, "{}", self.end)?;
 
 		Ok(())
 	}
@@ -485,9 +326,9 @@ mod tests {
 		check(
 			input,
 			vec![
-				line("line 1").into(),
-				line("line 2").into(),
-				line("line 3").into(),
+				line(vec![id("line"), n(1)]),
+				line(vec![id("line"), n(2)]),
+				line(vec![id("line"), n(3)]),
 			],
 		);
 
@@ -495,9 +336,9 @@ mod tests {
 		check(
 			input,
 			vec![
-				line("line 1").into(),
-				line("line 2").into(),
-				line("line 3").into(),
+				line(vec![id("line"), n(1)]),
+				line(vec![id("line"), n(2)]),
+				line(vec![id("line"), n(3)]),
 			],
 		);
 	}
@@ -508,11 +349,17 @@ mod tests {
 		check(
 			input,
 			vec![
-				Line::new(0, vec![text("line 1")]).into(),
-				Line::new(2, vec![text("line 2")]).into(),
-				Line::new(2, vec![text("line 3")]).into(),
-				Line::new(4, vec![text("line 4")]).into(),
-				Line::new(0, vec![text("line 5")]).into(),
+				Node::from(segment_block(
+					vec![id("line"), n(1)],
+					block(vec![
+						segment(vec![id("line"), n(2)]),
+						segment_block(
+							vec![id("line"), n(3)],
+							block(vec![segment(vec![id("line"), n(4)])]),
+						),
+					]),
+				)),
+				line(vec![id("line"), n(5)]),
 			],
 		)
 	}
@@ -520,13 +367,7 @@ mod tests {
 	#[test]
 	fn comments() {
 		let input = vec!["# comment 1", "line 1"];
-		check(
-			input,
-			vec![
-				Line::new(0, vec![comment("# comment 1")]).into(),
-				line("line 1").into(),
-			],
-		);
+		check(input, vec![line(vec![id("line"), n(1)])]);
 
 		let input = vec![
 			"# comment 1",
@@ -540,61 +381,52 @@ mod tests {
 		];
 		check(
 			input,
-			vec![
-				Line::new(0, vec![comment("# comment 1")]).into(),
-				line("line 1").into(),
-				Line::new(0, vec![comment("#(\ncomment 2\n)")]).into(),
-				line("line 2").into(),
-			],
+			vec![line(vec![id("line"), n(1)]), line(vec![id("line"), n(2)])],
 		);
 
 		let input = vec!["# comment 1", "#(c1)A#(c2)B #((c3)) C D # comment 2 "];
-		check(
-			input,
-			vec![
-				Line::new(0, vec![comment("# comment 1")]).into(),
-				Line::new(
-					0,
-					vec![
-						comment("#(c1)"),
-						text("A"),
-						comment("#(c2)"),
-						text("B"),
-						comment("#((c3))"),
-						text("C D"),
-						comment("# comment 2"),
-					],
-				)
-				.into(),
-			],
-		);
+		check(input, vec![line(vec![id("A"), id("B"), id("C"), id("D")])]);
 	}
 
 	#[test]
 	fn groups() {
 		let input = vec!["(1)"];
-		check(input, vec![Line::new(0, vec![group("(", "1", ")")]).into()]);
+		check(input, vec![line(vec![group("(", vec![n(1)], ")")])]);
 
 		let input = vec!["(a)", "[ 1 2 ]", "{", "    content", "}"];
 		check(
 			input,
 			vec![
-				Line::new(0, vec![group("(", "a", ")")]).into(),
-				Line::new(0, vec![group("[", " 1 2 ", "]")]).into(),
-				Line::new(0, vec![group("{", "\n    content\n", "}")]).into(),
+				line(vec![group("(", vec![id("a")], ")")]),
+				line(vec![group("[", vec![n(1), n(2)], "]")]),
+				line(vec![group("{", vec![brk(), id("content"), brk()], "}")]),
 			],
 		);
 
 		let input = vec!["1 + (2 + 3) * 4"];
 		check(
 			input,
-			vec![Line::new(0, vec![text("1 +"), group("(", "2 + 3", ")"), text("* 4")]).into()],
+			vec![line(vec![
+				n(1),
+				s("+"),
+				group("(", vec![n(2), s("+"), n(3)], ")"),
+				s("*"),
+				n(4),
+			])],
 		);
 
 		let input = vec!["(([{1}]))"];
 		check(
 			input,
-			vec![Line::new(0, vec![group("(", "([{1}])", ")")]).into()],
+			vec![line(vec![group(
+				"(",
+				vec![group(
+					"(",
+					vec![group("[", vec![group("{", vec![n(1)], "}")], "]")],
+					")",
+				)],
+				")",
+			)])],
 		);
 
 		let content = vec![
@@ -609,22 +441,33 @@ mod tests {
 			"  ",
 		]
 		.join("\n");
-		let content = content.as_str();
 
 		let input = format!("x + ({content}) + y # end");
+		let content_nodes = vec![
+			comment("# comment 1"),
+			brk(),
+			n(1),
+			brk(),
+			comment("#((\n      comment 2\n    ))"),
+			brk(),
+			group("[", vec![n(2), s(","), n(3)], "]"),
+			brk(),
+			comment("# A) comment"),
+			brk(),
+			n(4),
+			brk(),
+		];
+
 		let input = vec![input.as_str()];
 		check(
 			input,
-			vec![Line::new(
-				0,
-				vec![
-					text("x +"),
-					group("(", content, ")"),
-					text("+ y"),
-					comment("# end"),
-				],
-			)
-			.into()],
+			vec![line(vec![
+				id("x"),
+				s("+"),
+				group("(", content_nodes, ")"),
+				s("+"),
+				id("y"),
+			])],
 		);
 	}
 
@@ -669,22 +512,42 @@ mod tests {
 	fn parse(input: Vec<&str>) -> Vec<Node> {
 		let text = input.join("\n");
 		let text = Input::new("test.in", text);
-		let mut nodes = Vec::new();
 
-		let mut parser = SegmentParser::new();
-		parser.add_brackets("(", ")");
-		parser.add_brackets("[", "]");
-		parser.add_brackets("{", "}");
+		let mut scanner = Scanner::new();
+		scanner.add_bracket_pair("(", ")");
+		scanner.add_bracket_pair("[", "]");
+		scanner.add_bracket_pair("{", "}");
+		scanner.add_symbol(",", Token::Symbol(","));
+		scanner.add_symbol(";", Token::Symbol(";"));
+		scanner.add_symbol(":", Token::Symbol(":"));
+		scanner.add_symbol("(", Token::Symbol("("));
+		scanner.add_symbol("[", Token::Symbol("["));
+		scanner.add_symbol("{", Token::Symbol("{"));
+		scanner.add_symbol("}", Token::Symbol("}"));
+		scanner.add_symbol("]", Token::Symbol("]"));
+		scanner.add_symbol(")", Token::Symbol(")"));
+		scanner.add_symbol("+", Token::Symbol("+"));
+		scanner.add_symbol("-", Token::Symbol("-"));
+		scanner.add_symbol("*", Token::Symbol("*"));
+		scanner.add_symbol("/", Token::Symbol("/"));
+		scanner.add_matcher(IntegerMatcher);
+		scanner.add_matcher(IdentifierMatcher);
+		scanner.add_matcher(CommentMatcher);
 
-		let mut cursor = text.cursor();
-		while let Some(node) = parser.parse(&mut cursor) {
-			nodes.push(node);
-		}
+		let mut errors = Errors::new();
+		let nodes = NodeList::tokenize(text, &mut scanner, &mut errors);
 
-		if parser.has_errors() {
+		let nodes = if errors.empty() {
+			let mut stream = nodes.into_iter();
+			parse_segments(&scanner, &mut stream, &mut errors)
+		} else {
+			Vec::new()
+		};
+
+		if errors.len() > 0 {
 			let mut output = test_output();
 			let mut output = Repr::new(&mut output, ReprMode::Display, ReprFormat::Full);
-			let _ = parser.errors().output_repr(&mut output);
+			let _ = errors.output_repr(&mut output);
 			let _ = write!(output, "\n");
 			panic!("Segment parsing generated errors");
 		}
@@ -700,20 +563,46 @@ mod tests {
 	// Helpers
 	//----------------------------------------------------------------------------------------------------------------//
 
-	fn line(line: &str) -> Line {
-		Line::new(0, vec![text(line)])
+	fn line<T: IntoIterator<Item = Node>>(line: T) -> Node {
+		segment(line).into()
 	}
 
-	fn text(text: &str) -> Segment {
-		Segment::text(span(text))
+	fn segment<T: IntoIterator<Item = Node>>(line: T) -> Segment {
+		Segment::new(line)
 	}
 
-	fn comment(text: &str) -> Segment {
-		Segment::comment(span(text))
+	fn segment_block<T: IntoIterator<Item = Node>>(line: T, block: Block) -> Segment {
+		Segment::new_with_block(line, block)
 	}
 
-	fn group(start: &str, text: &str, end: &str) -> Segment {
-		Segment::group(span(start), span(text), span(end))
+	fn block<T: IntoIterator<Item = Segment>>(segments: T) -> Block {
+		Block::new(segments)
+	}
+
+	fn id(text: &str) -> Node {
+		Token::Word(span(text)).into()
+	}
+
+	fn brk() -> Node {
+		Token::Break.into()
+	}
+
+	fn n(value: usize) -> Node {
+		Integer(value as u128).into()
+	}
+
+	fn s(symbol: &'static str) -> Node {
+		Token::Symbol(symbol).into()
+	}
+
+	fn comment(text: &str) -> Node {
+		Comment(span(text)).into()
+	}
+
+	fn group<T: IntoIterator<Item = Node>>(s: &'static str, nodes: T, e: &'static str) -> Node {
+		let s = Node::from(Token::Symbol(s));
+		let e = Node::from(Token::Symbol(e));
+		Group::new(s, NodeList::new(nodes), e).into()
 	}
 
 	fn span(text: &str) -> Span {

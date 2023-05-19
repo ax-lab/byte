@@ -1,6 +1,6 @@
 use super::*;
 
-use crate::lexer::{Scanner, TokenStream};
+use crate::lexer::{NodeStream, Scanner};
 
 /// Maintains all the state that is locally available for a [`Node`] during
 /// compilation.
@@ -116,13 +116,13 @@ impl Namespace {
 	}
 
 	/// List value macros that can apply at the given expression position.
-	pub fn list_value_macros_for(&self, stream: &TokenStream) -> Vec<Node> {
+	pub fn list_value_macros_for(&self, stream: &NodeStream) -> Vec<Node> {
 		let _ = stream;
 		todo!()
 	}
 
 	/// List operator macros that can apply at the given expression position.
-	pub fn list_op_macros_for(&self, stream: &TokenStream) -> Vec<Node> {
+	pub fn list_op_macros_for(&self, stream: &NodeStream) -> Vec<Node> {
 		let _ = stream;
 		todo!()
 	}

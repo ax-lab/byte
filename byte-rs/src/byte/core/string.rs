@@ -38,6 +38,8 @@ impl Str {
 			std::ops::Bound::Excluded(n) => *n,
 			std::ops::Bound::Unbounded => len,
 		};
+		assert!(end <= len);
+		assert!(sta <= end);
 		sta..end
 	}
 

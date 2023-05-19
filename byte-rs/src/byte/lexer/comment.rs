@@ -5,7 +5,7 @@ use crate::lexer::*;
 use crate::nodes::*;
 
 #[derive(Eq, PartialEq)]
-pub struct Comment(Span);
+pub struct Comment(pub Span);
 
 has_traits!(Comment: IsNode, WithEquality);
 

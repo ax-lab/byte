@@ -33,12 +33,8 @@ impl Module {
 	pub(crate) fn compile_module(&mut self, context: &Context) {
 		// First we split the input into broad segments which are then parsed
 		// individually.
-		let segments = if let Some(segments) = self.parse_segments(context) {
-			segments
-		} else {
-			return;
-		};
-		context.trace_segments(self, &segments);
+		let _ = context;
+		todo!();
 
 		//--------------------------------------------------------------------//
 		// TODO:
@@ -49,18 +45,15 @@ impl Module {
 		//--------------------------------------------------------------------//
 
 		//--------------------------------------------------------------------//
-		// (1) Lexer configuration
+		// Step 1 - Lexer configuration
 		//--------------------------------------------------------------------//
 		//
-		// Resolve each segment sequentially looking for lexer pragmas that
+		// Resolve each segment sequentially looking for lexer directives that
 		// affect token parsing. The configuration is stored as a Scanner with
 		// each segment inheriting the previous segment's configuration.
 
-		// TODO: parse lexer pragmas and pair each segment with a Scanner
-		//       cloned from the previous segment.
-
 		//--------------------------------------------------------------------//
-		// (2) Syntax macro resolution and static name binding
+		// Step 2 - Syntax macro resolution and static name binding
 		//--------------------------------------------------------------------//
 		//
 		// Resolve syntax macro nodes and bind names in the static scope for
@@ -74,8 +67,9 @@ impl Module {
 		// the expression parsing phase.
 		//
 		// Syntax macros are the most powerful constructs, having access to the
-		// raw segments even before lexical analysis, and being the only way to
-		// provide names to the static scope.
+		// raw segments before lexical analysis, full control over the static
+		// scope, and being able to generate their own raw segments or other
+		// nodes.
 		//
 		// Examples of syntax macros are:
 		//
@@ -85,11 +79,36 @@ impl Module {
 		//   - user macros (syntax and expression)
 		//   - custom operators and literals
 		//
-		// After syntax macros are resolved, remaining nodes are then parsed
-		// as expressions.
+		// The static scope maintains a list of active syntax macros that can
+		// be applied. For each pending segment, matching macros are queried
+		// and a single one can be executed (it is an error for more than one
+		// macro to match).
 		//
-		// At the end of this stage, all imported and exported names should
-		// be fully resolved, including macros.
+		// The syntax macro has access to the static scope, so it can define
+		// symbols, including macros, bind exported names, import modules,
+		// define operators, etc.
+		//
+		// The result of a syntax macro is a node. This node may be resolved
+		// or could a new segment which will be included in the resolution
+		// (this is how macro expansion can be implemented).
+		//
+		// Note that the resolution is **fully transactional**, with changes
+		// being applied in parallel and only visible for the next round of
+		// macros.
+		//
+		// After all syntax macros are resolved, the remaining nodes are then
+		// parsed as expressions.
+		//
+		// At the end of this stage, the static namespace will be fully
+		// resolved, including all imported and exported symbols.
+		//
+		// ## Module importing
+		//
+		// When importing a module, it's exported scope is linked to the static
+		// scope.
+		//
+		// Imported macros will also be queried when solving a segment, but
+		// only after those in the current scope.
 		//
 		// ## Cyclic dependencies
 		//
@@ -157,30 +176,5 @@ impl Module {
 		//       For each sequential expression, keep track of bound names,
 		//       which default to the static namespace but are overwritten by
 		//       `let` expressions.
-
-		context.add_error("module loading not implemented".at(self.input.span().without_line()));
-	}
-
-	fn parse_segments(&mut self, context: &Context) -> Option<Vec<Node>> {
-		let mut segment_parser = context.new_segment_parser();
-		let mut cursor = self.input.cursor();
-
-		let mut segments = Vec::new();
-		while let Some(next) = segment_parser.parse(&mut cursor) {
-			if segment_parser.has_errors() {
-				break;
-			}
-			segments.push(next);
-		}
-
-		assert!(cursor.at_end());
-
-		if segment_parser.has_errors() {
-			context.append_errors(segment_parser.errors());
-			self.has_errors = true;
-			None
-		} else {
-			Some(segments)
-		}
 	}
 }

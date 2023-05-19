@@ -4,8 +4,6 @@ use std::{
 	sync::{Arc, Mutex, RwLock},
 };
 
-use crate::SegmentParser;
-
 use super::lexer::*;
 use super::*;
 
@@ -16,7 +14,6 @@ pub struct Context {
 	modules: Arc<Mutex<HashMap<PathBuf, Module>>>,
 	errors: Arc<RwLock<Errors>>,
 	tracer: DebugLog,
-	segment_parser: SegmentParser,
 	scanner: Scanner,
 }
 
@@ -28,7 +25,6 @@ impl Context {
 			modules: Default::default(),
 			errors: Default::default(),
 			tracer: Default::default(),
-			segment_parser: SegmentParser::new(),
 			scanner: Scanner::new(),
 		}
 	}
@@ -60,27 +56,34 @@ impl Context {
 	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn load_defaults(&mut self) {
-		self.segment_parser.add_brackets("(", ")");
-		self.segment_parser.add_brackets("[", "]");
-		self.segment_parser.add_brackets("{", "}");
-
 		use super::lang::*;
 
-		self.scanner.add_matcher(IdentifierMatcher);
-		self.scanner.add_matcher(LiteralMatcher);
-		self.scanner.add_matcher(IntegerMatcher);
+		let scanner = &mut self.scanner;
 
-		Op::add_symbols(&mut self.scanner);
-		self.scanner.add_symbol(",", Token::Symbol(","));
-		self.scanner.add_symbol(":", Token::Symbol(":"));
+		scanner.add_matcher(IdentifierMatcher);
+		scanner.add_matcher(LiteralMatcher);
+		scanner.add_matcher(IntegerMatcher);
+
+		scanner.add_bracket_pair("(", ")");
+		scanner.add_symbol("(", Token::Symbol("("));
+		scanner.add_symbol(")", Token::Symbol(")"));
+
+		scanner.add_bracket_pair("[", "]");
+		scanner.add_symbol("[", Token::Symbol("["));
+		scanner.add_symbol("]", Token::Symbol("]"));
+
+		scanner.add_bracket_pair("{", "}");
+		scanner.add_symbol("{", Token::Symbol("{"));
+		scanner.add_symbol("}", Token::Symbol("}"));
+
+		Op::add_symbols(scanner);
+		scanner.add_symbol(";", Token::Symbol(";"));
+		scanner.add_symbol(",", Token::Symbol(","));
+		scanner.add_symbol(":", Token::Symbol(":"));
 	}
 
 	pub fn enable_trace_blocks(&mut self) {
 		self.tracer.show_blocks();
-	}
-
-	pub fn new_segment_parser(&self) -> SegmentParser {
-		self.segment_parser.clone()
 	}
 
 	pub fn new_scanner(&self) -> Scanner {

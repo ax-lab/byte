@@ -10,9 +10,38 @@ impl Node {
 		Value::from(node).into()
 	}
 
+	pub fn empty() -> Self {
+		Self::from(EmptyNode)
+	}
+
+	//----------------------------------------------------------------------------------------------------------------//
+	// Value
+	//----------------------------------------------------------------------------------------------------------------//
+
 	pub fn value(&self) -> &dyn IsNode {
 		get_trait!(self, IsNode).unwrap()
 	}
+
+	pub fn get<T: IsNode>(&self) -> Option<&T> {
+		self.data.get()
+	}
+
+	pub fn is<T: IsNode>(&self) -> bool {
+		self.data.get::<T>().is_some()
+	}
+
+	pub fn get_field<T: IsValue>(&self) -> Option<&T> {
+		self.data.get_field()
+	}
+
+	pub fn with_field<T: IsValue>(&self, value: T) -> Node {
+		let data = self.data.with_field(value);
+		Node { data }
+	}
+
+	//----------------------------------------------------------------------------------------------------------------//
+	// Location
+	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn at(self, span: Option<Span>) -> Node {
 		if let Some(span) = span {
@@ -27,14 +56,6 @@ impl Node {
 		self
 	}
 
-	pub fn get<T: IsNode>(&self) -> Option<&T> {
-		self.data.get()
-	}
-
-	pub fn is<T: IsNode>(&self) -> bool {
-		self.data.get::<T>().is_some()
-	}
-
 	pub fn span(&self) -> Option<&Span> {
 		self.data.get_span()
 	}
@@ -45,13 +66,14 @@ impl Node {
 			.unwrap_or_default()
 	}
 
-	pub fn get_field<T: IsValue>(&self) -> Option<&T> {
-		self.data.get_field()
+	pub fn line(&self) -> Option<usize> {
+		self.span().and_then(|x| x.location().line())
 	}
 
-	pub fn with_field<T: IsValue>(&self, value: T) -> Node {
-		let data = self.data.with_field(value);
-		Node { data }
+	pub fn format_location(&self, label: &str) -> String {
+		self.span()
+			.map(|x| x.location().format(label))
+			.unwrap_or_default()
 	}
 }
 
@@ -170,3 +192,30 @@ impl PartialEq for Node {
 }
 
 impl Eq for Node {}
+
+impl Default for Node {
+	fn default() -> Self {
+		Self::empty()
+	}
+}
+
+//====================================================================================================================//
+// Empty node
+//====================================================================================================================//
+
+#[derive(Eq, PartialEq)]
+pub struct EmptyNode;
+
+has_traits!(EmptyNode: IsNode);
+
+impl IsNode for EmptyNode {}
+
+impl HasRepr for EmptyNode {
+	fn output_repr(&self, output: &mut Repr) -> std::io::Result<()> {
+		if output.is_debug() {
+			write!(output, "<EmptyNode>")
+		} else {
+			write!(output, "empty")
+		}
+	}
+}

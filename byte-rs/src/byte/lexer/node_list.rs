@@ -1,4 +1,4 @@
-use std::{ops::*, sync::Arc};
+use std::{io::Write, ops::*, sync::Arc};
 
 use super::*;
 
@@ -6,7 +6,7 @@ use super::*;
 // NodeList
 //====================================================================================================================//
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct NodeList {
 	list: Arc<Vec<Node>>,
 }
@@ -55,9 +55,25 @@ impl NodeList {
 		}
 	}
 
+	pub fn as_slice(&self) -> &[Node] {
+		self.list.as_slice()
+	}
+
 	/// Returns an iterator over the nodes in the list.
 	pub fn iter(&self) -> impl Iterator<Item = &Node> {
 		self.list.iter()
+	}
+
+	pub fn span_at(&self, index: usize) -> Option<Span> {
+		Self::get_span_at(&self.list, index)
+	}
+
+	fn get_span_at(list: &Arc<Vec<Node>>, index: usize) -> Option<Span> {
+		list.get(index).and_then(|x| x.span().cloned()).or_else(|| {
+			list.as_slice()
+				.last()
+				.and_then(|x| x.span().map(|x| x.end()))
+		})
 	}
 }
 
@@ -102,11 +118,36 @@ impl NodeRange {
 	pub fn as_slice(&self) -> &[Node] {
 		&self.source[self.start..self.end]
 	}
+
+	//----------------------------------------------------------------------------------------------------------------//
+	// Helper methods
+	//----------------------------------------------------------------------------------------------------------------//
+
+	pub fn multiline(&self) -> bool {
+		let line_sta = self.as_slice().first().and_then(|x| x.line());
+		let line_end = self.as_slice().last().and_then(|x| x.line());
+		let multiline = line_sta.is_some() && line_end.is_some() && line_end > line_sta;
+		multiline
+	}
+
+	pub fn span_at(&self, index: usize) -> Option<Span> {
+		if index > self.len() {
+			None
+		} else {
+			let index = self.start + index;
+			let span = NodeList::get_span_at(&self.source, index);
+			if index >= self.end {
+				span.map(|x| x.start())
+			} else {
+				span
+			}
+		}
+	}
 }
 
-//--------------------------------------------------------------------------------------------------------------------//
+//----------------------------------------------------------------------------------------------------------------//
 // NodeList traits
-//--------------------------------------------------------------------------------------------------------------------//
+//----------------------------------------------------------------------------------------------------------------//
 
 impl IntoIterator for NodeList {
 	type Item = Node;
@@ -174,9 +215,9 @@ impl Index<RangeFull> for NodeList {
 	}
 }
 
-//--------------------------------------------------------------------------------------------------------------------//
+//----------------------------------------------------------------------------------------------------------------//
 // NodeRange traits
-//--------------------------------------------------------------------------------------------------------------------//
+//----------------------------------------------------------------------------------------------------------------//
 
 impl IntoIterator for NodeRange {
 	type Item = Node;
@@ -241,5 +282,50 @@ impl Index<RangeFull> for NodeRange {
 
 	fn index(&self, index: RangeFull) -> &Self::Output {
 		&self.as_slice()[index]
+	}
+}
+
+impl PartialEq for NodeRange {
+	fn eq(&self, other: &Self) -> bool {
+		self.as_slice() == other.as_slice()
+	}
+}
+
+impl Eq for NodeRange {}
+
+//----------------------------------------------------------------------------------------------------------------//
+// HasRepr
+//----------------------------------------------------------------------------------------------------------------//
+
+impl HasRepr for NodeList {
+	fn output_repr(&self, output: &mut Repr<'_>) -> std::io::Result<()> {
+		self.range(..).output_repr(output)
+	}
+}
+
+impl HasRepr for NodeRange {
+	fn output_repr(&self, output: &mut Repr<'_>) -> std::io::Result<()> {
+		let debug = output.is_debug();
+		let multiline = self.multiline();
+		let compact = output.is_compact() && !multiline;
+
+		if debug {
+			write!(output, "[")?;
+		}
+
+		let mut empty = true;
+		for it in self.iter() {
+			empty = false;
+			write!(output, "{}", if compact { " " } else { "\n" })?;
+			it.output_repr(&mut output.indented())?;
+		}
+
+		if debug {
+			if !empty {
+				write!(output, "{}", if compact { " " } else { "\n" })?;
+			}
+			write!(output, "]")?;
+		}
+		Ok(())
 	}
 }
