@@ -30,6 +30,10 @@ impl Module {
 		self.has_errors
 	}
 
+	pub fn code(&self) -> Code {
+		todo!();
+	}
+
 	pub(crate) fn compile_module(&mut self, context: &Context) {
 		// First we split the input into broad segments which are then parsed
 		// individually.

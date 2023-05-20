@@ -60,7 +60,7 @@ fn main() {
 		context.load_file(file);
 	}
 
-	context.wait_resolve();
+	context.resolve_all();
 
 	let errors = context.errors();
 	if !errors.empty() {

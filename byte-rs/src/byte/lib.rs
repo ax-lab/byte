@@ -1,6 +1,8 @@
 pub mod core;
 
-pub mod compiler;
+pub mod build;
+pub mod code;
+pub mod exec;
 pub mod lang;
 pub mod lexer;
 pub mod nodes;
@@ -8,7 +10,8 @@ pub mod runtime;
 
 pub use crate::core::*;
 
-pub use compiler::*;
+pub use build::*;
+pub use code::*;
 pub use nodes::*;
 pub use runtime::Runtime;
 
@@ -18,22 +21,27 @@ pub fn new() -> Context {
 	Context::new_with_defaults()
 }
 
-pub fn run(input: Input, _rt: &mut Runtime) -> Result<Var> {
-	let _ = compile(input)?;
-	todo!()
+pub fn run(input: Input, rt: &mut Runtime) -> Result<Value> {
+	let code = compile(input)?;
+	code.execute(rt).map_err(|err| {
+		let mut errors = Errors::new();
+		errors.add(err.to_string());
+		errors
+	})
 }
 
-pub fn compile(input: Input) -> Result<runtime::Code> {
+pub fn compile(input: Input) -> Result<Code> {
 	let mut context = new();
-	context.load_input(input);
-	context.wait_resolve();
+
+	let module = context.load_input(input);
+	context.resolve_all();
 
 	let errors = context.errors();
 	if errors.len() > 0 {
 		return Err(errors);
 	}
 
-	todo!()
+	Ok(module.code())
 }
 
 #[cfg(test)]
@@ -44,7 +52,7 @@ mod tests {
 	fn answer_to_everything() {
 		let mut rt = Runtime::default();
 		let result = run(Input::from("42"), &mut rt).unwrap();
-		assert_eq!(result.value(), Value::from(42))
+		assert_eq!(result, Value::from(42))
 	}
 
 	#[test]
