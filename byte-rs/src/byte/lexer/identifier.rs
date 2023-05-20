@@ -30,3 +30,9 @@ impl Matcher for IdentifierMatcher {
 		}
 	}
 }
+
+impl NodeStream {
+	pub fn read_id(&mut self) -> Option<Node> {
+		self.read_if(|n| matches!(n.get::<Token>(), Some(Token::Word(..))))
+	}
+}

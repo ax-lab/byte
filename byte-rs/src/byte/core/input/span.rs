@@ -242,6 +242,8 @@ pub trait ValueAtSpan {
 	fn maybe_at(self, span: Option<Span>) -> Value;
 
 	fn at_node(self, node: &crate::nodes::Node) -> Value;
+
+	fn maybe_at_node(self, node: Option<&crate::nodes::Node>) -> Value;
 }
 
 impl<T: IsValue> ValueAtSpan for T {
@@ -259,5 +261,9 @@ impl<T: IsValue> ValueAtSpan for T {
 
 	fn at_node(self, node: &crate::nodes::Node) -> Value {
 		self.maybe_at(node.span().cloned())
+	}
+
+	fn maybe_at_node(self, node: Option<&crate::nodes::Node>) -> Value {
+		self.maybe_at(node.and_then(|x| x.span()).cloned())
 	}
 }

@@ -73,6 +73,12 @@ impl NodeStream {
 	// Parse helpers
 	//----------------------------------------------------------------------------------------------------------------//
 
+	pub fn to_list(&mut self) -> NodeList {
+		let list = self.range.to_list();
+		self.index = self.range.len();
+		list
+	}
+
 	pub fn read_if<P: FnOnce(&Node) -> bool>(&mut self, predicate: P) -> Option<Node> {
 		if self.peek().map(predicate) == Some(true) {
 			self.read()

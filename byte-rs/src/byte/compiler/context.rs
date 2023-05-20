@@ -61,8 +61,11 @@ impl Context {
 		let scanner = &mut self.scanner;
 
 		scanner.add_matcher(IdentifierMatcher);
-		scanner.add_matcher(LiteralMatcher);
 		scanner.add_matcher(IntegerMatcher);
+		scanner.add_matcher(LiteralMatcher);
+		scanner.add_matcher(CommentMatcher);
+
+		Op::add_symbols(scanner);
 
 		scanner.add_bracket_pair("(", ")");
 		scanner.add_symbol("(", Token::Symbol("("));
@@ -76,10 +79,9 @@ impl Context {
 		scanner.add_symbol("{", Token::Symbol("{"));
 		scanner.add_symbol("}", Token::Symbol("}"));
 
-		Op::add_symbols(scanner);
-		scanner.add_symbol(";", Token::Symbol(";"));
 		scanner.add_symbol(",", Token::Symbol(","));
 		scanner.add_symbol(":", Token::Symbol(":"));
+		scanner.add_symbol(";", Token::Symbol(";"));
 	}
 
 	pub fn enable_trace_blocks(&mut self) {
