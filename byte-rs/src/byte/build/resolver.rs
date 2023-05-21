@@ -63,8 +63,8 @@ pub struct Resolver {
 }
 
 impl Resolver {
-	pub fn step(&mut self, context: &Context, module: &Module) -> ResolveResult {
-		let _ = (context, module);
+	pub fn step(&mut self, compiler: &Compiler, module: &Module) -> ResolveResult {
+		let _ = (compiler, module);
 		todo!()
 	}
 

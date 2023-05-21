@@ -55,17 +55,17 @@ impl Module {
 	// Module compilation & resolution
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub(crate) fn resolve_next(&mut self, context: &Context) -> ResolveResult {
+	pub(crate) fn resolve_next(&mut self, compiler: &Compiler) -> ResolveResult {
 		let mut data = self.data.write().unwrap();
-		data.resolver.step(context, self)
+		data.resolver.step(compiler, self)
 	}
 
-	pub(crate) fn compile_code(&mut self, context: &Context) {
-		let _ = context;
+	pub(crate) fn compile_code(&mut self, compiler: &Compiler) {
+		let _ = compiler;
 		todo!()
 	}
 
-	pub(crate) fn load_input_segments(&mut self, context: &Context) {
+	pub(crate) fn load_input_segments(&mut self, compiler: &Compiler) {
 		let mut data = self.data.write().unwrap();
 
 		//--------------------------------------------------------------------//
@@ -75,7 +75,7 @@ impl Module {
 		// This includes lexical analysis and parsing the raw segments that
 		// will be resolved into the module code.
 
-		let mut scanner = context.new_scanner();
+		let mut scanner = compiler.new_scanner();
 
 		let mut errors = &mut data.errors;
 		let tokens = NodeList::tokenize(self.input.clone(), &mut scanner, &mut errors);
@@ -87,7 +87,7 @@ impl Module {
 			Vec::new()
 		};
 
-		data.static_scope = context.new_scope();
+		data.static_scope = compiler.new_scope();
 
 		data.resolver.push(nodes);
 		data.scanner = scanner;

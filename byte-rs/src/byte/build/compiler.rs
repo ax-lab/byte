@@ -7,21 +7,22 @@ use std::{
 use super::lexer::*;
 use super::*;
 
-/// Holds the entire context for the compiler.
 #[derive(Clone)]
-pub struct Context {
+pub struct Compiler {
 	base_path: PathBuf,
-	modules: Arc<RwLock<HashMap<PathBuf, Module>>>,
+	modules_by_path: Arc<RwLock<HashMap<PathBuf, Module>>>,
+	modules: Arc<RwLock<Vec<Module>>>,
 	errors: Arc<RwLock<Errors>>,
 	tracer: DebugLog,
 	scanner: Scanner,
 }
 
-impl Context {
+impl Compiler {
 	pub fn new() -> Self {
 		let base_path = std::env::current_dir().expect("failed to get working dir");
 		Self {
 			base_path,
+			modules_by_path: Default::default(),
 			modules: Default::default(),
 			errors: Default::default(),
 			tracer: Default::default(),
@@ -30,9 +31,9 @@ impl Context {
 	}
 
 	pub fn new_with_defaults() -> Self {
-		let mut context = Self::new();
-		context.load_defaults();
-		context
+		let mut compiler = Self::new();
+		compiler.load_defaults();
+		compiler
 	}
 
 	//================================================================================================================//
@@ -41,7 +42,7 @@ impl Context {
 
 	pub fn errors(&self) -> Errors {
 		let mut errors = self.errors.read().unwrap().clone();
-		for module in self.modules.read().unwrap().values() {
+		for module in self.modules_by_path.read().unwrap().values() {
 			errors.append(&module.errors());
 		}
 		errors
@@ -97,7 +98,7 @@ impl Context {
 	}
 
 	pub fn new_scope(&self) -> Scope {
-		todo!();
+		Scope::default()
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
@@ -114,7 +115,7 @@ impl Context {
 
 		let module = std::fs::canonicalize(full_path)
 			.and_then(|full_path| {
-				let mut modules = self.modules.write().unwrap();
+				let mut modules = self.modules_by_path.write().unwrap();
 				if let Some(module) = modules.get(&full_path).cloned() {
 					Ok(module)
 				} else {
@@ -137,6 +138,8 @@ impl Context {
 	}
 
 	fn load_module(&mut self, module: &mut Module) {
+		let mut modules = self.modules.write().unwrap();
+		modules.push(module.clone());
 		module.load_input_segments(self);
 	}
 
@@ -146,7 +149,7 @@ impl Context {
 
 	pub fn resolve_all(&mut self) {
 		let mut modules = self.modules.write().unwrap();
-		let mut pending: Vec<Module> = modules.values().cloned().collect();
+		let mut pending: Vec<Module> = modules.iter().cloned().collect();
 		while pending.len() > 0 {
 			let mut changed = false;
 			let mut all_changes = Vec::new();
@@ -169,7 +172,7 @@ impl Context {
 		}
 
 		drop(pending);
-		for it in modules.values_mut() {
+		for it in modules.iter_mut() {
 			it.compile_code(self);
 		}
 	}

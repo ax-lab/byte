@@ -51,14 +51,14 @@ fn main() {
 		std::process::exit(1);
 	}
 
-	let mut context = byte::new();
+	let mut compiler = byte::new();
 	if show_blocks {
-		context.enable_trace_blocks();
+		compiler.enable_trace_blocks();
 	}
 
 	let mut errors = byte::Errors::new();
 	for file in files {
-		if let Err(err) = context.load_file(file) {
+		if let Err(err) = compiler.load_file(file) {
 			errors.append(&err);
 		}
 	}
@@ -68,9 +68,9 @@ fn main() {
 		std::process::exit(1);
 	}
 
-	context.resolve_all();
+	compiler.resolve_all();
 
-	let errors = context.errors();
+	let errors = compiler.errors();
 	if !errors.empty() {
 		eprintln!("");
 		eprintln!("{errors}");

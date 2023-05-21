@@ -13,12 +13,12 @@ pub use crate::core::*;
 pub use build::*;
 pub use code::*;
 pub use nodes::*;
-pub use runtime::Runtime;
+pub use runtime::*;
 
 type Result<T> = std::result::Result<T, Errors>;
 
-pub fn new() -> Context {
-	Context::new_with_defaults()
+pub fn new() -> Compiler {
+	Compiler::new_with_defaults()
 }
 
 pub fn run(input: Input, rt: &mut Runtime) -> Result<Value> {
@@ -31,12 +31,12 @@ pub fn run(input: Input, rt: &mut Runtime) -> Result<Value> {
 }
 
 pub fn compile(input: Input) -> Result<Code> {
-	let mut context = new();
+	let mut compiler = new();
 
-	let module = context.load_input(input);
-	context.resolve_all();
+	let module = compiler.load_input(input);
+	compiler.resolve_all();
 
-	let errors = context.errors();
+	let errors = compiler.errors();
 	if errors.len() > 0 {
 		return Err(errors);
 	}
@@ -58,10 +58,11 @@ mod tests {
 	#[test]
 	fn hello_world() {
 		let mut rt = Runtime::default();
-		let mut output = String::new();
-		rt.redirect_output(&mut output);
+		let mut output = StringOutput::default();
+		rt.redirect_output(Box::new(output.writer()));
 
 		let _ = run(Input::from("print 'hello world!!!'"), &mut rt).unwrap();
+		let output = output.read();
 		assert_eq!(output, "hello world!!!\n");
 	}
 }
