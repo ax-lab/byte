@@ -82,6 +82,10 @@ impl Value {
 		value
 	}
 
+	pub fn has_field<T: IsValue>(&self) -> bool {
+		self.get_field::<T>().is_some()
+	}
+
 	pub fn get_field<T: IsValue>(&self) -> Option<&T> {
 		let key = TypeId::of::<T>();
 		self.inner.table.get(&key).and_then(|v| v.get::<T>())

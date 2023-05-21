@@ -1,6 +1,6 @@
 use std::{
-	collections::HashMap,
-	path::{Path, PathBuf},
+	collections::HashSet,
+	path::Path,
 	sync::{Arc, RwLock},
 };
 
@@ -9,10 +9,8 @@ use super::*;
 
 #[derive(Clone)]
 pub struct Compiler {
-	base_path: PathBuf,
-	modules_by_path: Arc<RwLock<HashMap<PathBuf, Module>>>,
-	modules: Arc<RwLock<Vec<Module>>>,
-	errors: Arc<RwLock<Errors>>,
+	context: Context,
+	modules: Arc<RwLock<HashSet<Context>>>,
 	tracer: DebugLog,
 	scanner: Scanner,
 }
@@ -20,11 +18,10 @@ pub struct Compiler {
 impl Compiler {
 	pub fn new() -> Self {
 		let base_path = std::env::current_dir().expect("failed to get working dir");
+		let context = Context::new_root(base_path);
 		Self {
-			base_path,
-			modules_by_path: Default::default(),
+			context,
 			modules: Default::default(),
-			errors: Default::default(),
 			tracer: Default::default(),
 			scanner: Default::default(),
 		}
@@ -36,24 +33,12 @@ impl Compiler {
 		compiler
 	}
 
-	//================================================================================================================//
-	// Error handling
-	//================================================================================================================//
+	pub fn has_errors(&self) -> bool {
+		self.context.has_errors()
+	}
 
 	pub fn errors(&self) -> Errors {
-		let mut errors = self.errors.read().unwrap().clone();
-		for module in self.modules_by_path.read().unwrap().values() {
-			errors.append(&module.errors());
-		}
-		errors
-	}
-
-	pub fn add_error<T: IsValue>(&self, error: T) {
-		self.errors.write().unwrap().add(error);
-	}
-
-	pub fn append_errors(&self, errors: &Errors) {
-		self.errors.write().unwrap().append(errors);
+		self.context.errors()
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
@@ -63,14 +48,14 @@ impl Compiler {
 	pub fn load_defaults(&mut self) {
 		use super::lang::*;
 
-		let scanner = &mut self.scanner;
+		let mut scanner = self.context.scanner();
 
 		scanner.add_matcher(IdentifierMatcher);
 		scanner.add_matcher(IntegerMatcher);
 		scanner.add_matcher(LiteralMatcher);
 		scanner.add_matcher(CommentMatcher);
 
-		Op::add_symbols(scanner);
+		Op::add_symbols(&mut scanner);
 
 		scanner.add_bracket_pair("(", ")");
 		scanner.add_symbol("(", Token::Symbol("("));
@@ -87,6 +72,8 @@ impl Compiler {
 		scanner.add_symbol(",", Token::Symbol(","));
 		scanner.add_symbol(":", Token::Symbol(":"));
 		scanner.add_symbol(";", Token::Symbol(";"));
+
+		self.context.update_scanner(scanner);
 	}
 
 	pub fn enable_trace_blocks(&mut self) {
@@ -106,41 +93,21 @@ impl Compiler {
 	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn load_file<P: AsRef<Path>>(&mut self, path: P) -> Result<Module> {
-		let path = path.as_ref();
-		let full_path = if path.is_relative() {
-			self.base_path.join(path)
-		} else {
-			path.to_owned()
-		};
+		let module = self.context.load_module(path)?;
 
-		let module = std::fs::canonicalize(full_path)
-			.and_then(|full_path| {
-				let mut modules = self.modules_by_path.write().unwrap();
-				if let Some(module) = modules.get(&full_path).cloned() {
-					Ok(module)
-				} else {
-					let mut module = Module::from_path(&full_path)?;
-					modules.insert(full_path, module.clone());
-					drop(modules);
-					self.load_module(&mut module);
-					Ok(module)
-				}
-			})
-			.map_err(|err| Errors::from(format!("loading `{}`: {err}", path.to_string_lossy())))?;
+		let mut modules = self.modules.write().unwrap();
+		modules.insert(module.context().clone());
 
 		Ok(module)
 	}
 
 	pub fn load_input(&mut self, input: Input) -> Module {
-		let mut module = Module::from_input(input);
-		self.load_module(&mut module);
-		module
-	}
+		let module = Module::new(self.context.clone(), input);
 
-	fn load_module(&mut self, module: &mut Module) {
 		let mut modules = self.modules.write().unwrap();
-		modules.push(module.clone());
-		module.load_input_segments(self);
+		modules.insert(module.context().clone());
+
+		module
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
@@ -148,32 +115,41 @@ impl Compiler {
 	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn resolve_all(&mut self) {
-		let mut modules = self.modules.write().unwrap();
-		let mut pending: Vec<Module> = modules.iter().cloned().collect();
+		let mut pending: HashSet<Context> = self.modules.read().unwrap().clone();
+
 		while pending.len() > 0 {
 			let mut changed = false;
 			let mut all_changes = Vec::new();
-			pending = pending
-				.into_iter()
-				.filter_map(|mut module| match module.resolve_next(self) {
-					ResolveResult::Done => None,
-					ResolveResult::Pass => Some(module),
+
+			let next: Vec<Context> = pending.iter().cloned().collect();
+			for it in next.into_iter() {
+				match it.resolve_next() {
+					ResolveResult::Done => {
+						pending.remove(&it);
+					}
+					ResolveResult::Pass => todo!(),
 					ResolveResult::Changed(mut changes) => {
 						all_changes.append(&mut changes);
 						changed = true;
-						Some(module)
 					}
-				})
-				.collect();
+				};
+			}
 
 			if !changed {
 				break;
 			}
 		}
 
-		drop(pending);
-		for it in modules.iter_mut() {
-			it.compile_code(self);
+		for it in pending.into_iter() {
+			it.resolve_all();
+		}
+
+		if !self.has_errors() {
+			let modules: HashSet<Context> = self.modules.read().unwrap().clone();
+			for it in modules.into_iter() {
+				let it: Context = it;
+				it.module().clone().map(|mut x| x.compile_code());
+			}
 		}
 	}
 

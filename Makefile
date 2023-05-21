@@ -4,7 +4,7 @@ test:
 	@echo :: Cargo tests
 	@echo ------------------------------------------------------
 	@echo
-	@cd byte-rs && cargo test
+	@cd byte-rs && cargo test $(cargo)
 	
 	@echo
 	@echo ------------------------------------------------------

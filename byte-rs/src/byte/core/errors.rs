@@ -21,6 +21,13 @@ impl Errors {
 		errors
 	}
 
+	pub fn from_list<T: IntoIterator<Item = V>, V: IsValue>(errors: T) -> Self {
+		let list = errors.into_iter().map(|x| Value::from(x)).collect();
+		Errors {
+			list: Arc::new(list),
+		}
+	}
+
 	pub fn empty(&self) -> bool {
 		self.list.len() == 0
 	}

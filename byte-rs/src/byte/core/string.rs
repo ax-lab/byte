@@ -11,6 +11,15 @@ pub enum Str {
 }
 
 impl Str {
+	pub fn from<T: Into<String>>(str: T) -> Self {
+		let str: String = str.into();
+		if str.len() == 0 {
+			Str::Empty
+		} else {
+			Str::Shared(str.into())
+		}
+	}
+
 	pub fn as_str(&self) -> &str {
 		match self {
 			Str::Empty => "",

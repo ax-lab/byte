@@ -1,50 +1,67 @@
-use std::{
-	path::Path,
-	sync::{Arc, RwLock},
-};
+use std::sync::Arc;
 
 use crate::lexer::*;
 
 use super::*;
 
 /// Represents an isolated module of code.
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Module {
-	input: Input,
-	data: Arc<RwLock<ModuleData>>,
+	data: Arc<ModuleData>,
 }
 
-#[derive(Default)]
+#[derive(Eq, PartialEq)]
 struct ModuleData {
-	static_scope: Scope,
-	errors: Errors,
-	resolver: Resolver,
-	scanner: Scanner,
+	context: Context,
+	input: Input,
+	nodes: Vec<Node>,
 }
 
 impl Module {
-	pub fn from_path<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
-		let input = Input::open(path)?;
-		Ok(Self::from_input(input))
-	}
+	pub fn new(mut context: Context, input: Input) -> Self {
+		let mut scanner = context.scanner();
 
-	pub fn from_input(input: Input) -> Self {
+		let mut errors = Errors::new();
+		let tokens = NodeList::tokenize(input.clone(), &mut scanner, &mut errors);
+
+		let mut stream = tokens.into_iter();
+		let nodes = if errors.empty() {
+			parse_segments(&scanner, &mut stream, &mut errors)
+		} else {
+			Vec::new()
+		};
+
+		context.add_nodes_to_resolve(nodes.iter().cloned());
+		context.update_scanner(scanner);
+		context.raise_errors(&errors);
+
 		Self {
-			input,
-			data: Default::default(),
+			data: Arc::new(ModuleData {
+				context,
+				input,
+				nodes,
+			}),
 		}
 	}
 
 	pub fn input(&self) -> &Input {
-		&self.input
+		&self.data.input
+	}
+
+	pub fn context(&self) -> &Context {
+		&self.data.context
+	}
+
+	pub fn nodes(&self) -> impl Iterator<Item = Node> + '_ {
+		self.data.nodes.iter().cloned()
 	}
 
 	pub fn errors(&self) -> Errors {
-		self.data.read().unwrap().errors.clone()
+		self.data.context.errors()
 	}
 
 	pub fn has_errors(&self) -> bool {
-		self.data.read().unwrap().errors.clone().len() > 0
+		self.data.context.has_errors()
 	}
 
 	pub fn code(&self) -> Code {
@@ -55,42 +72,18 @@ impl Module {
 	// Module compilation & resolution
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub(crate) fn resolve_next(&mut self, compiler: &Compiler) -> ResolveResult {
-		let mut data = self.data.write().unwrap();
-		data.resolver.step(compiler, self)
-	}
-
-	pub(crate) fn compile_code(&mut self, compiler: &Compiler) {
-		let _ = compiler;
+	pub(crate) fn compile_code(&mut self) {
 		todo!()
 	}
 
-	pub(crate) fn load_input_segments(&mut self, compiler: &Compiler) {
-		let mut data = self.data.write().unwrap();
-
+	#[allow(unused)]
+	pub(crate) fn load_input_segments(&mut self) {
 		//--------------------------------------------------------------------//
 		// Step 1 - Parse the input into segments
 		//--------------------------------------------------------------------//
 		//
 		// This includes lexical analysis and parsing the raw segments that
 		// will be resolved into the module code.
-
-		let mut scanner = compiler.new_scanner();
-
-		let mut errors = &mut data.errors;
-		let tokens = NodeList::tokenize(self.input.clone(), &mut scanner, &mut errors);
-
-		let mut stream = tokens.into_iter();
-		let nodes = if errors.empty() {
-			parse_segments(&scanner, &mut stream, &mut errors)
-		} else {
-			Vec::new()
-		};
-
-		data.static_scope = compiler.new_scope();
-
-		data.resolver.push(nodes);
-		data.scanner = scanner;
 
 		//--------------------------------------------------------------------//
 		// Step 2 - Syntax macro resolution and static name binding
