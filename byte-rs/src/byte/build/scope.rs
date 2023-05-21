@@ -8,6 +8,7 @@ use crate::lexer::{NodeStream, Scanner};
 /// The scope is read-only. Nodes that affect the scope must publish their
 /// changes during resolution, and those will be applied to the scope for
 /// the next step.
+#[derive(Default)]
 pub struct Scope {}
 
 impl Scope {

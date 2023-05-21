@@ -1,7 +1,7 @@
 use std::{
 	collections::HashMap,
 	path::{Path, PathBuf},
-	sync::{Arc, Mutex, RwLock},
+	sync::{Arc, RwLock},
 };
 
 use super::lexer::*;
@@ -11,7 +11,7 @@ use super::*;
 #[derive(Clone)]
 pub struct Context {
 	base_path: PathBuf,
-	modules: Arc<Mutex<HashMap<PathBuf, Module>>>,
+	modules: Arc<RwLock<HashMap<PathBuf, Module>>>,
 	errors: Arc<RwLock<Errors>>,
 	tracer: DebugLog,
 	scanner: Scanner,
@@ -25,7 +25,7 @@ impl Context {
 			modules: Default::default(),
 			errors: Default::default(),
 			tracer: Default::default(),
-			scanner: Scanner::new(),
+			scanner: Default::default(),
 		}
 	}
 
@@ -40,14 +40,18 @@ impl Context {
 	//================================================================================================================//
 
 	pub fn errors(&self) -> Errors {
-		self.errors.read().unwrap().clone()
+		let mut errors = self.errors.read().unwrap().clone();
+		for module in self.modules.read().unwrap().values() {
+			errors.append(&module.errors());
+		}
+		errors
 	}
 
 	pub fn add_error<T: IsValue>(&self, error: T) {
 		self.errors.write().unwrap().add(error);
 	}
 
-	pub fn append_errors(&self, errors: Errors) {
+	pub fn append_errors(&self, errors: &Errors) {
 		self.errors.write().unwrap().append(errors);
 	}
 
@@ -92,11 +96,15 @@ impl Context {
 		self.scanner.clone()
 	}
 
+	pub fn new_scope(&self) -> Scope {
+		todo!();
+	}
+
 	//----------------------------------------------------------------------------------------------------------------//
 	// Modules
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub fn load_file<P: AsRef<Path>>(&mut self, path: P) -> Option<Module> {
+	pub fn load_file<P: AsRef<Path>>(&mut self, path: P) -> Result<Module> {
 		let path = path.as_ref();
 		let full_path = if path.is_relative() {
 			self.base_path.join(path)
@@ -104,26 +112,22 @@ impl Context {
 			path.to_owned()
 		};
 
-		let module = std::fs::canonicalize(full_path).and_then(|full_path| {
-			let mut modules = self.modules.lock().unwrap();
-			if let Some(module) = modules.get(&full_path).cloned() {
-				Ok(module)
-			} else {
-				let mut module = Module::from_path(&full_path)?;
-				modules.insert(full_path, module.clone());
-				drop(modules);
-				self.load_module(&mut module);
-				Ok(module)
-			}
-		});
+		let module = std::fs::canonicalize(full_path)
+			.and_then(|full_path| {
+				let mut modules = self.modules.write().unwrap();
+				if let Some(module) = modules.get(&full_path).cloned() {
+					Ok(module)
+				} else {
+					let mut module = Module::from_path(&full_path)?;
+					modules.insert(full_path, module.clone());
+					drop(modules);
+					self.load_module(&mut module);
+					Ok(module)
+				}
+			})
+			.map_err(|err| Errors::from(format!("loading `{}`: {err}", path.to_string_lossy())))?;
 
-		match module {
-			Ok(module) => Some(module),
-			Err(err) => {
-				self.add_error(format!("loading `{}`: {err}", path.to_string_lossy()));
-				None
-			}
-		}
+		Ok(module)
 	}
 
 	pub fn load_input(&mut self, input: Input) -> Module {
@@ -133,14 +137,42 @@ impl Context {
 	}
 
 	fn load_module(&mut self, module: &mut Module) {
-		module.compile_module(self);
+		module.load_input_segments(self);
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
 	// Resolution
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub fn resolve_all(&self) {}
+	pub fn resolve_all(&mut self) {
+		let mut modules = self.modules.write().unwrap();
+		let mut pending: Vec<Module> = modules.values().cloned().collect();
+		while pending.len() > 0 {
+			let mut changed = false;
+			let mut all_changes = Vec::new();
+			pending = pending
+				.into_iter()
+				.filter_map(|mut module| match module.resolve_next(self) {
+					ResolveResult::Done => None,
+					ResolveResult::Pass => Some(module),
+					ResolveResult::Changed(mut changes) => {
+						all_changes.append(&mut changes);
+						changed = true;
+						Some(module)
+					}
+				})
+				.collect();
+
+			if !changed {
+				break;
+			}
+		}
+
+		drop(pending);
+		for it in modules.values_mut() {
+			it.compile_code(self);
+		}
+	}
 
 	//================================================================================================================//
 	// Trace events

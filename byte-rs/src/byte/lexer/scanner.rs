@@ -15,7 +15,7 @@ pub trait Matcher: Send + Sync {
 
 /// Implements raw token scanning using a configurable list of [`Matcher`]
 /// and a symbol table.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Scanner {
 	matchers: Arc<Vec<Arc<dyn Matcher>>>,
 	symbols: Arc<SymbolTable<Value>>,
@@ -24,15 +24,6 @@ pub struct Scanner {
 }
 
 impl Scanner {
-	pub fn new() -> Scanner {
-		Scanner {
-			matchers: Default::default(),
-			symbols: Default::default(),
-			open_brackets: Default::default(),
-			close_brackets: Default::default(),
-		}
-	}
-
 	//----------------------------------------------------------------------------------------------------------------//
 	// Configuration
 	//----------------------------------------------------------------------------------------------------------------//

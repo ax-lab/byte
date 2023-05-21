@@ -5,6 +5,7 @@ pub mod scope;
 
 pub use context::*;
 pub use module::*;
+pub use resolver::*;
 pub use scope::*;
 
 use super::*;

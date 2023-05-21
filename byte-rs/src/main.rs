@@ -56,8 +56,16 @@ fn main() {
 		context.enable_trace_blocks();
 	}
 
+	let mut errors = byte::Errors::new();
 	for file in files {
-		context.load_file(file);
+		if let Err(err) = context.load_file(file) {
+			errors.append(&err);
+		}
+	}
+
+	if !errors.empty() {
+		eprintln!("\n{errors}\n");
+		std::process::exit(1);
 	}
 
 	context.resolve_all();

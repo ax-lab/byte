@@ -165,7 +165,7 @@ mod tests {
 
 	fn open(input: &'static str) -> NodeStream {
 		let input = Input::from(input);
-		let mut scanner = Scanner::new();
+		let mut scanner = Scanner::default();
 		scanner.add_matcher(IntegerMatcher);
 		scanner.add_symbol("+", Token::Symbol("+"));
 		scanner.add_symbol("-", Token::Symbol("-"));

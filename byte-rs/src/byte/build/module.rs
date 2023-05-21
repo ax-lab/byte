@@ -1,4 +1,9 @@
-use std::path::Path;
+use std::{
+	path::Path,
+	sync::{Arc, RwLock},
+};
+
+use crate::lexer::*;
 
 use super::*;
 
@@ -6,7 +11,15 @@ use super::*;
 #[derive(Clone)]
 pub struct Module {
 	input: Input,
-	has_errors: bool,
+	data: Arc<RwLock<ModuleData>>,
+}
+
+#[derive(Default)]
+struct ModuleData {
+	static_scope: Scope,
+	errors: Errors,
+	resolver: Resolver,
+	scanner: Scanner,
 }
 
 impl Module {
@@ -18,7 +31,7 @@ impl Module {
 	pub fn from_input(input: Input) -> Self {
 		Self {
 			input,
-			has_errors: false,
+			data: Default::default(),
 		}
 	}
 
@@ -26,19 +39,72 @@ impl Module {
 		&self.input
 	}
 
+	pub fn errors(&self) -> Errors {
+		self.data.read().unwrap().errors.clone()
+	}
+
 	pub fn has_errors(&self) -> bool {
-		self.has_errors
+		self.data.read().unwrap().errors.clone().len() > 0
 	}
 
 	pub fn code(&self) -> Code {
 		todo!();
 	}
 
-	pub(crate) fn compile_module(&mut self, context: &Context) {
-		// First we split the input into broad segments which are then parsed
-		// individually.
+	//----------------------------------------------------------------------------------------------------------------//
+	// Module compilation & resolution
+	//----------------------------------------------------------------------------------------------------------------//
+
+	pub(crate) fn resolve_next(&mut self, context: &Context) -> ResolveResult {
+		let mut data = self.data.write().unwrap();
+		data.resolver.step(context, self)
+	}
+
+	pub(crate) fn compile_code(&mut self, context: &Context) {
 		let _ = context;
-		todo!();
+		todo!()
+	}
+
+	pub(crate) fn load_input_segments(&mut self, context: &Context) {
+		let mut data = self.data.write().unwrap();
+
+		//--------------------------------------------------------------------//
+		// Step 1 - Parse the input into segments
+		//--------------------------------------------------------------------//
+		//
+		// This includes lexical analysis and parsing the raw segments that
+		// will be resolved into the module code.
+
+		let mut scanner = context.new_scanner();
+
+		let mut errors = &mut data.errors;
+		let tokens = NodeList::tokenize(self.input.clone(), &mut scanner, &mut errors);
+
+		let mut stream = tokens.into_iter();
+		let nodes = if errors.empty() {
+			parse_segments(&scanner, &mut stream, &mut errors)
+		} else {
+			Vec::new()
+		};
+
+		data.static_scope = context.new_scope();
+
+		data.resolver.push(nodes);
+		data.scanner = scanner;
+
+		//--------------------------------------------------------------------//
+		// Step 2 - Syntax macro resolution and static name binding
+		//--------------------------------------------------------------------//
+		//
+		// The static namespace is visible anywhere in the file, independently
+		// of execution order, so it must be resolved first.
+		//
+		// Only syntax macros can bind symbols to the static namespace, so each
+		// segment is matched with available syntax macros that can parse it.
+		//
+		// Module imports and exports, type definitions, const declarations,
+		// static functions, user macros, custom operators: all of these must
+		// use a syntax macro so they can be available at expression parsing.
 
 		//--------------------------------------------------------------------//
 		// TODO:
@@ -48,18 +114,6 @@ impl Module {
 		// heavily parallelized.
 		//--------------------------------------------------------------------//
 
-		//--------------------------------------------------------------------//
-		// Step 1 - Lexer configuration
-		//--------------------------------------------------------------------//
-		//
-		// Resolve each segment sequentially looking for lexer directives that
-		// affect token parsing. The configuration is stored as a Scanner with
-		// each segment inheriting the previous segment's configuration.
-
-		//--------------------------------------------------------------------//
-		// Step 2 - Syntax macro resolution and static name binding
-		//--------------------------------------------------------------------//
-		//
 		// Resolve syntax macro nodes and bind names in the static scope for
 		// the current level.
 		//

@@ -513,7 +513,7 @@ mod tests {
 		let text = input.join("\n");
 		let text = Input::new("test.in", text);
 
-		let mut scanner = Scanner::new();
+		let mut scanner = Scanner::default();
 		scanner.add_bracket_pair("(", ")");
 		scanner.add_bracket_pair("[", "]");
 		scanner.add_bracket_pair("{", "}");

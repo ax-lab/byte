@@ -15,6 +15,12 @@ impl Errors {
 		Self::default()
 	}
 
+	pub fn from<T: IsValue>(error: T) -> Self {
+		let mut errors = Self::new();
+		errors.add(error);
+		errors
+	}
+
 	pub fn empty(&self) -> bool {
 		self.list.len() == 0
 	}
@@ -23,7 +29,7 @@ impl Errors {
 		self.list.len()
 	}
 
-	pub fn append(&mut self, errors: Errors) {
+	pub fn append(&mut self, errors: &Errors) {
 		let list = Arc::make_mut(&mut self.list);
 		list.extend(errors.list.iter().cloned())
 	}
