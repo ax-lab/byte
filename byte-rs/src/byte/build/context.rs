@@ -134,7 +134,27 @@ impl Context {
 		self.set(|x| x.scanner = scanner);
 	}
 
-	pub fn load_module<P: AsRef<Path>>(&mut self, path: P) -> Result<Module> {
+	/// Create a new module loading the given input.
+	///
+	/// The new module will inherit the root context for the current context,
+	/// but will not be accessible in any other way.
+	pub fn create_module_from_input(&mut self, input: Input) -> Module {
+		let mut context = self.root().inherit();
+		if let Some(name) = input.name() {
+			context.set_name(name);
+		}
+
+		let module = Module::new(context.clone(), input);
+		context.data_mut().module = Some(module.clone());
+
+		module
+	}
+
+	/// Load a module from a file path.
+	///
+	/// Modules are loaded only once and cached. Loading the same path twice
+	/// will return the same module.
+	pub fn load_module_from_path<P: AsRef<Path>>(&mut self, path: P) -> Result<Module> {
 		let path = path.as_ref();
 		let full_path = if path.is_relative() {
 			self.base_path().join(path)
@@ -176,17 +196,19 @@ impl Context {
 	// Node resolution
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub(crate) fn add_nodes_to_resolve<T: IntoIterator<Item = Node>>(&mut self, nodes: T) {
-		let _ = nodes;
-		todo!()
+	/// Resolve all pending nodes in the context.
+	pub fn resolve(&mut self) {
+		let mut resolver = {
+			let mut data = self.data.write().unwrap();
+			std::mem::take(&mut data.resolver)
+		};
+		resolver.resolve(self);
 	}
 
-	pub(crate) fn resolve_next(&self) -> ResolveResult {
-		todo!()
-	}
-
-	pub(crate) fn resolve_all(&self) {
-		todo!()
+	/// Queue nodes to be resolved by the context.
+	pub fn queue_nodes<T: IntoIterator<Item = Node>>(&mut self, nodes: T) {
+		let mut data = self.data_mut();
+		data.resolver.queue_nodes(nodes);
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
@@ -284,6 +306,7 @@ struct ContextData {
 	name: Option<Str>,
 	errors: Errors,
 	module: Option<Module>,
+	resolver: Resolver,
 }
 
 #[derive(Default)]

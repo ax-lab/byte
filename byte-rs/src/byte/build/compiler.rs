@@ -9,10 +9,9 @@ use super::*;
 
 #[derive(Clone)]
 pub struct Compiler {
-	context: Context,
-	modules: Arc<RwLock<HashSet<Context>>>,
+	root_context: Context,
+	loaded_contexts: Arc<RwLock<HashSet<Context>>>,
 	tracer: DebugLog,
-	scanner: Scanner,
 }
 
 impl Compiler {
@@ -20,10 +19,9 @@ impl Compiler {
 		let base_path = std::env::current_dir().expect("failed to get working dir");
 		let context = Context::new_root(base_path);
 		Self {
-			context,
-			modules: Default::default(),
+			root_context: context,
+			loaded_contexts: Default::default(),
 			tracer: Default::default(),
-			scanner: Default::default(),
 		}
 	}
 
@@ -34,11 +32,11 @@ impl Compiler {
 	}
 
 	pub fn has_errors(&self) -> bool {
-		self.context.has_errors()
+		self.root_context.has_errors()
 	}
 
 	pub fn errors(&self) -> Errors {
-		self.context.errors()
+		self.root_context.errors()
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
@@ -48,7 +46,7 @@ impl Compiler {
 	pub fn load_defaults(&mut self) {
 		use super::lang::*;
 
-		let mut scanner = self.context.scanner();
+		let mut scanner = self.root_context.scanner();
 
 		scanner.add_matcher(IdentifierMatcher);
 		scanner.add_matcher(IntegerMatcher);
@@ -73,19 +71,11 @@ impl Compiler {
 		scanner.add_symbol(":", Token::Symbol(":"));
 		scanner.add_symbol(";", Token::Symbol(";"));
 
-		self.context.update_scanner(scanner);
+		self.root_context.update_scanner(scanner);
 	}
 
 	pub fn enable_trace_blocks(&mut self) {
 		self.tracer.show_blocks();
-	}
-
-	pub fn new_scanner(&self) -> Scanner {
-		self.scanner.clone()
-	}
-
-	pub fn new_scope(&self) -> Scope {
-		Scope::default()
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
@@ -93,19 +83,19 @@ impl Compiler {
 	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn load_file<P: AsRef<Path>>(&mut self, path: P) -> Result<Module> {
-		let module = self.context.load_module(path)?;
+		let module = self.root_context.load_module_from_path(path)?;
 
-		let mut modules = self.modules.write().unwrap();
-		modules.insert(module.context().clone());
+		let mut contexts = self.loaded_contexts.write().unwrap();
+		contexts.insert(module.context().clone());
 
 		Ok(module)
 	}
 
 	pub fn load_input(&mut self, input: Input) -> Module {
-		let module = Module::new(self.context.clone(), input);
+		let module = self.root_context.create_module_from_input(input);
 
-		let mut modules = self.modules.write().unwrap();
-		modules.insert(module.context().clone());
+		let mut contexts = self.loaded_contexts.write().unwrap();
+		contexts.insert(module.context().clone());
 
 		module
 	}
@@ -115,40 +105,21 @@ impl Compiler {
 	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn resolve_all(&mut self) {
-		let mut pending: HashSet<Context> = self.modules.read().unwrap().clone();
+		let context_list = self.loaded_contexts.write().unwrap();
+		let mut context_list: Vec<Context> = context_list.iter().cloned().collect();
 
-		while pending.len() > 0 {
-			let mut changed = false;
-			let mut all_changes = Vec::new();
-
-			let next: Vec<Context> = pending.iter().cloned().collect();
-			for it in next.into_iter() {
-				match it.resolve_next() {
-					ResolveResult::Done => {
-						pending.remove(&it);
-					}
-					ResolveResult::Pass => todo!(),
-					ResolveResult::Changed(mut changes) => {
-						all_changes.append(&mut changes);
-						changed = true;
-					}
-				};
-			}
-
-			if !changed {
-				break;
-			}
+		// Contexts are able to coordinate and resolve themselves, so just
+		// trigger every module's context resolution
+		for context in context_list.iter_mut() {
+			context.resolve();
 		}
 
-		for it in pending.into_iter() {
-			it.resolve_all();
-		}
-
+		// trigger the code generation for all modules
 		if !self.has_errors() {
-			let modules: HashSet<Context> = self.modules.read().unwrap().clone();
-			for it in modules.into_iter() {
-				let it: Context = it;
-				it.module().clone().map(|mut x| x.compile_code());
+			for it in context_list.iter() {
+				if let Some(module) = it.module() {
+					module.compile_code();
+				}
 			}
 		}
 	}

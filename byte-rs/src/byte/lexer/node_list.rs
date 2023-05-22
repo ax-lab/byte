@@ -35,6 +35,10 @@ impl NodeList {
 		Self { list }
 	}
 
+	pub fn span(&self) -> Option<Span> {
+		Span::from_list(self.list.iter().map(|x| x.span().cloned()))
+	}
+
 	/// Number of nodes in the list.
 	pub fn len(&self) -> usize {
 		self.list.len()

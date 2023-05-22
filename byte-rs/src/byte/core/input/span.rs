@@ -157,6 +157,22 @@ impl Span {
 			location: self.end_location(),
 		}
 	}
+
+	pub fn from_list<T: IntoIterator<Item = Option<Span>>>(list: T) -> Option<Self> {
+		let mut iter = list.into_iter();
+		if let Some(first) = iter.next() {
+			let span = first.map(|span| {
+				if let Some(Some(last)) = iter.last() {
+					Self::merge(&span, &last)
+				} else {
+					span
+				}
+			});
+			span
+		} else {
+			None
+		}
+	}
 }
 
 //====================================================================================================================//

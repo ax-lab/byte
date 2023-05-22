@@ -7,7 +7,14 @@ pub fn parse_segments(
 ) -> Vec<Node> {
 	let block = Block::parse(scanner, stream, errors, 0);
 	let result = if let Some(block) = block {
-		block.items.into_iter().map(Node::from).collect()
+		block
+			.items
+			.into_iter()
+			.map(|node| {
+				let span = node.span();
+				Node::from(node).at(span)
+			})
+			.collect()
 	} else {
 		Vec::new()
 	};
@@ -35,6 +42,10 @@ impl Block {
 		Self {
 			items: segments.into_iter().collect(),
 		}
+	}
+
+	pub fn span(&self) -> Option<Span> {
+		Span::from_list(self.items.iter().map(|x| x.span()))
 	}
 
 	fn parse(
@@ -125,6 +136,10 @@ impl Segment {
 
 	pub fn empty(&self) -> bool {
 		self.line.len() == 0 && self.block.is_none()
+	}
+
+	pub fn span(&self) -> Option<Span> {
+		self.line.span()
 	}
 
 	fn parse(
