@@ -11,6 +11,76 @@ impl Resolver {
 	}
 
 	pub fn resolve(&mut self, context: &mut Context) {
+		/*
+			ALGORITHM
+			=========
+
+			- LOOP while there are pending nodes in the local context:
+				- for each node:
+					- call resolve and collect input and output bindings
+				- if no bindings are changed, break LOOP
+				- apply all output bindings to the scope
+				- CHECK for solvable input bindings:
+					- collect all known input bindings
+					- if there are no bindings left, continue to next LOOP
+					- order the bound symbols by "operator precedence"
+					- bind the higher precedence group
+						- any ambiguous bindings generate an error
+					- if any node resolved all its pending input bindings:
+						- continue to next LOOP
+					- otherwise continue CHECK
+
+			BINDINGS
+			========
+
+			Bindings are declared in a scope and bind by name. Inside the
+			scope, bindings can also have a lifetime based on the input
+			position. This is the case for expression-level bindings, which
+			are only defined after the code execution.
+
+			Bindings can be shadowed (e.g. by a let expression), but that
+			can also be validated on per-case basis (e.g. to create a sort
+			of keyword).
+
+			## Star imports
+
+			Bindings coming from external imports (i.e. star imports) have the
+			lowest precedence of all.
+
+			A star import will only bind when there is nothing else. Star
+			imports still follow operator precedence in their group.
+
+			Star imports also bind grouped by the reverse order they appear
+			in the input (i.e. star imports shadow previous declarations).
+
+			CYCLIC DEFINITIONS
+			==================
+
+			File imports are evaluated globally in parallel. If two files have
+			a cyclic dependency, their evaluation will eventually stall until
+			one of them solves the other dependency.
+
+			If the dependencies are truly cyclical, such that they cannot be
+			resolved, then both files will stall and report the dependencies
+			as unsolved bindings.
+
+			OPERATORS
+			=========
+
+			- Brackets: (), [], {}
+				- Evaluate to a group
+			- Indents:
+				- Operates as a special line break
+					- `A v B > C v D < E`
+				- Indent and Dedent form a bracketed pair
+				- But indents are virtual, so they can be overridden:
+					- `A ( > B v C ) D < E` becomes `A ( > B v C < ) D v E`
+			- Comments
+				- Evaluate to nothing
+			- Line breaks
+				- Evaluate to a list
+		*/
+
 		let mut pending = std::mem::take(&mut self.pending);
 		let all_nodes = pending.clone();
 		while pending.len() > 0 {
