@@ -3,7 +3,6 @@ use std::env;
 fn main() {
 	let mut done = false;
 	let mut files = Vec::new();
-	let mut show_blocks = false;
 	let mut eval_list = Vec::new();
 	let mut next_is_eval = false;
 	for arg in env::args().skip(1) {
@@ -22,10 +21,6 @@ fn main() {
 					print_usage();
 					true
 				}
-				"--blocks" => {
-					show_blocks = true;
-					false
-				}
 				"--eval" => {
 					next_is_eval = true;
 					false
@@ -43,42 +38,8 @@ fn main() {
 
 	if files.len() == 0 && eval_list.len() == 0 {
 		print_usage();
-		if files.len() != 0 {
-			eprintln!("[error] specify a single file\n");
-		} else {
-			eprintln!("[error] no arguments given\n");
-		}
-		std::process::exit(1);
-	}
-
-	let mut compiler = byte::new();
-	if show_blocks {
-		compiler.enable_trace_blocks();
-	}
-
-	let mut errors = byte::Errors::new();
-	for file in files {
-		if let Err(err) = compiler.load_file(file) {
-			errors.append(&err);
-		}
-	}
-
-	if !errors.empty() {
-		eprintln!("\n{errors}\n");
-		std::process::exit(1);
-	}
-
-	compiler.resolve_all();
-
-	let errors = compiler.errors();
-	if !errors.empty() {
-		eprintln!("");
-		eprintln!("{errors}");
-		std::process::exit(1);
-	}
-
-	for _it in eval_list.into_iter() {
-		todo!()
+		eprintln!("No arguments given, nothing to do, exiting...\n");
+		std::process::exit(0);
 	}
 }
 
