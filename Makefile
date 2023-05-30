@@ -1,4 +1,13 @@
-test:
+.PHONY: build test test-cargo test-go test-byte
+
+test: test-cargo test-go test-byte
+	@echo
+	@echo ======================================================
+	@echo Tests passed!!!
+	@echo ======================================================
+	@echo
+	
+test-cargo:
 	@echo
 	@echo ------------------------------------------------------
 	@echo :: Cargo tests
@@ -6,6 +15,7 @@ test:
 	@echo
 	@cd byte-rs && cargo test $(cargo)
 	
+test-go:
 	@echo
 	@echo ------------------------------------------------------
 	@echo :: Go tests
@@ -14,17 +24,12 @@ test:
 	@cd bootstrap && go test
 	@echo
 
+test-byte:
 	@echo
 	@echo ------------------------------------------------------
 	@echo :: Byte tests
 	@echo ------------------------------------------------------
 	@go run ./byte.go test
-	
-	@echo
-	@echo ======================================================
-	@echo Tests passed!!!
-	@echo ======================================================
-	@echo
 	
 build:
 	go build ./byte.go
