@@ -1,5 +1,7 @@
+pub mod errors;
 pub mod util;
+
+pub use errors::*;
 pub use util::*;
 
-#[cfg(test)]
-mod tests {}
+use std::fmt::Write;
