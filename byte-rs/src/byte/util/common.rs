@@ -41,61 +41,6 @@ impl PartialEq for Value {
 impl Eq for Value {}
 
 //====================================================================================================================//
-// Debug & Format
-//====================================================================================================================//
-
-pub trait WithDebug {
-	fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result;
-}
-
-impl<T: IsValue + std::fmt::Debug> WithDebug for T {
-	fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		self.fmt(f)
-	}
-}
-
-pub trait WithDisplay {
-	fn fmt_display(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result;
-}
-
-impl<T: IsValue + std::fmt::Display> WithDisplay for T {
-	fn fmt_display(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		self.fmt(f)
-	}
-}
-
-impl Value {
-	pub fn with_debug(&self) -> Option<&dyn WithDebug> {
-		get_trait!(self, WithDebug)
-	}
-
-	pub fn with_display(&self) -> Option<&dyn WithDisplay> {
-		get_trait!(self, WithDisplay)
-	}
-}
-
-impl std::fmt::Debug for Value {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		if let Some(value) = self.with_debug() {
-			value.fmt_debug(f)
-		} else {
-			let ptr = Arc::as_ptr(self.inner());
-			write!(f, "Value({}: {ptr:?})", self.type_name())
-		}
-	}
-}
-
-impl std::fmt::Display for Value {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		if let Some(value) = self.with_display() {
-			value.fmt_display(f)
-		} else {
-			write!(f, "Value({})", self.type_name())
-		}
-	}
-}
-
-//====================================================================================================================//
 // Traits for standard types
 //====================================================================================================================//
 
