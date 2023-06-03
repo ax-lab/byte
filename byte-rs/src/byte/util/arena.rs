@@ -1,4 +1,14 @@
-use std::{collections::VecDeque, sync::RwLock};
+use std::{
+	any::TypeId,
+	collections::{HashMap, VecDeque},
+	sync::{Arc, RwLock},
+};
+
+use super::*;
+
+//====================================================================================================================//
+// Arena
+//====================================================================================================================//
 
 const DEFAULT_PAGE_SIZE: usize = 64;
 
@@ -116,6 +126,59 @@ impl<'a, T> Iterator for ArenaIterator<'a, T> {
 	}
 }
 
+impl<T> HasTraits for Arena<T> {}
+
+//====================================================================================================================//
+// ArenaSet
+//====================================================================================================================//
+
+/// Stores a set of [`Arena`] for an arbitrary set of types.
+#[derive(Default)]
+pub struct ArenaSet {
+	page_size: usize,
+	by_type: Arc<RwLock<HashMap<TypeId, Value>>>,
+}
+
+impl ArenaSet {
+	pub fn new() -> Self {
+		Self::default()
+	}
+
+	pub fn new_with_page_size(page_size: usize) -> Self {
+		Self {
+			page_size,
+			by_type: Default::default(),
+		}
+	}
+
+	pub fn get<T: Cell>(&self) -> &Arena<T> {
+		let map = {
+			let by_type = self.by_type.read().unwrap();
+			let key = TypeId::of::<T>();
+			let map = if let Some(map) = by_type.get(&key) {
+				map.clone()
+			} else {
+				drop(by_type);
+				let mut by_type = self.by_type.write().unwrap();
+				let map = by_type
+					.entry(key)
+					.or_insert_with(|| Value::from(Arena::<T>::new_with_page_size(self.page_size)));
+				map.clone()
+			};
+			map
+		};
+
+		// SAFETY: the original `Value` is held by the `by_type` map, so this
+		// reference is valid while self is valid
+		let ptr = map.get::<Arena<T>>().unwrap() as *const Arena<T>;
+		unsafe { &*ptr }
+	}
+}
+
+//====================================================================================================================//
+// Tests
+//====================================================================================================================//
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -147,5 +210,41 @@ mod tests {
 		for i in 0..count {
 			assert_eq!(items[i], i + 1, "taken item #{i} is invalid");
 		}
+	}
+
+	#[test]
+	fn arena_set() {
+		let arenas = ArenaSet::new_with_page_size(5);
+		let ints = arenas.get::<i32>();
+		let strings = arenas.get::<String>();
+
+		ints.store(1);
+		ints.store(2);
+		ints.store(3);
+		ints.store(5);
+		ints.store(7);
+		ints.store(11);
+		ints.store(13);
+		ints.store(17);
+
+		strings.store("abc".into());
+		strings.store("123".into());
+		strings.store("the answer to everything".into());
+		strings.store("42".into());
+
+		drop(ints);
+		drop(strings);
+
+		let arena = arenas.get::<i32>();
+		assert!(arena.count() == 8);
+
+		let values: Vec<_> = arena.iter().cloned().collect();
+		assert_eq!(values, vec![1, 2, 3, 5, 7, 11, 13, 17]);
+
+		let arena = arenas.get::<String>();
+		assert!(arena.count() == 4);
+
+		let values: Vec<_> = arena.iter().collect();
+		assert_eq!(values, vec!["abc", "123", "the answer to everything", "42"]);
 	}
 }
