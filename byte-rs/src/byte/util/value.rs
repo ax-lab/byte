@@ -5,6 +5,13 @@ use std::{
 
 use super::*;
 
+/// Trait for types compatible with dynamic typing and multi-threading.
+///
+/// This is similar to [`IsValue`] but without the requirement for traits.
+pub trait Cell: Any + Send + Sync {}
+
+impl<T: Any + Send + Sync> Cell for T {}
+
 /// Trait for any value that can be dynamically typed using a [`Value`].
 pub trait IsValue: Any + Send + Sync + HasTraits {
 	fn as_value(&self) -> &dyn IsValue;
