@@ -42,9 +42,7 @@ impl Value {
 			return ptr.clone();
 		}
 
-		Self {
-			inner: Arc::new(value),
-		}
+		Self { inner: Arc::new(value) }
 	}
 
 	pub fn get<T: IsValue>(&self) -> Option<&T> {
@@ -74,6 +72,10 @@ impl Value {
 }
 
 impl HasTraits for Value {
+	fn type_name(&self) -> &'static str {
+		self.inner.type_name()
+	}
+
 	fn get_trait(&self, type_id: std::any::TypeId) -> Option<&dyn HasTraits> {
 		self.inner.get_trait(type_id)
 	}
@@ -194,16 +196,13 @@ mod tests {
 
 		let fx = format!("{x}");
 		assert!(
-			fx.contains("Value(") && fx.contains("NoDisplay") && fx.contains(")"),
+			fx.contains("(") && fx.contains("NoDisplay") && fx.contains(")"),
 			"invalid format: {fx}"
 		);
 
 		let fx = format!("{x:?}");
 		assert!(
-			fx.contains("Value(")
-				&& fx.contains("NoDisplay")
-				&& fx.contains(": 0x")
-				&& fx.contains(")"),
+			fx.contains("<") && fx.contains("NoDisplay") && fx.contains(": 0x") && fx.contains(">"),
 			"invalid debug format: {fx}"
 		);
 	}

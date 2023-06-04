@@ -23,9 +23,7 @@ impl Errors {
 
 	pub fn from_list<T: IntoIterator<Item = V>, V: IsValue>(errors: T) -> Self {
 		let list = errors.into_iter().map(|x| Value::from(x)).collect();
-		Errors {
-			list: Arc::new(list),
-		}
+		Errors { list: Arc::new(list) }
 	}
 
 	pub fn empty(&self) -> bool {
@@ -143,13 +141,10 @@ impl Value {
 
 impl Error for Errors {}
 
+has_traits!(Errors: WithRepr);
+
 impl WithRepr for Errors {
-	fn output(
-		&self,
-		mode: ReprMode,
-		format: ReprFormat,
-		mut output: &mut dyn std::fmt::Write,
-	) -> std::fmt::Result {
+	fn output(&self, mode: ReprMode, format: ReprFormat, mut output: &mut dyn std::fmt::Write) -> std::fmt::Result {
 		let debug = mode.is_debug();
 		if self.len() == 0 {
 			if debug {
@@ -197,17 +192,7 @@ impl WithRepr for Errors {
 	}
 }
 
-impl std::fmt::Debug for Errors {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		self.fmt_debug(f)
-	}
-}
-
-impl std::fmt::Display for Errors {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		self.fmt_display(f)
-	}
-}
+fmt_from_repr!(Errors);
 
 impl std::ops::Index<usize> for Errors {
 	type Output = Value;
@@ -294,12 +279,7 @@ mod tests {
 	}
 
 	impl WithRepr for Error {
-		fn output(
-			&self,
-			_mode: ReprMode,
-			_format: ReprFormat,
-			output: &mut dyn Write,
-		) -> std::fmt::Result {
+		fn output(&self, _mode: ReprMode, _format: ReprFormat, output: &mut dyn Write) -> std::fmt::Result {
 			write!(output, "{}", self.error)
 		}
 	}

@@ -1,28 +1,28 @@
-use std::{fmt::*, sync::Arc};
-
 use super::*;
 
 //====================================================================================================================//
 // Debug & Format
 //====================================================================================================================//
 
+/// Dynamic trait implemented automatically for any value with [`Debug`].
 pub trait WithDebug {
-	fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result;
+	fn fmt_debug(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result;
 }
 
 impl<T: IsValue + std::fmt::Debug> WithDebug for T {
-	fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		self.fmt(f)
+	fn fmt_debug(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result {
+		write!(f, "{self:?}")
 	}
 }
 
+/// Dynamic trait implemented automatically for any value with [`Display`].
 pub trait WithDisplay {
-	fn fmt_display(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result;
+	fn fmt_display(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result;
 }
 
 impl<T: IsValue + std::fmt::Display> WithDisplay for T {
-	fn fmt_display(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		self.fmt(f)
+	fn fmt_display(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result {
+		write!(f, "{self}")
 	}
 }
 
@@ -37,33 +37,26 @@ impl Value {
 }
 
 impl std::fmt::Debug for Value {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		if let Some(value) = self.with_repr() {
-			value.fmt_debug(f)
-		} else if let Some(value) = self.with_debug() {
-			value.fmt_debug(f)
-		} else {
-			let ptr = Arc::as_ptr(self.inner());
-			write!(f, "Value({}: {ptr:?})", self.type_name())
-		}
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		self.as_value().fmt_debug(f)
 	}
 }
 
 impl std::fmt::Display for Value {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		if let Some(value) = self.with_repr() {
-			value.fmt_display(f)
-		} else if let Some(value) = self.with_display() {
-			value.fmt_display(f)
-		} else {
-			write!(f, "Value({})", self.type_name())
-		}
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		self.as_value().fmt_display(f)
 	}
 }
 
 //====================================================================================================================//
 // Repr
 //====================================================================================================================//
+
+/// Dynamic trait combining [`Debug`] + [`Display`] with more granular control
+/// over the output representation.
+pub trait WithRepr {
+	fn output(&self, mode: ReprMode, format: ReprFormat, output: &mut dyn std::fmt::Write) -> std::fmt::Result;
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ReprMode {
@@ -88,30 +81,87 @@ pub enum ReprFormat {
 	Full,
 }
 
-pub trait WithRepr {
-	fn output(&self, mode: ReprMode, format: ReprFormat, output: &mut dyn Write) -> Result;
-
-	fn fmt_debug(&self, output: &mut dyn Write) -> Result {
-		self.output(ReprMode::Debug, ReprFormat::Line, output)
-	}
-
-	fn fmt_display(&self, output: &mut dyn Write) -> Result {
-		self.output(ReprMode::Display, ReprFormat::Line, output)
-	}
-}
-
 impl Value {
 	pub fn with_repr(&self) -> Option<&dyn WithRepr> {
 		get_trait!(self, WithRepr)
 	}
+}
 
-	pub fn output(&self, mode: ReprMode, format: ReprFormat, output: &mut dyn Write) -> Result {
-		if let Some(value) = self.with_repr() {
+mod repr_macros {
+	#[macro_export]
+	macro_rules! fmt_from_repr {
+		($type:ty) => {
+			impl ::std::fmt::Debug for $type {
+				fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+					use $crate::util::format::*;
+					if let Some(value) = get_trait!(self, WithRepr) {
+						value.output(ReprMode::Debug, ReprFormat::Line, f)
+					} else if let Some(value) = get_trait!(self, WithDebug) {
+						value.fmt_debug(f)
+					} else if let Some(value) = get_trait!(self, WithDisplay) {
+						value.fmt_display(f)
+					} else {
+						let ptr = self as *const Self;
+						write!(f, "Value({}: {ptr:?})", stringify!($type))
+					}
+				}
+			}
+
+			impl ::std::fmt::Display for $type {
+				fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+					use $crate::util::format::*;
+					if let Some(value) = get_trait!(self, WithRepr) {
+						value.output(ReprMode::Display, ReprFormat::Line, f)
+					} else if let Some(value) = get_trait!(self, WithDisplay) {
+						value.fmt_display(f)
+					} else {
+						write!(f, "Value({})", stringify!($type))
+					}
+				}
+			}
+		};
+	}
+
+	pub use fmt_from_repr;
+}
+
+pub use repr_macros::*;
+
+//====================================================================================================================//
+// Format mixin
+//====================================================================================================================//
+
+pub trait MixinFormattedOutput {
+	fn output(&self, mode: ReprMode, format: ReprFormat, output: &mut dyn std::fmt::Write) -> std::fmt::Result;
+
+	fn fmt_debug(&self, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
+		self.output(ReprMode::Debug, ReprFormat::Line, output)
+	}
+
+	fn fmt_display(&self, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
+		self.output(ReprMode::Display, ReprFormat::Line, output)
+	}
+}
+
+impl<T: IsValue + ?Sized> MixinFormattedOutput for T {
+	fn output(&self, mode: ReprMode, format: ReprFormat, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
+		if let Some(value) = get_trait!(self, WithRepr) {
 			value.output(mode, format, output)
 		} else if mode == ReprMode::Debug {
-			write!(output, "{self:?}")
+			if let Some(value) = get_trait!(self, WithDebug) {
+				value.fmt_debug(output)
+			} else {
+				let name = self.type_name();
+				let ptr = self as *const T;
+				write!(output, "<{name}: {ptr:?}>")
+			}
 		} else {
-			write!(output, "{self}")
+			if let Some(value) = get_trait!(self, WithDisplay) {
+				value.fmt_display(output)
+			} else {
+				let name = self.type_name();
+				write!(output, "({name})")
+			}
 		}
 	}
 }
@@ -120,6 +170,7 @@ impl Value {
 // Indented output
 //====================================================================================================================//
 
+/// Supports indented output for a [`Formatter`] or [`IndentedFormatter`].
 pub trait WithIndent {
 	fn indented(&mut self) -> IndentedFormatter;
 
@@ -130,20 +181,21 @@ pub trait WithIndent {
 	}
 }
 
-impl<'a, T: Write> WithIndent for T {
+impl<'a, T: std::fmt::Write> WithIndent for T {
 	fn indented(&mut self) -> IndentedFormatter {
 		IndentedFormatter::new(self)
 	}
 }
 
+/// Support for indented output for a [`Formatter`].
 pub struct IndentedFormatter<'a> {
 	indent: &'static str,
 	prefix: &'static str,
-	inner: &'a mut dyn Write,
+	inner: &'a mut dyn std::fmt::Write,
 }
 
 impl<'a> IndentedFormatter<'a> {
-	fn new(f: &'a mut dyn Write) -> Self {
+	fn new(f: &'a mut dyn std::fmt::Write) -> Self {
 		Self {
 			indent: "    ",
 			prefix: "",
@@ -153,14 +205,11 @@ impl<'a> IndentedFormatter<'a> {
 }
 
 impl<'a> std::fmt::Write for IndentedFormatter<'a> {
-	fn write_str(&mut self, s: &str) -> Result {
+	fn write_str(&mut self, s: &str) -> std::fmt::Result {
 		let mut str = s;
 		while let Some(index) = str.find(|c| c == '\r' || c == '\n') {
 			let buf = str.as_bytes();
-			let index = if buf[index] == '\r' as u8
-				&& index < buf.len() - 1
-				&& buf[index + 1] == '\n' as u8
-			{
+			let index = if buf[index] == '\r' as u8 && index < buf.len() - 1 && buf[index + 1] == '\n' as u8 {
 				index + 2
 			} else {
 				index + 1
@@ -186,7 +235,7 @@ impl<'a> std::fmt::Write for IndentedFormatter<'a> {
 
 #[cfg(test)]
 mod tests {
-	use std::fmt::*;
+	use std::fmt::{Display, Result};
 
 	use super::*;
 
@@ -210,10 +259,7 @@ mod tests {
 		];
 
 		let value = Obj(vec![
-			Key(
-				"A",
-				List(vec!["item 1", "item 2", "item 3 but\nwith multiple lines"]),
-			),
+			Key("A", List(vec!["item 1", "item 2", "item 3 but\nwith multiple lines"])),
 			Key("B", List(vec![])),
 			Key("C", List(vec!["C1", "C2"])),
 		]);
