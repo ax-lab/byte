@@ -85,7 +85,54 @@ impl HasTraits for Value {
 
 #[cfg(test)]
 mod tests {
+	use std::sync::Mutex;
+
 	use super::*;
+
+	#[test]
+	fn test_drop() {
+		// Test that values drop their content properly.
+		struct DropTest {
+			dropped: Arc<Mutex<bool>>,
+		}
+
+		has_traits!(DropTest);
+
+		impl Drop for DropTest {
+			fn drop(&mut self) {
+				let mut dropped = self.dropped.lock().unwrap();
+				*dropped = true;
+			}
+		}
+
+		let dropped = Arc::new(Mutex::new(false));
+
+		let value = DropTest {
+			dropped: dropped.clone(),
+		};
+		assert_eq!(*dropped.lock().unwrap(), false);
+
+		// Wrap the value, should not be dropped.
+		let value = Value::from(value);
+		assert_eq!(*dropped.lock().unwrap(), false);
+
+		// Create a copy of the value, it should remain not dropped.
+		let copy = value.clone();
+		assert_eq!(*dropped.lock().unwrap(), false);
+
+		// Drop the original, since the copy remains, nothing gets dropped.
+		drop(value);
+		assert_eq!(*dropped.lock().unwrap(), false);
+
+		// Create a copy using `Value::from` from the wrapped value, which
+		// has particular semantics. This should still work correctly.
+		let double_copy = Value::from(copy);
+		assert_eq!(*dropped.lock().unwrap(), false);
+
+		// Once the last value is dropped, the inner value should be dropped.
+		drop(double_copy);
+		assert_eq!(*dropped.lock().unwrap(), true);
+	}
 
 	#[test]
 	fn test_simple() {
