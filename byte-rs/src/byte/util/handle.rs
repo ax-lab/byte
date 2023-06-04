@@ -1,6 +1,8 @@
 use std::{
 	any::TypeId,
 	collections::HashMap,
+	hash::Hash,
+	marker::PhantomData,
 	sync::{
 		atomic::{AtomicUsize, Ordering},
 		Arc, RwLock,
@@ -10,16 +12,40 @@ use std::{
 use super::*;
 
 /// Globally unique handle for arbitrary values.
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
-pub struct Handle(usize);
+#[derive(Debug)]
+pub struct Handle<T>(usize, PhantomData<*const T>);
 
-impl Handle {
+impl<T> Handle<T> {
 	pub fn new() -> Self {
 		static COUNTER: AtomicUsize = AtomicUsize::new(1);
 		let id = COUNTER.fetch_add(1, Ordering::SeqCst);
-		Self(id)
+		Self(id, Default::default())
 	}
 }
+
+impl<T> Copy for Handle<T> {}
+impl<T> Clone for Handle<T> {
+	fn clone(&self) -> Self {
+		Self(self.0, Default::default())
+	}
+}
+
+impl<T> Hash for Handle<T> {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		self.0.hash(state);
+	}
+}
+
+impl<T> PartialEq for Handle<T> {
+	fn eq(&self, other: &Self) -> bool {
+		self.0 == other.0
+	}
+}
+
+impl<T> Eq for Handle<T> {}
+
+unsafe impl<T: Send> Send for Handle<T> {}
+unsafe impl<T: Sync> Sync for Handle<T> {}
 
 /// Map [`Handle`] to arbitrary values in a type-safe manner.
 #[derive(Default, Clone)]
@@ -32,12 +58,12 @@ impl HandleMap {
 		Self::default()
 	}
 
-	pub fn add<T: Cell>(&mut self, value: T) -> Handle {
+	pub fn add<T: Cell>(&mut self, value: T) -> Handle<T> {
 		let map = self.get_map::<T>();
 		map.add(value)
 	}
 
-	pub fn get<T: Cell>(&self, handle: Handle) -> Option<&T> {
+	pub fn get<T: Cell>(&self, handle: Handle<T>) -> Option<&T> {
 		let map = self.get_map::<T>();
 		map.get(handle)
 	}
@@ -67,7 +93,7 @@ impl HandleMap {
 }
 
 struct HandleMapFor<T> {
-	values: Arc<RwLock<HashMap<Handle, T>>>,
+	values: Arc<RwLock<HashMap<Handle<T>, T>>>,
 }
 
 impl<T> HandleMapFor<T> {
@@ -77,14 +103,14 @@ impl<T> HandleMapFor<T> {
 		}
 	}
 
-	pub fn add(&self, value: T) -> Handle {
+	pub fn add(&self, value: T) -> Handle<T> {
 		let handle = Handle::new();
 		let mut values = self.values.write().unwrap();
 		values.insert(handle, value);
 		handle
 	}
 
-	pub fn get(&self, handle: Handle) -> Option<&T> {
+	pub fn get(&self, handle: Handle<T>) -> Option<&T> {
 		let values = self.values.read().unwrap();
 		// SAFETY: the lock only applies to the outer HashMap, so let the
 		// reference to the inner immutable value escape the lock lifetime
@@ -112,8 +138,6 @@ mod tests {
 
 		assert!(map.get::<()>(Handle::new()).is_none());
 		assert!(map.get::<i32>(Handle::new()).is_none());
-		assert!(map.get::<i32>(a1).is_none());
-		assert!(map.get::<String>(a1).is_none());
 
 		let a1 = map.get::<&'static str>(a1).cloned().unwrap();
 		let a2 = map.get::<&'static str>(a2).cloned().unwrap();
