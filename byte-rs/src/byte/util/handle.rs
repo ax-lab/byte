@@ -3,22 +3,18 @@ use std::{
 	collections::HashMap,
 	hash::Hash,
 	marker::PhantomData,
-	sync::{
-		atomic::{AtomicUsize, Ordering},
-		Arc, RwLock,
-	},
+	sync::{Arc, RwLock},
 };
 
 use super::*;
 
 /// Globally unique handle for arbitrary values.
 #[derive(Debug)]
-pub struct Handle<T>(usize, PhantomData<*const T>);
+pub struct Handle<T>(Id, PhantomData<*const T>);
 
 impl<T> Handle<T> {
 	pub fn new() -> Self {
-		static COUNTER: AtomicUsize = AtomicUsize::new(1);
-		let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+		let id = new_id();
 		Self(id, Default::default())
 	}
 }
