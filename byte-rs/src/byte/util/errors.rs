@@ -44,6 +44,11 @@ impl Errors {
 		list.push_back(Value::from(error));
 	}
 
+	pub fn add_at<T: IsValue>(&mut self, error: T, span: Span) {
+		let inner = Value::from(error);
+		self.add(ErrorWithSpan { inner, span })
+	}
+
 	pub fn iter(&self) -> ErrorIterator {
 		ErrorIterator {
 			next: 0,
@@ -71,67 +76,6 @@ impl Iterator for ErrorIterator {
 		} else {
 			None
 		}
-	}
-}
-
-//====================================================================================================================//
-// Error location
-//====================================================================================================================//
-
-/// Trait for relaying source location information.
-pub trait WithLocation {
-	/// Source file name.
-	fn source(&self) -> Option<&str>;
-
-	/// Line number or zero if not available.
-	fn line(&self) -> usize;
-
-	/// Column number or zero if not available.
-	fn column(&self) -> usize;
-
-	/// True if neither of the source or location are available.
-	fn empty(&self) -> bool {
-		self.source().is_none() && !self.has_location()
-	}
-
-	/// True if line information is available.
-	fn has_location(&self) -> bool {
-		self.line() > 0
-	}
-
-	fn format_short(&self, separator: &str, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
-		let line = self.line();
-		if line > 0 {
-			write!(output, "{separator}{line}")?;
-			let column = self.column();
-			if column > 0 {
-				write!(output, ":{column}")?;
-			}
-		}
-		Ok(())
-	}
-
-	fn format(&self, separator: &str, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
-		if let Some(src) = self.source() {
-			write!(output, "{separator}{src}")?;
-			self.format_short(":", output)?;
-		} else {
-			let line = self.line();
-			if line > 0 {
-				write!(output, "{separator}line {line}")?;
-				let column = self.column();
-				if column > 0 {
-					write!(output, ":{column}")?;
-				}
-			}
-		}
-		Ok(())
-	}
-}
-
-impl Value {
-	pub fn with_location(&self) -> Option<&dyn WithLocation> {
-		get_trait!(self, WithLocation)
 	}
 }
 
@@ -164,8 +108,8 @@ impl WithRepr for Errors {
 				for (n, it) in self.iter().enumerate() {
 					write!(output, "\n[{}]", n + 1)?;
 
-					let has_location = if let Some(location) = it.with_location() {
-						location.format(" at ", &mut output)?;
+					let has_location = if let Some(span) = it.span() {
+						span.format_full(" at ", &mut output)?;
 						true
 					} else {
 						false
@@ -203,6 +147,44 @@ impl std::ops::Index<usize> for Errors {
 }
 
 //====================================================================================================================//
+// Error with span
+//====================================================================================================================//
+
+struct ErrorWithSpan {
+	inner: Value,
+	span: Span,
+}
+
+impl HasTraits for ErrorWithSpan {
+	fn type_name(&self) -> &'static str {
+		self.inner.type_name()
+	}
+
+	fn get_trait(&self, type_id: std::any::TypeId) -> Option<&dyn HasTraits> {
+		with_trait!(self, type_id, WithSpan);
+		self.inner.get_trait(type_id)
+	}
+}
+
+impl Debug for ErrorWithSpan {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		write!(f, "{:?}", self.inner)
+	}
+}
+
+impl Display for ErrorWithSpan {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		write!(f, "{}", self.inner)
+	}
+}
+
+impl WithSpan for ErrorWithSpan {
+	fn span(&self) -> Option<&Span> {
+		Some(&self.span)
+	}
+}
+
+//====================================================================================================================//
 // Tests
 //====================================================================================================================//
 
@@ -212,14 +194,16 @@ mod tests {
 
 	#[test]
 	fn test_output() {
-		const F: &'static str = "input.txt";
+		let p1 = pos(1, 2);
+		let p2 = pos(3, 4);
+		let p3 = p1.with_pos(5, 6, 0);
 
 		let mut errors = Errors::default();
 		errors.add("some error 1");
 		errors.add("some error 2".to_string());
-		errors.add(Error::at(F, 1, 2, "error A"));
-		errors.add(Error::at(F, 3, 4, "error B"));
-		errors.add(Error::at("", 5, 6, "error C\n    with some detail"));
+		errors.add_at("error A", p1.span());
+		errors.add_at("error B", p3.span_from(&p2));
+		errors.add_at("error C\n    with some detail", p3.span());
 
 		let expected = vec![
 			"Errors:",
@@ -228,9 +212,9 @@ mod tests {
 			"    [2] some error 2",
 			"    [3] at input.txt:1:2",
 			"        error A",
-			"    [4] at input.txt:3:4",
+			"    [4] at input.txt:3:4…5:6",
 			"        error B",
-			"    [5] at line 5:6",
+			"    [5] at input.txt:5:6",
 			"        error C",
 			"            with some detail",
 			"",
@@ -240,47 +224,7 @@ mod tests {
 		assert_eq!(actual, expected);
 	}
 
-	struct Error {
-		error: &'static str,
-		input: &'static str,
-		line: usize,
-		column: usize,
-	}
-
-	has_traits!(Error: WithLocation, WithRepr);
-
-	impl Error {
-		pub fn at(input: &'static str, line: usize, column: usize, error: &'static str) -> Self {
-			Self {
-				input,
-				line,
-				column,
-				error,
-			}
-		}
-	}
-
-	impl WithLocation for Error {
-		fn source(&self) -> Option<&str> {
-			if self.input.len() > 0 {
-				Some(self.input)
-			} else {
-				None
-			}
-		}
-
-		fn line(&self) -> usize {
-			self.line
-		}
-
-		fn column(&self) -> usize {
-			self.column
-		}
-	}
-
-	impl WithRepr for Error {
-		fn output(&self, _mode: ReprMode, _format: ReprFormat, output: &mut dyn Write) -> std::fmt::Result {
-			write!(output, "{}", self.error)
-		}
+	fn pos(line: usize, column: usize) -> Cursor {
+		Input::new("input.txt", Vec::new()).with_pos(line, column, 0).start()
 	}
 }

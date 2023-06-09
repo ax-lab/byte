@@ -13,9 +13,7 @@ impl Scope {
 		if let Some(expr) = get_trait!(expr, WithEval) {
 			expr.eval(self)
 		} else {
-			Err(Errors::from(format!(
-				"expression does not support eval: {expr:?}"
-			)))
+			Err(Errors::from(format!("expression does not support eval: {expr:?}")))
 		}
 	}
 }

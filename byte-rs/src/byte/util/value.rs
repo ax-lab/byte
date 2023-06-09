@@ -58,16 +58,16 @@ impl Value {
 		}
 	}
 
-	pub fn type_name(&self) -> &'static str {
-		self.inner.type_name()
-	}
-
 	pub fn cloned<T: IsValue + Clone>(&self) -> Option<T> {
 		self.get().cloned()
 	}
 
 	pub(crate) fn inner(&self) -> &Arc<dyn IsValue> {
 		&self.inner
+	}
+
+	pub fn as_value(&self) -> &dyn IsValue {
+		self.inner.as_ref()
 	}
 }
 

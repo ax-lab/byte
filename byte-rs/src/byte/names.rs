@@ -14,6 +14,12 @@ impl Name {
 		Name(index)
 	}
 
+	pub fn from_u8<T: AsRef<[u8]>>(name: T) -> Self {
+		let name = name.as_ref();
+		let name = std::str::from_utf8(name).unwrap();
+		Self::from(name)
+	}
+
 	pub fn as_str(&self) -> &'static str {
 		Self::get_name(self.0)
 	}
@@ -33,6 +39,11 @@ impl Name {
 			}
 		}
 
+		let mut name_map = name_map.write().unwrap();
+		if let Some(value) = name_map.get(&name) {
+			return *value;
+		}
+
 		let mut names = Self::names().write().unwrap();
 		let index = names.len();
 		names.push(name.to_string());
@@ -41,7 +52,6 @@ impl Name {
 		let name = names[index].as_str();
 		let name: &'static str = unsafe { &*(name as *const str) };
 
-		let mut name_map = name_map.write().unwrap();
 		name_map.insert(name, (name, index));
 
 		(name, index)
@@ -53,8 +63,7 @@ impl Name {
 	}
 
 	fn name_map() -> &'static Arc<RwLock<HashMap<&'static str, (&'static str, usize)>>> {
-		static NAME_MAP: OnceCell<Arc<RwLock<HashMap<&'static str, (&'static str, usize)>>>> =
-			OnceCell::new();
+		static NAME_MAP: OnceCell<Arc<RwLock<HashMap<&'static str, (&'static str, usize)>>>> = OnceCell::new();
 		NAME_MAP.get_or_init(|| Default::default())
 	}
 }

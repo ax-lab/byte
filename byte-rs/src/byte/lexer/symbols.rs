@@ -1,167 +1,179 @@
-use std::collections::HashMap;
-
-use super::*;
-
 //====================================================================================================================//
 // Symbol table
 //====================================================================================================================//
 
-/// Configurable symbol table implementing the [`Matcher`] trait.
 #[derive(Clone)]
-pub struct SymbolTable<T: Clone> {
-	states: Vec<Entry<T>>,
+pub struct SymbolTable<T> {
+	states: Vec<State<T>>,
 }
 
-impl<T: Clone> Default for SymbolTable<T> {
+impl<T> Default for SymbolTable<T> {
 	fn default() -> Self {
-		let mut out = SymbolTable {
-			states: Default::default(),
-		};
-		out.states.push(Entry {
-			value: None,
-			next: Default::default(),
-		});
-		out
+		Self {
+			states: vec![Default::default()],
+		}
+	}
+}
+
+impl<T> SymbolTable<T> {
+	pub fn add(&mut self, input: &str, result: T) -> Option<T> {
+		let mut state = 0;
+		let input = input.as_bytes();
+		for byte in input {
+			let byte = *byte;
+			state = if let Some(next) = self.get_next(state, byte) {
+				next
+			} else {
+				let next = self.states.len();
+				self.states.push(Default::default());
+
+				let current = &mut self.states[state];
+				current.next.push(StateNext { byte, state: next });
+				current.next.sort_by_key(|x| x.byte);
+				next
+			};
+		}
+
+		let state = &mut self.states[state];
+		state.done.replace(result)
+	}
+
+	pub fn get_default(&self) -> Option<&T> {
+		self.states[0].done.as_ref()
+	}
+
+	pub fn set_default(&mut self, value: T) -> Option<T> {
+		self.states[0].done.replace(value)
+	}
+
+	pub fn recognize(&self, input: &[u8]) -> (usize, Option<&T>) {
+		let mut valid_state = self.states[0].done.as_ref();
+		let mut valid_index = 0;
+		let mut state = 0;
+		let mut index = 0;
+		while let Some(next) = input.get(index).and_then(|x| self.get_next(state, *x)) {
+			state = next;
+			index += 1;
+			if let Some(ref done) = self.states[state].done {
+				valid_state = Some(done);
+				valid_index = index;
+			}
+		}
+		(valid_index, valid_state)
+	}
+
+	fn get_next(&self, state: usize, byte: u8) -> Option<usize> {
+		let state = &self.states[state];
+		if let Ok(index) = state.next.binary_search_by_key(&byte, |x| x.byte) {
+			Some(state.next[index].state)
+		} else {
+			None
+		}
 	}
 }
 
 #[derive(Clone)]
-struct Entry<T> {
-	value: Option<T>,
-	next: HashMap<char, usize>,
+struct State<T> {
+	done: Option<T>,
+	next: Vec<StateNext>,
 }
 
-impl<T: Clone> SymbolTable<T> {
-	pub fn add_symbol(&mut self, symbol: &'static str, value: T) {
-		assert!(symbol.len() > 0);
-		let mut current = 0;
-		for char in symbol.chars() {
-			current = {
-				let len = self.states.len();
-				let state = &mut self.states[current];
-				let next = state.next.entry(char);
-				*next.or_insert(len)
-			};
-			if current == self.states.len() {
-				self.states.push(Entry {
-					value: None,
-					next: Default::default(),
-				});
-			}
-		}
-		self.states[current].value = Some(value);
-	}
+#[derive(Clone)]
+struct StateNext {
+	byte: u8,
+	state: usize,
+}
 
-	pub fn parse(&self, cursor: &mut Cursor) -> Option<T> {
-		let start = cursor.clone();
-		let next = |input: &mut Cursor, s| input.read().and_then(|c| self.get_next(s, c));
-
-		let (mut state, mut valid) = if let Some((state, is_valid)) = next(cursor, 0) {
-			(
-				state,
-				if is_valid {
-					Some((cursor.clone(), state))
-				} else {
-					None
-				},
-			)
-		} else {
-			*cursor = start;
-			return None;
-		};
-
-		while let Some((next, is_valid)) = next(cursor, state) {
-			state = next;
-			if is_valid {
-				valid = Some((cursor.clone(), state));
-			}
-		}
-
-		if let Some((pos, index)) = valid {
-			*cursor = pos;
-			Some(self.states[index].value.clone().unwrap())
-		} else {
-			*cursor = start;
-			None
-		}
-	}
-
-	pub fn parse_with_span(&self, cursor: &mut Cursor) -> Option<(T, Span)> {
-		let start = cursor.clone();
-		self.parse(cursor).map(|v| (v, Span::from(&start, cursor)))
-	}
-
-	fn get_next(&self, current: usize, next: char) -> Option<(usize, bool)> {
-		let state = &self.states[current];
-		if let Some(&next) = state.next.get(&next) {
-			let state = &self.states[next];
-			let valid = state.value.is_some();
-			Some((next, valid))
-		} else {
-			None
+impl<T> Default for State<T> {
+	fn default() -> Self {
+		Self {
+			done: None,
+			next: Default::default(),
 		}
 	}
 }
 
-impl Matcher for SymbolTable<Value> {
-	fn try_match(&self, cursor: &mut Cursor, _errors: &mut Errors) -> Option<Node> {
-		self.parse(cursor).map(|x| x.into())
-	}
-}
+//====================================================================================================================//
+// Tests
+//====================================================================================================================//
 
 #[cfg(test)]
 mod tests {
 	use super::*;
 
 	#[test]
-	fn lexer_should_parse_symbols() {
-		let mut sym = SymbolTable::<Value>::default();
-		sym.add_symbol("+", Value::from(Token::Symbol("+")));
-		sym.add_symbol("++", Value::from(Token::Symbol("++")));
-		sym.add_symbol(".", Value::from(Token::Symbol(".")));
-		sym.add_symbol("..", Value::from(Token::Symbol("..")));
-		sym.add_symbol("...", Value::from(Token::Symbol("...")));
-		sym.add_symbol(">", Value::from(Token::Symbol(">")));
-		sym.add_symbol(">>>>", Value::from(Token::Symbol("arrow")));
+	pub fn table() {
+		let table: &mut SymbolTable<i32> = &mut Default::default();
 
-		let sym = &sym;
-		check_symbols(sym, "", &[]);
-		check_symbols(sym, "+", &["+"]);
-		check_symbols(sym, "++", &["++"]);
-		check_symbols(sym, "+++", &["++", "+"]);
-		check_symbols(sym, ".", &["."]);
-		check_symbols(sym, "..", &[".."]);
-		check_symbols(sym, "...", &["..."]);
-		check_symbols(sym, "....", &["...", "."]);
-		check_symbols(sym, ".....+", &["...", "..", "+"]);
-		check_symbols(sym, ">>>", &[">", ">", ">"]);
-		check_symbols(sym, ">>>>", &["arrow"]);
-		check_symbols(sym, ">>>>>>>>", &["arrow", "arrow"]);
-	}
+		check(table, "", 0, None);
+		check(table, "abc", 0, None);
 
-	fn check_symbols(symbols: &SymbolTable<Value>, input: &'static str, expected: &[&'static str]) {
-		let mut errors = Errors::default();
-		let input = Input::from(input);
-		let mut cursor = input.cursor();
-		for (i, expected) in expected.iter().cloned().enumerate() {
-			let pos = cursor.clone();
-			let next = symbols.try_match(&mut cursor, &mut errors);
-			let end = cursor.clone();
+		table.set_default(-1);
+		check(table, "", 0, Some(-1));
+		check(table, "abc", 0, Some(-1));
 
-			assert!(errors.empty());
-			let text = Span::from(&pos, &end);
-			let text = text.text();
-			if let Some(Token::Symbol(actual)) = next.as_ref().unwrap().get::<Token>() {
-				assert_eq!(
-					*actual, expected,
-					"unexpected symbol {:?} from `{}` at #{} (expected {:?})",
-					actual, text, i, expected,
-				);
-			} else {
-				panic!("got invalid token at #{i}: (consumed: `{text}`, got `{next:?}`)");
-			}
+		table.add("zero", 0);
+		table.add("one", 1);
+		table.add("two", 2);
+		table.add("three", 3);
+
+		table.add("0", 0);
+		table.add("00", 0);
+		table.add("01", 1);
+
+		table.add("ten", 10);
+		table.add("ten+one", 11);
+
+		table.add("0000", 4);
+		table.add("000000", 6);
+
+		check(table, "abc", 0, Some(-1));
+		check(table, "zer", 0, Some(-1));
+
+		check_ok(table, "zero", 0);
+		check_ok(table, "one", 1);
+		check_ok(table, "two", 2);
+		check_ok(table, "three", 3);
+
+		check_ok(table, "0", 0);
+		check_ok(table, "00", 0);
+		check_ok(table, "01", 1);
+
+		check_ok(table, "ten", 10);
+		check_ok(table, "ten+one", 11);
+
+		check_ok(table, "0000", 4);
+		check_ok(table, "000000", 6);
+
+		check(table, "0", 1, Some(0));
+		check(table, "00", 2, Some(0));
+		check(table, "000", 2, Some(0));
+		check(table, "0000", 4, Some(4));
+		check(table, "00000", 4, Some(4));
+		check(table, "000000", 6, Some(6));
+		check(table, "0000000", 6, Some(6));
+
+		check(table, "ten", 3, Some(10));
+		check(table, "ten+", 3, Some(10));
+		check(table, "ten+o", 3, Some(10));
+		check(table, "ten+on", 3, Some(10));
+		check(table, "ten+one", 7, Some(11));
+		check(table, "ten+one!", 7, Some(11));
+
+		assert_eq!(table.add("0000", -4), Some(4));
+		check(table, "00000", 4, Some(-4));
+
+		fn check(table: &SymbolTable<i32>, str: &str, size: usize, value: Option<i32>) {
+			let actual = table.recognize(str.as_bytes());
+			let expected = (size, value.as_ref());
+			assert_eq!(actual, expected);
 		}
 
-		assert!(cursor.read().is_none());
+		fn check_ok(table: &SymbolTable<i32>, str: &str, value: i32) {
+			check(table, str, str.len(), Some(value));
+
+			let str_with_suffix = format!("{str}XXX");
+			check(table, &str_with_suffix, str.len(), Some(value));
+		}
 	}
 }
