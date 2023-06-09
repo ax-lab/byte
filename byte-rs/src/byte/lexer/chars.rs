@@ -56,6 +56,11 @@ pub fn check_line_break(input: &[u8]) -> Option<usize> {
 	}
 }
 
+#[inline(always)]
+pub fn digit_value(n: char) -> u128 {
+	(n as u128) - ('0' as u128)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

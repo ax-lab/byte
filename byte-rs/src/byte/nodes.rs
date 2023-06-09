@@ -1,6 +1,12 @@
+pub mod comment;
+pub mod literal;
+pub mod number;
 pub mod raw;
 pub mod token;
 
+pub use comment::*;
+pub use literal::*;
+pub use number::*;
 pub use raw::*;
 pub use token::*;
 

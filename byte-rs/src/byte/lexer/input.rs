@@ -121,6 +121,28 @@ impl Cursor {
 		self.offset
 	}
 
+	pub fn read(&mut self) -> Option<char> {
+		if let Some((char, size)) = self.next_char() {
+			self.advance(size);
+			Some(char)
+		} else {
+			None
+		}
+	}
+
+	pub fn try_read(&mut self, expected: char) -> bool {
+		if let Some((next, size)) = self.next_char() {
+			if next == expected {
+				self.advance(size);
+				true
+			} else {
+				false
+			}
+		} else {
+			false
+		}
+	}
+
 	pub fn next_char(&self) -> Option<(char, usize)> {
 		let data = self.source().data();
 		let offset = self.offset;

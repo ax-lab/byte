@@ -12,6 +12,7 @@ impl IsNode for RawText {
 	}
 
 	fn evaluate(&self, context: &mut EvalContext) -> Result<NodeEval> {
+		let _ = context;
 		// let index = context.current_index();
 		// let span = context.current().span().cloned();
 		// let source = TextSource::new_at(self.text, span);

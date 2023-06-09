@@ -13,10 +13,12 @@ has_traits!(Token: IsNode);
 
 impl IsNode for Token {
 	fn precedence(&self, context: &Context) -> Option<(Precedence, Sequence)> {
+		let _ = context;
 		todo!()
 	}
 
 	fn evaluate(&self, context: &mut EvalContext) -> Result<NodeEval> {
+		let _ = context;
 		todo!()
 	}
 }
