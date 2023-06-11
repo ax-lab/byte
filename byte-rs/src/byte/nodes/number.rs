@@ -3,7 +3,7 @@ use super::*;
 #[derive(Debug, Eq, PartialEq)]
 pub struct Integer(pub u128);
 
-has_traits!(Integer: IsNode);
+has_traits!(Integer: IsNode, Compilable);
 
 impl IsNode for Integer {
 	// TODO: this whole precedence and evaluate complete need to be better defined and simplified
@@ -16,6 +16,20 @@ impl IsNode for Integer {
 	fn evaluate(&self, context: &mut EvalContext) -> Result<NodeEval> {
 		let _ = context;
 		Ok(NodeEval::Complete)
+	}
+}
+
+impl Compilable for Integer {
+	fn compile(&self, node: &Node, context: &Context, errors: &mut Errors) -> Option<Arc<dyn IsCode>> {
+		let _ = context;
+		let Integer(value) = self;
+		let value = *value;
+		if value > i64::MAX as u128 {
+			errors.add_at("literal value is too big", node.span().cloned());
+			None
+		} else {
+			Some(Arc::new(Expr::<I64>::Value(value as i64)))
+		}
 	}
 }
 

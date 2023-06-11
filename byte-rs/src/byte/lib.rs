@@ -14,6 +14,8 @@ pub use nodes::*;
 pub use precedence::*;
 pub use util::*;
 
+const MAX_ERRORS: usize = 16;
+
 pub type Result<T> = std::result::Result<T, Errors>;
 
 use std::{
@@ -34,13 +36,37 @@ pub fn eval(input: &Input) -> Result<Value> {
 	let span = input.start().span();
 	let text = Node::from(RawText(input.clone()), Some(span));
 	let (context, nodes) = context.resolve_all(NodeList::single(text))?;
-	println!("{nodes:?}");
 
-	let _ = (context, nodes);
-	todo!();
-	// let expr = compile(context, nodes)?;
-	// let runtime = Runtime::new();
-	// expr.eval(&mut runtime)
+	let mut code = Vec::new();
+	let mut errors = Errors::new();
+	for it in nodes.iter() {
+		if let Some(node) = it.as_compilable() {
+			if let Some(item) = node.compile(it, &context, &mut errors) {
+				code.push(item);
+			}
+		} else {
+			errors.add_at(
+				format!("resulting node is not compilable -- {it:?}"),
+				it.span().cloned(),
+			);
+		}
+
+		if errors.len() > MAX_ERRORS {
+			break;
+		}
+	}
+
+	if errors.len() > 0 {
+		return Err(errors);
+	}
+
+	let mut value = Value::from(());
+	let mut scope = eval::Scope::new();
+	for it in code {
+		value = it.eval(&mut scope)?;
+	}
+
+	Ok(value)
 }
 
 pub fn eval_string<T: AsRef<str>>(input: T) -> Result<Value> {
@@ -67,7 +93,7 @@ mod tests {
 
 	#[test]
 	fn the_answer() -> Result<()> {
-		assert_eq!(eval_string("42")?, Value::from(42));
+		assert_eq!(eval_string("42")?, Value::from(42i64));
 		Ok(())
 	}
 }

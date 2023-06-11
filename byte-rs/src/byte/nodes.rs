@@ -12,6 +12,7 @@ pub use token::*;
 
 use std::ops::{Index, RangeBounds};
 
+use super::code::*;
 use super::*;
 
 /// Trait for types that can be used as [`Node`].

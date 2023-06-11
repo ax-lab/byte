@@ -21,6 +21,20 @@ use std::{
 	sync::Arc,
 };
 
+pub trait Compilable {
+	fn compile(&self, node: &Node, context: &Context, errors: &mut Errors) -> Option<Arc<dyn IsCode>>;
+}
+
+impl Node {
+	pub fn as_compilable(&self) -> Option<&dyn Compilable> {
+		get_trait!(self, Compilable)
+	}
+}
+
+pub trait IsCode: WithEval {}
+
+impl<T: WithEval> IsCode for T {}
+
 //====================================================================================================================//
 // Traits
 //====================================================================================================================//
