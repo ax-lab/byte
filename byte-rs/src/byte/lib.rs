@@ -7,6 +7,7 @@ pub mod nodes;
 pub mod precedence;
 pub mod util;
 
+pub use code::*;
 pub use context::*;
 pub use lexer::*;
 pub use names::*;
@@ -23,56 +24,81 @@ use std::{
 	sync::Arc,
 };
 
-pub fn new() -> Context {
-	let mut scanner = Scanner::with_common_symbols();
-	scanner.add_matcher(CommentMatcher);
-	scanner.add_matcher(LiteralMatcher);
-	scanner.add_matcher(IntegerMatcher);
-	Context::new_root(scanner)
+/// Main interface for loading, compiling, and running code.
+///
+/// This is also the parent and ultimate owner of all compilation and runtime
+/// data for any given compilation context.
+pub struct Compiler {
+	// default scanner used by any new compiler context
+	scanner: Scanner,
 }
 
-pub fn eval(input: &Input) -> Result<Value> {
-	let context = new();
-	let span = input.start().span();
-	let text = Node::from(RawText(input.clone()), Some(span));
-	let (context, nodes) = context.resolve_all(NodeList::single(text))?;
+impl Compiler {
+	pub fn new() -> Self {
+		let mut scanner = Scanner::with_common_symbols();
+		scanner.add_matcher(CommentMatcher);
+		scanner.add_matcher(LiteralMatcher);
+		scanner.add_matcher(IntegerMatcher);
+		Self { scanner }
+	}
 
-	let mut code = Vec::new();
-	let mut errors = Errors::new();
-	for it in nodes.iter() {
-		if let Some(node) = it.as_compilable() {
-			if let Some(item) = node.compile(it, &context, &mut errors) {
-				code.push(item);
+	pub fn new_context(&self) -> Context {
+		Context::new_root(self, self.scanner.clone())
+	}
+
+	pub fn new_builder(&self) -> CodeBuilder {
+		CodeBuilder { compiler: self }
+	}
+
+	pub fn eval(&self, input: &Input) -> Result<Value> {
+		let context = self.new_context();
+		let span = input.start().span();
+		let text = Node::from(RawText(input.clone()), Some(span));
+		let (context, nodes) = context.resolve_all(NodeList::single(text))?;
+
+		let mut code = Vec::new();
+		let mut errors = Errors::new();
+		for it in nodes.iter() {
+			if let Some(node) = it.as_compilable() {
+				if let Some(item) = node.compile(it, &context, &mut errors) {
+					code.push(item);
+				}
+			} else {
+				errors.add_at(
+					format!("resulting node is not compilable -- {it:?}"),
+					it.span().cloned(),
+				);
 			}
-		} else {
-			errors.add_at(
-				format!("resulting node is not compilable -- {it:?}"),
-				it.span().cloned(),
-			);
+
+			if errors.len() > MAX_ERRORS {
+				break;
+			}
 		}
 
-		if errors.len() > MAX_ERRORS {
-			break;
+		if errors.len() > 0 {
+			return Err(errors);
 		}
+
+		let mut value = Value::from(());
+		let mut scope = eval::Scope::new();
+		for it in code {
+			value = it.eval(&mut scope)?;
+		}
+
+		Ok(value)
 	}
 
-	if errors.len() > 0 {
-		return Err(errors);
+	pub fn eval_string<T: AsRef<str>>(&self, input: T) -> Result<Value> {
+		let data = input.as_ref().as_bytes();
+		let input = Input::new("eval_string", data.to_vec());
+		self.eval(&input)
 	}
-
-	let mut value = Value::from(());
-	let mut scope = eval::Scope::new();
-	for it in code {
-		value = it.eval(&mut scope)?;
-	}
-
-	Ok(value)
 }
 
-pub fn eval_string<T: AsRef<str>>(input: T) -> Result<Value> {
-	let data = input.as_ref().as_bytes();
-	let input = Input::new("eval_string", data.to_vec());
-	eval(&input)
+impl Default for Compiler {
+	fn default() -> Self {
+		Compiler::new()
+	}
 }
 
 #[cfg(test)]
@@ -81,19 +107,25 @@ mod tests {
 
 	#[test]
 	fn empty() -> Result<()> {
-		assert_eq!(eval_string("")?, Value::from(()));
+		let compiler = Compiler::new();
+		assert_eq!(compiler.eval_string("")?, Value::from(()));
 		Ok(())
 	}
 
 	#[test]
 	fn hello() -> Result<()> {
-		assert_eq!(eval_string("'hello world'")?, Value::from("hello world".to_string()));
+		let compiler = Compiler::new();
+		assert_eq!(
+			compiler.eval_string("'hello world'")?,
+			Value::from("hello world".to_string())
+		);
 		Ok(())
 	}
 
 	#[test]
 	fn the_answer() -> Result<()> {
-		assert_eq!(eval_string("42")?, Value::from(42i64));
+		let compiler = Compiler::new();
+		assert_eq!(compiler.eval_string("42")?, Value::from(42i64));
 		Ok(())
 	}
 }

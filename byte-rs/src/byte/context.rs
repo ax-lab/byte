@@ -24,20 +24,26 @@ use super::*;
 ///
 /// Nodes can store and update their own contexts internally. This is used,
 /// for example, to maintain a node's own internal scope.
-#[derive(Clone, Default)]
-pub struct Context {
+#[derive(Clone)]
+pub struct Context<'a> {
+	#[allow(unused)]
+	compiler: &'a Compiler,
 	data: Arc<ContextData>,
-	parent: Option<Box<Context>>,
+	parent: Option<Box<Context<'a>>>,
 }
 
-impl Context {
-	pub fn new_root(scanner: Scanner) -> Self {
+impl<'a> Context<'a> {
+	pub fn new_root(compiler: &'a Compiler, scanner: Scanner) -> Self {
 		let data = ContextData::Root { scanner };
 		let data = data.into();
-		Self { data, parent: None }
+		Self {
+			compiler,
+			data,
+			parent: None,
+		}
 	}
 
-	pub fn resolve_all(&self, nodes: NodeList) -> Result<(Context, NodeList)> {
+	pub fn resolve_all(&self, nodes: NodeList) -> Result<(Context<'a>, NodeList)> {
 		let mut context = self.clone();
 		let mut nodes = nodes;
 		loop {
@@ -67,7 +73,7 @@ impl Context {
 		self.parent.as_ref().expect("using unbound context")
 	}
 
-	fn resolve_next(&self, node_list: NodeList) -> Result<(Context, NodeList, bool)> {
+	fn resolve_next(&self, node_list: NodeList) -> Result<(Context<'a>, NodeList, bool)> {
 		// filter nodes that are ready to be evaluated
 		let mut nodes = node_list
 			.iter()
@@ -163,7 +169,7 @@ enum ContextData {
 /// The [`EvalContext`] is writable, and tracks changes made to it so they can
 /// be applied to the [`Context`] to create the resulting context.
 pub struct EvalContext<'a> {
-	context: &'a Context,
+	context: &'a Context<'a>,
 	errors: Errors,
 	nodes: &'a NodeList,
 	index: usize,

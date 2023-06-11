@@ -6,9 +6,11 @@
 //! As such, this representation is still easy enough to construct, while it
 //! can also be directly interpreted, compiled, or transpiled.
 
+pub mod builder;
 pub mod int;
 pub mod vars;
 
+pub use builder::*;
 pub use int::*;
 pub use vars::*;
 
