@@ -1,24 +1,33 @@
 use super::*;
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct RawText {}
+pub struct RawText(pub Input);
 
 has_traits!(RawText: IsNode);
 
 impl IsNode for RawText {
 	fn precedence(&self, context: &Context) -> Option<(Precedence, Sequence)> {
 		let _ = context;
-		Some((Precedence::RawText, Sequence::SingleStep))
+		Some((Precedence::RawText, Sequence::AtOnce))
 	}
 
 	fn evaluate(&self, context: &mut EvalContext) -> Result<NodeEval> {
-		let _ = context;
-		// let index = context.current_index();
-		// let span = context.current().span().cloned();
-		// let source = TextSource::new_at(self.text, span);
-		// let nodes = source.load();
+		let scanner = context.scanner();
+		let Self(input) = self;
+		let mut cursor = input.start();
+		let mut errors = Errors::new();
+		let mut output = Vec::new();
+		while let Some(node) = scanner.scan(&mut cursor, &mut errors) {
+			output.push(node);
+			if !errors.empty() {
+				break;
+			}
+		}
 
-		// context.replace_node_at(index, nodes);
-		todo!()
+		assert!(cursor.at_end() || !errors.empty());
+
+		context.append_errors(&errors);
+		context.replace_current(output);
+		Ok(NodeEval::Complete)
 	}
 }

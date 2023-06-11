@@ -6,14 +6,16 @@ pub struct Integer(pub u128);
 has_traits!(Integer: IsNode);
 
 impl IsNode for Integer {
+	// TODO: this whole precedence and evaluate complete need to be better defined and simplified
+
 	fn precedence(&self, context: &Context) -> Option<(Precedence, Sequence)> {
 		let _ = context;
-		todo!()
+		Some((Precedence::Values, Sequence::AtOnce))
 	}
 
 	fn evaluate(&self, context: &mut EvalContext) -> Result<NodeEval> {
 		let _ = context;
-		todo!()
+		Ok(NodeEval::Complete)
 	}
 }
 

@@ -28,9 +28,9 @@ impl Scanner {
 		scanner
 	}
 
-	pub fn add_matcher(&mut self, m: Arc<dyn Matcher>) {
+	pub fn add_matcher<T: Matcher + 'static>(&mut self, matcher: T) {
 		let matchers = Arc::make_mut(&mut self.matchers);
-		matchers.push(m);
+		matchers.push(Arc::new(matcher));
 	}
 
 	pub fn add_symbol(&mut self, name: Name) {
@@ -127,7 +127,7 @@ impl Scanner {
 				// no match or explicitly invalid match
 				ScanAction::None | ScanAction::WordNext => {
 					let span = cursor.span_from(&start);
-					errors.add_at("invalid symbol", span);
+					errors.add_at("invalid symbol", Some(span));
 					None
 				}
 

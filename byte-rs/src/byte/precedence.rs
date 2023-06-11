@@ -15,5 +15,5 @@ pub enum Precedence {
 pub enum Sequence {
 	Ordered,
 	Reverse,
-	SingleStep,
+	AtOnce,
 }

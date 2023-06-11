@@ -8,12 +8,12 @@ has_traits!(Literal: IsNode);
 impl IsNode for Literal {
 	fn precedence(&self, context: &Context) -> Option<(Precedence, Sequence)> {
 		let _ = context;
-		todo!()
+		Some((Precedence::Values, Sequence::AtOnce))
 	}
 
 	fn evaluate(&self, context: &mut EvalContext) -> Result<NodeEval> {
 		let _ = context;
-		todo!()
+		Ok(NodeEval::Complete)
 	}
 }
 
@@ -48,7 +48,7 @@ impl Matcher for LiteralMatcher {
 						None => {
 							let span = end.span_from(&pos);
 							let value = span.text().to_string();
-							errors.add_at("unclosed string literal", span.clone());
+							errors.add_at("unclosed string literal", Some(span.clone()));
 							break Some(Node::from(Literal(value), Some(span)));
 						}
 

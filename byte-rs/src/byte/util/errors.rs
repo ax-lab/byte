@@ -44,9 +44,13 @@ impl Errors {
 		list.push_back(Value::from(error));
 	}
 
-	pub fn add_at<T: IsValue>(&mut self, error: T, span: Span) {
-		let inner = Value::from(error);
-		self.add(ErrorWithSpan { inner, span })
+	pub fn add_at<T: IsValue>(&mut self, error: T, span: Option<Span>) {
+		if let Some(span) = span {
+			let inner = Value::from(error);
+			self.add(ErrorWithSpan { inner, span })
+		} else {
+			self.add(error)
+		}
 	}
 
 	pub fn iter(&self) -> ErrorIterator {
@@ -201,9 +205,9 @@ mod tests {
 		let mut errors = Errors::default();
 		errors.add("some error 1");
 		errors.add("some error 2".to_string());
-		errors.add_at("error A", p1.span());
-		errors.add_at("error B", p3.span_from(&p2));
-		errors.add_at("error C\n    with some detail", p3.span());
+		errors.add_at("error A", Some(p1.span()));
+		errors.add_at("error B", Some(p3.span_from(&p2)));
+		errors.add_at("error C\n    with some detail", Some(p3.span()));
 
 		let expected = vec![
 			"Errors:",

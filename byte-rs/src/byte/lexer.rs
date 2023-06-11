@@ -84,9 +84,9 @@ mod tests {
 
 	fn tokenize(input: &str) -> Vec<Node> {
 		let mut scanner = Scanner::with_common_symbols();
-		scanner.add_matcher(Arc::new(CommentMatcher));
-		scanner.add_matcher(Arc::new(LiteralMatcher));
-		scanner.add_matcher(Arc::new(IntegerMatcher));
+		scanner.add_matcher(CommentMatcher);
+		scanner.add_matcher(LiteralMatcher);
+		scanner.add_matcher(IntegerMatcher);
 
 		let input = Input::new("test", input.as_bytes().to_vec());
 		let mut cursor = input.start();

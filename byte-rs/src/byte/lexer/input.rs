@@ -52,6 +52,10 @@ impl Input {
 		}
 	}
 
+	pub fn len(&self) -> usize {
+		self.data().len()
+	}
+
 	pub fn name(&self) -> &str {
 		&self.data.0
 	}
@@ -60,10 +64,41 @@ impl Input {
 		&self.data.1
 	}
 
+	pub fn text(&self) -> &str {
+		std::str::from_utf8(self.data()).unwrap()
+	}
+
 	pub fn tab_width(&self) -> usize {
 		self.tab_width
 	}
 }
+
+impl Debug for Input {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		let name = self.name();
+		let len = self.len();
+		if len <= 80 {
+			write!(f, "<Input {name}: {:?}>", self.text())
+		} else {
+			write!(f, "<Input {name} ({} bytes)>", len)
+		}
+	}
+}
+
+impl PartialEq for Input {
+	fn eq(&self, other: &Self) -> bool {
+		if Arc::as_ptr(&self.data) == Arc::as_ptr(&other.data) {
+			self.line == other.line
+				&& self.column == other.column
+				&& self.indent == other.indent
+				&& self.tab_width == other.tab_width
+		} else {
+			false
+		}
+	}
+}
+
+impl Eq for Input {}
 
 //====================================================================================================================//
 // Cursor
