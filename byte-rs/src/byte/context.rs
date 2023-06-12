@@ -25,15 +25,16 @@ use super::*;
 /// Nodes can store and update their own contexts internally. This is used,
 /// for example, to maintain a node's own internal scope.
 #[derive(Clone)]
-pub struct Context<'a> {
+pub struct Context {
 	#[allow(unused)]
-	compiler: &'a Compiler,
+	compiler: CompilerRef,
 	data: Arc<ContextData>,
-	parent: Option<Box<Context<'a>>>,
+	parent: Option<Box<Context>>,
 }
 
-impl<'a> Context<'a> {
-	pub fn new_root(compiler: &'a Compiler, scanner: Scanner) -> Self {
+impl Context {
+	pub fn new_root(compiler: &Compiler, scanner: Scanner) -> Self {
+		let compiler = compiler.get_ref();
 		let data = ContextData::Root { scanner };
 		let data = data.into();
 		Self {
@@ -43,7 +44,7 @@ impl<'a> Context<'a> {
 		}
 	}
 
-	pub fn resolve_all(&self, nodes: NodeList) -> Result<(Context<'a>, NodeList)> {
+	pub fn resolve_all(&self, nodes: NodeList) -> Result<(Context, NodeList)> {
 		let mut context = self.clone();
 		let mut nodes = nodes;
 		loop {
@@ -73,7 +74,7 @@ impl<'a> Context<'a> {
 		self.parent.as_ref().expect("using unbound context")
 	}
 
-	fn resolve_next(&self, node_list: NodeList) -> Result<(Context<'a>, NodeList, bool)> {
+	fn resolve_next(&self, node_list: NodeList) -> Result<(Context, NodeList, bool)> {
 		// filter nodes that are ready to be evaluated
 		let mut nodes = node_list
 			.iter()
@@ -169,7 +170,7 @@ enum ContextData {
 /// The [`EvalContext`] is writable, and tracks changes made to it so they can
 /// be applied to the [`Context`] to create the resulting context.
 pub struct EvalContext<'a> {
-	context: &'a Context<'a>,
+	context: &'a Context,
 	errors: Errors,
 	nodes: &'a NodeList,
 	index: usize,
@@ -214,22 +215,22 @@ impl<'a> EvalContext<'a> {
 		self.changes.push(EvalChange::Replace { range, nodes });
 	}
 
-	pub fn resolve_bind(&self, name: Name) -> bool {
+	pub fn resolve_bind(&self, name: &str) -> bool {
 		let _ = name;
 		todo!()
 	}
 
-	pub fn get_bind(&self, name: Name) -> Option<Node> {
+	pub fn get_bind(&self, name: &str) -> Option<Node> {
 		let _ = name;
 		todo!()
 	}
 
-	pub fn require(&self, name: Name, path: &str) {
+	pub fn require(&self, name: &str, path: &str) {
 		let _ = (name, path);
 		todo!()
 	}
 
-	pub fn declare(&self, name: Name, node: Node) {
+	pub fn declare(&self, name: &str, node: Node) {
 		let _ = (name, node);
 		todo!()
 	}

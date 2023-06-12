@@ -17,7 +17,7 @@ use super::*;
 
 /// Trait for types that can be used as [`Node`].
 pub trait IsNode: IsValue + WithEquality + WithDebug {
-	fn get_bindings(&self) -> Vec<Name> {
+	fn get_bindings(&self) -> Vec<String> {
 		Vec::new()
 	}
 

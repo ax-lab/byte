@@ -17,15 +17,12 @@ pub struct Scanner {
 }
 
 impl Scanner {
-	/// Create a scanner pre-configured with the most basic common symbols.
-	pub fn with_common_symbols() -> Self {
-		let mut scanner = Self::default();
+	pub fn register_common_symbols(&mut self) {
 		for it in COMMON_SYMBOLS.iter() {
-			scanner.add_symbol(it.into());
+			self.add_symbol(it);
 		}
-		scanner.add_word_chars(ALPHA);
-		scanner.add_word_next_chars(DIGIT);
-		scanner
+		self.add_word_chars(ALPHA);
+		self.add_word_next_chars(DIGIT);
 	}
 
 	pub fn add_matcher<T: Matcher + 'static>(&mut self, matcher: T) {
@@ -33,9 +30,9 @@ impl Scanner {
 		matchers.push(Arc::new(matcher));
 	}
 
-	pub fn add_symbol(&mut self, name: Name) {
+	pub fn add_symbol(&mut self, name: &str) {
 		let table = Arc::make_mut(&mut self.table);
-		table.add(name.as_str(), ScanAction::Symbol(name));
+		table.add(name, ScanAction::Symbol(name.to_string()));
 	}
 
 	pub fn add_word_chars(&mut self, chars: &str) {
@@ -51,7 +48,7 @@ impl Scanner {
 		let mut buffer: [u8; 4] = [0; 4];
 		for char in chars.chars() {
 			let str = char::encode_utf8(char, &mut buffer);
-			table.add(str, kind);
+			table.add(str, kind.clone());
 		}
 	}
 
@@ -116,7 +113,7 @@ impl Scanner {
 			let (size, action) = self.table.recognize(cursor.data());
 			let (size, action) = if let Some(action) = action {
 				assert!(size > 0);
-				(size, *action)
+				(size, action.clone())
 			} else {
 				let size = char_size(cursor.data());
 				(size, ScanAction::None)
@@ -142,7 +139,7 @@ impl Scanner {
 
 					// generate a Name token
 					let name = cursor.data_from(&start);
-					let name = Name::from_u8(name);
+					let name = String::from_utf8(name.to_vec()).unwrap();
 					let span = cursor.span_from(&start);
 					Some(Node::from(Token::Word(name), Some(span)))
 				}
@@ -157,10 +154,10 @@ impl Scanner {
 	}
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum ScanAction {
 	None,
 	Word,
 	WordNext,
-	Symbol(Name),
+	Symbol(String),
 }

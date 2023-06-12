@@ -80,6 +80,21 @@ macro_rules! has_traits {
 			}
 		}
 	};
+
+	(ref $me:ty $( : $($typ:path),+ )?) => {
+		impl<'a> $crate::traits::HasTraits for $me {
+			fn get_trait(
+				&self,
+				type_id: ::std::any::TypeId,
+			) -> Option<&dyn $crate::traits::HasTraits> {
+				let _ = type_id;
+				$($(
+					$crate::traits::with_trait!(self, type_id, $typ);
+				)+)?
+				None
+			}
+		}
+	};
 }
 
 /// Retrieve a specific trait from a [`HasTraits`] type.

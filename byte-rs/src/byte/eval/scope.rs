@@ -8,12 +8,12 @@ impl Scope {
 		Default::default()
 	}
 
-	pub fn get(&self, name: &Name) -> Value {
+	pub fn get(&self, name: &str) -> Value {
 		let _ = name;
 		todo!()
 	}
 
-	pub fn set(&self, name: &Name, value: Value) {
+	pub fn set(&self, name: &str, value: Value) {
 		let _ = (name, value);
 		todo!()
 	}

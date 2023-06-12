@@ -83,7 +83,8 @@ mod tests {
 	//----------------------------------------------------------------------------------------------------------------//
 
 	fn tokenize(input: &str) -> Vec<Node> {
-		let mut scanner = Scanner::with_common_symbols();
+		let mut scanner = Scanner::default();
+		scanner.register_common_symbols();
 		scanner.add_matcher(CommentMatcher);
 		scanner.add_matcher(LiteralMatcher);
 		scanner.add_matcher(IntegerMatcher);

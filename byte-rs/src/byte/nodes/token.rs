@@ -5,8 +5,8 @@ use super::*;
 pub enum Token {
 	Break,
 	Indent(usize),
-	Word(Name),
-	Symbol(Name),
+	Word(String),
+	Symbol(String),
 }
 
 has_traits!(Token: IsNode);
