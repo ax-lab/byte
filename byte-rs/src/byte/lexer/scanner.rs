@@ -10,13 +10,22 @@ pub trait Matcher {
 	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node>;
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Scanner {
+	compiler: CompilerRef,
 	matchers: Arc<Vec<Arc<dyn Matcher>>>,
 	table: Arc<SymbolTable<ScanAction>>,
 }
 
 impl Scanner {
+	pub fn new(compiler: CompilerRef) -> Self {
+		Self {
+			compiler,
+			matchers: Default::default(),
+			table: Default::default(),
+		}
+	}
+
 	pub fn register_common_symbols(&mut self) {
 		for it in COMMON_SYMBOLS.iter() {
 			self.add_symbol(it);
@@ -53,6 +62,7 @@ impl Scanner {
 	}
 
 	pub fn scan(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node> {
+		let compiler = &self.compiler.get();
 		loop {
 			// skip spaces
 			let start = cursor.clone();
@@ -141,13 +151,13 @@ impl Scanner {
 					let name = cursor.data_from(&start);
 					let name = String::from_utf8(name.to_vec()).unwrap();
 					let span = cursor.span_from(&start);
-					Some(Node::from(Token::Word(name), Some(span)))
+					Some(Node::from(Token::Word(compiler.get_name(name)), Some(span)))
 				}
 
 				// predefined symbol
 				ScanAction::Symbol(name) => {
 					let span = cursor.span_from(&start);
-					Some(Node::from(Token::Symbol(name), Some(span)))
+					Some(Node::from(Token::Symbol(compiler.get_name(name)), Some(span)))
 				}
 			};
 		}

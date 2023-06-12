@@ -10,37 +10,60 @@ pub use input::*;
 pub use scanner::*;
 pub use symbols::*;
 
+pub type Name = Handle<str>;
+
+impl Compiler {
+	pub fn get_name<T: AsRef<str>>(&self, name: T) -> Name {
+		self.intern(name)
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 
 	#[test]
 	fn empty() {
-		assert_eq!(tokenize(""), Vec::new());
-		assert_eq!(tokenize("    "), Vec::new());
-		assert_eq!(tokenize("\n"), Vec::new());
-		assert_eq!(tokenize("\r"), Vec::new());
-		assert_eq!(tokenize("\r\n"), Vec::new());
-		assert_eq!(tokenize("\n    "), Vec::new());
-		assert_eq!(tokenize("    \n"), Vec::new());
-		assert_eq!(tokenize("\t\n\n\r\n    \r    \n"), Vec::new());
+		let (actual, _) = tokenize("");
+		assert_eq!(actual, Vec::new());
+
+		let (actual, _) = tokenize("    ");
+		assert_eq!(actual, Vec::new());
+
+		let (actual, _) = tokenize("\n");
+		assert_eq!(actual, Vec::new());
+
+		let (actual, _) = tokenize("\r");
+		assert_eq!(actual, Vec::new());
+
+		let (actual, _) = tokenize("\r\n");
+		assert_eq!(actual, Vec::new());
+
+		let (actual, _) = tokenize("\n    ");
+		assert_eq!(actual, Vec::new());
+
+		let (actual, _) = tokenize("    \n");
+		assert_eq!(actual, Vec::new());
+
+		let (actual, _) = tokenize("\t\n\n\r\n    \r    \n");
+		assert_eq!(actual, Vec::new());
 	}
 
 	#[test]
 	fn simple_scanning() {
-		let actual = tokenize("a, b (\n\tsome_name123\n)");
+		let (actual, compiler) = tokenize("a, b (\n\tsome_name123\n)");
 		assert_eq!(
 			actual,
 			vec![
-				word("a"),
-				sym(","),
-				word("b"),
-				sym("("),
+				word(&compiler, "a"),
+				sym(&compiler, ","),
+				word(&compiler, "b"),
+				sym(&compiler, "("),
 				eol(),
 				indent(4),
-				word("some_name123"),
+				word(&compiler, "some_name123"),
 				eol(),
-				sym(")")
+				sym(&compiler, ")")
 			]
 		);
 	}
@@ -57,22 +80,22 @@ mod tests {
 			"",
 			"print 1, 2, 3",
 		];
-		let actual = tokenize(input.join("\n").as_str());
+		let (actual, compiler) = tokenize(input.join("\n").as_str());
 		assert_eq!(
 			actual,
 			vec![
 				comment(),
 				eol(),
-				word("print"),
+				word(&compiler, "print"),
 				literal("hello world!"),
 				eol(),
 				comment(),
 				eol(),
-				word("print"),
+				word(&compiler, "print"),
 				int(1),
-				sym(","),
+				sym(&compiler, ","),
 				int(2),
-				sym(","),
+				sym(&compiler, ","),
 				int(3),
 			]
 		)
@@ -82,8 +105,9 @@ mod tests {
 	// Helpers
 	//----------------------------------------------------------------------------------------------------------------//
 
-	fn tokenize(input: &str) -> Vec<Node> {
-		let mut scanner = Scanner::default();
+	fn tokenize(input: &str) -> (Vec<Node>, Compiler) {
+		let compiler = Compiler::new();
+		let mut scanner = Scanner::new(compiler.get_ref());
 		scanner.register_common_symbols();
 		scanner.add_matcher(CommentMatcher);
 		scanner.add_matcher(LiteralMatcher);
@@ -103,15 +127,15 @@ mod tests {
 		}
 
 		assert!(cursor.at_end());
-		output
+		(output, compiler)
 	}
 
-	fn word(name: &str) -> Node {
-		Node::from(Token::Word(name.into()), None)
+	fn word(compiler: &Compiler, name: &str) -> Node {
+		Node::from(Token::Word(compiler.get_name(name)), None)
 	}
 
-	fn sym(name: &str) -> Node {
-		Node::from(Token::Symbol(name.into()), None)
+	fn sym(compiler: &Compiler, name: &str) -> Node {
+		Node::from(Token::Symbol(compiler.get_name(name)), None)
 	}
 
 	fn eol() -> Node {

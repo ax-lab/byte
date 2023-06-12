@@ -15,14 +15,9 @@ impl Compiler {
 	///
 	/// Note that compiler instances are completely independent of each other.
 	pub fn new() -> Self {
-		let mut data = CompilerData::default();
-		let scanner = &mut data.scanner;
-		scanner.register_common_symbols();
-		scanner.add_matcher(CommentMatcher);
-		scanner.add_matcher(LiteralMatcher);
-		scanner.add_matcher(IntegerMatcher);
-
-		Self { data: data.into() }
+		Self {
+			data: CompilerData::new(),
+		}
 	}
 
 	/// Return a weak reference to this compiler instance that can be used to
@@ -147,7 +142,7 @@ impl CompilerRef {
 	/// Returns a full reference to the compiler. This will panic if the
 	/// compiler has been dropped already.
 	pub fn get(&self) -> Compiler {
-		let data = self.data.upgrade().expect("using unbound compiler ref");
+		let data = self.data.upgrade().expect("using disposed compiler reference");
 		Compiler { data }
 	}
 }
@@ -287,7 +282,6 @@ impl<T: Ord + ?Sized> Ord for Handle<T> {
 // Compiler data
 //====================================================================================================================//
 
-#[derive(Default)]
 struct CompilerData {
 	// default scanner used by any new compiler context
 	scanner: Scanner,
@@ -297,6 +291,26 @@ struct CompilerData {
 
 	// storage for interned strings
 	strings: Arc<RwLock<HashSet<String>>>,
+}
+
+impl CompilerData {
+	pub fn new() -> Arc<Self> {
+		Arc::new_cyclic(|data| {
+			let compiler = CompilerRef { data: data.clone() };
+
+			let mut scanner = Scanner::new(compiler.clone());
+			scanner.register_common_symbols();
+			scanner.add_matcher(CommentMatcher);
+			scanner.add_matcher(LiteralMatcher);
+			scanner.add_matcher(IntegerMatcher);
+
+			CompilerData {
+				scanner,
+				arena: Default::default(),
+				strings: Default::default(),
+			}
+		})
+	}
 }
 
 //====================================================================================================================//
