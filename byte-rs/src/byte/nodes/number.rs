@@ -20,7 +20,7 @@ impl IsNode for Integer {
 }
 
 impl Compilable for Integer {
-	fn compile(&self, node: &Node, context: &Context, errors: &mut Errors) -> Option<Arc<dyn IsCode>> {
+	fn compile(&self, node: &Node, context: &Context, errors: &mut Errors) -> Option<Expr> {
 		let _ = context;
 		let Integer(value) = self;
 		let value = *value;
@@ -28,7 +28,12 @@ impl Compilable for Integer {
 			errors.add_at("literal value is too big", node.span().cloned());
 			None
 		} else {
-			Some(Arc::new(Expr::<I64>::Value(value as i64)))
+			let expr = Expr::Value(ValueExpr::Int(IntValue {
+				data: value,
+				base: 10,
+				kind: IntType::I64,
+			}));
+			Some(expr)
 		}
 	}
 }

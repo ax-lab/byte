@@ -44,6 +44,10 @@ impl Context {
 		}
 	}
 
+	pub fn compiler(&self) -> Compiler {
+		self.compiler.get()
+	}
+
 	pub fn resolve_all(&self, nodes: NodeList) -> Result<(Context, NodeList)> {
 		let mut context = self.clone();
 		let mut nodes = nodes;

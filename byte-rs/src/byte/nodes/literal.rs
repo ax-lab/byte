@@ -3,7 +3,7 @@ use super::*;
 #[derive(Debug, Eq, PartialEq)]
 pub struct Literal(pub String);
 
-has_traits!(Literal: IsNode);
+has_traits!(Literal: IsNode, Compilable);
 
 impl IsNode for Literal {
 	fn precedence(&self, context: &Context) -> Option<(Precedence, Sequence)> {
@@ -14,6 +14,15 @@ impl IsNode for Literal {
 	fn evaluate(&self, context: &mut EvalContext) -> Result<NodeEval> {
 		let _ = context;
 		Ok(NodeEval::Complete)
+	}
+}
+
+impl Compilable for Literal {
+	fn compile(&self, node: &Node, context: &Context, errors: &mut Errors) -> Option<Expr> {
+		let _ = (node, errors);
+		let compiler = context.compiler();
+		let str = StrValue::new(self.as_str(), &compiler);
+		Some(Expr::Value(ValueExpr::Str(str)))
 	}
 }
 

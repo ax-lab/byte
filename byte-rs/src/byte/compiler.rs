@@ -62,10 +62,6 @@ impl Compiler {
 		Context::new_root(self, self.data.scanner.clone())
 	}
 
-	pub fn new_builder(&self) -> CodeBuilder {
-		CodeBuilder { compiler: self }
-	}
-
 	pub fn eval(&self, input: &Input) -> Result<Value> {
 		let context = self.new_context();
 		let span = input.start().span();
@@ -76,8 +72,8 @@ impl Compiler {
 		let mut errors = Errors::new();
 		for it in nodes.iter() {
 			if let Some(node) = it.as_compilable() {
-				if let Some(item) = node.compile(it, &context, &mut errors) {
-					code.push(item);
+				if let Some(expr) = node.compile(it, &context, &mut errors) {
+					code.push(expr);
 				}
 			} else {
 				errors.add_at(
@@ -168,7 +164,6 @@ impl PartialEq<&Compiler> for CompilerRef {
 }
 
 /// Handle to data owned by a [`Compiler`].
-#[derive(Clone)]
 pub struct Handle<T: ?Sized> {
 	compiler: CompilerRef,
 	data: *const T,
@@ -194,6 +189,15 @@ pub struct HandleRef<T: ?Sized> {
 impl<T: ?Sized> HandleRef<T> {
 	pub fn as_ref(&self) -> &T {
 		self
+	}
+}
+
+impl<T: ?Sized> Clone for Handle<T> {
+	fn clone(&self) -> Self {
+		Self {
+			compiler: self.compiler.clone(),
+			data: self.data,
+		}
 	}
 }
 

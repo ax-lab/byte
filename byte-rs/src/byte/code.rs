@@ -1,18 +1,21 @@
-//! High-level intermediate representation for runnable and compilable code.
+//! High-level intermediate representation for runnable and compilable code
+//! based on expression trees.
 //!
-//! This module provides a static and strongly-typed representation of code
-//! that is still close to the source, but fully resolved.
+//! Provides a strongly-typed static representation for code that is close
+//! in level to a C-like language.
 //!
-//! As such, this representation is still easy enough to construct, while it
-//! can also be directly interpreted, compiled, or transpiled.
+//! The goal of this module is to provide a code representation that is high
+//! level enough to easily build from the initial code parsing and semantical
+//! analysis, while being low-level enough to be trivial to interpret, compile,
+//! or transpile.
+//!
+//! This code representation is fully static and serializable, with all types
+//! resolved, symbols statically bound, values stored as plain byte data, and
+//! any sort of dynamic code expansion and generation (e.g. macros) completed.
 
-pub mod builder;
-pub mod int;
-pub mod vars;
+pub mod values;
 
-pub use builder::*;
-pub use int::*;
-pub use vars::*;
+pub use values::*;
 
 use super::*;
 use crate::eval::*;
@@ -24,7 +27,7 @@ use std::{
 };
 
 pub trait Compilable {
-	fn compile(&self, node: &Node, context: &Context, errors: &mut Errors) -> Option<Arc<dyn IsCode>>;
+	fn compile(&self, node: &Node, context: &Context, errors: &mut Errors) -> Option<Expr>;
 }
 
 impl Node {
@@ -33,9 +36,33 @@ impl Node {
 	}
 }
 
-pub trait IsCode: WithEval {}
+//====================================================================================================================//
+// Expressions
+//====================================================================================================================//
 
-impl<T: WithEval> IsCode for T {}
+/// Enumeration of builtin root expressions.
+#[derive(Clone, Debug)]
+pub enum Expr {
+	Value(ValueExpr),
+}
+
+impl Expr {
+	pub fn get_type(&self) -> Type {
+		match self {
+			Expr::Value(value) => Type::Value(value.get_type()),
+		}
+	}
+}
+
+//====================================================================================================================//
+// Types
+//====================================================================================================================//
+
+/// Enumeration of builtin types.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Type {
+	Value(ValueType),
+}
 
 //====================================================================================================================//
 // Traits
@@ -80,48 +107,6 @@ pub trait IsBinaryOp<T: IsType>: IsValue + Debug {
 		Err(Errors::from(format!(
 			"binary operator {self:?} for {typ} not implemented (lhs = {lhs}, rhs = {rhs})"
 		)))
-	}
-}
-
-//====================================================================================================================//
-// Expr
-//====================================================================================================================//
-
-/// Basic expression types.
-#[derive(Clone, Debug)]
-pub enum Expr<T: IsType> {
-	Value(T::Data),
-	Unary(UnaryOp<T>, OpValue<T>),
-	Binary(BinaryOp<T>, OpValue<T>, OpValue<T>),
-}
-
-impl<T: IsType> HasTraits for Expr<T> {
-	fn get_trait(&self, type_id: std::any::TypeId) -> Option<&dyn HasTraits> {
-		with_trait!(self, type_id, WithEval);
-		None
-	}
-}
-
-impl<T: IsType> IsExpr<T> for Expr<T> {}
-
-impl<T: IsType> WithEval for Expr<T> {
-	fn eval(&self, scope: &mut Scope) -> Result<Value> {
-		match self {
-			Expr::Value(data) => {
-				let typ = T::default();
-				typ.new_value(scope, data)
-			}
-
-			Expr::Unary(op, val) => {
-				let val = scope.eval(val.as_ref())?;
-				op.eval(scope, val)
-			}
-			Expr::Binary(op, lhs, rhs) => {
-				let lhs = scope.eval(lhs.as_ref())?;
-				let rhs = scope.eval(rhs.as_ref())?;
-				op.eval(scope, lhs, rhs)
-			}
-		}
 	}
 }
 
