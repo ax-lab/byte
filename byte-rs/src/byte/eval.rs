@@ -8,6 +8,11 @@ impl Expr {
 	pub fn eval(&self, scope: &mut Scope) -> Result<Value> {
 		match self {
 			Expr::Value(value) => value.eval(scope),
+			Expr::Binary(op, lhs, rhs) => {
+				let lhs = lhs.get().eval(scope)?;
+				let rhs = rhs.get().eval(scope)?;
+				op.get().eval(lhs, rhs)
+			}
 		}
 	}
 }
@@ -28,8 +33,8 @@ impl ValueExpr {
 impl IntValue {
 	pub fn eval(&self, scope: &mut Scope) -> Result<Value> {
 		let _ = scope;
-		let value = self.data;
-		let value = match self.kind {
+		let value = self.value();
+		let value = match self.get_type() {
 			IntType::I8 => Value::from(value as i8),
 			IntType::U8 => Value::from(value as u8),
 			IntType::I16 => Value::from(value as i16),
@@ -45,21 +50,25 @@ impl IntValue {
 	}
 }
 
-#[cfg(testX)]
+#[cfg(test)]
 mod tests {
 	use super::*;
 	use crate::code::*;
 
 	#[test]
 	fn basic_eval() -> Result<()> {
-		let a: TypedExpr<I32> = TypedExpr::Value(2);
-		let b: TypedExpr<I32> = TypedExpr::Value(2);
-		let expr = TypedExpr::Binary(BinaryOp::new(IntAdd), OpValue::new(a), OpValue::new(b));
-		let expr = TypedExpr::Unary(UnaryOp::new(IntMinus), OpValue::new(expr));
+		let compiler = Compiler::new();
+		let a = Expr::Value(ValueExpr::Int(IntValue::new(2, IntType::I64)));
+		let b = Expr::Value(ValueExpr::Int(IntValue::new(3, IntType::I64)));
+		let op = BinaryOp::from(OpAdd::for_type(&a.get_type()).unwrap());
+
+		let a = compiler.store(a);
+		let b = compiler.store(b);
+		let expr = Expr::Binary(op, a, b);
 
 		let mut scope = Scope::new();
-		let result = scope.eval(&expr)?;
-		assert_eq!(result, Value::from(-4));
+		let result = expr.eval(&mut scope)?;
+		assert_eq!(result, Value::from(5i64));
 
 		Ok(())
 	}

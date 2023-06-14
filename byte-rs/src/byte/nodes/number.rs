@@ -24,15 +24,11 @@ impl Compilable for Integer {
 		let _ = context;
 		let Integer(value) = self;
 		let value = *value;
-		if value > i64::MAX as u128 {
+		if value > IntType::I64.max_value() {
 			errors.add_at("literal value is too big", node.span().cloned());
 			None
 		} else {
-			let expr = Expr::Value(ValueExpr::Int(IntValue {
-				data: value,
-				base: 10,
-				kind: IntType::I64,
-			}));
+			let expr = Expr::Value(ValueExpr::Int(IntValue::new(value, IntType::I64)));
 			Some(expr)
 		}
 	}

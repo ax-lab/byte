@@ -43,14 +43,33 @@ impl StrValue {
 	}
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct IntValue {
-	pub data: u128,
-	pub base: u8,
-	pub kind: IntType,
+	data: u128,
+	base: u8,
+	kind: IntType,
 }
 
 impl IntValue {
+	pub fn new(value: u128, kind: IntType) -> Self {
+		assert!(value <= kind.max_value());
+		IntValue {
+			data: value,
+			base: 10,
+			kind: IntType::I64,
+		}
+	}
+
+	pub fn value(&self) -> u128 {
+		self.data
+	}
+
+	pub fn with_base(&self, base: u8) -> Self {
+		let mut value = self.clone();
+		value.base = base;
+		value
+	}
+
 	pub fn get_type(&self) -> IntType {
 		self.kind
 	}
@@ -106,8 +125,37 @@ pub enum IntType {
 	U128,
 }
 
+impl IntType {
+	pub fn max_value(&self) -> u128 {
+		match self {
+			IntType::I8 => i8::MAX as u128,
+			IntType::U8 => u8::MAX as u128,
+			IntType::I16 => i16::MAX as u128,
+			IntType::U16 => u16::MAX as u128,
+			IntType::I32 => i32::MAX as u128,
+			IntType::U32 => u32::MAX as u128,
+			IntType::I64 => i64::MAX as u128,
+			IntType::U64 => u64::MAX as u128,
+			IntType::I128 => i128::MAX as u128,
+			IntType::U128 => u128::MAX as u128,
+		}
+	}
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FloatType {
 	Single,
 	Double,
+}
+
+//====================================================================================================================//
+// Debug
+//====================================================================================================================//
+
+impl Debug for IntValue {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		let kind = self.kind;
+		let data = self.data;
+		write!(f, "IntValue({kind:?}: {data})")
+	}
 }
