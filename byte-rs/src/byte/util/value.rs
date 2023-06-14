@@ -45,6 +45,10 @@ impl Value {
 		Self { inner: Arc::new(value) }
 	}
 
+	pub fn is<T: IsValue>(&self) -> bool {
+		self.get::<T>().is_some()
+	}
+
 	pub fn get<T: IsValue>(&self) -> Option<&T> {
 		let data = self.inner.as_ref();
 		if data.type_id() == TypeId::of::<T>() {

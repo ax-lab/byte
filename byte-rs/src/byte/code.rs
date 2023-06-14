@@ -16,10 +16,12 @@
 pub mod int;
 pub mod op;
 pub mod op_add;
+pub mod scope;
 pub mod values;
 
 pub use op::*;
 pub use op_add::*;
+pub use scope::*;
 pub use values::*;
 
 use super::*;
@@ -42,6 +44,7 @@ impl Node {
 #[derive(Clone, Debug)]
 pub enum Expr {
 	Value(ValueExpr),
+	Variable(Name, Type),
 	Binary(BinaryOp, Handle<Expr>, Handle<Expr>),
 }
 
@@ -49,6 +52,7 @@ impl Expr {
 	pub fn get_type(&self) -> Type {
 		match self {
 			Expr::Value(value) => Type::Value(value.get_type()),
+			Expr::Variable(.., kind) => kind.clone(),
 			Expr::Binary(op, ..) => op.get().get_type(),
 		}
 	}
@@ -62,4 +66,12 @@ impl Expr {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Type {
 	Value(ValueType),
+}
+
+impl Type {
+	pub fn validate_value(&self, value: &Value) -> Result<()> {
+		match self {
+			Type::Value(kind) => kind.validate_value(value),
+		}
+	}
 }

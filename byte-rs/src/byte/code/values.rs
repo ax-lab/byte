@@ -55,8 +55,8 @@ impl IntValue {
 		assert!(value <= kind.max_value());
 		IntValue {
 			data: value,
+			kind,
 			base: 10,
-			kind: IntType::I64,
 		}
 	}
 
@@ -111,6 +111,27 @@ pub enum ValueType {
 	Float(FloatType),
 }
 
+impl ValueType {
+	pub fn validate_value(&self, value: &Value) -> Result<()> {
+		let valid = match self {
+			ValueType::Unit => value.is::<()>(),
+			ValueType::Never => false,
+			ValueType::Bool => value.is::<bool>(),
+			ValueType::Str => value.is::<String>(),
+			ValueType::Int(int) => int.is_valid_value(value),
+			ValueType::Float(float) => float.is_valid_value(value),
+		};
+		if valid {
+			Ok(())
+		} else {
+			let typ = value.type_name();
+			Err(Errors::from(format!(
+				"value `{value}` of type `{typ}` is not valid {self:?}"
+			)))
+		}
+	}
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IntType {
 	I8,
@@ -140,12 +161,36 @@ impl IntType {
 			IntType::U128 => u128::MAX as u128,
 		}
 	}
+
+	pub fn is_valid_value(&self, value: &Value) -> bool {
+		match self {
+			IntType::I8 => value.is::<i8>(),
+			IntType::U8 => value.is::<u8>(),
+			IntType::I16 => value.is::<i16>(),
+			IntType::U16 => value.is::<u16>(),
+			IntType::I32 => value.is::<i32>(),
+			IntType::U32 => value.is::<u32>(),
+			IntType::I64 => value.is::<i64>(),
+			IntType::U64 => value.is::<u64>(),
+			IntType::I128 => value.is::<i128>(),
+			IntType::U128 => value.is::<u128>(),
+		}
+	}
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FloatType {
 	Single,
 	Double,
+}
+
+impl FloatType {
+	pub fn is_valid_value(&self, value: &Value) -> bool {
+		match self {
+			FloatType::Single => value.is::<f32>(),
+			FloatType::Double => value.is::<f64>(),
+		}
+	}
 }
 
 //====================================================================================================================//

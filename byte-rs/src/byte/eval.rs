@@ -1,13 +1,10 @@
 use super::*;
 
-pub mod scope;
-
-pub use scope::*;
-
 impl Expr {
 	pub fn eval(&self, scope: &mut Scope) -> Result<Value> {
 		match self {
 			Expr::Value(value) => value.eval(scope),
+			Expr::Variable(name, ..) => scope.get(name).cloned(),
 			Expr::Binary(op, lhs, rhs) => {
 				let lhs = lhs.get().eval(scope)?;
 				let rhs = rhs.get().eval(scope)?;
@@ -58,8 +55,9 @@ mod tests {
 	#[test]
 	fn basic_eval() -> Result<()> {
 		let compiler = Compiler::new();
-		let a = Expr::Value(ValueExpr::Int(IntValue::new(2, IntType::I64)));
-		let b = Expr::Value(ValueExpr::Int(IntValue::new(3, IntType::I64)));
+		let a = Expr::Value(ValueExpr::Int(IntValue::new(2, IntType::I32)));
+		let b = Expr::Value(ValueExpr::Int(IntValue::new(3, IntType::I32)));
+
 		let op = BinaryOp::from(OpAdd::for_type(&a.get_type()).unwrap());
 
 		let a = compiler.store(a);
@@ -68,7 +66,25 @@ mod tests {
 
 		let mut scope = Scope::new();
 		let result = expr.eval(&mut scope)?;
-		assert_eq!(result, Value::from(5i64));
+		assert_eq!(result, Value::from(5));
+
+		Ok(())
+	}
+
+	#[test]
+	fn variables() -> Result<()> {
+		let compiler = Compiler::new();
+
+		let name = compiler.get_name("x");
+		let kind = Type::Value(ValueType::Int(IntType::I32));
+		let x = Expr::Variable(name.clone(), kind.clone());
+
+		let mut scope = Scope::new();
+		scope.declare(name.clone(), kind)?;
+		scope.set(&name, Value::from(42))?;
+
+		let result = x.eval(&mut scope)?;
+		assert_eq!(result, Value::from(42));
 
 		Ok(())
 	}
