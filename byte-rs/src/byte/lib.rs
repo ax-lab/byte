@@ -1,7 +1,6 @@
 pub mod code;
 pub mod compiler;
 pub mod context;
-pub mod eval;
 pub mod lexer;
 pub mod nodes;
 pub mod precedence;

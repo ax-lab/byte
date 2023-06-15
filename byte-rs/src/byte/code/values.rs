@@ -27,6 +27,17 @@ impl ValueExpr {
 			ValueExpr::Float(float) => ValueType::Float(float.get_type()),
 		}
 	}
+
+	pub fn eval(&self, scope: &mut Scope) -> Result<Value> {
+		match self {
+			ValueExpr::Unit => Ok(Value::from(())),
+			ValueExpr::Never => Err(Errors::from("evaluated to never value")),
+			ValueExpr::Bool(value) => Ok(Value::from(*value)),
+			ValueExpr::Str(value) => Ok(Value::from(value.get())),
+			ValueExpr::Int(value) => value.eval(scope),
+			ValueExpr::Float(_) => todo!(),
+		}
+	}
 }
 
 #[derive(Clone, Debug)]
@@ -72,6 +83,24 @@ impl IntValue {
 
 	pub fn get_type(&self) -> IntType {
 		self.kind
+	}
+
+	pub fn eval(&self, scope: &mut Scope) -> Result<Value> {
+		let _ = scope;
+		let value = self.value();
+		let value = match self.get_type() {
+			IntType::I8 => Value::from(value as i8),
+			IntType::U8 => Value::from(value as u8),
+			IntType::I16 => Value::from(value as i16),
+			IntType::U16 => Value::from(value as u16),
+			IntType::I32 => Value::from(value as i32),
+			IntType::U32 => Value::from(value as u32),
+			IntType::I64 => Value::from(value as i64),
+			IntType::U64 => Value::from(value as u64),
+			IntType::I128 => Value::from(value as i128),
+			IntType::U128 => Value::from(value as u128),
+		};
+		Ok(value)
 	}
 }
 
