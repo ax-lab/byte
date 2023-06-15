@@ -38,7 +38,7 @@ impl OpAdd {
 }
 
 impl IsBinaryOp for OpAdd {
-	fn eval(&self, lhs: Value, rhs: Value) -> Result<Value> {
+	fn execute(&self, lhs: Value, rhs: Value) -> Result<Value> {
 		(self.eval_fn)(lhs, rhs)
 	}
 

@@ -99,7 +99,7 @@ impl Compiler {
 		let mut value = Value::from(());
 		let mut scope = Scope::new();
 		for it in code {
-			value = it.eval(&mut scope)?;
+			value = it.execute(&mut scope)?;
 		}
 
 		Ok(value)

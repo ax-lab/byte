@@ -57,14 +57,14 @@ impl Expr {
 		}
 	}
 
-	pub fn eval(&self, scope: &mut Scope) -> Result<Value> {
+	pub fn execute(&self, scope: &mut Scope) -> Result<Value> {
 		match self {
-			Expr::Value(value) => value.eval(scope),
+			Expr::Value(value) => value.execute(scope),
 			Expr::Variable(name, ..) => scope.get(name).cloned(),
 			Expr::Binary(op, lhs, rhs) => {
-				let lhs = lhs.get().eval(scope)?;
-				let rhs = rhs.get().eval(scope)?;
-				op.get().eval(lhs, rhs)
+				let lhs = lhs.get().execute(scope)?;
+				let rhs = rhs.get().execute(scope)?;
+				op.get().execute(lhs, rhs)
 			}
 		}
 	}
@@ -109,7 +109,7 @@ mod tests {
 		let expr = Expr::Binary(op, a, b);
 
 		let mut scope = Scope::new();
-		let result = expr.eval(&mut scope)?;
+		let result = expr.execute(&mut scope)?;
 		assert_eq!(result, Value::from(5));
 
 		Ok(())
@@ -127,7 +127,7 @@ mod tests {
 		scope.declare(name.clone(), kind)?;
 		scope.set(&name, Value::from(42))?;
 
-		let result = x.eval(&mut scope)?;
+		let result = x.execute(&mut scope)?;
 		assert_eq!(result, Value::from(42));
 
 		Ok(())

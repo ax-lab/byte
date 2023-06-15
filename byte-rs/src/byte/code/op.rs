@@ -1,7 +1,7 @@
 use super::*;
 
 pub trait IsBinaryOp: IsValue + WithDebug {
-	fn eval(&self, lhs: Value, rhs: Value) -> Result<Value>;
+	fn execute(&self, lhs: Value, rhs: Value) -> Result<Value>;
 	fn get_type(&self) -> Type;
 }
 

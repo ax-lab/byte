@@ -28,13 +28,13 @@ impl ValueExpr {
 		}
 	}
 
-	pub fn eval(&self, scope: &mut Scope) -> Result<Value> {
+	pub fn execute(&self, scope: &mut Scope) -> Result<Value> {
 		match self {
 			ValueExpr::Unit => Ok(Value::from(())),
 			ValueExpr::Never => Err(Errors::from("evaluated to never value")),
 			ValueExpr::Bool(value) => Ok(Value::from(*value)),
 			ValueExpr::Str(value) => Ok(Value::from(value.get())),
-			ValueExpr::Int(value) => value.eval(scope),
+			ValueExpr::Int(value) => value.execute(scope),
 			ValueExpr::Float(_) => todo!(),
 		}
 	}
@@ -85,7 +85,7 @@ impl IntValue {
 		self.kind
 	}
 
-	pub fn eval(&self, scope: &mut Scope) -> Result<Value> {
+	pub fn execute(&self, scope: &mut Scope) -> Result<Value> {
 		let _ = scope;
 		let value = self.value();
 		let value = match self.get_type() {
