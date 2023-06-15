@@ -58,8 +58,13 @@ impl Compiler {
 		}
 	}
 
+	pub fn scanner(&self) -> ContextRef<Scanner> {
+		let data = self.data.clone();
+		ContextRef::new_from_compiler(Compiler { data }, |x| &x.data.scanner)
+	}
+
 	pub fn new_context(&self) -> Context {
-		Context::new_root(self, self.data.scanner.clone())
+		Context::new_root(self)
 	}
 
 	pub fn eval(&self, input: &Input) -> Result<Value> {

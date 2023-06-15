@@ -22,7 +22,7 @@ pub type Result<T> = std::result::Result<T, Errors>;
 use std::{
 	collections::HashSet,
 	fmt::{Debug, Display, Formatter, Write},
-	sync::{Arc, RwLock},
+	sync::{Arc, RwLock, Weak},
 };
 
 #[cfg(test)]

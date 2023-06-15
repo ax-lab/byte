@@ -5,47 +5,48 @@ use std::{
 
 use super::*;
 
-/// Provides all context for [`Node`] evaluation, which is at the core of the
-/// language parsing and evaluation.
+/// Provides all data context for [`Node`] evaluation, which is at the core
+/// of the language parsing and evaluation.
 ///
-/// The context provides methods to evaluate and resolve a list of [`Node`]
-/// until they are complete, from which point they can be used to generate
-/// executable code.
+/// Contexts essentially store data and make that data accessible to nodes
+/// during evaluation. They also support the implementation of scoping in the
+/// language.
 ///
-/// It also provides any compiler services that a node might need to complete
-/// its resolution (e.g. file loading, module importing, etc.).
+/// Contexts are hierarchical, being able to inherit and access data from
+/// parent contexts. The root context will usually relate to a module or
+/// source file.
 ///
-/// Contexts are designed to be immutable, with context changes being applied
-/// in a single transactional step and generating a new context. Additionally,
-/// a context can be freely cloned and stored to preserve a given state.
-///
-/// Contexts can be composed on the fly, which allow for scope rules to be
-/// implemented and maintained.
-///
-/// Nodes can store and update their own contexts internally. This is used,
-/// for example, to maintain a node's own internal scope.
+/// Cloning a context creates a shallow clone with the same data. Changes to
+/// a context can only be made by generating a new [`Context`] value.
 #[derive(Clone)]
 pub struct Context {
-	#[allow(unused)]
 	compiler: CompilerRef,
 	data: Arc<ContextData>,
-	parent: Option<Box<Context>>,
+}
+
+#[derive(Clone, Default)]
+struct ContextData {
+	parent: Option<Weak<ContextData>>,
+	scanner: Option<Scanner>,
 }
 
 impl Context {
-	pub fn new_root(compiler: &Compiler, scanner: Scanner) -> Self {
+	/// Create a new unbound root context.
+	pub fn new_root(compiler: &Compiler) -> Self {
 		let compiler = compiler.get_ref();
-		let data = ContextData::Root { scanner };
-		let data = data.into();
-		Self {
-			compiler,
-			data,
-			parent: None,
-		}
+		let data = Default::default();
+		Self { compiler, data }
 	}
 
+	/// Return the parent compiler for this context.
 	pub fn compiler(&self) -> Compiler {
 		self.compiler.get()
+	}
+
+	/// Return the active scanner for this context.
+	pub fn scanner(&self) -> ContextRef<Scanner> {
+		self.resolve(|x| x.scanner.as_ref())
+			.unwrap_or_else(|| self.compiler().scanner())
 	}
 
 	pub fn resolve_all(&self, nodes: NodeList) -> Result<(Context, NodeList)> {
@@ -58,24 +59,6 @@ impl Context {
 				return Ok((context, nodes));
 			}
 		}
-	}
-
-	pub fn scanner(&self) -> &Scanner {
-		match self.data.as_ref() {
-			ContextData::Empty => self.parent().scanner(),
-			ContextData::Root { scanner } => &scanner,
-			ContextData::Partial { scanner } => {
-				if let Some(scanner) = scanner {
-					scanner
-				} else {
-					self.parent().scanner()
-				}
-			}
-		}
-	}
-
-	fn parent(&self) -> &Context {
-		self.parent.as_ref().expect("using unbound context")
 	}
 
 	fn resolve_next(&self, node_list: NodeList) -> Result<(Context, NodeList, bool)> {
@@ -154,20 +137,67 @@ impl Context {
 
 		Ok((new_context, node_list, !pending))
 	}
+
+	fn resolve<T, F: Fn(&ContextData) -> Option<&T>>(&self, predicate: F) -> Option<ContextRef<T>> {
+		let mut data = self.data.clone();
+		loop {
+			if let Some(value) = predicate(&data) {
+				let value = value as *const T;
+				return Some(unsafe { ContextRef::new_from_context(data, value) });
+			} else if let Some(parent) = &data.parent {
+				let parent = parent.upgrade().expect("orphaned child context");
+				data = parent;
+			} else {
+				return None;
+			}
+		}
+	}
 }
 
-#[derive(Clone, Default)]
-enum ContextData {
-	#[default]
-	Empty,
-	Root {
-		scanner: Scanner,
-	},
-	#[allow(unused)]
-	Partial {
-		scanner: Option<Scanner>,
-	},
+//====================================================================================================================//
+// ContextRef
+//====================================================================================================================//
+
+/// Keeps a reference to a value from the context.
+///
+/// This MUST not be stored, as it holds a strong reference to either the
+/// parent [`Context`] or the [`Compiler`].
+pub struct ContextRef<T> {
+	// parent is only owned to keep it alive while the ref is in use
+	parent: ContextParent,
+	data: *const T,
 }
+
+enum ContextParent {
+	Context(Arc<ContextData>),
+	Compiler(Compiler),
+}
+
+impl<T> ContextRef<T> {
+	unsafe fn new_from_context(context: Arc<ContextData>, data: *const T) -> Self {
+		let parent = ContextParent::Context(context);
+		Self { parent, data }
+	}
+
+	pub(crate) fn new_from_compiler<F: FnOnce(&Compiler) -> &T>(compiler: Compiler, predicate: F) -> Self {
+		let data = predicate(&compiler) as *const T;
+		let parent = ContextParent::Compiler(compiler);
+		Self { parent, data }
+	}
+}
+
+impl<T> std::ops::Deref for ContextRef<T> {
+	type Target = T;
+
+	fn deref(&self) -> &Self::Target {
+		let _ = self.parent;
+		unsafe { &*self.data }
+	}
+}
+
+//====================================================================================================================//
+// EvalContext
+//====================================================================================================================//
 
 /// Wraps a [`Context`] for a [`IsNode::evaluate`] operation.
 ///
@@ -186,7 +216,7 @@ impl<'a> EvalContext<'a> {
 		self.context
 	}
 
-	pub fn scanner(&self) -> &Scanner {
+	pub fn scanner(&self) -> ContextRef<Scanner> {
 		self.context.scanner()
 	}
 
