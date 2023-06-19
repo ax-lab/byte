@@ -1,5 +1,7 @@
 use std::env;
 
+use byte::*;
+
 fn main() {
 	let mut done = false;
 	let mut files = Vec::new();
@@ -41,6 +43,42 @@ fn main() {
 		eprintln!("No arguments given, nothing to do, exiting...\n");
 		std::process::exit(0);
 	}
+
+	if let Err(errors) = execute(files, eval_list) {
+		println!("\n{errors}");
+		std::process::exit(1);
+	}
+}
+
+fn execute(files: Vec<String>, eval: Vec<String>) -> Result<()> {
+	let compiler = Compiler::new();
+
+	let mut modules = Vec::new();
+	for file in files.into_iter() {
+		let module = compiler.load_file(file)?;
+		modules.push(module);
+	}
+
+	for it in modules.iter() {
+		it.resolve()?;
+	}
+
+	if eval.len() == 0 {
+		if let Some(module) = modules.first() {
+			module.eval()?;
+		}
+	}
+
+	for (n, expr) in eval.into_iter().enumerate() {
+		let name = format!("{{eval #{n}}}");
+		let input = Input::new(name, expr.as_bytes().to_vec());
+		let module = compiler.load_input(input);
+		let result = module.eval()?;
+
+		println!("#{n:02} => {result} ({})", result.type_name());
+	}
+
+	Ok(())
 }
 
 fn print_usage() {

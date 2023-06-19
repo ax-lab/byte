@@ -1,5 +1,3 @@
-use std::{hash::Hash, ops::Deref, sync::Weak};
-
 use super::*;
 
 /// Main interface for loading, compiling, and running code.
@@ -11,14 +9,77 @@ pub struct Compiler {
 }
 
 impl Compiler {
-	/// Create a new compiler instance with default settings.
-	///
-	/// Note that compiler instances are completely independent of each other.
+	/// Create a new compiler instance with default settings using the current
+	/// path as base path.
 	pub fn new() -> Self {
-		Self {
-			data: CompilerData::new(),
+		Self::new_with_path(".").unwrap()
+	}
+
+	/// Create a new compiler instance with default settings and the given
+	/// base path.
+	pub fn new_with_path<T: AsRef<Path>>(base_path: T) -> Result<Self> {
+		let base_path = std::fs::canonicalize(base_path)?;
+		Ok(Self {
+			data: CompilerData::new(base_path),
+		})
+	}
+
+	//----------------------------------------------------------------------------------------------------------------//
+	// Module loading and compilation
+	//----------------------------------------------------------------------------------------------------------------//
+
+	pub fn scanner(&self) -> &Scanner {
+		&self.data.scanner
+	}
+
+	pub fn eval_string<T: AsRef<str>>(&self, input: T) -> Result<Value> {
+		let module = self.load_string(input);
+		module.eval()
+	}
+
+	pub fn load_file<T: AsRef<Path>>(&self, path: T) -> Result<Module> {
+		self.do_load_file(path.as_ref()).map_err(|err| {
+			let path = path.as_ref().to_string_lossy();
+			Errors::from(format!("loading `{path}`: {err}"))
+		})
+	}
+
+	fn do_load_file<T: AsRef<Path>>(&self, path: T) -> std::io::Result<Module> {
+		let path = path.as_ref();
+		let full_path = if path.is_relative() {
+			self.data.base_path.join(path)
+		} else {
+			path.to_owned()
+		};
+
+		let full_path = std::fs::canonicalize(full_path)?;
+
+		// TODO: handle module from a directory
+
+		let mut modules = { self.data.modules_by_path.write().unwrap() };
+		if let Some(module) = modules.get(&full_path) {
+			Ok(module.clone())
+		} else {
+			let input = Input::open(path)?;
+			let module = Module::new(self, input);
+			modules.insert(full_path, module.clone());
+			Ok(module)
 		}
 	}
+
+	pub fn load_string<T: AsRef<str>>(&self, data: T) -> Module {
+		let data = data.as_ref().as_bytes();
+		let input = Input::new("string", data.to_vec());
+		self.load_input(input)
+	}
+
+	pub fn load_input(&self, input: Input) -> Module {
+		Module::new(self, input)
+	}
+
+	//----------------------------------------------------------------------------------------------------------------//
+	// Compiler data
+	//----------------------------------------------------------------------------------------------------------------//
 
 	/// Return a weak reference to this compiler instance that can be used to
 	/// retrieve the a full [`Compiler`] instance.
@@ -56,59 +117,6 @@ impl Compiler {
 			let value = names.get(str).unwrap();
 			self.make_handle(value.as_str())
 		}
-	}
-
-	pub fn scanner(&self) -> ContextRef<Scanner> {
-		let data = self.data.clone();
-		ContextRef::new_from_compiler(Compiler { data }, |x| &x.data.scanner)
-	}
-
-	pub fn new_context(&self) -> Context {
-		Context::new_root(self)
-	}
-
-	pub fn eval(&self, input: &Input) -> Result<Value> {
-		let context = self.new_context();
-		let span = input.start().span();
-		let text = Node::from(RawText(input.clone()), Some(span));
-		let (context, nodes) = context.resolve_all(NodeList::single(text))?;
-
-		let mut code = Vec::new();
-		let mut errors = Errors::new();
-		for it in nodes.iter() {
-			if let Some(node) = it.as_compilable() {
-				if let Some(expr) = node.compile(it, &context, &mut errors) {
-					code.push(expr);
-				}
-			} else {
-				errors.add_at(
-					format!("resulting node is not compilable -- {it:?}"),
-					it.span().cloned(),
-				);
-			}
-
-			if errors.len() > MAX_ERRORS {
-				break;
-			}
-		}
-
-		if errors.len() > 0 {
-			return Err(errors);
-		}
-
-		let mut value = Value::from(());
-		let mut scope = Scope::new();
-		for it in code {
-			value = it.execute(&mut scope)?;
-		}
-
-		Ok(value)
-	}
-
-	pub fn eval_string<T: AsRef<str>>(&self, input: T) -> Result<Value> {
-		let data = input.as_ref().as_bytes();
-		let input = Input::new("eval_string", data.to_vec());
-		self.eval(&input)
 	}
 
 	/// Binds the lifetime of the given reference to self.
@@ -292,6 +300,8 @@ impl<T: Ord + ?Sized> Ord for Handle<T> {
 //====================================================================================================================//
 
 struct CompilerData {
+	base_path: PathBuf,
+
 	// default scanner used by any new compiler context
 	scanner: Scanner,
 
@@ -300,10 +310,13 @@ struct CompilerData {
 
 	// storage for interned strings
 	strings: Arc<RwLock<HashSet<String>>>,
+
+	// modules loaded from files
+	modules_by_path: Arc<RwLock<HashMap<PathBuf, Module>>>,
 }
 
 impl CompilerData {
-	pub fn new() -> Arc<Self> {
+	pub fn new(base_path: PathBuf) -> Arc<Self> {
 		Arc::new_cyclic(|data| {
 			let compiler = CompilerRef { data: data.clone() };
 
@@ -314,9 +327,11 @@ impl CompilerData {
 			scanner.add_matcher(IntegerMatcher);
 
 			CompilerData {
+				base_path,
 				scanner,
 				arena: Default::default(),
 				strings: Default::default(),
+				modules_by_path: Default::default(),
 			}
 		})
 	}

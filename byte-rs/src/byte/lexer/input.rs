@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{ops::Range, path::Path};
 
 use super::*;
 
@@ -32,6 +32,14 @@ impl Input {
 			column: 0,
 			indent: 0,
 		}
+	}
+
+	/// Open a file.
+	pub fn open<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
+		let path = path.as_ref();
+		let data = std::fs::read(path)?;
+		let name = path.to_string_lossy().to_string();
+		Ok(Self::new(name, data))
 	}
 
 	pub fn with_pos(self, line: usize, column: usize, indent: usize) -> Self {

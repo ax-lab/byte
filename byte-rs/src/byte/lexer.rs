@@ -139,7 +139,7 @@ mod tests {
 	}
 
 	fn eol() -> Node {
-		Node::from(Token::Break, None)
+		Node::from(LineBreak, None)
 	}
 
 	fn indent(width: usize) -> Node {

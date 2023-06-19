@@ -5,17 +5,7 @@ pub struct Comment;
 
 has_traits!(Comment: IsNode);
 
-impl IsNode for Comment {
-	fn precedence(&self, context: &Context) -> Option<(Precedence, Sequence)> {
-		let _ = context;
-		todo!()
-	}
-
-	fn evaluate(&self, context: &mut EvalContext) -> Result<NodeEval> {
-		let _ = context;
-		todo!()
-	}
-}
+impl IsNode for Comment {}
 
 pub struct CommentMatcher;
 

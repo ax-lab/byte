@@ -35,8 +35,10 @@ impl Errors {
 	}
 
 	pub fn append(&mut self, errors: &Errors) {
-		let list = Arc::make_mut(&mut self.list);
-		list.extend(errors.list.iter().cloned())
+		if errors.len() > 0 {
+			let list = Arc::make_mut(&mut self.list);
+			list.extend(errors.list.iter().cloned())
+		}
 	}
 
 	pub fn add<T: IsValue>(&mut self, error: T) {
@@ -185,6 +187,16 @@ impl Display for ErrorWithSpan {
 impl WithSpan for ErrorWithSpan {
 	fn span(&self) -> Option<&Span> {
 		Some(&self.span)
+	}
+}
+
+//====================================================================================================================//
+// Conversion
+//====================================================================================================================//
+
+impl From<std::io::Error> for Errors {
+	fn from(value: std::io::Error) -> Self {
+		Errors::from(format!("io error: {value}"))
 	}
 }
 

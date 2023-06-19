@@ -5,23 +5,11 @@ pub struct Integer(pub u128);
 
 has_traits!(Integer: IsNode, Compilable);
 
-impl IsNode for Integer {
-	// TODO: this whole precedence and evaluate complete need to be better defined and simplified
-
-	fn precedence(&self, context: &Context) -> Option<(Precedence, Sequence)> {
-		let _ = context;
-		Some((Precedence::Values, Sequence::AtOnce))
-	}
-
-	fn evaluate(&self, context: &mut EvalContext) -> Result<NodeEval> {
-		let _ = context;
-		Ok(NodeEval::Complete)
-	}
-}
+impl IsNode for Integer {}
 
 impl Compilable for Integer {
-	fn compile(&self, node: &Node, context: &Context, errors: &mut Errors) -> Option<Expr> {
-		let _ = context;
+	fn compile(&self, node: &Node, compiler: &Compiler, errors: &mut Errors) -> Option<Expr> {
+		let _ = compiler;
 		let Integer(value) = self;
 		let value = *value;
 		if value > IntType::I64.max_value() {

@@ -27,7 +27,7 @@ pub use values::*;
 use super::*;
 
 pub trait Compilable {
-	fn compile(&self, node: &Node, context: &Context, errors: &mut Errors) -> Option<Expr>;
+	fn compile(&self, node: &Node, compiler: &Compiler, errors: &mut Errors) -> Option<Expr>;
 }
 
 impl Node {

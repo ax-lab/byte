@@ -81,7 +81,7 @@ impl Scanner {
 
 				// ignore empty or space-only lines
 				if !line_start {
-					return Some(Node::from(Token::Break, Some(span)));
+					return Some(Node::from(LineBreak, Some(span)));
 				} else {
 					continue;
 				}

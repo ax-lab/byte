@@ -1,14 +1,18 @@
 pub mod comment;
+pub mod line;
 pub mod literal;
+pub mod node_list;
 pub mod number;
 pub mod raw;
-pub mod token;
+pub mod tokens;
 
 pub use comment::*;
+pub use line::*;
 pub use literal::*;
+pub use node_list::*;
 pub use number::*;
 pub use raw::*;
-pub use token::*;
+pub use tokens::*;
 
 use std::ops::{Index, RangeBounds};
 
@@ -17,17 +21,13 @@ use super::*;
 
 /// Trait for types that can be used as [`Node`].
 pub trait IsNode: IsValue + WithEquality + WithDebug {
-	fn get_bindings(&self) -> Vec<String> {
-		Vec::new()
+	fn precedence(&self) -> Option<(Precedence, Sequence)> {
+		None
 	}
 
-	/// Return this node's evaluation precedence if it can be solved by the
-	/// given context.
-	///
-	/// Return [`None`] to indicate the node cannot be currently evaluated.
-	fn precedence(&self, context: &Context) -> Option<(Precedence, Sequence)>;
-
-	fn evaluate(&self, context: &mut EvalContext) -> Result<NodeEval>;
+	fn evaluate(&self, context: &mut ResolveContext) {
+		let _ = context;
+	}
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -75,6 +75,11 @@ impl Node {
 	/// Attempt to downcast the node value to a concrete [`IsNode`] type.
 	pub fn get<T: IsNode>(&self) -> Option<&T> {
 		self.value.get()
+	}
+
+	/// Return true if the node value is of the given type.
+	pub fn is<T: IsNode>(&self) -> bool {
+		self.get::<T>().is_some()
 	}
 
 	/// Reference to the inner [`IsNode`] value.
@@ -128,121 +133,5 @@ impl Display for Node {
 impl WithSpan for Node {
 	fn span(&self) -> Option<&Span> {
 		Node::span(self)
-	}
-}
-
-//====================================================================================================================//
-// NodeList
-//====================================================================================================================//
-
-/// Maintains a list of [`Node`] for evaluation.
-#[derive(Default, Clone)]
-pub struct NodeList {
-	nodes: Arc<Vec<Node>>,
-}
-
-impl NodeList {
-	pub fn new<T: IntoIterator<Item = Node>>(items: T) -> Self {
-		let nodes: Vec<Node> = items.into_iter().collect();
-		Self { nodes: nodes.into() }
-	}
-
-	pub fn empty() -> Self {
-		Self {
-			nodes: Default::default(),
-		}
-	}
-
-	pub fn single(node: Node) -> Self {
-		NodeList {
-			nodes: Arc::new(vec![node]),
-		}
-	}
-
-	pub fn is_empty(&self) -> bool {
-		self.len() == 0
-	}
-
-	pub fn span(&self) -> Option<Span> {
-		self.nodes.first().and_then(|x| x.span().cloned())
-	}
-
-	pub fn len(&self) -> usize {
-		self.nodes.len()
-	}
-
-	pub fn range<T: RangeBounds<usize>>(&self, range: T) -> NodeList {
-		let range = compute_range(range, self.len());
-		let range = &self.nodes[range];
-		if range.len() == self.len() {
-			self.clone()
-		} else {
-			NodeList {
-				nodes: range.to_vec().into(),
-			}
-		}
-	}
-
-	pub fn slice<T: RangeBounds<usize>>(&self, range: T) -> &[Node] {
-		let range = compute_range(range, self.len());
-		&self.nodes[range]
-	}
-
-	pub fn iter(&self) -> NodeListIterator {
-		NodeListIterator { list: self, index: 0 }
-	}
-
-	pub fn as_slice(&self) -> &[Node] {
-		self.nodes.as_slice()
-	}
-}
-
-impl Index<usize> for NodeList {
-	type Output = Node;
-
-	fn index(&self, index: usize) -> &Self::Output {
-		&self.nodes[index]
-	}
-}
-
-/// Iterator for a [`NodeList`].
-pub struct NodeListIterator<'a> {
-	list: &'a NodeList,
-	index: usize,
-}
-
-impl<'a> Iterator for NodeListIterator<'a> {
-	type Item = &'a Node;
-
-	fn next(&mut self) -> Option<Self::Item> {
-		let index = self.index;
-		if index < self.list.len() {
-			self.index += 1;
-			Some(&self.list.nodes[index])
-		} else {
-			None
-		}
-	}
-
-	fn size_hint(&self) -> (usize, Option<usize>) {
-		let remaining = self.list.len() - self.index;
-		(remaining, Some(remaining))
-	}
-}
-
-impl Debug for NodeList {
-	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "<NodeList")?;
-		for (n, it) in self.iter().enumerate() {
-			let mut f = f.indented();
-			write!(f, "\n>>> [{n}]")?;
-			if let Some(span) = it.span() {
-				span.format_full(" at ", &mut f)?;
-				write!(f, "    # {:?}", it.id())?;
-			}
-			write!(f, "")?;
-			write!(f.indented_with("... "), "\n{it:?}")?;
-		}
-		write!(f, "\n>")
 	}
 }

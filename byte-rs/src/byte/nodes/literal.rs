@@ -5,22 +5,11 @@ pub struct Literal(pub String);
 
 has_traits!(Literal: IsNode, Compilable);
 
-impl IsNode for Literal {
-	fn precedence(&self, context: &Context) -> Option<(Precedence, Sequence)> {
-		let _ = context;
-		Some((Precedence::Values, Sequence::AtOnce))
-	}
-
-	fn evaluate(&self, context: &mut EvalContext) -> Result<NodeEval> {
-		let _ = context;
-		Ok(NodeEval::Complete)
-	}
-}
+impl IsNode for Literal {}
 
 impl Compilable for Literal {
-	fn compile(&self, node: &Node, context: &Context, errors: &mut Errors) -> Option<Expr> {
+	fn compile(&self, node: &Node, compiler: &Compiler, errors: &mut Errors) -> Option<Expr> {
 		let _ = (node, errors);
-		let compiler = context.compiler();
 		let str = StrValue::new(self.as_str(), &compiler);
 		Some(Expr::Value(ValueExpr::Str(str)))
 	}

@@ -6,13 +6,13 @@ pub struct RawText(pub Input);
 has_traits!(RawText: IsNode);
 
 impl IsNode for RawText {
-	fn precedence(&self, context: &Context) -> Option<(Precedence, Sequence)> {
-		let _ = context;
+	fn precedence(&self) -> Option<(Precedence, Sequence)> {
 		Some((Precedence::RawText, Sequence::AtOnce))
 	}
 
-	fn evaluate(&self, context: &mut EvalContext) -> Result<NodeEval> {
-		let scanner = context.scanner();
+	fn evaluate(&self, context: &mut ResolveContext) {
+		// TODO: this should be scoped to the node
+		let scanner = context.compiler().scanner();
 		let Self(input) = self;
 		let mut cursor = input.start();
 		let mut errors = Errors::new();
@@ -26,8 +26,9 @@ impl IsNode for RawText {
 
 		assert!(cursor.at_end() || !errors.empty());
 
-		context.append_errors(&errors);
-		context.replace_current(output);
-		Ok(NodeEval::Complete)
+		context.replace_self(output);
+		if errors.len() > 0 {
+			context.errors_mut().append(&errors);
+		}
 	}
 }

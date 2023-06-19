@@ -189,8 +189,8 @@ impl<'a, T: std::fmt::Write> WithIndent for T {
 
 /// Support for indented output for a [`Formatter`].
 pub struct IndentedFormatter<'a> {
-	indent: &'static str,
-	prefix: &'static str,
+	indent: &'a str,
+	prefix: &'a str,
 	inner: &'a mut dyn std::fmt::Write,
 }
 
@@ -202,6 +202,32 @@ impl<'a> IndentedFormatter<'a> {
 			inner: f,
 		}
 	}
+}
+
+pub fn fmt_indented<T: Display>(value: &T, prefix: &str, indent: &str) -> String {
+	let mut output = String::from(prefix);
+	{
+		let mut output = IndentedFormatter {
+			indent,
+			prefix: prefix,
+			inner: &mut output,
+		};
+		let _ = write!(output, "{value}");
+	}
+	output
+}
+
+pub fn fmt_indented_debug<T: Debug>(value: &T, prefix: &str, indent: &str) -> String {
+	let mut output = String::from(prefix);
+	{
+		let mut output = IndentedFormatter {
+			indent,
+			prefix: prefix,
+			inner: &mut output,
+		};
+		let _ = write!(output, "{value:?}");
+	}
+	output
 }
 
 impl<'a> std::fmt::Write for IndentedFormatter<'a> {

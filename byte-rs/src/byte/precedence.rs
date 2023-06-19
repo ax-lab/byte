@@ -11,9 +11,9 @@ pub enum Precedence {
 	Last,
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum Sequence {
+	AtOnce,
 	Ordered,
 	Reverse,
-	AtOnce,
 }
