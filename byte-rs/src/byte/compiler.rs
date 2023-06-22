@@ -32,6 +32,12 @@ impl Compiler {
 		&self.data.scanner
 	}
 
+	pub fn new_context(&self) -> Context {
+		let mut context = Context::new(self);
+		context.declare_operator(Precedence::RawText, RawTextOp);
+		context
+	}
+
 	pub fn eval_string<T: AsRef<str>>(&self, input: T) -> Result<Value> {
 		let module = self.load_string(input);
 		module.eval()

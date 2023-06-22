@@ -134,7 +134,8 @@ impl Scanner {
 				// no match or explicitly invalid match
 				ScanAction::None | ScanAction::WordNext => {
 					let span = cursor.span_from(&start);
-					errors.add_at("invalid symbol", Some(span));
+					let text = span.text();
+					errors.add_at(format!("invalid symbol `{text}`"), Some(span));
 					None
 				}
 

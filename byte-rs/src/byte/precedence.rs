@@ -10,10 +10,3 @@ pub enum Precedence {
 	Values,
 	Last,
 }
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub enum Sequence {
-	AtOnce,
-	Ordered,
-	Reverse,
-}

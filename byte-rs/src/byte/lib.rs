@@ -1,5 +1,6 @@
 pub mod code;
 pub mod compiler;
+pub mod context;
 pub mod lexer;
 pub mod module;
 pub mod nodes;
@@ -10,6 +11,7 @@ pub mod util;
 
 pub use code::*;
 pub use compiler::*;
+pub use context::*;
 pub use lexer::*;
 pub use module::*;
 pub use nodes::*;

@@ -12,24 +12,27 @@ struct ModuleData {
 	state: Arc<RwLock<ModuleState>>,
 }
 
-#[derive(Default)]
 struct ModuleState {
 	nodes: NodeList,
+	context: Context,
 	resolved: bool,
 	errors: Errors,
 }
 
 impl Module {
 	pub fn new(compiler: &Compiler, input: Input) -> Self {
-		let compiler = compiler.get_ref();
-
-		let mut state = ModuleState::default();
-
 		let span = input.start().span();
 		let source = Node::from(RawText(input.clone()), Some(span));
-		state.nodes = NodeList::single(source);
+
+		let state = ModuleState {
+			nodes: NodeList::single(source),
+			context: compiler.new_context(),
+			resolved: false,
+			errors: Errors::new(),
+		};
 
 		let state = Arc::new(RwLock::new(state));
+		let compiler = compiler.get_ref();
 		let data = ModuleData { compiler, input, state };
 		Self { data: Arc::new(data) }
 	}
@@ -45,17 +48,12 @@ impl Module {
 	pub fn resolve(&self) -> Result<()> {
 		let mut state = self.data.state.write().unwrap();
 		if !state.resolved {
-			let compiler = self.compiler();
 			state.resolved = true;
 
 			let mut errors = Errors::new();
-			while let Some(nodes) = compiler.resolve_next(&state.nodes, &mut errors) {
-				state.nodes = nodes;
-				if errors.len() > 0 {
-					break;
-				}
-			}
-
+			let (context, nodes) = state.context.resolve(&state.nodes, &mut errors);
+			state.context = context;
+			state.nodes = nodes;
 			state.errors = errors;
 		}
 

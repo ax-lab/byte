@@ -20,15 +20,7 @@ use super::code::*;
 use super::*;
 
 /// Trait for types that can be used as [`Node`].
-pub trait IsNode: IsValue + WithEquality + WithDebug {
-	fn precedence(&self) -> Option<(Precedence, Sequence)> {
-		None
-	}
-
-	fn evaluate(&self, context: &mut ResolveContext) {
-		let _ = context;
-	}
-}
+pub trait IsNode: IsValue + WithEquality + WithDebug {}
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum NodeEval {

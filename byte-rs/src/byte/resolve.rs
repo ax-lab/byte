@@ -1,77 +1,46 @@
-use std::cmp::Ordering;
-
 use super::*;
 
-impl Compiler {
-	pub fn resolve_next(&self, node_list: &NodeList, errors: &mut Errors) -> Option<NodeList> {
-		// filter nodes that can be evaluated
-		let mut nodes = node_list
-			.iter()
-			.enumerate()
-			.filter_map(|(pos, node)| {
-				let node = node.value();
-				if let Some(prec) = node.precedence() {
-					Some((prec, pos, node))
-				} else {
-					None
-				}
-			})
-			.collect::<Vec<_>>();
+impl Context {
+	pub fn resolve(&self, nodes: &NodeList, errors: &mut Errors) -> (Context, NodeList) {
+		let compiler = &self.compiler();
+		let mut ops_pending = self.get_operators();
+		let mut ops_current = Vec::new();
 
-		// sort nodes by precedence
-		nodes.sort_by(|((prec1, seq1), pos1, ..), ((prec2, seq2), pos2, ..)| {
-			let order = prec1.cmp(prec2);
-			if order == Ordering::Equal {
-				if seq1 != seq2 {
-					// nodes with different sequencing groups are evaluated
-					// within their own groups
-					return seq1.cmp(&seq2);
-				}
-				let (a, b) = match seq1 {
-					Sequence::Ordered => (*pos1, *pos2),
-					Sequence::Reverse => (*pos2, *pos1),
-					Sequence::AtOnce => (0, 0),
-				};
-				a.cmp(&b)
-			} else {
-				order
+		let mut nodes = nodes.clone();
+		let context = self.clone();
+		while ops_pending.len() > 0 && errors.empty() {
+			// figure out the next set of operators to apply
+			let next_prec = ops_pending[0].0;
+			let mut count = 1;
+			while count < ops_pending.len() && ops_pending[count].0 == next_prec {
+				count += 1;
 			}
-		});
 
-		let (first_prec, first_seq) = if let Some(((prec, seq), ..)) = nodes.first() {
-			(prec, seq)
-		} else {
-			// nothing to evaluate
-			return None;
-		};
+			ops_current.clear();
+			ops_current.extend(ops_pending.drain(0..count));
 
-		// filter nodes to evaluate
-		let nodes = nodes
-			.iter()
-			.enumerate()
-			.take_while(|(n, item)| {
-				let ((prec, ..), ..) = item;
-				*n == 0 || prec == first_prec && first_seq == &Sequence::AtOnce
-			})
-			.map(|(index, (.., node))| (index, node));
+			// apply all operators "simultaneously" to the nodes
+			let mut changes = Vec::new();
+			for (_, op) in ops_current.iter() {
+				let mut context = ResolveContext::new(compiler, &context, &nodes);
+				op.evaluate(&mut context);
+				if context.errors.len() > 0 {
+					errors.append(&context.errors);
+				}
+				changes.extend(context.changes.into_iter());
+			}
 
-		let mut changes = Vec::new();
-		for (index, node) in nodes {
-			let mut ctx = ResolveContext {
-				compiler: self,
-				errors: Default::default(),
-				changes: Default::default(),
-				nodes: node_list,
-				index,
+			nodes = match NodeReplace::apply(&nodes, changes) {
+				Ok(nodes) => nodes,
+				Err(errs) => {
+					// replace errors are fatal
+					errors.append(&errs);
+					return (context, nodes);
+				}
 			};
-
-			node.evaluate(&mut ctx);
-			if ctx.has_changes() {
-				changes.push(ctx);
-			}
 		}
 
-		ResolveContext::apply_changes(node_list, changes, errors)
+		(context, nodes)
 	}
 }
 
@@ -81,96 +50,55 @@ impl Compiler {
 
 pub struct ResolveContext<'a> {
 	compiler: &'a Compiler,
-	errors: Errors,
-	changes: Vec<Change>,
+	context: &'a Context,
 	nodes: &'a NodeList,
-	index: usize,
+	errors: Errors,
+	changes: Vec<NodeReplace>,
 }
 
 impl<'a> ResolveContext<'a> {
+	fn new(compiler: &'a Compiler, context: &'a Context, nodes: &'a NodeList) -> Self {
+		Self {
+			compiler,
+			context,
+			nodes,
+			errors: Default::default(),
+			changes: Default::default(),
+		}
+	}
+
 	pub fn compiler(&self) -> &Compiler {
 		self.compiler
+	}
+
+	pub fn nodes(&self) -> &NodeList {
+		self.nodes
+	}
+
+	pub fn context(&self) -> &Context {
+		self.context
 	}
 
 	pub fn errors_mut(&mut self) -> &mut Errors {
 		&mut self.errors
 	}
 
-	pub fn replace_self<I: IntoIterator<Item = Node>>(&mut self, nodes: I) {
-		self.replace_range(self.index..self.index + 1, nodes)
+	pub fn replace_index<I: IntoIterator<Item = Node>>(&mut self, index: usize, nodes: I) {
+		self.replace_range(index..index + 1, nodes)
 	}
 
 	pub fn replace_range<T: RangeBounds<usize>, I: IntoIterator<Item = Node>>(&mut self, range: T, nodes: I) {
 		let range = compute_range(range, self.nodes.len());
 		assert!(range.end <= self.nodes.len() && range.start <= range.end);
-		self.push_change(Change::Replace {
+		self.push_change(NodeReplace {
 			index: range.start,
 			count: range.end - range.start,
 			nodes: nodes.into_iter().collect(),
 		});
 	}
 
-	fn has_changes(&self) -> bool {
-		self.errors.len() > 0 || self.changes.len() > 0
-	}
-
-	fn push_change(&mut self, new_change: Change) {
-		for it in self.changes.iter() {
-			if let Some(error) = it.check_conflict(&new_change) {
-				panic!("invalid change: {error}")
-			}
-		}
+	fn push_change(&mut self, new_change: NodeReplace) {
 		self.changes.push(new_change);
-	}
-
-	fn apply_changes(node_list: &NodeList, changes: Vec<ResolveContext>, errors: &mut Errors) -> Option<NodeList> {
-		for it in changes.iter() {
-			errors.append(&it.errors);
-		}
-
-		let mut changes = changes
-			.into_iter()
-			.map(|x| (x.index, x.changes))
-			.flat_map(|(n, x)| x.into_iter().map(move |x| (n, x)))
-			.collect::<Vec<_>>();
-
-		// TODO: this could be optimized by considering overlaps while replacing
-		for i in 0..changes.len() - 1 {
-			for j in i + 1..changes.len() {
-				let (na, xa) = &changes[i];
-				let (nb, xb) = &changes[j];
-				if let Some(error) = xa.check_conflict(xb) {
-					let na = &node_list[*na];
-					let nb = &node_list[*nb];
-					let sa = fmt_indented_debug(&na, "  - ", "    ");
-					let sb = fmt_indented_debug(&nb, "  - ", "    ");
-					let error = format!("node eval conflict: {error}\n{sa}\n{sb}");
-					errors.add_at(error, na.span().or_else(|| nb.span()).cloned());
-				}
-			}
-		}
-
-		changes.sort_by_key(|(_, change)| {
-			let Change::Replace { index, .. } = change;
-			*index
-		});
-
-		let mut result = Vec::new();
-		let mut cursor = 0;
-		for Change::Replace { index, count, nodes } in changes.into_iter().map(|x| x.1) {
-			if index > cursor {
-				result.extend_from_slice(node_list.slice(cursor..index));
-				cursor = index;
-			}
-			assert!(index >= cursor); // overlapping changes
-
-			result.extend(nodes);
-			cursor = std::cmp::max(cursor, index + count);
-		}
-
-		result.extend_from_slice(node_list.slice(cursor..));
-
-		Some(NodeList::new(result))
 	}
 }
 
@@ -178,28 +106,64 @@ impl<'a> ResolveContext<'a> {
 // Helpers
 //====================================================================================================================//
 
-enum Change {
-	Replace {
-		index: usize,
-		count: usize,
-		nodes: Vec<Node>,
-	},
+struct NodeReplace {
+	index: usize,
+	count: usize,
+	nodes: Vec<Node>,
 }
 
-#[allow(irrefutable_let_patterns)]
-impl Change {
-	pub fn check_conflict(&self, other: &Change) -> Option<String> {
-		if let Change::Replace { index, count, .. } = self {
-			let (a1, a2) = (*index, index + count);
-			if let Change::Replace { index, count, .. } = other {
-				let (b1, b2) = (*index, index + count);
-				if a1 < b2 && b1 < a2 {
-					return Some(format!("modified ranges #{a1}…{a2} and #{b1}…{b2} overlap"));
-				} else if a1 == b1 && a2 == b2 {
-					return Some(format!("position #{a1} modified more than once"));
-				}
+impl NodeReplace {
+	#[allow(unused)]
+	pub fn overlaps(&self, node: &NodeReplace) -> bool {
+		let (a1, a2) = (self.index, self.index + self.count);
+		let (b1, b2) = (node.index, node.index + node.count);
+		(a1 < b2 && b1 < a2) || a1 == b1
+	}
+
+	pub fn apply(nodes: &NodeList, list: Vec<NodeReplace>) -> Result<NodeList> {
+		let mut list = list;
+		list.sort_by_key(|it| (it.index, if it.count == 0 { 0 } else { 1 }, std::cmp::Reverse(it.count)));
+
+		let mut errors = Errors::new();
+		let node_list = nodes.as_slice();
+		let mut output = Vec::new();
+		let mut cursor = 0;
+		let mut inserted = false;
+		for NodeReplace { index, count, nodes } in list.into_iter() {
+			let end = index + count;
+			assert!(end <= node_list.len());
+
+			// TODO: improve error handling
+			if index < cursor {
+				errors.add(format!("operators replace overlapping ranges #{index}…{cursor}"));
+				cursor = std::cmp::max(cursor, end);
+				continue;
+			} else if index == cursor && count == 0 && nodes.len() > 0 && inserted {
+				errors.add(format!("multiple node insertions at same position #{index}"));
+				inserted = false;
+				continue;
 			}
+
+			if index > cursor {
+				output.extend(node_list[cursor..index].iter().cloned());
+			}
+
+			if nodes.len() > 0 {
+				output.extend(nodes);
+				inserted = count == 0;
+			}
+
+			cursor = end;
 		}
-		None
+
+		if cursor < node_list.len() {
+			output.extend(node_list[cursor..].iter().cloned());
+		}
+
+		if errors.empty() {
+			Ok(NodeList::new(output))
+		} else {
+			Err(errors)
+		}
 	}
 }
