@@ -3,41 +3,51 @@ use super::*;
 impl Context {
 	pub fn resolve(&self, nodes: &NodeList, errors: &mut Errors) -> (Context, NodeList) {
 		let compiler = &self.compiler();
-		let mut ops_pending = self.get_operators();
-		let mut ops_current = Vec::new();
 
 		let mut nodes = nodes.clone();
 		let context = self.clone();
-		while ops_pending.len() > 0 && errors.empty() {
-			// figure out the next set of operators to apply
-			let next_prec = ops_pending[0].0;
-			let mut count = 1;
-			while count < ops_pending.len() && ops_pending[count].0 == next_prec {
-				count += 1;
-			}
 
-			ops_current.clear();
-			ops_current.extend(ops_pending.drain(0..count));
+		let mut has_changes = true;
+		while errors.empty() && has_changes {
+			let mut ops_pending = context.get_operators();
+			let mut ops_current = Vec::new();
 
-			// apply all operators "simultaneously" to the nodes
-			let mut changes = Vec::new();
-			for (_, op) in ops_current.iter() {
-				let mut context = ResolveContext::new(compiler, &context, &nodes);
-				op.evaluate(&mut context);
-				if context.errors.len() > 0 {
-					errors.append(&context.errors);
+			has_changes = false;
+			while ops_pending.len() > 0 && errors.empty() {
+				// figure out the next set of operators to apply
+				let next_prec = ops_pending[0].0;
+				let mut count = 1;
+				while count < ops_pending.len() && ops_pending[count].0 == next_prec {
+					count += 1;
 				}
-				changes.extend(context.changes.into_iter());
-			}
 
-			nodes = match NodeReplace::apply(&nodes, changes) {
-				Ok(nodes) => nodes,
-				Err(errs) => {
-					// replace errors are fatal
-					errors.append(&errs);
-					return (context, nodes);
+				ops_current.clear();
+				ops_current.extend(ops_pending.drain(0..count));
+
+				// apply all operators "simultaneously" to the nodes
+				let mut changes = Vec::new();
+				for (_, op) in ops_current.iter() {
+					let mut context = ResolveContext::new(compiler, &context, &nodes);
+					op.evaluate(&mut context);
+					if context.errors.len() > 0 {
+						errors.append(&context.errors);
+					}
+					changes.extend(context.changes.into_iter());
 				}
-			};
+
+				if changes.len() > 0 {
+					nodes = match NodeReplace::apply(&nodes, changes) {
+						Ok(nodes) => nodes,
+						Err(errs) => {
+							// replace errors are fatal
+							errors.append(&errs);
+							return (context, nodes);
+						}
+					};
+					has_changes = true;
+					break;
+				}
+			}
 		}
 
 		(context, nodes)

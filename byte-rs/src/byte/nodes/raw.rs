@@ -7,9 +7,9 @@ has_traits!(RawText: IsNode);
 
 impl IsNode for RawText {}
 
-pub struct RawTextOp;
+pub struct ExpandRawText;
 
-impl NodeOperator for RawTextOp {
+impl NodeOperator for ExpandRawText {
 	fn evaluate(&self, context: &mut ResolveContext) {
 		for (index, node) in context.nodes().clone().iter().enumerate() {
 			if let Some(RawText(input)) = node.get::<RawText>() {
