@@ -124,10 +124,10 @@ impl WithRepr for Errors {
 					if has_location {
 						let mut output = output.indented();
 						write!(output, "\n")?;
-						it.output(mode, format, &mut output)?;
+						it.output(ReprMode::Display, format, &mut output)?;
 					} else {
 						write!(output, " ")?;
-						it.output(mode, format, &mut output)?;
+						it.output(ReprMode::Display, format, &mut output)?;
 					}
 				}
 			}

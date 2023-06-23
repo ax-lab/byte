@@ -35,6 +35,7 @@ impl Compiler {
 	pub fn new_context(&self) -> Context {
 		let mut context = Context::new(self);
 		context.declare_operator(Precedence::RawText, ExpandRawText);
+		context.declare_operator(Precedence::LineBreaks, SplitLines);
 		context
 	}
 

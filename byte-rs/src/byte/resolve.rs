@@ -93,6 +93,10 @@ impl<'a> ResolveContext<'a> {
 		&mut self.errors
 	}
 
+	pub fn replace_nodes<I: IntoIterator<Item = Node>>(&mut self, nodes: I) {
+		self.replace_range(.., nodes)
+	}
+
 	pub fn replace_index<I: IntoIterator<Item = Node>>(&mut self, index: usize, nodes: I) {
 		self.replace_range(index..index + 1, nodes)
 	}
