@@ -5,7 +5,7 @@ pub trait NodeOperator: Cell {
 }
 
 impl Context {
-	pub fn resolve(&self, nodes: &NodeList, errors: &mut Errors) -> (Context, NodeList) {
+	pub fn resolve(&self, nodes: &NodeValueList, errors: &mut Errors) -> (Context, NodeValueList) {
 		let compiler = &self.compiler();
 
 		let mut nodes = nodes.clone();
@@ -65,13 +65,13 @@ impl Context {
 pub struct ResolveContext<'a> {
 	compiler: &'a Compiler,
 	context: &'a Context,
-	nodes: &'a NodeList,
+	nodes: &'a NodeValueList,
 	errors: Errors,
 	changes: Vec<NodeReplace>,
 }
 
 impl<'a> ResolveContext<'a> {
-	fn new(compiler: &'a Compiler, context: &'a Context, nodes: &'a NodeList) -> Self {
+	fn new(compiler: &'a Compiler, context: &'a Context, nodes: &'a NodeValueList) -> Self {
 		Self {
 			compiler,
 			context,
@@ -85,7 +85,7 @@ impl<'a> ResolveContext<'a> {
 		self.compiler
 	}
 
-	pub fn nodes(&self) -> &NodeList {
+	pub fn nodes(&self) -> &NodeValueList {
 		self.nodes
 	}
 
@@ -138,7 +138,7 @@ impl NodeReplace {
 		(a1 < b2 && b1 < a2) || a1 == b1
 	}
 
-	pub fn apply(nodes: &NodeList, list: Vec<NodeReplace>) -> Result<NodeList> {
+	pub fn apply(nodes: &NodeValueList, list: Vec<NodeReplace>) -> Result<NodeValueList> {
 		let mut list = list;
 		list.sort_by_key(|it| (it.index, if it.count == 0 { 0 } else { 1 }, std::cmp::Reverse(it.count)));
 
@@ -179,7 +179,7 @@ impl NodeReplace {
 		}
 
 		if errors.empty() {
-			Ok(NodeList::new(output))
+			Ok(NodeValueList::new(output))
 		} else {
 			Err(errors)
 		}

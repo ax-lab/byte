@@ -13,7 +13,7 @@ struct ModuleData {
 }
 
 struct ModuleState {
-	nodes: NodeList,
+	nodes: NodeValueList,
 	context: Context,
 	resolved: bool,
 	errors: Errors,
@@ -24,7 +24,7 @@ impl Module {
 		let source = NodeValue::from(RawText(input.clone()));
 
 		let state = ModuleState {
-			nodes: NodeList::single(source),
+			nodes: NodeValueList::single(source),
 			context: compiler.new_context(),
 			resolved: false,
 			errors: Errors::new(),

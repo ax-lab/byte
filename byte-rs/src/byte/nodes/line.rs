@@ -1,7 +1,7 @@
 use super::*;
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct Line(pub NodeList);
+pub struct Line(pub NodeValueList);
 
 has_traits!(Line: IsNode);
 
@@ -15,7 +15,7 @@ impl NodeOperator for SplitLines {
 		let mut line = Vec::new();
 
 		let push_line = |line: &mut Vec<NodeValue>, output: &mut Vec<NodeValue>| {
-			let line = NodeList::new(std::mem::take(line));
+			let line = NodeValueList::new(std::mem::take(line));
 			let line = Line(line);
 			output.push(NodeValue::from(line));
 		};

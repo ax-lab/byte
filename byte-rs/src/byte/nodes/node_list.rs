@@ -2,15 +2,15 @@ use super::*;
 
 /// Maintains a list of [`NodeValue`] for evaluation.
 #[derive(Default, Clone, Eq, PartialEq)]
-pub struct NodeList {
+pub struct NodeValueList {
 	nodes: Arc<Vec<NodeValue>>,
 }
 
-has_traits!(NodeList: IsNode);
+has_traits!(NodeValueList: IsNode);
 
-impl IsNode for NodeList {}
+impl IsNode for NodeValueList {}
 
-impl NodeList {
+impl NodeValueList {
 	pub fn new<T: IntoIterator<Item = NodeValue>>(items: T) -> Self {
 		let nodes: Vec<NodeValue> = items.into_iter().collect();
 		Self { nodes: nodes.into() }
@@ -23,7 +23,7 @@ impl NodeList {
 	}
 
 	pub fn single(node: NodeValue) -> Self {
-		NodeList {
+		NodeValueList {
 			nodes: Arc::new(vec![node]),
 		}
 	}
@@ -36,13 +36,13 @@ impl NodeList {
 		self.nodes.len()
 	}
 
-	pub fn range<T: RangeBounds<usize>>(&self, range: T) -> NodeList {
+	pub fn range<T: RangeBounds<usize>>(&self, range: T) -> NodeValueList {
 		let range = compute_range(range, self.len());
 		let range = &self.nodes[range];
 		if range.len() == self.len() {
 			self.clone()
 		} else {
-			NodeList {
+			NodeValueList {
 				nodes: range.to_vec().into(),
 			}
 		}
@@ -53,8 +53,8 @@ impl NodeList {
 		&self.nodes[range]
 	}
 
-	pub fn iter(&self) -> NodeListIterator {
-		NodeListIterator { list: self, index: 0 }
+	pub fn iter(&self) -> NodeValueListIterator {
+		NodeValueListIterator { list: self, index: 0 }
 	}
 
 	pub fn as_slice(&self) -> &[NodeValue] {
@@ -65,7 +65,7 @@ impl NodeList {
 	// Helper methods
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub fn split_by<F: Fn(&NodeValue) -> bool>(&self, predicate: F) -> Vec<NodeList> {
+	pub fn split_by<F: Fn(&NodeValue) -> bool>(&self, predicate: F) -> Vec<NodeValueList> {
 		let mut output = Vec::new();
 		let mut item = None;
 		for it in self.nodes.iter() {
@@ -83,7 +83,7 @@ impl NodeList {
 	}
 }
 
-impl Index<usize> for NodeList {
+impl Index<usize> for NodeValueList {
 	type Output = NodeValue;
 
 	fn index(&self, index: usize) -> &Self::Output {
@@ -91,13 +91,13 @@ impl Index<usize> for NodeList {
 	}
 }
 
-/// Iterator for a [`NodeList`].
-pub struct NodeListIterator<'a> {
-	list: &'a NodeList,
+/// Iterator for a [`NodeValueList`].
+pub struct NodeValueListIterator<'a> {
+	list: &'a NodeValueList,
 	index: usize,
 }
 
-impl<'a> Iterator for NodeListIterator<'a> {
+impl<'a> Iterator for NodeValueListIterator<'a> {
 	type Item = &'a NodeValue;
 
 	fn next(&mut self) -> Option<Self::Item> {
@@ -116,9 +116,9 @@ impl<'a> Iterator for NodeListIterator<'a> {
 	}
 }
 
-impl Debug for NodeList {
+impl Debug for NodeValueList {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "<NodeList")?;
+		write!(f, "<NodeValueList")?;
 		for (n, it) in self.iter().enumerate() {
 			let mut f = f.indented();
 			write!(f, "\n>>> [{n}]")?;
