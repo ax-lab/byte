@@ -46,15 +46,6 @@ impl Errors {
 		list.push_back(Value::from(error));
 	}
 
-	pub fn add_at<T: IsValue>(&mut self, error: T, span: Option<Span>) {
-		if let Some(span) = span {
-			let inner = Value::from(error);
-			self.add(ErrorWithSpan { inner, span })
-		} else {
-			self.add(error)
-		}
-	}
-
 	pub fn iter(&self) -> ErrorIterator {
 		ErrorIterator {
 			next: 0,
@@ -113,22 +104,8 @@ impl WithRepr for Errors {
 				let mut output = output.indented();
 				for (n, it) in self.iter().enumerate() {
 					write!(output, "\n[{}]", n + 1)?;
-
-					let has_location = if let Some(span) = it.span() {
-						span.format_full(" at ", &mut output)?;
-						true
-					} else {
-						false
-					};
-
-					if has_location {
-						let mut output = output.indented();
-						write!(output, "\n")?;
-						it.output(ReprMode::Display, format, &mut output)?;
-					} else {
-						write!(output, " ")?;
-						it.output(ReprMode::Display, format, &mut output)?;
-					}
+					write!(output, " ")?;
+					it.output(ReprMode::Display, format, &mut output)?;
 				}
 			}
 
@@ -153,44 +130,6 @@ impl std::ops::Index<usize> for Errors {
 }
 
 //====================================================================================================================//
-// Error with span
-//====================================================================================================================//
-
-struct ErrorWithSpan {
-	inner: Value,
-	span: Span,
-}
-
-impl HasTraits for ErrorWithSpan {
-	fn type_name(&self) -> &'static str {
-		self.inner.type_name()
-	}
-
-	fn get_trait(&self, type_id: std::any::TypeId) -> Option<&dyn HasTraits> {
-		with_trait!(self, type_id, WithSpan);
-		self.inner.get_trait(type_id)
-	}
-}
-
-impl Debug for ErrorWithSpan {
-	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "{:?}", self.inner)
-	}
-}
-
-impl Display for ErrorWithSpan {
-	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "{}", self.inner)
-	}
-}
-
-impl WithSpan for ErrorWithSpan {
-	fn span(&self) -> Option<&Span> {
-		Some(&self.span)
-	}
-}
-
-//====================================================================================================================//
 // Conversion
 //====================================================================================================================//
 
@@ -210,37 +149,26 @@ mod tests {
 
 	#[test]
 	fn test_output() {
-		let p1 = pos(1, 2);
-		let p2 = pos(3, 4);
-		let p3 = p1.with_pos(5, 6, 0);
-
 		let mut errors = Errors::default();
 		errors.add("some error 1");
 		errors.add("some error 2".to_string());
-		errors.add_at("error A", Some(p1.span()));
-		errors.add_at("error B", Some(p3.span_from(&p2)));
-		errors.add_at("error C\n    with some detail", Some(p3.span()));
+		errors.add("error A");
+		errors.add("error B");
+		errors.add("error C\n    with some detail");
 
 		let expected = vec![
 			"Errors:",
 			"",
 			"    [1] some error 1",
 			"    [2] some error 2",
-			"    [3] at input.txt:1:2",
-			"        error A",
-			"    [4] at input.txt:3:4…5:6",
-			"        error B",
-			"    [5] at input.txt:5:6",
-			"        error C",
-			"            with some detail",
+			"    [3] error A",
+			"    [4] error B",
+			"    [5] error C",
+			"        with some detail",
 			"",
 		];
 		let expected = expected.join("\n");
 		let actual = errors.to_string();
 		assert_eq!(actual, expected);
-	}
-
-	fn pos(line: usize, column: usize) -> Cursor {
-		Input::new("input.txt", Vec::new()).with_pos(line, column, 0).start()
 	}
 }

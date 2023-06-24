@@ -21,8 +21,7 @@ struct ModuleState {
 
 impl Module {
 	pub fn new(compiler: &Compiler, input: Input) -> Self {
-		let span = input.start().span();
-		let source = Node::from(RawText(input.clone()), Some(span));
+		let source = Node::from(RawText(input.clone()));
 
 		let state = ModuleState {
 			nodes: NodeList::single(source),
@@ -78,10 +77,7 @@ impl Module {
 					code.push(expr);
 				}
 			} else {
-				errors.add_at(
-					format!("resulting node is not compilable -- {it:?}"),
-					it.span().cloned(),
-				);
+				errors.add(format!("resulting node is not compilable -- {it:?}"));
 			}
 
 			if errors.len() > MAX_ERRORS {

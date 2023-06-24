@@ -65,7 +65,6 @@ impl Scanner {
 		let compiler = &self.compiler.get();
 		loop {
 			// skip spaces
-			let start = cursor.clone();
 			let line_start = cursor.is_indent();
 			let mut has_indent = false;
 			while let Some((.., skip_len)) = check_space(cursor.data()) {
@@ -77,11 +76,10 @@ impl Scanner {
 			// check for a line break
 			if let Some(size) = check_line_break(cursor.data()) {
 				assert!(size > 0);
-				let span = cursor.advance_span(size);
-
 				// ignore empty or space-only lines
+				cursor.advance(size);
 				if !line_start {
-					return Some(Node::from(LineBreak, Some(span)));
+					return Some(Node::from(LineBreak));
 				} else {
 					continue;
 				}
@@ -102,8 +100,7 @@ impl Scanner {
 					  indentation MUST be a prefix of the other
 					  - indentation must be consistent between consecutive lines
 				*/
-				let span = cursor.span_from(&start);
-				return Some(Node::from(Token::Indent(cursor.indent()), Some(span)));
+				return Some(Node::from(Token::Indent(cursor.indent())));
 			}
 
 			// apply registered matchers, those have higher priority
@@ -133,9 +130,7 @@ impl Scanner {
 			break match action {
 				// no match or explicitly invalid match
 				ScanAction::None | ScanAction::WordNext => {
-					let span = cursor.span_from(&start);
-					let text = span.text();
-					errors.add_at(format!("invalid symbol `{text}`"), Some(span));
+					errors.add("invalid symbol");
 					None
 				}
 
@@ -151,15 +146,11 @@ impl Scanner {
 					// generate a Name token
 					let name = cursor.data_from(&start);
 					let name = String::from_utf8(name.to_vec()).unwrap();
-					let span = cursor.span_from(&start);
-					Some(Node::from(Token::Word(compiler.get_name(name)), Some(span)))
+					Some(Node::from(Token::Word(compiler.get_name(name))))
 				}
 
 				// predefined symbol
-				ScanAction::Symbol(name) => {
-					let span = cursor.span_from(&start);
-					Some(Node::from(Token::Symbol(compiler.get_name(name)), Some(span)))
-				}
+				ScanAction::Symbol(name) => Some(Node::from(Token::Symbol(compiler.get_name(name)))),
 			};
 		}
 	}

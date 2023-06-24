@@ -12,7 +12,6 @@ pub struct CommentMatcher;
 impl Matcher for CommentMatcher {
 	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node> {
 		let _ = errors;
-		let start = cursor.clone();
 		let next = cursor.read();
 		match next {
 			Some('#') => {
@@ -40,8 +39,7 @@ impl Matcher for CommentMatcher {
 					*cursor = pos;
 				}
 
-				let span = cursor.span_from(&start);
-				Some(Node::from(Comment, Some(span)))
+				Some(Node::from(Comment))
 			}
 
 			_ => None,

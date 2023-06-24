@@ -33,24 +33,19 @@ impl Matcher for LiteralMatcher {
 	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node> {
 		match cursor.read() {
 			Some('\'') => {
-				let pos = cursor.clone();
+				let mut value = String::new();
 				loop {
-					let end = cursor.clone();
 					match cursor.read() {
 						Some('\'') => {
-							let span = end.span_from(&pos);
-							let value = span.text().to_string();
-							break Some(Node::from(Literal(value), Some(span)));
+							break Some(Node::from(Literal(value)));
 						}
 
 						None => {
-							let span = end.span_from(&pos);
-							let value = span.text().to_string();
-							errors.add_at("unclosed string literal", Some(span.clone()));
-							break Some(Node::from(Literal(value), Some(span)));
+							errors.add("unclosed string literal");
+							break Some(Node::from(Literal(value)));
 						}
 
-						Some(_) => {}
+						Some(char) => value.push(char),
 					}
 				}
 			}

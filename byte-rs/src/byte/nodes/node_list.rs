@@ -32,10 +32,6 @@ impl NodeList {
 		self.len() == 0
 	}
 
-	pub fn span(&self) -> Option<Span> {
-		self.nodes.first().and_then(|x| x.span().cloned())
-	}
-
 	pub fn len(&self) -> usize {
 		self.nodes.len()
 	}
@@ -126,10 +122,7 @@ impl Debug for NodeList {
 		for (n, it) in self.iter().enumerate() {
 			let mut f = f.indented();
 			write!(f, "\n>>> [{n}]")?;
-			if let Some(span) = it.span() {
-				span.format_full(" at ", &mut f)?;
-				write!(f, "    # {:?}", it.id())?;
-			}
+			write!(f, "    # {:?}", it.id())?;
 			write!(f, "")?;
 			write!(f.indented_with("... "), "\n{it:?}")?;
 		}

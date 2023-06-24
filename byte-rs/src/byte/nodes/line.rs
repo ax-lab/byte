@@ -16,9 +16,8 @@ impl NodeOperator for SplitLines {
 
 		let push_line = |line: &mut Vec<Node>, output: &mut Vec<Node>| {
 			let line = NodeList::new(std::mem::take(line));
-			let span = line.span();
 			let line = Line(line);
-			output.push(Node::from(line, span));
+			output.push(Node::from(line));
 		};
 
 		for node in context.nodes().clone().iter() {

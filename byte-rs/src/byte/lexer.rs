@@ -131,30 +131,30 @@ mod tests {
 	}
 
 	fn word(compiler: &Compiler, name: &str) -> Node {
-		Node::from(Token::Word(compiler.get_name(name)), None)
+		Node::from(Token::Word(compiler.get_name(name)))
 	}
 
 	fn sym(compiler: &Compiler, name: &str) -> Node {
-		Node::from(Token::Symbol(compiler.get_name(name)), None)
+		Node::from(Token::Symbol(compiler.get_name(name)))
 	}
 
 	fn eol() -> Node {
-		Node::from(LineBreak, None)
+		Node::from(LineBreak)
 	}
 
 	fn indent(width: usize) -> Node {
-		Node::from(Token::Indent(width), None)
+		Node::from(Token::Indent(width))
 	}
 
 	fn comment() -> Node {
-		Node::from(Comment, None)
+		Node::from(Comment)
 	}
 
 	fn literal(str: &str) -> Node {
-		Node::from(Literal(str.to_string()), None)
+		Node::from(Literal(str.to_string()))
 	}
 
 	fn int(value: u128) -> Node {
-		Node::from(Integer(value), None)
+		Node::from(Integer(value))
 	}
 }

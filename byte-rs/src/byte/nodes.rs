@@ -48,15 +48,14 @@ pub enum NodeEval {
 pub struct Node {
 	id: Id,
 	value: Value,
-	span: Option<Span>,
 }
 
 impl Node {
-	pub fn from<T: IsNode>(value: T, span: Option<Span>) -> Self {
+	pub fn from<T: IsNode>(value: T) -> Self {
 		assert!(get_trait!(&value, IsNode).is_some());
 		let id = new_id();
 		let value = Value::from(value);
-		Node { id, value, span }
+		Node { id, value }
 	}
 
 	/// Globally unique ID for this node.
@@ -84,16 +83,10 @@ impl Node {
 		self.value.as_value()
 	}
 
-	/// Source span for this node if available.
-	pub fn span(&self) -> Option<&Span> {
-		self.span.as_ref().or_else(|| self.value.span())
-	}
-
 	pub fn as_ref(&self) -> NodeRef {
 		NodeRef {
 			id: self.id,
 			value: self.value.as_ref(),
-			span: self.span.clone(),
 		}
 	}
 }
@@ -130,12 +123,6 @@ impl Display for Node {
 	}
 }
 
-impl WithSpan for Node {
-	fn span(&self) -> Option<&Span> {
-		Node::span(self)
-	}
-}
-
 //====================================================================================================================//
 // NodeRef
 //====================================================================================================================//
@@ -144,15 +131,13 @@ impl WithSpan for Node {
 pub struct NodeRef {
 	id: Id,
 	value: ValueRef,
-	span: Option<Span>,
 }
 
 impl NodeRef {
 	pub fn get(&self) -> Node {
 		let id = self.id;
 		let value = self.value.get();
-		let span = self.span.clone();
-		Node { id, value, span }
+		Node { id, value }
 	}
 }
 
