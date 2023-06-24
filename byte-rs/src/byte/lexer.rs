@@ -105,7 +105,7 @@ mod tests {
 	// Helpers
 	//----------------------------------------------------------------------------------------------------------------//
 
-	fn tokenize(input: &str) -> (Vec<Node>, Compiler) {
+	fn tokenize(input: &str) -> (Vec<NodeValue>, Compiler) {
 		let compiler = Compiler::new();
 		let mut scanner = Scanner::new(compiler.get_ref());
 		scanner.register_common_symbols();
@@ -130,31 +130,31 @@ mod tests {
 		(output, compiler)
 	}
 
-	fn word(compiler: &Compiler, name: &str) -> Node {
-		Node::from(Token::Word(compiler.get_name(name)))
+	fn word(compiler: &Compiler, name: &str) -> NodeValue {
+		NodeValue::from(Token::Word(compiler.get_name(name)))
 	}
 
-	fn sym(compiler: &Compiler, name: &str) -> Node {
-		Node::from(Token::Symbol(compiler.get_name(name)))
+	fn sym(compiler: &Compiler, name: &str) -> NodeValue {
+		NodeValue::from(Token::Symbol(compiler.get_name(name)))
 	}
 
-	fn eol() -> Node {
-		Node::from(LineBreak)
+	fn eol() -> NodeValue {
+		NodeValue::from(LineBreak)
 	}
 
-	fn indent(width: usize) -> Node {
-		Node::from(Token::Indent(width))
+	fn indent(width: usize) -> NodeValue {
+		NodeValue::from(Token::Indent(width))
 	}
 
-	fn comment() -> Node {
-		Node::from(Comment)
+	fn comment() -> NodeValue {
+		NodeValue::from(Comment)
 	}
 
-	fn literal(str: &str) -> Node {
-		Node::from(Literal(str.to_string()))
+	fn literal(str: &str) -> NodeValue {
+		NodeValue::from(Literal(str.to_string()))
 	}
 
-	fn int(value: u128) -> Node {
-		Node::from(Integer(value))
+	fn int(value: u128) -> NodeValue {
+		NodeValue::from(Integer(value))
 	}
 }

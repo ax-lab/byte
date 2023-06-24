@@ -27,10 +27,10 @@ pub use values::*;
 use super::*;
 
 pub trait Compilable {
-	fn compile(&self, node: &Node, compiler: &Compiler, errors: &mut Errors) -> Option<Expr>;
+	fn compile(&self, node: &NodeValue, compiler: &Compiler, errors: &mut Errors) -> Option<Expr>;
 }
 
-impl Node {
+impl NodeValue {
 	pub fn as_compilable(&self) -> Option<&dyn Compilable> {
 		get_trait!(self, Compilable)
 	}

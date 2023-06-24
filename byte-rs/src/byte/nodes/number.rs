@@ -8,7 +8,7 @@ has_traits!(Integer: IsNode, Compilable);
 impl IsNode for Integer {}
 
 impl Compilable for Integer {
-	fn compile(&self, node: &Node, compiler: &Compiler, errors: &mut Errors) -> Option<Expr> {
+	fn compile(&self, node: &NodeValue, compiler: &Compiler, errors: &mut Errors) -> Option<Expr> {
 		let _ = (node, compiler);
 		let Integer(value) = self;
 		let value = *value;
@@ -25,7 +25,7 @@ impl Compilable for Integer {
 pub struct IntegerMatcher;
 
 impl Matcher for IntegerMatcher {
-	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node> {
+	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<NodeValue> {
 		let _ = errors;
 		match cursor.read() {
 			Some(next @ '0'..='9') => {
@@ -43,7 +43,7 @@ impl Matcher for IntegerMatcher {
 					}
 				}
 				*cursor = pos;
-				Some(Node::from(Integer(value)))
+				Some(NodeValue::from(Integer(value)))
 			}
 
 			_ => None,

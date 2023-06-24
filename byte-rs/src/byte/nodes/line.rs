@@ -14,10 +14,10 @@ impl NodeOperator for SplitLines {
 		let mut output = Vec::new();
 		let mut line = Vec::new();
 
-		let push_line = |line: &mut Vec<Node>, output: &mut Vec<Node>| {
+		let push_line = |line: &mut Vec<NodeValue>, output: &mut Vec<NodeValue>| {
 			let line = NodeList::new(std::mem::take(line));
 			let line = Line(line);
-			output.push(Node::from(line));
+			output.push(NodeValue::from(line));
 		};
 
 		for node in context.nodes().clone().iter() {

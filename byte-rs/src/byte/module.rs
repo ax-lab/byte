@@ -21,7 +21,7 @@ struct ModuleState {
 
 impl Module {
 	pub fn new(compiler: &Compiler, input: Input) -> Self {
-		let source = Node::from(RawText(input.clone()));
+		let source = NodeValue::from(RawText(input.clone()));
 
 		let state = ModuleState {
 			nodes: NodeList::single(source),

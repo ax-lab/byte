@@ -1,9 +1,9 @@
 use super::*;
 
-/// Maintains a list of [`Node`] for evaluation.
+/// Maintains a list of [`NodeValue`] for evaluation.
 #[derive(Default, Clone, Eq, PartialEq)]
 pub struct NodeList {
-	nodes: Arc<Vec<Node>>,
+	nodes: Arc<Vec<NodeValue>>,
 }
 
 has_traits!(NodeList: IsNode);
@@ -11,8 +11,8 @@ has_traits!(NodeList: IsNode);
 impl IsNode for NodeList {}
 
 impl NodeList {
-	pub fn new<T: IntoIterator<Item = Node>>(items: T) -> Self {
-		let nodes: Vec<Node> = items.into_iter().collect();
+	pub fn new<T: IntoIterator<Item = NodeValue>>(items: T) -> Self {
+		let nodes: Vec<NodeValue> = items.into_iter().collect();
 		Self { nodes: nodes.into() }
 	}
 
@@ -22,7 +22,7 @@ impl NodeList {
 		}
 	}
 
-	pub fn single(node: Node) -> Self {
+	pub fn single(node: NodeValue) -> Self {
 		NodeList {
 			nodes: Arc::new(vec![node]),
 		}
@@ -48,7 +48,7 @@ impl NodeList {
 		}
 	}
 
-	pub fn slice<T: RangeBounds<usize>>(&self, range: T) -> &[Node] {
+	pub fn slice<T: RangeBounds<usize>>(&self, range: T) -> &[NodeValue] {
 		let range = compute_range(range, self.len());
 		&self.nodes[range]
 	}
@@ -57,7 +57,7 @@ impl NodeList {
 		NodeListIterator { list: self, index: 0 }
 	}
 
-	pub fn as_slice(&self) -> &[Node] {
+	pub fn as_slice(&self) -> &[NodeValue] {
 		self.nodes.as_slice()
 	}
 
@@ -65,7 +65,7 @@ impl NodeList {
 	// Helper methods
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub fn split_by<F: Fn(&Node) -> bool>(&self, predicate: F) -> Vec<NodeList> {
+	pub fn split_by<F: Fn(&NodeValue) -> bool>(&self, predicate: F) -> Vec<NodeList> {
 		let mut output = Vec::new();
 		let mut item = None;
 		for it in self.nodes.iter() {
@@ -84,7 +84,7 @@ impl NodeList {
 }
 
 impl Index<usize> for NodeList {
-	type Output = Node;
+	type Output = NodeValue;
 
 	fn index(&self, index: usize) -> &Self::Output {
 		&self.nodes[index]
@@ -98,7 +98,7 @@ pub struct NodeListIterator<'a> {
 }
 
 impl<'a> Iterator for NodeListIterator<'a> {
-	type Item = &'a Node;
+	type Item = &'a NodeValue;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		let index = self.index;

@@ -10,7 +10,7 @@ impl IsNode for Comment {}
 pub struct CommentMatcher;
 
 impl Matcher for CommentMatcher {
-	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node> {
+	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<NodeValue> {
 		let _ = errors;
 		let next = cursor.read();
 		match next {
@@ -39,7 +39,7 @@ impl Matcher for CommentMatcher {
 					*cursor = pos;
 				}
 
-				Some(Node::from(Comment))
+				Some(NodeValue::from(Comment))
 			}
 
 			_ => None,

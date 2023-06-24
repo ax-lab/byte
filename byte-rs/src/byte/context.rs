@@ -1,6 +1,6 @@
 use super::*;
 
-/// Encapsulates the compilation context for [`Node`] resolution.
+/// Encapsulates the compilation context for [`NodeValue`] resolution.
 ///
 /// The context holds everything that is available at a given location in the
 /// source code and a given "point in time" in the compilation.
@@ -150,7 +150,7 @@ impl ContextHandle {
 //====================================================================================================================//
 
 struct ContextBinding {
-	_bindings: Vec<(Visibility, Node)>,
+	_bindings: Vec<(Visibility, NodeValue)>,
 }
 
 #[derive(Eq, PartialEq)]

@@ -97,15 +97,15 @@ impl<'a> ResolveContext<'a> {
 		&mut self.errors
 	}
 
-	pub fn replace_nodes<I: IntoIterator<Item = Node>>(&mut self, nodes: I) {
+	pub fn replace_nodes<I: IntoIterator<Item = NodeValue>>(&mut self, nodes: I) {
 		self.replace_range(.., nodes)
 	}
 
-	pub fn replace_index<I: IntoIterator<Item = Node>>(&mut self, index: usize, nodes: I) {
+	pub fn replace_index<I: IntoIterator<Item = NodeValue>>(&mut self, index: usize, nodes: I) {
 		self.replace_range(index..index + 1, nodes)
 	}
 
-	pub fn replace_range<T: RangeBounds<usize>, I: IntoIterator<Item = Node>>(&mut self, range: T, nodes: I) {
+	pub fn replace_range<T: RangeBounds<usize>, I: IntoIterator<Item = NodeValue>>(&mut self, range: T, nodes: I) {
 		let range = compute_range(range, self.nodes.len());
 		assert!(range.end <= self.nodes.len() && range.start <= range.end);
 		self.push_change(NodeReplace {
@@ -127,7 +127,7 @@ impl<'a> ResolveContext<'a> {
 struct NodeReplace {
 	index: usize,
 	count: usize,
-	nodes: Vec<Node>,
+	nodes: Vec<NodeValue>,
 }
 
 impl NodeReplace {

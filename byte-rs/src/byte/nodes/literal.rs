@@ -8,7 +8,7 @@ has_traits!(Literal: IsNode, Compilable);
 impl IsNode for Literal {}
 
 impl Compilable for Literal {
-	fn compile(&self, node: &Node, compiler: &Compiler, errors: &mut Errors) -> Option<Expr> {
+	fn compile(&self, node: &NodeValue, compiler: &Compiler, errors: &mut Errors) -> Option<Expr> {
 		let _ = (node, errors);
 		let str = StrValue::new(self.as_str(), &compiler);
 		Some(Expr::Value(ValueExpr::Str(str)))
@@ -30,19 +30,19 @@ impl AsRef<str> for Literal {
 pub struct LiteralMatcher;
 
 impl Matcher for LiteralMatcher {
-	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node> {
+	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<NodeValue> {
 		match cursor.read() {
 			Some('\'') => {
 				let mut value = String::new();
 				loop {
 					match cursor.read() {
 						Some('\'') => {
-							break Some(Node::from(Literal(value)));
+							break Some(NodeValue::from(Literal(value)));
 						}
 
 						None => {
 							errors.add("unclosed string literal");
-							break Some(Node::from(Literal(value)));
+							break Some(NodeValue::from(Literal(value)));
 						}
 
 						Some(char) => value.push(char),

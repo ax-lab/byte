@@ -19,14 +19,8 @@ use std::ops::{Index, RangeBounds};
 use super::code::*;
 use super::*;
 
-/// Trait for types that can be used as [`Node`].
+/// Trait for types that can be used as [`NodeValue`].
 pub trait IsNode: IsValue + WithEquality + WithDebug {}
-
-#[derive(Copy, Clone, Eq, PartialEq)]
-pub enum NodeEval {
-	None,
-	Complete,
-}
 
 //====================================================================================================================//
 // Node
@@ -45,17 +39,17 @@ pub enum NodeEval {
 /// Resolved nodes are used to generate [`code`], which can then be run or
 /// compiled to an executable format.
 #[derive(Clone)]
-pub struct Node {
+pub struct NodeValue {
 	id: Id,
 	value: Value,
 }
 
-impl Node {
+impl NodeValue {
 	pub fn from<T: IsNode>(value: T) -> Self {
 		assert!(get_trait!(&value, IsNode).is_some());
 		let id = new_id();
 		let value = Value::from(value);
-		Node { id, value }
+		NodeValue { id, value }
 	}
 
 	/// Globally unique ID for this node.
@@ -91,7 +85,7 @@ impl Node {
 	}
 }
 
-impl HasTraits for Node {
+impl HasTraits for NodeValue {
 	fn type_name(&self) -> &'static str {
 		self.value.type_name()
 	}
@@ -103,21 +97,21 @@ impl HasTraits for Node {
 	}
 }
 
-impl PartialEq for Node {
+impl PartialEq for NodeValue {
 	fn eq(&self, other: &Self) -> bool {
 		self.value().is_equal(&other.value)
 	}
 }
 
-impl Eq for Node {}
+impl Eq for NodeValue {}
 
-impl Debug for Node {
+impl Debug for NodeValue {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		self.value().fmt_debug(f)
 	}
 }
 
-impl Display for Node {
+impl Display for NodeValue {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		self.value().fmt_debug(f)
 	}
@@ -134,10 +128,10 @@ pub struct NodeRef {
 }
 
 impl NodeRef {
-	pub fn get(&self) -> Node {
+	pub fn get(&self) -> NodeValue {
 		let id = self.id;
 		let value = self.value.get();
-		Node { id, value }
+		NodeValue { id, value }
 	}
 }
 
