@@ -57,7 +57,7 @@ impl Expr {
 		}
 	}
 
-	pub fn execute(&self, scope: &mut Scope) -> Result<Value> {
+	pub fn execute(&self, scope: &mut RuntimeScope) -> Result<Value> {
 		match self {
 			Expr::Value(value) => value.execute(scope),
 			Expr::Variable(name, ..) => scope.get(name).cloned(),
@@ -108,7 +108,7 @@ mod tests {
 		let b = compiler.store(b);
 		let expr = Expr::Binary(op, a, b);
 
-		let mut scope = Scope::new();
+		let mut scope = RuntimeScope::new();
 		let result = expr.execute(&mut scope)?;
 		assert_eq!(result, Value::from(5));
 
@@ -123,7 +123,7 @@ mod tests {
 		let kind = Type::Value(ValueType::Int(IntType::I32));
 		let x = Expr::Variable(name.clone(), kind.clone());
 
-		let mut scope = Scope::new();
+		let mut scope = RuntimeScope::new();
 		scope.declare(name.clone(), kind)?;
 		scope.set(&name, Value::from(42))?;
 

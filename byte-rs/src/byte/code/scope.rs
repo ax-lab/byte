@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use super::*;
 
 #[derive(Default)]
-pub struct Scope {
+pub struct RuntimeScope {
 	names: HashMap<Name, (usize, Type)>,
 	values: Vec<Option<Value>>,
 }
 
-impl Scope {
+impl RuntimeScope {
 	pub fn new() -> Self {
 		Default::default()
 	}

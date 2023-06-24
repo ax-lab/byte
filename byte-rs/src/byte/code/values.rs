@@ -28,7 +28,7 @@ impl ValueExpr {
 		}
 	}
 
-	pub fn execute(&self, scope: &mut Scope) -> Result<Value> {
+	pub fn execute(&self, scope: &mut RuntimeScope) -> Result<Value> {
 		match self {
 			ValueExpr::Unit => Ok(Value::from(())),
 			ValueExpr::Never => Err(Errors::from("evaluated to never value")),
@@ -85,7 +85,7 @@ impl IntValue {
 		self.kind
 	}
 
-	pub fn execute(&self, scope: &mut Scope) -> Result<Value> {
+	pub fn execute(&self, scope: &mut RuntimeScope) -> Result<Value> {
 		let _ = scope;
 		let value = self.value();
 		let value = match self.get_type() {

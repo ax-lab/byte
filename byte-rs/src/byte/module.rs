@@ -95,7 +95,7 @@ impl Module {
 		}
 
 		let mut value = Value::from(());
-		let mut scope = Scope::new();
+		let mut scope = RuntimeScope::new();
 		for it in code {
 			value = it.execute(&mut scope)?;
 		}
