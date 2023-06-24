@@ -6,7 +6,7 @@ const ALPHA: &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwx
 const DIGIT: &'static str = "0123456789";
 
 /// Trait for a matcher that can be used by the [`Scanner`].
-pub trait Matcher {
+pub trait Matcher: Cell {
 	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node>;
 }
 

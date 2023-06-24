@@ -100,6 +100,21 @@ impl Context {
 	}
 }
 
+impl Debug for Context {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		let ptr = Arc::as_ptr(&self.data);
+		write!(f, "<Context {ptr:?}>")
+	}
+}
+
+impl PartialEq for Context {
+	fn eq(&self, other: &Self) -> bool {
+		Arc::as_ptr(&self.data) == Arc::as_ptr(&other.data)
+	}
+}
+
+impl Eq for Context {}
+
 //====================================================================================================================//
 // ContextHandle
 //====================================================================================================================//
