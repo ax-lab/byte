@@ -88,6 +88,14 @@ impl Node {
 	pub fn span(&self) -> Option<&Span> {
 		self.span.as_ref().or_else(|| self.value.span())
 	}
+
+	pub fn as_ref(&self) -> NodeRef {
+		NodeRef {
+			id: self.id,
+			value: self.value.as_ref(),
+			span: self.span.clone(),
+		}
+	}
 }
 
 impl HasTraits for Node {
@@ -127,3 +135,31 @@ impl WithSpan for Node {
 		Node::span(self)
 	}
 }
+
+//====================================================================================================================//
+// NodeRef
+//====================================================================================================================//
+
+#[derive(Clone, Debug)]
+pub struct NodeRef {
+	id: Id,
+	value: ValueRef,
+	span: Option<Span>,
+}
+
+impl NodeRef {
+	pub fn get(&self) -> Node {
+		let id = self.id;
+		let value = self.value.get();
+		let span = self.span.clone();
+		Node { id, value, span }
+	}
+}
+
+impl PartialEq for NodeRef {
+	fn eq(&self, other: &Self) -> bool {
+		self.id == other.id
+	}
+}
+
+impl Eq for NodeRef {}

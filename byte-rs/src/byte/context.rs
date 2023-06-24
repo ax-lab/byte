@@ -1,9 +1,5 @@
 use super::*;
 
-pub trait NodeOperator: Cell {
-	fn evaluate(&self, context: &mut ResolveContext);
-}
-
 /// Encapsulates the compilation context for [`Node`] resolution.
 ///
 /// The context holds everything that is available at a given location in the

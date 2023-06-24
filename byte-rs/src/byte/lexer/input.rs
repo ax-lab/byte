@@ -395,6 +395,12 @@ impl Span {
 	}
 }
 
+impl Debug for Span {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		self.format_full("", f)
+	}
+}
+
 /// Line and column information for a [`Span`].
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Location {

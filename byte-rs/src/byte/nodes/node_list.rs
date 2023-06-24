@@ -1,6 +1,6 @@
 use super::*;
 
-/// Maintain a list of [`Node`] and provides helper methods for processing it.
+/// Maintains a list of [`Node`] for evaluation.
 #[derive(Default, Clone, Eq, PartialEq)]
 pub struct NodeList {
 	nodes: Arc<Vec<Node>>,

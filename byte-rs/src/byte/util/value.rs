@@ -73,6 +73,13 @@ impl Value {
 	pub fn as_value(&self) -> &dyn IsValue {
 		self.inner.as_ref()
 	}
+
+	pub fn as_ref(&self) -> ValueRef {
+		ValueRef {
+			kind: self.inner.type_name(),
+			inner: Arc::downgrade(&self.inner),
+		}
+	}
 }
 
 impl HasTraits for Value {
@@ -84,6 +91,43 @@ impl HasTraits for Value {
 		self.inner.get_trait(type_id)
 	}
 }
+
+//====================================================================================================================//
+// ValueRef
+//====================================================================================================================//
+
+#[derive(Clone)]
+pub struct ValueRef {
+	kind: &'static str,
+	inner: Weak<dyn IsValue>,
+}
+
+impl ValueRef {
+	pub fn get(&self) -> Value {
+		let inner = if let Some(inner) = self.inner.upgrade() {
+			inner
+		} else {
+			panic!("orphaned {} value", self.kind)
+		};
+		Value { inner }
+	}
+}
+
+impl Debug for ValueRef {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		let kind = self.kind;
+		let ptr = self.inner.as_ptr();
+		write!(f, "<ValueRef {ptr:?} ({kind})>")
+	}
+}
+
+impl PartialEq for ValueRef {
+	fn eq(&self, other: &Self) -> bool {
+		self.inner.as_ptr() == other.inner.as_ptr()
+	}
+}
+
+impl Eq for ValueRef {}
 
 //====================================================================================================================//
 // Tests

@@ -1,5 +1,9 @@
 use super::*;
 
+pub trait NodeOperator: Cell {
+	fn evaluate(&self, context: &mut ResolveContext);
+}
+
 impl Context {
 	pub fn resolve(&self, nodes: &NodeList, errors: &mut Errors) -> (Context, NodeList) {
 		let compiler = &self.compiler();
