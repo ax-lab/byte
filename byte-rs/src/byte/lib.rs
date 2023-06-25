@@ -1,23 +1,23 @@
 pub mod code;
 pub mod compiler;
-pub mod context;
+pub mod handle;
+pub mod input;
 pub mod lexer;
-pub mod module;
 pub mod nodes;
 pub mod operators;
-pub mod precedence;
-pub mod resolve;
+pub mod program;
+pub mod scope;
 pub mod util;
 
 pub use code::*;
 pub use compiler::*;
-pub use context::*;
+pub use handle::*;
+pub use input::*;
 pub use lexer::*;
-pub use module::*;
 pub use nodes::*;
 pub use operators::*;
-pub use precedence::*;
-pub use resolve::*;
+pub use program::*;
+pub use scope::*;
 pub use util::*;
 
 pub const MAX_ERRORS: usize = 16;

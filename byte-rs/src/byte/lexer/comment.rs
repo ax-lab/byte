@@ -10,12 +10,12 @@ impl IsNode for Comment {}
 pub struct CommentMatcher;
 
 impl Matcher for CommentMatcher {
-	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<NodeValue> {
+	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node> {
 		let _ = errors;
 		let next = cursor.read();
 		match next {
 			Some('#') => {
-				let (multi, mut level) = if cursor.try_read('(') { (true, 1) } else { (false, 0) };
+				let (multi, mut level) = if cursor.read_if('(') { (true, 1) } else { (false, 0) };
 
 				let mut pos;
 				let putback = loop {
@@ -39,7 +39,7 @@ impl Matcher for CommentMatcher {
 					*cursor = pos;
 				}
 
-				Some(NodeValue::from(Comment))
+				Some(Node::Comment)
 			}
 
 			_ => None,

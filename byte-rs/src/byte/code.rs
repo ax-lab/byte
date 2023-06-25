@@ -16,25 +16,15 @@
 pub mod int;
 pub mod op;
 pub mod op_add;
-pub mod scope;
+pub mod runtime_scope;
 pub mod values;
 
 pub use op::*;
 pub use op_add::*;
-pub use scope::*;
+pub use runtime_scope::*;
 pub use values::*;
 
 use super::*;
-
-pub trait Compilable {
-	fn compile(&self, node: &NodeValue, compiler: &Compiler, errors: &mut Errors) -> Option<Expr>;
-}
-
-impl NodeValue {
-	pub fn as_compilable(&self) -> Option<&dyn Compilable> {
-		get_trait!(self, Compilable)
-	}
-}
 
 //====================================================================================================================//
 // Expressions
@@ -45,7 +35,7 @@ impl NodeValue {
 pub enum Expr {
 	Value(ValueExpr),
 	Variable(Name, Type),
-	Binary(BinaryOp, Handle<Expr>, Handle<Expr>),
+	Binary(BinaryOp, CompilerHandle<Expr>, CompilerHandle<Expr>),
 }
 
 impl Expr {

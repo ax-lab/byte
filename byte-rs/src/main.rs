@@ -52,29 +52,21 @@ fn main() {
 
 fn execute(files: Vec<String>, eval: Vec<String>) -> Result<()> {
 	let compiler = Compiler::new();
+	let program = compiler.new_program();
 
-	let mut modules = Vec::new();
 	for file in files.into_iter() {
-		let module = compiler.load_file(file)?;
-		modules.push(module);
+		program.load_file(file);
 	}
 
-	for it in modules.iter() {
-		it.resolve()?;
-	}
+	program.resolve()?;
 
 	if eval.len() == 0 {
-		if let Some(module) = modules.first() {
-			module.eval()?;
-		}
+		program.run()?;
 	}
 
 	for (n, expr) in eval.into_iter().enumerate() {
 		let name = format!("{{eval #{n}}}");
-		let input = Input::new(name, expr.as_bytes().to_vec());
-		let module = compiler.load_input(input);
-		let result = module.eval()?;
-
+		let result = program.eval(name, expr)?;
 		println!("#{n:02} => {result} ({})", result.type_name());
 	}
 

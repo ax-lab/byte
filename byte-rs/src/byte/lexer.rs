@@ -1,16 +1,20 @@
 use super::*;
 
 pub mod chars;
-pub mod input;
+pub mod comment;
+pub mod literal;
+pub mod number;
 pub mod scanner;
 pub mod symbols;
 
 pub use chars::*;
-pub use input::*;
+pub use comment::*;
+pub use literal::*;
+pub use number::*;
 pub use scanner::*;
 pub use symbols::*;
 
-pub type Name = Handle<str>;
+pub type Name = CompilerHandle<str>;
 
 impl Compiler {
 	pub fn get_name<T: AsRef<str>>(&self, name: T) -> Name {
@@ -105,15 +109,16 @@ mod tests {
 	// Helpers
 	//----------------------------------------------------------------------------------------------------------------//
 
-	fn tokenize(input: &str) -> (Vec<NodeValue>, Compiler) {
-		let compiler = Compiler::new();
+	fn tokenize(input: &str) -> (Vec<Node>, Compiler) {
+		let compiler = Compiler::default();
 		let mut scanner = Scanner::new(compiler.get_ref());
 		scanner.register_common_symbols();
 		scanner.add_matcher(CommentMatcher);
 		scanner.add_matcher(LiteralMatcher);
 		scanner.add_matcher(IntegerMatcher);
 
-		let input = Input::new("test", input.as_bytes().to_vec());
+		let sources = SourceList::new(".").unwrap();
+		let input = sources.add_text("test", input);
 		let mut cursor = input.start();
 		let mut errors = Errors::new();
 		let mut output = Vec::new();
@@ -130,31 +135,31 @@ mod tests {
 		(output, compiler)
 	}
 
-	fn word(compiler: &Compiler, name: &str) -> NodeValue {
-		NodeValue::from(Token::Word(compiler.get_name(name)))
+	fn word(compiler: &Compiler, name: &str) -> Node {
+		Node::Word(compiler.get_name(name))
 	}
 
-	fn sym(compiler: &Compiler, name: &str) -> NodeValue {
-		NodeValue::from(Token::Symbol(compiler.get_name(name)))
+	fn sym(compiler: &Compiler, name: &str) -> Node {
+		Node::Symbol(compiler.get_name(name))
 	}
 
-	fn eol() -> NodeValue {
-		NodeValue::from(LineBreak)
+	fn eol() -> Node {
+		Node::Break
 	}
 
-	fn indent(width: usize) -> NodeValue {
-		NodeValue::from(Token::Indent(width))
+	fn indent(width: usize) -> Node {
+		Node::Indent(width)
 	}
 
-	fn comment() -> NodeValue {
-		NodeValue::from(Comment)
+	fn comment() -> Node {
+		Node::Comment
 	}
 
-	fn literal(str: &str) -> NodeValue {
-		NodeValue::from(Literal(str.to_string()))
+	fn literal(str: &str) -> Node {
+		Node::Literal(str.to_string())
 	}
 
-	fn int(value: u128) -> NodeValue {
-		NodeValue::from(Integer(value))
+	fn int(value: u128) -> Node {
+		Node::Integer(value)
 	}
 }

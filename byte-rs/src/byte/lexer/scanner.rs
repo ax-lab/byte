@@ -7,7 +7,7 @@ const DIGIT: &'static str = "0123456789";
 
 /// Trait for a matcher that can be used by the [`Scanner`].
 pub trait Matcher: Cell {
-	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<NodeValue>;
+	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node>;
 }
 
 #[derive(Clone)]
@@ -61,7 +61,7 @@ impl Scanner {
 		}
 	}
 
-	pub fn scan(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<NodeValue> {
+	pub fn scan(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node> {
 		let compiler = &self.compiler.get();
 		loop {
 			// skip spaces
@@ -79,7 +79,7 @@ impl Scanner {
 				// ignore empty or space-only lines
 				cursor.advance(size);
 				if !line_start {
-					return Some(NodeValue::from(LineBreak));
+					return Some(Node::Break);
 				} else {
 					continue;
 				}
@@ -100,7 +100,7 @@ impl Scanner {
 					  indentation MUST be a prefix of the other
 					  - indentation must be consistent between consecutive lines
 				*/
-				return Some(NodeValue::from(Token::Indent(cursor.indent())));
+				return Some(Node::Indent(cursor.indent()));
 			}
 
 			// apply registered matchers, those have higher priority
@@ -144,13 +144,12 @@ impl Scanner {
 					}
 
 					// generate a Name token
-					let name = cursor.data_from(&start);
-					let name = String::from_utf8(name.to_vec()).unwrap();
-					Some(NodeValue::from(Token::Word(compiler.get_name(name))))
+					let name = cursor.span_from(&start).text().to_string();
+					Some(Node::from(Node::Word(compiler.get_name(name))))
 				}
 
 				// predefined symbol
-				ScanAction::Symbol(name) => Some(NodeValue::from(Token::Symbol(compiler.get_name(name)))),
+				ScanAction::Symbol(name) => Some(Node::Symbol(compiler.get_name(name))),
 			};
 		}
 	}

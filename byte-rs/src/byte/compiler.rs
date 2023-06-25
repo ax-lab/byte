@@ -24,6 +24,10 @@ impl Compiler {
 		})
 	}
 
+	pub fn base_path(&self) -> PathBuf {
+		self.data.base_path.clone()
+	}
+
 	//----------------------------------------------------------------------------------------------------------------//
 	// Module loading and compilation
 	//----------------------------------------------------------------------------------------------------------------//
@@ -32,56 +36,15 @@ impl Compiler {
 		&self.data.scanner
 	}
 
-	pub fn new_context(&self) -> Context {
-		let mut context = Context::new(self);
-		context.declare_operator(Precedence::RawText, ExpandRawText);
-		context.declare_operator(Precedence::LineBreaks, SplitLines);
-		context
+	pub fn new_program(&self) -> Program {
+		let program = Program::new(self);
+		program
 	}
 
 	pub fn eval_string<T: AsRef<str>>(&self, input: T) -> Result<Value> {
-		let module = self.load_string(input);
-		module.eval()
-	}
-
-	pub fn load_file<T: AsRef<Path>>(&self, path: T) -> Result<Module> {
-		self.do_load_file(path.as_ref()).map_err(|err| {
-			let path = path.as_ref().to_string_lossy();
-			Errors::from(format!("loading `{path}`: {err}"))
-		})
-	}
-
-	fn do_load_file<T: AsRef<Path>>(&self, path: T) -> std::io::Result<Module> {
-		let path = path.as_ref();
-		let full_path = if path.is_relative() {
-			self.data.base_path.join(path)
-		} else {
-			path.to_owned()
-		};
-
-		let full_path = std::fs::canonicalize(full_path)?;
-
-		// TODO: handle module from a directory
-
-		let mut modules = { self.data.modules_by_path.write().unwrap() };
-		if let Some(module) = modules.get(&full_path) {
-			Ok(module.clone())
-		} else {
-			let input = Input::open(path)?;
-			let module = Module::new(self, input);
-			modules.insert(full_path, module.clone());
-			Ok(module)
-		}
-	}
-
-	pub fn load_string<T: AsRef<str>>(&self, data: T) -> Module {
-		let data = data.as_ref().as_bytes();
-		let input = Input::new("string", data.to_vec());
-		self.load_input(input)
-	}
-
-	pub fn load_input(&self, input: Input) -> Module {
-		Module::new(self, input)
+		let program = self.new_program();
+		program.load_string(input);
+		program.run()
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
@@ -96,14 +59,14 @@ impl Compiler {
 	}
 
 	/// Store any generic data with the compiler.
-	pub fn store<T: Cell>(&self, data: T) -> Handle<T> {
+	pub fn store<T: Cell>(&self, data: T) -> CompilerHandle<T> {
 		let data = self.data.arena.get().store(data);
 		self.make_handle(data)
 	}
 
 	/// Get a reference to the value of a handle. The handle MUST be from this
 	/// same compiler instance.
-	pub fn get<T: ?Sized>(&self, handle: Handle<T>) -> &T {
+	pub fn get<T: ?Sized>(&self, handle: CompilerHandle<T>) -> &T {
 		assert!(handle.compiler == self);
 		unsafe { &*handle.as_ptr() }
 	}
@@ -112,7 +75,7 @@ impl Compiler {
 	///
 	/// Calling this method with the same string value, will always return the
 	/// same string reference.
-	pub fn intern<T: AsRef<str>>(&self, str: T) -> Handle<str> {
+	pub fn intern<T: AsRef<str>>(&self, str: T) -> CompilerHandle<str> {
 		let str = str.as_ref();
 		let names = self.data.strings.read().unwrap();
 		if let Some(value) = names.get(str) {
@@ -132,9 +95,9 @@ impl Compiler {
 	/// data that were obtained through a local intermediate (e.g. a mutex
 	/// guard on an outer container with read-only items).
 	#[inline(always)]
-	fn make_handle<'a, T: ?Sized>(&self, data: &'a T) -> Handle<T> {
+	fn make_handle<'a, T: ?Sized>(&self, data: &'a T) -> CompilerHandle<T> {
 		let compiler = self.get_ref();
-		Handle { compiler, data }
+		CompilerHandle { compiler, data }
 	}
 }
 
@@ -184,12 +147,12 @@ impl PartialEq<&Compiler> for CompilerRef {
 }
 
 /// Handle to data owned by a [`Compiler`].
-pub struct Handle<T: ?Sized> {
+pub struct CompilerHandle<T: ?Sized> {
 	compiler: CompilerRef,
 	data: *const T,
 }
 
-impl<T: ?Sized> Handle<T> {
+impl<T: ?Sized> CompilerHandle<T> {
 	pub fn get(&self) -> HandleRef<T> {
 		let compiler = self.compiler.get();
 		let data = self.data;
@@ -212,7 +175,7 @@ impl<T: ?Sized> HandleRef<T> {
 	}
 }
 
-impl<T: ?Sized> Clone for Handle<T> {
+impl<T: ?Sized> Clone for CompilerHandle<T> {
 	fn clone(&self) -> Self {
 		Self {
 			compiler: self.compiler.clone(),
@@ -230,10 +193,10 @@ impl<T: ?Sized> Deref for HandleRef<T> {
 	}
 }
 
-unsafe impl<T: Send + ?Sized> Send for Handle<T> {}
-unsafe impl<T: Sync + ?Sized> Sync for Handle<T> {}
+unsafe impl<T: Send + ?Sized> Send for CompilerHandle<T> {}
+unsafe impl<T: Sync + ?Sized> Sync for CompilerHandle<T> {}
 
-impl<T: PartialEq + ?Sized> PartialEq for Handle<T> {
+impl<T: PartialEq + ?Sized> PartialEq for CompilerHandle<T> {
 	fn eq(&self, other: &Self) -> bool {
 		if self.data == other.data {
 			true
@@ -243,9 +206,9 @@ impl<T: PartialEq + ?Sized> PartialEq for Handle<T> {
 	}
 }
 
-impl<T: Eq + ?Sized> Eq for Handle<T> {}
+impl<T: Eq + ?Sized> Eq for CompilerHandle<T> {}
 
-impl<T: PartialEq + ?Sized> PartialEq<T> for Handle<T> {
+impl<T: PartialEq + ?Sized> PartialEq<T> for CompilerHandle<T> {
 	fn eq(&self, other: &T) -> bool {
 		if self.data == other {
 			true
@@ -255,7 +218,7 @@ impl<T: PartialEq + ?Sized> PartialEq<T> for Handle<T> {
 	}
 }
 
-impl<T: PartialEq + ?Sized> PartialEq<&T> for Handle<T> {
+impl<T: PartialEq + ?Sized> PartialEq<&T> for CompilerHandle<T> {
 	fn eq(&self, other: &&T) -> bool {
 		if self.data == *other {
 			true
@@ -265,28 +228,28 @@ impl<T: PartialEq + ?Sized> PartialEq<&T> for Handle<T> {
 	}
 }
 
-impl<T: Display + ?Sized> Display for Handle<T> {
+impl<T: Display + ?Sized> Display for CompilerHandle<T> {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		let data = &*self.get();
 		write!(f, "{data}")
 	}
 }
 
-impl<T: Debug + ?Sized> Debug for Handle<T> {
+impl<T: Debug + ?Sized> Debug for CompilerHandle<T> {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		let data = &*self.get();
 		write!(f, "{data:?}")
 	}
 }
 
-impl<T: Hash + ?Sized> Hash for Handle<T> {
+impl<T: Hash + ?Sized> Hash for CompilerHandle<T> {
 	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
 		let data = &*self.get();
 		data.hash(state);
 	}
 }
 
-impl<T: PartialOrd + ?Sized> PartialOrd for Handle<T> {
+impl<T: PartialOrd + ?Sized> PartialOrd for CompilerHandle<T> {
 	fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
 		let data = &*self.get();
 		let other = &*other.get();
@@ -294,7 +257,7 @@ impl<T: PartialOrd + ?Sized> PartialOrd for Handle<T> {
 	}
 }
 
-impl<T: Ord + ?Sized> Ord for Handle<T> {
+impl<T: Ord + ?Sized> Ord for CompilerHandle<T> {
 	fn cmp(&self, other: &Self) -> std::cmp::Ordering {
 		let data = &*self.get();
 		let other = &*other.get();
@@ -317,9 +280,6 @@ struct CompilerData {
 
 	// storage for interned strings
 	strings: Arc<RwLock<HashSet<String>>>,
-
-	// modules loaded from files
-	modules_by_path: Arc<RwLock<HashMap<PathBuf, Module>>>,
 }
 
 impl CompilerData {
@@ -338,7 +298,6 @@ impl CompilerData {
 				scanner,
 				arena: Default::default(),
 				strings: Default::default(),
-				modules_by_path: Default::default(),
 			}
 		})
 	}

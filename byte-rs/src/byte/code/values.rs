@@ -41,7 +41,7 @@ impl ValueExpr {
 }
 
 #[derive(Clone, Debug)]
-pub struct StrValue(Handle<String>);
+pub struct StrValue(CompilerHandle<String>);
 
 impl StrValue {
 	pub fn new<T: AsRef<str>>(str: T, compiler: &Compiler) -> Self {
@@ -111,7 +111,7 @@ pub enum FloatValue {
 	Value {
 		kind: FloatType,
 		base: u8,
-		mantissa: Handle<Vec<u8>>,
+		mantissa: CompilerHandle<Vec<u8>>,
 		exp: i32,
 	},
 }
