@@ -3,8 +3,9 @@ use super::*;
 pub struct IntegerMatcher;
 
 impl Matcher for IntegerMatcher {
-	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node> {
+	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<NodeData> {
 		let _ = errors;
+		let start = cursor.clone();
 		match cursor.read() {
 			Some(next @ '0'..='9') => {
 				let mut value = digit_value(next);
@@ -21,7 +22,7 @@ impl Matcher for IntegerMatcher {
 					}
 				}
 				*cursor = pos;
-				Some(Node::Integer(value))
+				Some(Node::Integer(value).at(cursor.span_from(&start)))
 			}
 
 			_ => None,

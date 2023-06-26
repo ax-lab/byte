@@ -7,7 +7,7 @@ const DIGIT: &'static str = "0123456789";
 
 /// Trait for a matcher that can be used by the [`Scanner`].
 pub trait Matcher: Cell {
-	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node>;
+	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<NodeData>;
 }
 
 #[derive(Clone)]
@@ -61,7 +61,7 @@ impl Scanner {
 		}
 	}
 
-	pub fn scan(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node> {
+	pub fn scan(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<NodeData> {
 		let compiler = &self.compiler.get();
 		loop {
 			// skip spaces
@@ -77,9 +77,9 @@ impl Scanner {
 			if let Some(size) = check_line_break(cursor.data()) {
 				assert!(size > 0);
 				// ignore empty or space-only lines
-				cursor.advance(size);
+				let span = cursor.advance_span(size);
 				if !line_start {
-					return Some(Node::Break);
+					return Some(Node::Break.at(span));
 				} else {
 					continue;
 				}
@@ -100,7 +100,7 @@ impl Scanner {
 					  indentation MUST be a prefix of the other
 					  - indentation must be consistent between consecutive lines
 				*/
-				return Some(Node::Indent(cursor.indent()));
+				return Some(Node::Indent(cursor.indent()).at(cursor.pos_as_span()));
 			}
 
 			// apply registered matchers, those have higher priority
@@ -125,12 +125,12 @@ impl Scanner {
 				let size = char_size(cursor.data());
 				(size, ScanAction::None)
 			};
-			cursor.advance(size);
+			let span = cursor.advance_span(size);
 
 			break match action {
 				// no match or explicitly invalid match
 				ScanAction::None | ScanAction::WordNext => {
-					errors.add("invalid symbol");
+					errors.add_at("invalid symbol", span);
 					None
 				}
 
@@ -144,12 +144,13 @@ impl Scanner {
 					}
 
 					// generate a Name token
-					let name = cursor.span_from(&start).text().to_string();
-					Some(Node::from(Node::Word(compiler.get_name(name))))
+					let span = cursor.span_from(&start);
+					let name = span.text().to_string();
+					Some(Node::Word(compiler.get_name(name)).at(span))
 				}
 
 				// predefined symbol
-				ScanAction::Symbol(name) => Some(Node::Symbol(compiler.get_name(name))),
+				ScanAction::Symbol(name) => Some(Node::Symbol(compiler.get_name(name)).at(span)),
 			};
 		}
 	}

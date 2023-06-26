@@ -5,6 +5,18 @@ pub struct SourceList {
 	data: Arc<SourceListData>,
 }
 
+impl CanHandle for SourceList {
+	type Data = SourceListData;
+
+	fn inner_data(&self) -> &Arc<Self::Data> {
+		&self.data
+	}
+
+	fn from_inner_data(data: Arc<Self::Data>) -> Self {
+		SourceList { data }
+	}
+}
+
 impl SourceList {
 	/// Returns a new source list rooted at the given path.
 	pub fn new<P: AsRef<Path>>(base_path: P) -> Result<Self> {
@@ -29,8 +41,8 @@ impl SourceList {
 		let length = data.len();
 		let source = SourceData { offset, name, data };
 		sources.push(source);
-		Span {
-			handle: self.handle(),
+		Span::Some {
+			source: self.handle(),
 			offset,
 			length,
 		}
@@ -71,8 +83,8 @@ impl SourceList {
 				Err(data) => data.into_inner(),
 			};
 			let source = &source[*index];
-			Ok(Span {
-				handle: self.handle(),
+			Ok(Span::Some {
+				source: self.handle(),
 				offset: source.offset,
 				length: source.data.len(),
 			})
@@ -93,16 +105,12 @@ impl SourceList {
 			let source = SourceData { offset, name, data };
 			sources.push(source);
 
-			Ok(Span {
-				handle: self.handle(),
+			Ok(Span::Some {
+				source: self.handle(),
 				offset,
 				length,
 			})
 		}
-	}
-
-	fn handle(&self) -> Handle<SourceListData> {
-		Handle::new(&self.data)
 	}
 
 	fn compute_next_source_offset(sources: &[SourceData]) -> usize {
@@ -126,19 +134,21 @@ impl SourceList {
 
 /// Represents a range of source text from a [`SourceList`].
 #[derive(Clone, Eq, PartialEq)]
-pub struct Span {
-	handle: Handle<SourceListData>,
-	offset: usize,
-	length: usize,
+pub enum Span {
+	None,
+	Some {
+		source: Handle<SourceList>,
+		offset: usize,
+		length: usize,
+	},
 }
 
 impl Span {
 	/// Create a new cursor at the start of the span.
 	pub fn start(&self) -> Cursor {
-		let source = self.handle.get().to_inner();
 		Cursor {
 			span: self.clone(),
-			source,
+			source: self.source_list().map(|x| x.data),
 			line: 0,
 			column: 0,
 			indent: 0,
@@ -146,58 +156,88 @@ impl Span {
 		}
 	}
 
+	pub fn source_list(&self) -> Option<SourceList> {
+		match self {
+			Span::None => None,
+			Span::Some { source, .. } => Some(source.get().to_inner()),
+		}
+	}
+
 	/// Length of the span in bytes.
 	pub fn len(&self) -> usize {
-		self.length
+		match self {
+			Span::None => 0,
+			Span::Some { length, .. } => *length,
+		}
 	}
 
 	/// Globally unique offset for the start position of this span across all
 	/// source code.
 	pub fn offset(&self) -> usize {
-		self.offset
+		match self {
+			Span::None => 0,
+			Span::Some { offset, .. } => *offset,
+		}
 	}
 
 	/// Raw data for this span.
-	pub fn data(&self) -> HandleMap<SourceListData, [u8]> {
-		self.source_data().map(|source| {
-			let sta = self.offset - source.offset;
-			let end = sta + self.length;
-			let data = &source.data[sta..end] as *const [u8];
-			unsafe { &*data }
-		})
+	pub fn data(&self) -> HandleMap<SourceList, [u8]> {
+		if let Some(source) = self.source_data() {
+			source.map(|source| {
+				let sta = self.offset() - source.offset;
+				let end = sta + self.len();
+				let data = &source.data[sta..end] as *const [u8];
+				unsafe { &*data }
+			})
+		} else {
+			HandleMap::new_static("".as_bytes())
+		}
 	}
 
 	/// Span for the full source text, if this is a partial span. Otherwise
 	/// returns the current span itself.
 	pub fn source(&self) -> Span {
-		let source = self.source_data();
-		Span {
-			handle: self.handle.clone(),
-			offset: source.offset,
-			length: source.data.len(),
+		match self {
+			Span::None => Span::None,
+			Span::Some { source, .. } => {
+				let source_data = self.source_data().unwrap();
+				Span::Some {
+					source: source.clone(),
+					offset: source_data.offset,
+					length: source_data.data.len(),
+				}
+			}
 		}
 	}
 
 	/// Text for this span.
-	pub fn text(&self) -> HandleMap<SourceListData, str> {
+	pub fn text(&self) -> HandleMap<SourceList, str> {
 		self.data().map(|data| std::str::from_utf8(data).unwrap())
 	}
 
 	/// Name for the source of this span.
-	pub fn source_name(&self) -> HandleMap<SourceListData, str> {
-		self.source_data().map(|source| source.name.as_str())
+	pub fn source_name(&self) -> HandleMap<SourceList, str> {
+		if let Some(source) = self.source_data() {
+			source.map(|source| source.name.as_str())
+		} else {
+			HandleMap::new_static("")
+		}
 	}
 
-	fn source_data(&self) -> HandleMap<SourceListData, SourceData> {
-		self.handle.get_map(|data| {
-			let sources = match data.sources.read() {
-				Ok(data) => data,
-				Err(data) => data.into_inner(),
-			};
-			let index = sources.partition_point(|x| x.offset + x.data.len() < self.offset);
-			let source = &sources[index] as *const SourceData;
-			unsafe { &*source }
-		})
+	fn source_data(&self) -> Option<HandleMap<SourceList, SourceData>> {
+		match self {
+			Span::None => None,
+			Span::Some { source, .. } => Some(source.get_map(|src| {
+				let offset = self.offset();
+				let sources = match src.data.sources.read() {
+					Ok(data) => data,
+					Err(data) => data.into_inner(),
+				};
+				let index = sources.partition_point(|x| x.offset + x.data.len() < offset);
+				let source = &sources[index] as *const SourceData;
+				unsafe { &*source }
+			})),
+		}
 	}
 }
 
@@ -206,24 +246,29 @@ impl Debug for Span {
 		let name = self.source_name();
 		let text = self.text();
 
-		let source = self.source_data();
-		let sta = self.offset - source.offset;
-		let end = sta + self.length;
-		let len = self.length;
+		if let Some(source) = self.source_data() {
+			let offset = self.offset();
+			let length = self.len();
+			let sta = offset - source.offset;
+			let end = sta + length;
+			let len = length;
 
-		let full = sta == 0 && self.length == source.data.len();
+			let full = sta == 0 && length == source.data.len();
 
-		write!(f, "<Span ")?;
-		if text.len() <= 50 {
-			write!(f, "{text:?}")?;
+			write!(f, "<Span ")?;
+			if text.len() <= 50 {
+				write!(f, "{text:?}")?;
+			} else {
+				write!(f, "{len} bytes")?;
+			}
+			write!(f, " @{name}")?;
+			if !full {
+				write!(f, "[{sta}…{end}]")?
+			}
+			write!(f, ">")
 		} else {
-			write!(f, "{len} bytes")?;
+			write!(f, "Span::None")
 		}
-		write!(f, " @{name}")?;
-		if !full {
-			write!(f, "[{sta}…{end}]")?
-		}
-		write!(f, ">")
 	}
 }
 
@@ -235,7 +280,7 @@ impl Debug for Span {
 #[derive(Clone)]
 pub struct Cursor {
 	#[allow(unused)]
-	source: Arc<SourceListData>, // ensure source references are valid for the lifetime of the cursor
+	source: Option<Arc<SourceListData>>, // ensure source references are valid for the lifetime of the cursor
 	span: Span,
 	line: usize,
 	column: usize,
@@ -244,8 +289,21 @@ pub struct Cursor {
 }
 
 impl Cursor {
+	/// Span corresponding to the remaining input from the cursor position.
 	pub fn span(&self) -> &Span {
 		&self.span
+	}
+
+	/// Return the cursor current position as a span with length zero.
+	pub fn pos_as_span(&self) -> Span {
+		match self.span {
+			Span::None => Span::None,
+			Span::Some { ref source, offset, .. } => Span::Some {
+				source: source.clone(),
+				offset,
+				length: 0,
+			},
+		}
 	}
 
 	/// Make a new copy of the current cursor but with the given line and
@@ -400,21 +458,48 @@ impl Cursor {
 		self.line = line;
 		self.column = column;
 		self.indent = indent;
-		self.span.offset += length;
-		self.span.length -= length;
+
+		let skip_length = length;
+		if let Span::Some {
+			ref mut offset,
+			ref mut length,
+			..
+		} = self.span
+		{
+			*offset += skip_length;
+			*length -= skip_length;
+		}
+	}
+
+	pub fn advance_span(&mut self, length: usize) -> Span {
+		let start = self.clone();
+		self.advance(length);
+		self.span_from(&start)
 	}
 
 	/// Return a new [`Span`] from the given [`Cursor`] to the current position.
 	///
 	/// Both cursors MUST be from the same input source.
 	pub fn span_from(&self, start: &Cursor) -> Span {
-		assert!(
-			self.offset() >= start.offset()
-				&& self.span().source_data().as_ptr() == start.span().source_data().as_ptr()
-		);
-		let mut span = start.span().clone();
-		span.length = self.offset() - start.offset();
-		span
+		match start.span {
+			Span::None => {
+				assert!(matches!(self.span, Span::None));
+				Span::None
+			}
+			Span::Some {
+				ref source,
+				offset,
+				length,
+			} => {
+				let my_offset = self.offset();
+				assert!(my_offset >= offset && my_offset <= offset + length);
+				Span::Some {
+					source: source.clone(),
+					offset: offset,
+					length: my_offset - offset,
+				}
+			}
+		}
 	}
 }
 

@@ -7,7 +7,7 @@ pub const MAX_ERRORS: usize = 32;
 /// List of errors.
 #[derive(Clone, Default)]
 pub struct Errors {
-	list: Arc<VecDeque<Value>>,
+	list: Arc<VecDeque<(Value, Option<Span>)>>,
 }
 
 impl Errors {
@@ -19,11 +19,6 @@ impl Errors {
 		let mut errors = Self::new();
 		errors.add(error);
 		errors
-	}
-
-	pub fn from_list<T: IntoIterator<Item = V>, V: IsValue>(errors: T) -> Self {
-		let list = errors.into_iter().map(|x| Value::from(x)).collect();
-		Errors { list: Arc::new(list) }
 	}
 
 	pub fn empty(&self) -> bool {
@@ -43,7 +38,13 @@ impl Errors {
 
 	pub fn add<T: IsValue>(&mut self, error: T) {
 		let list = Arc::make_mut(&mut self.list);
-		list.push_back(Value::from(error));
+		list.push_back((Value::from(error), None));
+	}
+
+	pub fn add_at<T: IsValue>(&mut self, error: T, span: Span) {
+		// TODO: implement span location
+		let list = Arc::make_mut(&mut self.list);
+		list.push_back((Value::from(error), Some(span)));
 	}
 
 	pub fn iter(&self) -> ErrorIterator {
@@ -58,21 +59,33 @@ impl Errors {
 // ErrorIterator
 //====================================================================================================================//
 
+pub struct ErrorData {
+	data: Value,
+	span: Option<Span>,
+}
+
 pub struct ErrorIterator {
 	next: usize,
-	list: Arc<VecDeque<Value>>,
+	list: Arc<VecDeque<(Value, Option<Span>)>>,
 }
 
 impl Iterator for ErrorIterator {
-	type Item = Value;
+	type Item = ErrorData;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		if let Some(next) = self.list.get(self.next) {
+		if let Some((data, span)) = self.list.get(self.next).cloned() {
 			self.next += 1;
-			Some(next.clone())
+			Some(ErrorData { data, span })
 		} else {
 			None
 		}
+	}
+}
+
+impl WithRepr for ErrorData {
+	fn output(&self, mode: ReprMode, format: ReprFormat, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
+		// TODO: properly use the location
+		self.data.output(mode, format, output)
 	}
 }
 
@@ -120,14 +133,6 @@ impl WithRepr for Errors {
 }
 
 fmt_from_repr!(Errors);
-
-impl std::ops::Index<usize> for Errors {
-	type Output = Value;
-
-	fn index(&self, index: usize) -> &Self::Output {
-		&self.list[index]
-	}
-}
 
 //====================================================================================================================//
 // Conversion

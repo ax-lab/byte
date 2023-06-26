@@ -3,15 +3,12 @@ use super::*;
 #[derive(Debug, Eq, PartialEq)]
 pub struct Comment;
 
-has_traits!(Comment: IsNode);
-
-impl IsNode for Comment {}
-
 pub struct CommentMatcher;
 
 impl Matcher for CommentMatcher {
-	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<Node> {
+	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<NodeData> {
 		let _ = errors;
+		let start = cursor.clone();
 		let next = cursor.read();
 		match next {
 			Some('#') => {
@@ -39,7 +36,7 @@ impl Matcher for CommentMatcher {
 					*cursor = pos;
 				}
 
-				Some(Node::Comment)
+				Some(Node::Comment.at(cursor.span_from(&start)))
 			}
 
 			_ => None,

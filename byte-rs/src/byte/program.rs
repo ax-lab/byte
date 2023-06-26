@@ -11,11 +11,12 @@ pub struct Program {
 	data: Arc<ProgramData>,
 }
 
-struct ProgramData {
+#[doc(hidden)]
+pub struct ProgramData {
 	compiler: CompilerRef,
 	tab_width: usize,
-	segments: Vec<NodeList>,
-	root_scope: Arc<ScopeData>,
+	segments: RwLock<Vec<NodeList>>,
+	root_scope: Scope,
 	sources: SourceList,
 }
 
@@ -23,37 +24,60 @@ impl Program {
 	pub fn new(compiler: &Compiler) -> Program {
 		let base_path = compiler.base_path();
 		let compiler = compiler.get_ref();
-		let data = ProgramData {
-			compiler,
-			tab_width: DEFAULT_TAB_WIDTH,
-			segments: Default::default(),
-			root_scope: Default::default(),
-			sources: SourceList::new(base_path).unwrap(),
-		};
-		Self { data: data.into() }
+		Program::new_cyclic(|handle| {
+			let root_scope = Scope::new(handle);
+			ProgramData {
+				compiler,
+				root_scope,
+				tab_width: DEFAULT_TAB_WIDTH,
+				segments: Default::default(),
+				sources: SourceList::new(base_path).unwrap(),
+			}
+		})
 	}
 
 	pub fn default_scanner(&self) -> Scanner {
 		self.data.compiler.get().scanner().clone()
 	}
 
-	pub fn root_scope(&self) -> Scope {
-		ScopeData::to_scope(self, self.data.root_scope.clone())
+	pub fn root_scope(&self) -> &Scope {
+		&self.data.root_scope
+	}
+
+	pub fn tab_width(&self) -> usize {
+		self.data.tab_width
 	}
 
 	pub fn run(&self) -> Result<Value> {
 		todo!()
 	}
 
-	pub fn eval<T1: AsRef<str>, T2: AsRef<str>>(&self, _name: T1, _input: T2) -> Result<Value> {
-		todo!()
+	pub fn eval<T1: Into<String>, T2: AsRef<str>>(&mut self, name: T1, text: T2) -> Result<Value> {
+		let nodes = self.load_string(name, text);
+		self.resolve()?;
+		self.run_resolved_nodes(nodes)
 	}
 
-	pub fn load_string<T: AsRef<str>>(&self, _input: T) {
-		todo!()
+	pub fn load_string<T1: Into<String>, T2: AsRef<str>>(&mut self, name: T1, data: T2) -> NodeList {
+		let span = self.data.sources.add_text(name, data.as_ref());
+		self.load_span(span)
 	}
 
-	pub fn load_file<T: AsRef<Path>>(&self, _path: T) {
+	pub fn load_file<T: AsRef<Path>>(&mut self, path: T) -> Result<NodeList> {
+		let span = self.data.sources.add_file(path)?;
+		Ok(self.load_span(span))
+	}
+
+	fn load_span(&mut self, span: Span) -> NodeList {
+		let node = Node::Module(span.clone()).at(span);
+		let scope = self.root_scope().new_child();
+		let list = NodeList::from_single(scope, node);
+		let mut segments = self.data.segments.write().unwrap();
+		segments.push(list.clone());
+		list
+	}
+
+	fn run_resolved_nodes(&self, nodes: NodeList) -> Result<Value> {
 		todo!()
 	}
 
@@ -108,3 +132,15 @@ impl PartialEq for Program {
 }
 
 impl Eq for Program {}
+
+impl CanHandle for Program {
+	type Data = ProgramData;
+
+	fn inner_data(&self) -> &Arc<Self::Data> {
+		&self.data
+	}
+
+	fn from_inner_data(data: Arc<Self::Data>) -> Self {
+		Self { data }
+	}
+}

@@ -123,7 +123,7 @@ mod tests {
 		let mut errors = Errors::new();
 		let mut output = Vec::new();
 		while let Some(node) = scanner.scan(&mut cursor, &mut errors) {
-			output.push(node);
+			output.push(node.to_inner());
 		}
 
 		if errors.len() > 0 {

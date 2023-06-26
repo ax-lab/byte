@@ -42,8 +42,8 @@ impl Compiler {
 	}
 
 	pub fn eval_string<T: AsRef<str>>(&self, input: T) -> Result<Value> {
-		let program = self.new_program();
-		program.load_string(input);
+		let mut program = self.new_program();
+		program.load_string("eval", input);
 		program.run()
 	}
 
@@ -153,10 +153,10 @@ pub struct CompilerHandle<T: ?Sized> {
 }
 
 impl<T: ?Sized> CompilerHandle<T> {
-	pub fn get(&self) -> HandleRef<T> {
+	pub fn get(&self) -> CompilerHandleRef<T> {
 		let compiler = self.compiler.get();
 		let data = self.data;
-		HandleRef { compiler, data }
+		CompilerHandleRef { compiler, data }
 	}
 
 	pub fn as_ptr(&self) -> *const T {
@@ -164,12 +164,12 @@ impl<T: ?Sized> CompilerHandle<T> {
 	}
 }
 
-pub struct HandleRef<T: ?Sized> {
+pub struct CompilerHandleRef<T: ?Sized> {
 	compiler: Compiler,
 	data: *const T,
 }
 
-impl<T: ?Sized> HandleRef<T> {
+impl<T: ?Sized> CompilerHandleRef<T> {
 	pub fn as_ref(&self) -> &T {
 		self
 	}
@@ -184,7 +184,7 @@ impl<T: ?Sized> Clone for CompilerHandle<T> {
 	}
 }
 
-impl<T: ?Sized> Deref for HandleRef<T> {
+impl<T: ?Sized> Deref for CompilerHandleRef<T> {
 	type Target = T;
 
 	fn deref(&self) -> &Self::Target {

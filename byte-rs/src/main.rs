@@ -52,10 +52,10 @@ fn main() {
 
 fn execute(files: Vec<String>, eval: Vec<String>) -> Result<()> {
 	let compiler = Compiler::new();
-	let program = compiler.new_program();
+	let mut program = compiler.new_program();
 
 	for file in files.into_iter() {
-		program.load_file(file);
+		program.load_file(file)?;
 	}
 
 	program.resolve()?;

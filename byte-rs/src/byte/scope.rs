@@ -1,45 +1,48 @@
 use super::*;
 
-pub struct Scope<'a> {
-	program: &'a Program,
+pub struct Scope {
 	data: Arc<ScopeData>,
 }
 
-#[derive(Default)]
-pub(crate) struct ScopeData {
-	parent: Option<Weak<ScopeData>>,
+#[doc(hidden)]
+pub struct ScopeData {
+	program: Handle<Program>,
+	parent: Option<Handle<Scope>>,
 	children: RwLock<Vec<Arc<ScopeData>>>,
 	scanner: Option<Scanner>,
 	operators: Arc<Vec<Operator>>,
 }
 
-impl<'a> Scope<'a> {
-	pub fn as_handle(&self) -> ScopeHandle<'a> {
-		let data = Arc::downgrade(&self.data);
-		ScopeHandle {
-			program: self.program,
-			data,
+impl ScopeData {
+	pub fn new(program: Handle<Program>) -> Self {
+		Self {
+			program,
+			parent: Default::default(),
+			children: Default::default(),
+			scanner: Default::default(),
+			operators: Default::default(),
 		}
 	}
+}
 
-	pub fn parent(&self) -> Option<Scope<'a>> {
-		let program = self.program;
-		self.data.parent.as_ref().map(|parent| {
-			let data = parent.upgrade().unwrap();
-			Scope { program, data }
-		})
+impl Scope {
+	pub fn new(program: Handle<Program>) -> Self {
+		let data = ScopeData::new(program);
+		Self { data: data.into() }
 	}
 
-	pub fn new_child(&self) -> ScopeHandle<'a> {
-		let program = self.program;
-		let parent = Arc::downgrade(&self.data);
-		let mut data = ScopeData::default();
-		data.parent = Some(parent);
+	pub fn parent(&self) -> Option<HandleRef<Scope>> {
+		self.data.parent.as_ref().map(|parent| parent.get())
+	}
+
+	pub fn new_child(&self) -> Handle<Scope> {
+		let mut data = ScopeData::new(self.data.program.clone());
+		data.parent = Some(self.handle());
 		let mut children = self.data.children.write().unwrap();
 
 		let data = Arc::new(data);
 		children.push(data.clone());
-		Scope { program, data }.as_handle()
+		Scope { data }.handle()
 	}
 
 	pub fn scanner(&self) -> Scanner {
@@ -48,7 +51,7 @@ impl<'a> Scope<'a> {
 		} else if let Some(parent) = self.parent() {
 			parent.scanner()
 		} else {
-			self.program.default_scanner()
+			self.data.program.read(|x| x.default_scanner().clone())
 		}
 	}
 
@@ -71,25 +74,14 @@ impl<'a> Scope<'a> {
 	}
 }
 
-impl ScopeData {
-	pub fn to_scope<'a>(program: &'a Program, data: Arc<ScopeData>) -> Scope<'a> {
-		Scope { program, data }
+impl CanHandle for Scope {
+	type Data = ScopeData;
+
+	fn inner_data(&self) -> &Arc<Self::Data> {
+		&self.data
 	}
-}
 
-/// Carries a [`Scope`] reference.
-#[derive(Clone)]
-pub struct ScopeHandle<'a> {
-	program: &'a Program,
-	data: Weak<ScopeData>,
-}
-
-impl<'a> ScopeHandle<'a> {
-	pub fn get(&self) -> Scope {
-		let data = self.data.upgrade().unwrap();
-		Scope {
-			program: self.program,
-			data,
-		}
+	fn from_inner_data(data: Arc<Self::Data>) -> Self {
+		Scope { data }
 	}
 }

@@ -7,8 +7,6 @@ pub mod format;
 pub mod traits;
 pub mod value;
 
-use std::ops::{Range, RangeBounds};
-
 pub use arena::*;
 pub use common::*;
 pub use errors::*;

@@ -29,7 +29,7 @@ use std::{
 	collections::HashSet,
 	fmt::{Debug, Display, Formatter, Write},
 	hash::Hash,
-	ops::{Deref, RangeBounds},
+	ops::{Deref, Range, RangeBounds},
 	path::{Path, PathBuf},
 	sync::{Arc, RwLock, Weak},
 };
