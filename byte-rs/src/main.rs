@@ -59,10 +59,7 @@ fn execute(files: Vec<String>, eval: Vec<String>) -> Result<()> {
 	}
 
 	program.resolve()?;
-
-	if eval.len() == 0 {
-		program.run()?;
-	}
+	program.run()?;
 
 	for (n, expr) in eval.into_iter().enumerate() {
 		let name = format!("{{eval #{n}}}");

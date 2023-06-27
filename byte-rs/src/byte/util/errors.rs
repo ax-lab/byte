@@ -7,7 +7,7 @@ pub const MAX_ERRORS: usize = 32;
 /// List of errors.
 #[derive(Clone, Default)]
 pub struct Errors {
-	list: Arc<VecDeque<(Value, Option<Span>)>>,
+	list: Arc<VecDeque<(Value, Span)>>,
 }
 
 impl Errors {
@@ -18,6 +18,12 @@ impl Errors {
 	pub fn from<T: IsValue>(error: T) -> Self {
 		let mut errors = Self::new();
 		errors.add(error);
+		errors
+	}
+
+	pub fn from_at<T: IsValue>(error: T, span: Span) -> Self {
+		let mut errors = Self::new();
+		errors.add_at(error, span);
 		errors
 	}
 
@@ -38,13 +44,13 @@ impl Errors {
 
 	pub fn add<T: IsValue>(&mut self, error: T) {
 		let list = Arc::make_mut(&mut self.list);
-		list.push_back((Value::from(error), None));
+		list.push_back((Value::from(error), Span::None));
 	}
 
 	pub fn add_at<T: IsValue>(&mut self, error: T, span: Span) {
 		// TODO: implement span location
 		let list = Arc::make_mut(&mut self.list);
-		list.push_back((Value::from(error), Some(span)));
+		list.push_back((Value::from(error), span));
 	}
 
 	pub fn iter(&self) -> ErrorIterator {
@@ -61,12 +67,12 @@ impl Errors {
 
 pub struct ErrorData {
 	data: Value,
-	span: Option<Span>,
+	span: Span,
 }
 
 pub struct ErrorIterator {
 	next: usize,
-	list: Arc<VecDeque<(Value, Option<Span>)>>,
+	list: Arc<VecDeque<(Value, Span)>>,
 }
 
 impl Iterator for ErrorIterator {

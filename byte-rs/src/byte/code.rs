@@ -26,6 +26,35 @@ pub use values::*;
 
 use super::*;
 
+impl NodeList {
+	pub fn generate_code(&self, compiler: &Compiler) -> Result<Vec<Expr>> {
+		let mut output = Vec::new();
+		for it in self.nodes().iter() {
+			let node = self.generate_node(compiler, it)?;
+			output.push(node);
+		}
+		Ok(output)
+	}
+
+	fn generate_node(&self, compiler: &Compiler, node: &NodeData) -> Result<Expr> {
+		let value = match node.get() {
+			Node::Integer(value) => {
+				let value = IntValue::new(*value, DEFAULT_INT);
+				Expr::Value(ValueExpr::Int(value))
+			}
+			Node::Literal(value) => {
+				let value = StrValue::new(value, compiler);
+				Expr::Value(ValueExpr::Str(value))
+			}
+			value => {
+				let error = Errors::from_at(format!("cannot generate code for {value:?}"), node.span().clone());
+				return Err(error);
+			}
+		};
+		Ok(value)
+	}
+}
+
 //====================================================================================================================//
 // Expressions
 //====================================================================================================================//

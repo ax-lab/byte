@@ -43,8 +43,7 @@ impl Compiler {
 
 	pub fn eval_string<T: AsRef<str>>(&self, input: T) -> Result<Value> {
 		let mut program = self.new_program();
-		program.load_string("eval", input);
-		program.run()
+		program.eval("eval", input)
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//

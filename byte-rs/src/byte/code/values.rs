@@ -161,6 +161,8 @@ impl ValueType {
 	}
 }
 
+pub const DEFAULT_INT: IntType = IntType::I32;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IntType {
 	I8,

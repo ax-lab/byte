@@ -52,6 +52,10 @@ impl NodeData {
 	pub fn to_inner(self) -> Node {
 		self.node
 	}
+
+	pub fn span(&self) -> &Span {
+		&self.span
+	}
 }
 
 #[derive(Clone)]
@@ -66,6 +70,10 @@ impl NodeList {
 			nodes: vec![node],
 		};
 		Self { data: data.into() }
+	}
+
+	pub fn nodes(&self) -> &[NodeData] {
+		&self.data.nodes
 	}
 }
 

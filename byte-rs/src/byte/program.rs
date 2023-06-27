@@ -16,6 +16,7 @@ pub struct ProgramData {
 	compiler: CompilerRef,
 	tab_width: usize,
 	segments: RwLock<Vec<NodeList>>,
+	run_list: RwLock<Vec<NodeList>>,
 	root_scope: Scope,
 	sources: SourceList,
 }
@@ -31,6 +32,7 @@ impl Program {
 				root_scope,
 				tab_width: DEFAULT_TAB_WIDTH,
 				segments: Default::default(),
+				run_list: Default::default(),
 				sources: SourceList::new(base_path).unwrap(),
 			}
 		})
@@ -49,13 +51,19 @@ impl Program {
 	}
 
 	pub fn run(&self) -> Result<Value> {
-		todo!()
+		self.resolve()?;
+		let mut value = Value::from(());
+		let run_list = { self.data.run_list.read().unwrap().clone() };
+		for it in run_list.iter() {
+			value = self.run_resolved_nodes(it)?;
+		}
+		Ok(value)
 	}
 
 	pub fn eval<T1: Into<String>, T2: AsRef<str>>(&mut self, name: T1, text: T2) -> Result<Value> {
 		let nodes = self.load_string(name, text);
 		self.resolve()?;
-		self.run_resolved_nodes(nodes)
+		self.run_resolved_nodes(&nodes)
 	}
 
 	pub fn load_string<T1: Into<String>, T2: AsRef<str>>(&mut self, name: T1, data: T2) -> NodeList {
@@ -65,7 +73,12 @@ impl Program {
 
 	pub fn load_file<T: AsRef<Path>>(&mut self, path: T) -> Result<NodeList> {
 		let span = self.data.sources.add_file(path)?;
-		Ok(self.load_span(span))
+		let list = self.load_span(span);
+
+		let mut run_list = self.data.run_list.write().unwrap();
+		run_list.push(list.clone());
+
+		Ok(list)
 	}
 
 	fn load_span(&mut self, span: Span) -> NodeList {
@@ -77,12 +90,17 @@ impl Program {
 		list
 	}
 
-	fn run_resolved_nodes(&self, nodes: NodeList) -> Result<Value> {
-		todo!()
+	fn run_resolved_nodes(&self, nodes: &NodeList) -> Result<Value> {
+		let compiler = self.data.compiler.get();
+		let mut scope = RuntimeScope::new();
+		let mut value = Value::from(());
+		for expr in nodes.generate_code(&compiler)? {
+			value = expr.execute(&mut scope)?;
+		}
+		Ok(value)
 	}
 
 	pub fn resolve(&self) -> Result<()> {
-		todo!()
 		/*
 			for all NodeList segments, determine the next set of operators to
 			apply
@@ -122,6 +140,7 @@ impl Program {
 			just use bindings declared between the modules and let the operator
 			precedence take care of resolution
 		*/
+		todo!()
 	}
 }
 
