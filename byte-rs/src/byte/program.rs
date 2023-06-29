@@ -101,6 +101,65 @@ impl Program {
 	}
 
 	pub fn resolve(&self) -> Result<()> {
+		let mut segments = self.data.segments.write().unwrap();
+
+		let mut errors = Errors::new();
+		loop {
+			let mut to_process = Vec::new();
+			let mut precedence = None;
+
+			// collect the applicable operator for all segments
+			for it in segments.iter_mut() {
+				match it.get_next_operator(precedence) {
+					Ok(Some(op)) => {
+						let op_precedence = op.precedence();
+						assert!(precedence.is_none() || Some(op_precedence) < precedence);
+						precedence = Some(op_precedence);
+						to_process.push((op_precedence, op, it));
+					}
+					Ok(None) => {
+						// do nothing
+					}
+					Err(segment_errors) => {
+						errors.append(&segment_errors);
+					}
+				}
+			}
+
+			if errors.len() > 0 || to_process.len() == 0 {
+				break;
+			}
+
+			// precedence will contain the highest precedence level from all
+			// segments
+			let precedence = precedence.unwrap();
+
+			// only process segments that are at the highest precedence level
+			let to_process = to_process.into_iter().filter(|(prec, ..)| *prec == precedence);
+
+			let mut has_changes = false;
+
+			for (_, op, nodes) in to_process {
+				let mut context = OperatorContext::new(nodes);
+				op.apply(&mut context, &mut errors);
+				if context.has_changes() {
+					has_changes = has_changes || true;
+				}
+			}
+
+			if errors.len() > 0 {
+				return Err(errors);
+			}
+
+			if !has_changes {
+				break;
+			}
+		}
+
+		if errors.len() > 0 {
+			return Err(errors);
+		}
+
 		/*
 			for all NodeList segments, determine the next set of operators to
 			apply
@@ -140,7 +199,7 @@ impl Program {
 			just use bindings declared between the modules and let the operator
 			precedence take care of resolution
 		*/
-		todo!()
+		Ok(())
 	}
 }
 

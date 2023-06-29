@@ -91,6 +91,7 @@ impl Iterator for ErrorIterator {
 impl WithRepr for ErrorData {
 	fn output(&self, mode: ReprMode, format: ReprFormat, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
 		// TODO: properly use the location
+		let _ = self.span;
 		self.data.output(mode, format, output)
 	}
 }

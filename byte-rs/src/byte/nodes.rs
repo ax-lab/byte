@@ -63,6 +63,8 @@ pub struct NodeList {
 	data: Arc<NodeListData>,
 }
 
+has_traits!(NodeList: WithRepr);
+
 impl NodeList {
 	pub fn from_single(scope: Handle<Scope>, node: NodeData) -> Self {
 		let data = NodeListData {
@@ -72,8 +74,53 @@ impl NodeList {
 		Self { data: data.into() }
 	}
 
+	pub fn span(&self) -> Span {
+		self.data.nodes.first().map(|x| x.span().clone()).unwrap_or(Span::None)
+	}
+
+	pub fn len(&self) -> usize {
+		self.data.nodes.len()
+	}
+
+	pub fn contains<P: Fn(&Node) -> bool>(&self, predicate: P) -> bool {
+		self.data.nodes.iter().any(|x| predicate(x.get()))
+	}
+
 	pub fn nodes(&self) -> &[NodeData] {
 		&self.data.nodes
+	}
+
+	pub fn get_next_operator(&self, max_precedence: Option<Precedence>) -> Result<Option<Operator>> {
+		let operators = self.data.scope.read(|x| x.get_operators()).into_iter();
+		let operators = operators.take_while(|x| {
+			if let Some(max) = max_precedence {
+				x.precedence() <= max
+			} else {
+				true
+			}
+		});
+
+		let operators = operators.skip_while(|x| !x.can_apply(self));
+
+		let mut operators = operators;
+		if let Some(op) = operators.next() {
+			let prec = op.precedence();
+			let operators = operators.take_while(|x| x.precedence() == prec);
+			let operators = operators.collect::<Vec<_>>();
+			if operators.len() > 0 {
+				let mut error =
+					format!("ambiguous node list can accept multiple operators at the same precedence\n-> {op:?}");
+				for op in operators {
+					let _ = write!(error, ", {op:?}");
+				}
+				let _ = write!(error.indented(), "\n-> {self:?}");
+				Err(Errors::from_at(error, self.span()))
+			} else {
+				Ok(Some(op))
+			}
+		} else {
+			Ok(None)
+		}
 	}
 }
 
@@ -81,3 +128,20 @@ struct NodeListData {
 	scope: Handle<Scope>,
 	nodes: Vec<NodeData>,
 }
+
+impl WithRepr for NodeList {
+	fn output(&self, mode: ReprMode, format: ReprFormat, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
+		let _ = (mode, format);
+		write!(output, "Nodes(")?;
+		for it in self.nodes().iter() {
+			let mut output = IndentedFormatter::new(output);
+			write!(output, "\n{it:?}")?;
+		}
+		if self.nodes().len() > 0 {
+			write!(output, "\n")?;
+		}
+		write!(output, ")")
+	}
+}
+
+fmt_from_repr!(NodeList);

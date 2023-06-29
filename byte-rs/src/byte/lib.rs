@@ -77,3 +77,19 @@ mod tests {
 		Ok(())
 	}
 }
+
+/*
+	Operator rules
+	==============
+
+	1) All operators are tied to particular nodes in the list. If the given
+	   node is not present, then the operator will not be applied.
+
+	2) Operators will remove all instances of their respective nodes from the
+	   list.
+
+	3) Operators may result in a new list containing their respective nodes,
+	   but should only process those recursively if the precedence of all
+	   other operators can be ensured.
+
+*/

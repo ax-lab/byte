@@ -195,7 +195,7 @@ pub struct IndentedFormatter<'a> {
 }
 
 impl<'a> IndentedFormatter<'a> {
-	fn new(f: &'a mut dyn std::fmt::Write) -> Self {
+	pub(crate) fn new(f: &'a mut dyn std::fmt::Write) -> Self {
 		Self {
 			indent: "    ",
 			prefix: "",
