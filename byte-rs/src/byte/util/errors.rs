@@ -7,7 +7,7 @@ pub const MAX_ERRORS: usize = 32;
 /// List of errors.
 #[derive(Clone, Default)]
 pub struct Errors {
-	list: Arc<VecDeque<(Value, Span)>>,
+	list: Arc<VecDeque<(Value, Option<String>)>>,
 }
 
 impl Errors {
@@ -44,13 +44,12 @@ impl Errors {
 
 	pub fn add<T: IsValue>(&mut self, error: T) {
 		let list = Arc::make_mut(&mut self.list);
-		list.push_back((Value::from(error), Span::None));
+		list.push_back((Value::from(error), None));
 	}
 
 	pub fn add_at<T: IsValue>(&mut self, error: T, span: Span) {
-		// TODO: implement span location
 		let list = Arc::make_mut(&mut self.list);
-		list.push_back((Value::from(error), span));
+		list.push_back((Value::from(error), span.location(0)));
 	}
 
 	pub fn iter(&self) -> ErrorIterator {
@@ -67,12 +66,12 @@ impl Errors {
 
 pub struct ErrorData {
 	data: Value,
-	span: Span,
+	span: Option<String>,
 }
 
 pub struct ErrorIterator {
 	next: usize,
-	list: Arc<VecDeque<(Value, Span)>>,
+	list: Arc<VecDeque<(Value, Option<String>)>>,
 }
 
 impl Iterator for ErrorIterator {
@@ -90,9 +89,11 @@ impl Iterator for ErrorIterator {
 
 impl WithRepr for ErrorData {
 	fn output(&self, mode: ReprMode, format: ReprFormat, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
-		// TODO: properly use the location
-		let _ = self.span;
-		self.data.output(mode, format, output)
+		if let Some(location) = &self.span {
+			write!(output, "at {location}: ")?;
+		}
+		self.data.output(mode, format, output)?;
+		Ok(())
 	}
 }
 

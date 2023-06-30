@@ -155,6 +155,9 @@ impl WithRepr for NodeList {
 		for it in nodes.iter() {
 			let mut output = IndentedFormatter::new(output);
 			write!(output, "\n{it}")?;
+			if let Some(location) = it.span().location(0) {
+				write!(output, "\t\t-- {location}")?;
+			}
 		}
 		if nodes.len() > 0 {
 			write!(output, "\n")?;

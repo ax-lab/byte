@@ -224,6 +224,56 @@ impl Span {
 		}
 	}
 
+	pub fn location(&self, tab_width: usize) -> Option<String> {
+		let name = self.source_name();
+		if name.len() > 0 {
+			let location = if let Some((line, col)) = self.line_column(tab_width) {
+				format!("{name}:{line}:{col}")
+			} else {
+				format!("{name}")
+			};
+			Some(location)
+		} else {
+			None
+		}
+	}
+
+	/// Returns the line and column number for this span start location.
+	pub fn line_column(&self, tab_width: usize) -> Option<(usize, usize)> {
+		if let Some(source) = self.source_data() {
+			let offset = self.offset() - source.offset;
+			let prefix = &source.data[..offset];
+			let prefix = unsafe { std::str::from_utf8_unchecked(prefix) };
+
+			let tab_width = if tab_width == 0 { DEFAULT_TAB_WIDTH } else { tab_width };
+
+			let mut row = 0;
+			let mut col = 0;
+			let mut cr = false;
+			for char in prefix.chars() {
+				cr = if char == '\t' {
+					col += tab_width - (col % tab_width);
+					false
+				} else if char == '\n' {
+					if !cr {
+						row += 1;
+					}
+					false
+				} else if char == '\r' {
+					row += 1;
+					true
+				} else {
+					col += 1;
+					false
+				}
+			}
+
+			Some((row + 1, col + 1))
+		} else {
+			None
+		}
+	}
+
 	fn source_data(&self) -> Option<HandleMap<SourceList, SourceData>> {
 		match self {
 			Span::None => None,
