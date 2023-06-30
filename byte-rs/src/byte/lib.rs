@@ -20,8 +20,6 @@ pub use program::*;
 pub use scope::*;
 pub use util::*;
 
-pub const MAX_ERRORS: usize = 16;
-
 pub type Result<T> = std::result::Result<T, Errors>;
 
 use std::{
@@ -58,7 +56,7 @@ mod tests {
 	#[test]
 	fn eval_the_answer() -> Result<()> {
 		let compiler = Compiler::new();
-		assert_eq!(compiler.eval_string("42")?, Value::from(42i64));
+		assert_eq!(compiler.eval_string("42")?, Value::from(int(42)));
 		Ok(())
 	}
 
@@ -73,7 +71,7 @@ mod tests {
 			"result",
 		];
 		let source = source.join("\n");
-		assert_eq!(compiler.eval_string(source)?, Value::from(42i64));
+		assert_eq!(compiler.eval_string(source)?, Value::from(int(42)));
 		Ok(())
 	}
 }

@@ -161,7 +161,11 @@ impl ValueType {
 	}
 }
 
-pub const DEFAULT_INT: IntType = IntType::I32;
+pub const DEFAULT_INT: IntType = IntType::I64;
+
+pub const fn int(value: i64) -> i64 {
+	value
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IntType {

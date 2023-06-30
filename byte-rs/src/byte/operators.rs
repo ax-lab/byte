@@ -3,6 +3,7 @@ use super::*;
 pub mod bracket;
 pub mod indent;
 pub mod line;
+pub mod module;
 pub mod op_binary;
 pub mod op_ternary;
 pub mod op_unary;
@@ -10,48 +11,68 @@ pub mod op_unary;
 pub use bracket::*;
 pub use indent::*;
 pub use line::*;
+pub use module::*;
 pub use op_binary::*;
 pub use op_ternary::*;
 pub use op_unary::*;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Operator {
+	Module,
 	Tokenize,
 	SplitLines,
-}
-
-impl Operator {
-	pub fn precedence(&self) -> Precedence {
-		match self {
-			Operator::Tokenize => Precedence::Lexer,
-			Operator::SplitLines => Precedence::LineSplit,
-		}
-	}
-
-	pub fn can_apply(&self, nodes: &NodeList) -> bool {
-		match self {
-			Operator::Tokenize => nodes.contains(|x| matches!(x, Node::RawText(..))),
-			Operator::SplitLines => nodes.contains(|x| x == &Node::Break),
-		}
-	}
-
-	pub fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
-		let _ = (context, errors);
-		todo!()
-	}
 }
 
 /// Global evaluation precedence for language nodes.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum Precedence {
 	First,
+	Modules,
 	Lexer,
 	LineSplit,
 	Last,
 }
 
+impl Operator {
+	pub fn precedence(&self) -> Precedence {
+		self.get_impl().precedence()
+	}
+
+	pub fn can_apply(&self, nodes: &NodeList) -> bool {
+		self.get_impl().can_apply(nodes)
+	}
+
+	pub fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
+		self.get_impl().apply(context, errors)
+	}
+
+	fn get_impl(&self) -> &dyn IsOperator {
+		match self {
+			Operator::Module => &ModuleOperator,
+			Operator::Tokenize => todo!(),
+			Operator::SplitLines => todo!(),
+		}
+	}
+}
+
+pub trait IsOperator {
+	fn precedence(&self) -> Precedence;
+
+	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors);
+
+	fn can_apply(&self, nodes: &NodeList) -> bool {
+		nodes.contains(|x| self.predicate(x))
+	}
+
+	fn predicate(&self, node: &Node) -> bool {
+		let _ = node;
+		false
+	}
+}
+
 pub struct OperatorContext<'a> {
 	nodes: &'a mut NodeList,
+	scope: HandleRef<Scope>,
 	changes: NodeChanges,
 }
 
@@ -62,8 +83,10 @@ pub struct NodeChanges {
 
 impl<'a> OperatorContext<'a> {
 	pub fn new(nodes: &'a mut NodeList) -> Self {
+		let scope = nodes.scope();
 		Self {
 			nodes,
+			scope,
 			changes: Default::default(),
 		}
 	}
@@ -72,7 +95,11 @@ impl<'a> OperatorContext<'a> {
 		self.changes.moves.len() > 0
 	}
 
-	pub fn nodes(&self) -> &NodeList {
+	pub fn scope(&self) -> &Scope {
+		&self.scope
+	}
+
+	pub fn nodes(&mut self) -> &mut NodeList {
 		self.nodes
 	}
 

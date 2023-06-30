@@ -243,8 +243,10 @@ impl Span {
 
 impl Debug for Span {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		const MAX_LEN: usize = 30;
 		let name = self.source_name();
 		let text = self.text();
+		let chars = text.chars().count();
 
 		if let Some(source) = self.source_data() {
 			let offset = self.offset();
@@ -256,10 +258,11 @@ impl Debug for Span {
 			let full = sta == 0 && length == source.data.len();
 
 			write!(f, "<Span ")?;
-			if text.len() <= 50 {
+			if chars <= MAX_LEN {
 				write!(f, "{text:?}")?;
 			} else {
-				write!(f, "{len} bytes")?;
+				let text: String = text.chars().take(MAX_LEN).chain(std::iter::once('…')).collect();
+				write!(f, "{text:?} ({len} bytes)")?;
 			}
 			write!(f, " @{name}")?;
 			if !full {

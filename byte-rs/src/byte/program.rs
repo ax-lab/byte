@@ -26,7 +26,8 @@ impl Program {
 		let base_path = compiler.base_path();
 		let compiler = compiler.get_ref();
 		Program::new_cyclic(|handle| {
-			let root_scope = Scope::new(handle);
+			let mut root_scope = Scope::new(handle);
+			root_scope.add_operator(Operator::Module);
 			ProgramData {
 				compiler,
 				root_scope,

@@ -10,7 +10,7 @@ pub struct ScopeData {
 	parent: Option<Handle<Scope>>,
 	children: RwLock<Vec<Arc<ScopeData>>>,
 	scanner: Option<Scanner>,
-	operators: Arc<Vec<Operator>>,
+	operators: Arc<RwLock<HashSet<Operator>>>,
 }
 
 impl ScopeData {
@@ -55,6 +55,11 @@ impl Scope {
 		}
 	}
 
+	pub fn add_operator(&mut self, op: Operator) {
+		let mut operators = self.data.operators.write().unwrap();
+		operators.insert(op);
+	}
+
 	pub fn get_operators(&self) -> Vec<Operator> {
 		let mut set = HashSet::new();
 		if let Some(parent) = self.parent() {
@@ -68,7 +73,8 @@ impl Scope {
 	}
 
 	fn get_operator_set(&self, set: &mut HashSet<Operator>) {
-		for it in self.data.operators.iter() {
+		let operators = self.data.operators.read().unwrap();
+		for it in operators.iter() {
 			set.insert(it.clone());
 		}
 	}
