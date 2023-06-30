@@ -39,10 +39,9 @@ impl NodeList {
 		nodes.len()
 	}
 
-	pub fn contains<P: Fn(&Node) -> bool>(&self, predicate: P) -> bool {
-		let nodes = self.data.nodes.read().unwrap();
-		nodes.iter().any(|x| predicate(x.get()))
-	}
+	//----------------------------------------------------------------------------------------------------------------//
+	// Operators
+	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn iter(&self) -> NodeListIterator {
 		let nodes = self.data.nodes.read().unwrap();
@@ -50,62 +49,9 @@ impl NodeList {
 		NodeListIterator { index: 0, nodes }
 	}
 
-	pub fn map_nodes<P: FnMut(&NodeData) -> Option<Vec<NodeData>>>(&mut self, mut predicate: P) {
-		let mut changed = false;
-		{
-			let mut nodes = self.data.nodes.write().unwrap();
-			let nodes = Arc::make_mut(&mut nodes);
-
-			*nodes = std::mem::take(nodes)
-				.into_iter()
-				.flat_map(|it| {
-					if let Some(nodes) = predicate(&it) {
-						changed = true;
-						nodes
-					} else {
-						vec![it]
-					}
-				})
-				.collect();
-		}
-		if changed {
-			self.inc_version()
-		}
-	}
-
-	pub fn split<P: FnMut(&NodeData) -> bool, S: FnMut(NodeList) -> NodeData>(&mut self, mut split: P, mut node: S) {
-		let changed = {
-			let mut new_nodes = Vec::new();
-			let mut line = Vec::new();
-
-			let mut nodes = self.data.nodes.write().unwrap();
-			let nodes = Arc::make_mut(&mut nodes);
-
-			for it in nodes.iter() {
-				if split(it) {
-					let nodes = Self::new(self.data.scope.clone(), std::mem::take(&mut line));
-					new_nodes.push(node(nodes));
-				} else {
-					line.push(it.clone());
-				}
-			}
-
-			if line.len() > 0 {
-				let nodes = Self::new(self.data.scope.clone(), std::mem::take(&mut line));
-				new_nodes.push(node(nodes));
-			}
-
-			if new_nodes.len() > 0 {
-				*nodes = new_nodes;
-				true
-			} else {
-				false
-			}
-		};
-
-		if changed {
-			self.inc_version();
-		}
+	pub fn contains<P: Fn(&Node) -> bool>(&self, predicate: P) -> bool {
+		let nodes = self.data.nodes.read().unwrap();
+		nodes.iter().any(|x| predicate(x.get()))
 	}
 
 	pub fn get_next_operator(&self, max_precedence: Option<Precedence>) -> Result<Option<Operator>> {
@@ -141,9 +87,129 @@ impl NodeList {
 		}
 	}
 
+	pub fn map_nodes<P: FnMut(&NodeData) -> Option<Vec<NodeData>>>(&mut self, mut predicate: P) {
+		let mut changed = false;
+		{
+			let mut nodes = self.data.nodes.write().unwrap();
+			let nodes = Arc::make_mut(&mut nodes);
+
+			*nodes = std::mem::take(nodes)
+				.into_iter()
+				.flat_map(|it| {
+					if let Some(nodes) = predicate(&it) {
+						changed = true;
+						nodes
+					} else {
+						vec![it]
+					}
+				})
+				.collect();
+		}
+		if changed {
+			self.inc_version()
+		}
+	}
+
+	pub fn split_by<P: FnMut(&NodeData) -> bool, S: FnMut(NodeList) -> NodeData>(&mut self, mut split: P, mut node: S) {
+		let changed = {
+			let mut new_nodes = Vec::new();
+			let mut line = Vec::new();
+
+			let mut nodes = self.data.nodes.write().unwrap();
+			let nodes = Arc::make_mut(&mut nodes);
+
+			for it in nodes.iter() {
+				if split(it) {
+					let nodes = Self::new(self.data.scope.clone(), std::mem::take(&mut line));
+					new_nodes.push(node(nodes));
+				} else {
+					line.push(it.clone());
+				}
+			}
+
+			if line.len() > 0 {
+				let nodes = Self::new(self.data.scope.clone(), std::mem::take(&mut line));
+				new_nodes.push(node(nodes));
+			}
+
+			if new_nodes.len() > 0 {
+				*nodes = new_nodes;
+				true
+			} else {
+				false
+			}
+		};
+
+		if changed {
+			self.inc_version();
+		}
+	}
+
+	pub fn fold_first<P: FnMut(&NodeData) -> bool, S: FnMut(NodeList, NodeData, NodeList) -> NodeData>(
+		&mut self,
+		mut fold: P,
+		mut make_node: S,
+	) {
+		let mut changed = false;
+		{
+			let mut nodes = self.data.nodes.write().unwrap();
+			for i in 0..nodes.len() {
+				if fold(&nodes[i]) {
+					let scope = &self.data.scope;
+					let nodes = Arc::make_mut(&mut nodes);
+
+					let lhs = nodes[0..i].to_vec();
+					let cur = nodes[i].clone();
+					let rhs = nodes[i + 1..].to_vec();
+					let lhs = NodeList::new(scope.clone(), lhs);
+					let rhs = NodeList::new(scope.clone(), rhs);
+					let node = make_node(lhs, cur, rhs);
+					*nodes = vec![node];
+					changed = true;
+					break;
+				}
+			}
+		}
+
+		if changed {
+			self.inc_version();
+		}
+	}
+
 	fn inc_version(&mut self) {
 		let mut version = self.data.version.write().unwrap();
 		*version = *version + 1;
+	}
+
+	//----------------------------------------------------------------------------------------------------------------//
+	// Parsing helpers
+	//----------------------------------------------------------------------------------------------------------------//
+
+	pub fn get(&self, index: usize) -> Option<NodeData> {
+		let nodes = self.data.nodes.read().unwrap();
+		nodes.get(index).cloned()
+	}
+
+	pub fn get_name(&self, index: usize) -> Option<Name> {
+		let nodes = self.data.nodes.read().unwrap();
+		nodes.get(index).and_then(|x| x.name())
+	}
+
+	pub fn test_at<P: FnOnce(&NodeData) -> bool>(&self, index: usize, predicate: P) -> bool {
+		let nodes = self.data.nodes.read().unwrap();
+		nodes.get(index).map(|x| predicate(x)).unwrap_or(false)
+	}
+
+	pub fn is_identifier(&self, index: usize) -> bool {
+		self.test_at(index, |x| matches!(x.get(), Node::Word(..)))
+	}
+
+	pub fn is_keyword(&self, index: usize, word: &str) -> bool {
+		self.test_at(index, |x| x.is_word(word))
+	}
+
+	pub fn is_symbol(&self, index: usize, symbol: &str) -> bool {
+		self.test_at(index, |x| x.is_symbol(symbol))
 	}
 }
 
@@ -151,18 +217,32 @@ impl WithRepr for NodeList {
 	fn output(&self, mode: ReprMode, format: ReprFormat, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
 		let nodes = self.data.nodes.read().unwrap();
 		let _ = (mode, format);
-		write!(output, "Nodes(")?;
-		for it in nodes.iter() {
-			let mut output = IndentedFormatter::new(output);
-			write!(output, "\n{it}")?;
-			if let Some(location) = it.span().location(0) {
-				write!(output, "\t\t-- {location}")?;
+		if format == ReprFormat::Full {
+			write!(output, "Nodes(")?;
+			for (n, it) in nodes.iter().enumerate() {
+				let mut output = IndentedFormatter::new(output);
+				write!(output, "\n[{n}] = ")?;
+				write!(output, "{it}")?;
+				if let Some(location) = it.span().location(0) {
+					write!(output, "\t # at {location}")?;
+				}
 			}
+			if nodes.len() > 0 {
+				write!(output, "\n")?;
+			}
+			write!(output, ")")
+		} else {
+			write!(output, "{{")?;
+			for (n, it) in nodes.iter().enumerate() {
+				let mut output = IndentedFormatter::new(output);
+				write!(output, "{}", if n > 0 { ", " } else { " " })?;
+				write!(output, "{it}")?;
+			}
+			if nodes.len() > 0 {
+				write!(output, " ")?;
+			}
+			write!(output, "}}")
 		}
-		if nodes.len() > 0 {
-			write!(output, "\n")?;
-		}
-		write!(output, ")")
 	}
 }
 

@@ -1,6 +1,7 @@
 use super::*;
 
 pub mod bracket;
+pub mod decl;
 pub mod indent;
 pub mod line;
 pub mod module;
@@ -9,6 +10,7 @@ pub mod op_ternary;
 pub mod op_unary;
 
 pub use bracket::*;
+pub use decl::*;
 pub use indent::*;
 pub use line::*;
 pub use module::*;
@@ -19,18 +21,18 @@ pub use op_unary::*;
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Operator {
 	Module,
-	Tokenize,
 	SplitLines,
+	Let,
 }
 
 /// Global evaluation precedence for language nodes.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum Precedence {
-	First,
-	Modules,
-	Lexer,
-	LineSplit,
-	Last,
+	Highest,
+	Module,
+	SplitLines,
+	Let,
+	Least,
 }
 
 impl Operator {
@@ -49,8 +51,8 @@ impl Operator {
 	fn get_impl(&self) -> &dyn IsOperator {
 		match self {
 			Operator::Module => &ModuleOperator,
-			Operator::Tokenize => todo!(),
 			Operator::SplitLines => &SplitLineOperator,
+			Operator::Let => &LetOperator,
 		}
 	}
 }

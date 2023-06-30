@@ -11,6 +11,7 @@ pub use list::*;
 /// definitions.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Node {
+	//----[ Tokens ]----------------------------------------------------------//
 	Break,
 	Indent(usize),
 	Comment,
@@ -18,14 +19,27 @@ pub enum Node {
 	Symbol(Name),
 	Literal(String),
 	Integer(u128),
+	//----[ Structural ]------------------------------------------------------//
 	Module(Span),
 	Line(NodeList),
 	RawText(Span),
+	//----[ AST ]-------------------------------------------------------------//
+	Let(Name, NodeList),
 }
 
 impl Node {
 	pub fn at(self, span: Span) -> NodeData {
 		NodeData::new(self, span)
+	}
+
+	pub fn name(&self) -> Option<Name> {
+		let name = match self {
+			Node::Word(name) => name,
+			Node::Symbol(name) => name,
+			Node::Let(name, ..) => name,
+			_ => return None,
+		};
+		Some(name.clone())
 	}
 }
 
@@ -57,6 +71,30 @@ impl NodeData {
 
 	pub fn span(&self) -> &Span {
 		&self.span
+	}
+
+	//----------------------------------------------------------------------------------------------------------------//
+	// Parsing helpers
+	//----------------------------------------------------------------------------------------------------------------//
+
+	pub fn is_symbol(&self, symbol: &str) -> bool {
+		if let Node::Symbol(text) = self.get() {
+			text == symbol
+		} else {
+			false
+		}
+	}
+
+	pub fn is_word(&self, word: &str) -> bool {
+		if let Node::Word(text) = self.get() {
+			text == word
+		} else {
+			false
+		}
+	}
+
+	pub fn name(&self) -> Option<Name> {
+		self.get().name()
 	}
 }
 

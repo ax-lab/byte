@@ -92,7 +92,13 @@ impl WithRepr for ErrorData {
 		if let Some(location) = &self.span {
 			write!(output, "at {location}: ")?;
 		}
-		self.data.output(mode, format, output)?;
+		if let Some(data) = get_trait!(&self.data, WithRepr) {
+			data.output(mode, format, output)?;
+		} else if mode == ReprMode::Debug {
+			write!(output, "{:?}", self.data)?;
+		} else {
+			write!(output, "{}", self.data)?;
+		}
 		Ok(())
 	}
 }

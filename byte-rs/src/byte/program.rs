@@ -29,6 +29,7 @@ impl Program {
 			let mut root_scope = Scope::new(handle);
 			root_scope.add_operator(Operator::Module);
 			root_scope.add_operator(Operator::SplitLines);
+			root_scope.add_operator(Operator::Let);
 			ProgramData {
 				compiler,
 				root_scope,
@@ -115,7 +116,7 @@ impl Program {
 				match it.get_next_operator(precedence) {
 					Ok(Some(op)) => {
 						let op_precedence = op.precedence();
-						assert!(precedence.is_none() || Some(op_precedence) < precedence);
+						assert!(precedence.is_none() || Some(op_precedence) <= precedence);
 						precedence = Some(op_precedence);
 						to_process.push((op_precedence, op, it));
 					}

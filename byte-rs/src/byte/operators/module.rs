@@ -4,7 +4,7 @@ pub struct ModuleOperator;
 
 impl IsOperator for ModuleOperator {
 	fn precedence(&self) -> Precedence {
-		Precedence::Modules
+		Precedence::Module
 	}
 
 	fn predicate(&self, node: &Node) -> bool {

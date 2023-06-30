@@ -4,7 +4,7 @@ pub struct SplitLineOperator;
 
 impl IsOperator for SplitLineOperator {
 	fn precedence(&self) -> Precedence {
-		Precedence::LineSplit
+		Precedence::SplitLines
 	}
 
 	fn predicate(&self, node: &Node) -> bool {
@@ -15,7 +15,7 @@ impl IsOperator for SplitLineOperator {
 		let _ = errors;
 
 		let mut to_resolve = Vec::new();
-		context.nodes().split(
+		context.nodes().split_by(
 			|n| n.get() == &Node::Break,
 			|list| {
 				to_resolve.push(list.clone());

@@ -131,7 +131,7 @@ pub use repr_macros::*;
 // Format mixin
 //====================================================================================================================//
 
-pub trait MixinFormattedOutput {
+trait MixinFormattedOutput {
 	fn output(&self, mode: ReprMode, format: ReprFormat, output: &mut dyn std::fmt::Write) -> std::fmt::Result;
 
 	fn fmt_debug(&self, output: &mut dyn std::fmt::Write) -> std::fmt::Result {

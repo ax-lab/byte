@@ -55,7 +55,11 @@ impl NodeList {
 			},
 			value => {
 				let mut error = format!("cannot generate code for `{value:?}`");
-				let _ = write!(error.indented(), "\n\n{self:?}");
+				{
+					let mut output = error.indented();
+					let _ = write!(output, "\n\n");
+					let _ = self.output(ReprMode::Debug, ReprFormat::Full, &mut output);
+				}
 				let error = Errors::from_at(error, node.span().clone());
 				return Err(error);
 			}
