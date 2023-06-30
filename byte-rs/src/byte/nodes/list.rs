@@ -29,9 +29,18 @@ impl NodeList {
 		self.data.scope.get()
 	}
 
+	pub fn scope_mut(&mut self) -> HandleMut<Scope> {
+		unsafe { self.data.scope.get_mut() }
+	}
+
 	pub fn span(&self) -> Span {
 		let nodes = self.data.nodes.read().unwrap();
 		nodes.first().map(|x| x.span().clone()).unwrap_or(Span::None)
+	}
+
+	pub fn offset(&self) -> usize {
+		let nodes = self.data.nodes.read().unwrap();
+		nodes.first().map(|x| x.offset()).unwrap_or(0)
 	}
 
 	pub fn len(&self) -> usize {

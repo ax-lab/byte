@@ -150,6 +150,22 @@ impl Program {
 				if context.has_node_changes() {
 					has_changes = has_changes || true;
 				}
+
+				let declares = context.get_declares();
+				drop(context);
+
+				let mut scope = nodes.scope_mut();
+				for (name, offset, value) in declares {
+					let result = if let Some(offset) = offset {
+						scope.set_at(name, offset, value)
+					} else {
+						scope.set_static(name, value)
+					};
+					match result {
+						Ok(..) => {}
+						Err(errs) => errors.append(&errs),
+					}
+				}
 			}
 
 			if errors.len() > 0 {

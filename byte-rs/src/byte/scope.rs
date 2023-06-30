@@ -11,6 +11,7 @@ pub struct ScopeData {
 	children: RwLock<Vec<Arc<ScopeData>>>,
 	scanner: Option<Scanner>,
 	operators: Arc<RwLock<HashSet<Operator>>>,
+	bindings: RwLock<HashMap<Name, BindingList>>,
 }
 
 impl ScopeData {
@@ -21,6 +22,7 @@ impl ScopeData {
 			children: Default::default(),
 			scanner: Default::default(),
 			operators: Default::default(),
+			bindings: Default::default(),
 		}
 	}
 }
@@ -49,6 +51,10 @@ impl Scope {
 		Scope { data }.handle()
 	}
 
+	//----------------------------------------------------------------------------------------------------------------//
+	// Scanner
+	//----------------------------------------------------------------------------------------------------------------//
+
 	pub fn scanner(&self) -> Scanner {
 		if let Some(ref scanner) = self.data.scanner {
 			scanner.clone()
@@ -58,6 +64,10 @@ impl Scope {
 			self.data.program.read(|x| x.default_scanner().clone())
 		}
 	}
+
+	//----------------------------------------------------------------------------------------------------------------//
+	// Operators
+	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn add_operator(&mut self, op: Operator) {
 		let mut operators = self.data.operators.write().unwrap();
@@ -82,6 +92,66 @@ impl Scope {
 			set.insert(it.clone());
 		}
 	}
+
+	//----------------------------------------------------------------------------------------------------------------//
+	// Bindings
+	//----------------------------------------------------------------------------------------------------------------//
+
+	pub fn get_static(&self, name: Name) -> Option<BindingValue> {
+		let value = {
+			let bindings = self.data.bindings.read().unwrap();
+			bindings.get(&name).and_then(|x| x.get_static().cloned())
+		};
+
+		value.or_else(|| {
+			if let Some(parent) = self.parent() {
+				parent.get_static(name)
+			} else {
+				None
+			}
+		})
+	}
+
+	pub fn get_at(&self, name: Name, offset: usize) -> Option<BindingValue> {
+		let value = {
+			let bindings = self.data.bindings.read().unwrap();
+			bindings.get(&name).and_then(|x| x.get_at(offset).cloned())
+		};
+
+		value.or_else(|| {
+			if let Some(parent) = self.parent() {
+				parent.get_at(name, offset)
+			} else {
+				None
+			}
+		})
+	}
+
+	pub fn set_static(&mut self, name: Name, value: BindingValue) -> Result<()> {
+		let mut bindings = self.data.bindings.write().unwrap();
+		let binding = bindings.entry(name.clone()).or_insert(Default::default());
+		let span = value.span();
+		if binding.set_static(value) {
+			Ok(())
+		} else {
+			let error = format!("static `{name}` already defined");
+			let error = Errors::from_at(error, span);
+			Err(error)
+		}
+	}
+
+	pub fn set_at(&mut self, name: Name, offset: usize, value: BindingValue) -> Result<()> {
+		let mut bindings = self.data.bindings.write().unwrap();
+		let binding = bindings.entry(name.clone()).or_insert(Default::default());
+		let span = value.span();
+		if binding.set_at(offset, value) {
+			Ok(())
+		} else {
+			let error = format!("`{name}` already defined for the given offset");
+			let error = Errors::from_at(error, span);
+			Err(error)
+		}
+	}
 }
 
 impl CanHandle for Scope {
@@ -93,5 +163,69 @@ impl CanHandle for Scope {
 
 	fn from_inner_data(data: Arc<Self::Data>) -> Self {
 		Scope { data }
+	}
+}
+
+#[derive(Default)]
+struct BindingList {
+	value_static: Option<BindingValue>,
+	value_from: Vec<(usize, BindingValue)>,
+}
+
+#[derive(Clone)]
+pub enum BindingValue {
+	NodeList(NodeList),
+	Node(NodeData),
+}
+
+impl BindingValue {
+	pub fn span(&self) -> Span {
+		match self {
+			BindingValue::NodeList(list) => list.span(),
+			BindingValue::Node(node) => node.span().clone(),
+		}
+	}
+}
+
+impl BindingList {
+	pub fn get_static(&self) -> Option<&BindingValue> {
+		self.value_static.as_ref()
+	}
+
+	pub fn set_static(&mut self, value: BindingValue) -> bool {
+		if self.value_static.is_some() {
+			false
+		} else {
+			self.value_static = Some(value);
+			true
+		}
+	}
+
+	pub fn set_at(&mut self, offset: usize, value: BindingValue) -> bool {
+		let index = self.value_from.binary_search_by_key(&offset, |x| x.0);
+		match index {
+			Ok(..) => false, // offset already exists
+			Err(index) => {
+				self.value_from.insert(index, (offset, value));
+				true
+			}
+		}
+	}
+
+	pub fn get_at(&self, offset: usize) -> Option<&BindingValue> {
+		let index = self.value_from.binary_search_by_key(&offset, |x| x.0);
+
+		// return the nearest definition visible at the requested offset
+		let index = match index {
+			Ok(index) => index,
+			Err(index) => {
+				if index > 0 {
+					index - 1
+				} else {
+					return self.get_static();
+				}
+			}
+		};
+		Some(&self.value_from[index].1)
 	}
 }

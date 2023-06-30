@@ -13,13 +13,21 @@ impl IsOperator for LetOperator {
 
 	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
 		let _ = errors;
+		let mut declares = Vec::new();
 		context.nodes().fold_first(
 			|node| node.is_symbol("="),
 			|lhs, _, rhs| {
 				let name = lhs.get_name(lhs.len() - 1).unwrap();
+				let offset = rhs.offset();
+				let value = BindingValue::NodeList(rhs.clone());
+				declares.push((name.clone(), offset, value));
 				let node = Node::Let(name, rhs);
 				node.at(lhs.span())
 			},
 		);
+
+		for (name, offset, value) in declares {
+			context.declare_at(name, offset, value);
+		}
 	}
 }

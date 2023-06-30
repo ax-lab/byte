@@ -78,6 +78,7 @@ pub struct OperatorContext<'a> {
 	scope: HandleRef<Scope>,
 	version: usize,
 	new_segments: Vec<NodeList>,
+	declares: Vec<(Name, Option<usize>, BindingValue)>,
 }
 
 impl<'a> OperatorContext<'a> {
@@ -91,6 +92,7 @@ impl<'a> OperatorContext<'a> {
 			scope,
 			version,
 			new_segments: Default::default(),
+			declares: Default::default(),
 		}
 	}
 
@@ -114,7 +116,19 @@ impl<'a> OperatorContext<'a> {
 		self.new_segments.push(list.clone())
 	}
 
+	pub fn declare_static(&mut self, name: Name, value: BindingValue) {
+		self.declares.push((name, None, value));
+	}
+
+	pub fn declare_at(&mut self, name: Name, offset: usize, value: BindingValue) {
+		self.declares.push((name, Some(offset), value));
+	}
+
 	pub(crate) fn get_new_segments(&mut self, output: &mut Vec<NodeList>) {
 		output.append(&mut self.new_segments)
+	}
+
+	pub(crate) fn get_declares(&mut self) -> Vec<(Name, Option<usize>, BindingValue)> {
+		std::mem::take(&mut self.declares)
 	}
 }

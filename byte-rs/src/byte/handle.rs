@@ -38,6 +38,12 @@ impl<T: CanHandle> Handle<T> {
 		HandleRef { data }
 	}
 
+	pub unsafe fn get_mut(&self) -> HandleMut<T> {
+		let data = self.upgrade();
+		let data = T::from_inner_data(data);
+		HandleMut { data }
+	}
+
 	pub fn get_map<U, P: Fn(&T) -> &U>(&self, predicate: P) -> HandleMap<T, U> {
 		let main = self.upgrade();
 		let main = T::from_inner_data(main);
@@ -110,6 +116,28 @@ impl<T: CanHandle> Deref for HandleRef<T> {
 
 	fn deref(&self) -> &Self::Target {
 		&self.data
+	}
+}
+
+//====================================================================================================================//
+// HandleMut
+//====================================================================================================================//
+
+pub struct HandleMut<T: CanHandle> {
+	data: T,
+}
+
+impl<T: CanHandle> Deref for HandleMut<T> {
+	type Target = T;
+
+	fn deref(&self) -> &Self::Target {
+		&self.data
+	}
+}
+
+impl<T: CanHandle> DerefMut for HandleMut<T> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.data
 	}
 }
 

@@ -27,7 +27,7 @@ use std::{
 	collections::HashSet,
 	fmt::{Debug, Display, Formatter, Write},
 	hash::Hash,
-	ops::{Deref, Range, RangeBounds},
+	ops::{Deref, DerefMut, Range, RangeBounds},
 	path::{Path, PathBuf},
 	sync::{Arc, RwLock, Weak},
 };
