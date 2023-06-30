@@ -31,6 +31,10 @@ impl Scope {
 		Self { data: data.into() }
 	}
 
+	pub fn program(&self) -> HandleRef<Program> {
+		self.data.program.get()
+	}
+
 	pub fn parent(&self) -> Option<HandleRef<Scope>> {
 		self.data.parent.as_ref().map(|parent| parent.get())
 	}

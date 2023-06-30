@@ -46,6 +46,13 @@ impl NodeList {
 				let value = StrValue::new(value, compiler);
 				Expr::Value(ValueExpr::Str(value))
 			}
+			Node::Line(list) => match list.len() {
+				0 => Expr::Value(ValueExpr::Unit),
+				_ => {
+					let code = list.generate_code(compiler)?;
+					Expr::Sequence(code)
+				}
+			},
 			value => {
 				let mut error = format!("cannot generate code for `{value:?}`");
 				let _ = write!(error.indented(), "\n\n{self:?}");
@@ -67,6 +74,7 @@ pub enum Expr {
 	Value(ValueExpr),
 	Variable(Name, Type),
 	Binary(BinaryOp, CompilerHandle<Expr>, CompilerHandle<Expr>),
+	Sequence(Vec<Expr>),
 }
 
 impl Expr {
@@ -75,6 +83,10 @@ impl Expr {
 			Expr::Value(value) => Type::Value(value.get_type()),
 			Expr::Variable(.., kind) => kind.clone(),
 			Expr::Binary(op, ..) => op.get().get_type(),
+			Expr::Sequence(list) => list
+				.last()
+				.map(|x| x.get_type())
+				.unwrap_or_else(|| Type::Value(ValueType::Unit)),
 		}
 	}
 
@@ -86,6 +98,14 @@ impl Expr {
 				let lhs = lhs.get().execute(scope)?;
 				let rhs = rhs.get().execute(scope)?;
 				op.get().execute(lhs, rhs)
+			}
+			Expr::Sequence(list) => {
+				let mut value = Value::from(());
+				for it in list.iter() {
+					let next = it.execute(scope)?;
+					value = Value::from(next);
+				}
+				Ok(value)
 			}
 		}
 	}

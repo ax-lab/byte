@@ -18,8 +18,9 @@ pub enum Node {
 	Symbol(Name),
 	Literal(String),
 	Integer(u128),
-	RawText(Span),
 	Module(Span),
+	Line(NodeList),
+	RawText(Span),
 }
 
 impl Node {
@@ -29,7 +30,7 @@ impl Node {
 }
 
 /// Encapsulates a [`Node`] with additional data.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone)]
 pub struct NodeData {
 	id: Id,
 	node: Node,
@@ -71,3 +72,11 @@ impl Debug for NodeData {
 		write!(f, "<{id} {node:?}>")
 	}
 }
+
+impl PartialEq for NodeData {
+	fn eq(&self, other: &Self) -> bool {
+		self.node == other.node
+	}
+}
+
+impl Eq for NodeData {}

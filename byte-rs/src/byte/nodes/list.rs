@@ -9,11 +9,20 @@ has_traits!(NodeList: WithRepr);
 
 impl NodeList {
 	pub fn from_single(scope: Handle<Scope>, node: NodeData) -> Self {
+		Self::new(scope, vec![node])
+	}
+
+	pub fn new(scope: Handle<Scope>, nodes: Vec<NodeData>) -> Self {
 		let data = NodeListData {
+			version: RwLock::new(0),
 			scope,
-			nodes: RwLock::new(Arc::new(vec![node])),
+			nodes: RwLock::new(Arc::new(nodes)),
 		};
 		Self { data: data.into() }
+	}
+
+	pub fn version(&self) -> usize {
+		*self.data.version.read().unwrap()
 	}
 
 	pub fn scope(&self) -> HandleRef<Scope> {
@@ -42,19 +51,61 @@ impl NodeList {
 	}
 
 	pub fn map_nodes<P: FnMut(&NodeData) -> Option<Vec<NodeData>>>(&mut self, mut predicate: P) {
-		let mut nodes = self.data.nodes.write().unwrap();
-		let nodes = Arc::make_mut(&mut nodes);
+		let mut changed = false;
+		{
+			let mut nodes = self.data.nodes.write().unwrap();
+			let nodes = Arc::make_mut(&mut nodes);
 
-		*nodes = std::mem::take(nodes)
-			.into_iter()
-			.flat_map(|it| {
-				if let Some(nodes) = predicate(&it) {
-					nodes
+			*nodes = std::mem::take(nodes)
+				.into_iter()
+				.flat_map(|it| {
+					if let Some(nodes) = predicate(&it) {
+						changed = true;
+						nodes
+					} else {
+						vec![it]
+					}
+				})
+				.collect();
+		}
+		if changed {
+			self.inc_version()
+		}
+	}
+
+	pub fn split<P: FnMut(&NodeData) -> bool, S: FnMut(NodeList) -> NodeData>(&mut self, mut split: P, mut node: S) {
+		let changed = {
+			let mut new_nodes = Vec::new();
+			let mut line = Vec::new();
+
+			let mut nodes = self.data.nodes.write().unwrap();
+			let nodes = Arc::make_mut(&mut nodes);
+
+			for it in nodes.iter() {
+				if split(it) {
+					let nodes = Self::new(self.data.scope.clone(), std::mem::take(&mut line));
+					new_nodes.push(node(nodes));
 				} else {
-					vec![it]
+					line.push(it.clone());
 				}
-			})
-			.collect();
+			}
+
+			if line.len() > 0 {
+				let nodes = Self::new(self.data.scope.clone(), std::mem::take(&mut line));
+				new_nodes.push(node(nodes));
+			}
+
+			if new_nodes.len() > 0 {
+				*nodes = new_nodes;
+				true
+			} else {
+				false
+			}
+		};
+
+		if changed {
+			self.inc_version();
+		}
 	}
 
 	pub fn get_next_operator(&self, max_precedence: Option<Precedence>) -> Result<Option<Operator>> {
@@ -89,11 +140,11 @@ impl NodeList {
 			Ok(None)
 		}
 	}
-}
 
-struct NodeListData {
-	scope: Handle<Scope>,
-	nodes: RwLock<Arc<Vec<NodeData>>>,
+	fn inc_version(&mut self) {
+		let mut version = self.data.version.write().unwrap();
+		*version = *version + 1;
+	}
 }
 
 impl WithRepr for NodeList {
@@ -113,6 +164,28 @@ impl WithRepr for NodeList {
 }
 
 fmt_from_repr!(NodeList);
+
+impl PartialEq for NodeList {
+	fn eq(&self, other: &Self) -> bool {
+		Arc::as_ptr(&self.data) == Arc::as_ptr(&other.data)
+	}
+}
+
+impl Eq for NodeList {}
+
+//====================================================================================================================//
+// NodeListData
+//====================================================================================================================//
+
+struct NodeListData {
+	version: RwLock<usize>,
+	scope: Handle<Scope>,
+	nodes: RwLock<Arc<Vec<NodeData>>>,
+}
+
+//====================================================================================================================//
+// Iterator
+//====================================================================================================================//
 
 pub struct NodeListIterator {
 	index: usize,

@@ -28,6 +28,7 @@ impl Program {
 		Program::new_cyclic(|handle| {
 			let mut root_scope = Scope::new(handle);
 			root_scope.add_operator(Operator::Module);
+			root_scope.add_operator(Operator::SplitLines);
 			ProgramData {
 				compiler,
 				root_scope,
@@ -140,16 +141,25 @@ impl Program {
 
 			let mut has_changes = false;
 
+			let mut new_segments = Vec::new();
 			for (_, op, nodes) in to_process {
 				let mut context = OperatorContext::new(nodes);
 				op.apply(&mut context, &mut errors);
-				if context.has_changes() {
+				context.get_new_segments(&mut new_segments);
+				if context.has_node_changes() {
 					has_changes = has_changes || true;
 				}
 			}
 
 			if errors.len() > 0 {
 				return Err(errors);
+			}
+
+			for it in new_segments {
+				if !segments.contains(&it) {
+					has_changes = true;
+					segments.push(it);
+				}
 			}
 
 			if !has_changes {

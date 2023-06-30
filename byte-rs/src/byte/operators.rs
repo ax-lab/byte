@@ -50,7 +50,7 @@ impl Operator {
 		match self {
 			Operator::Module => &ModuleOperator,
 			Operator::Tokenize => todo!(),
-			Operator::SplitLines => todo!(),
+			Operator::SplitLines => &SplitLineOperator,
 		}
 	}
 }
@@ -72,27 +72,32 @@ pub trait IsOperator {
 
 pub struct OperatorContext<'a> {
 	nodes: &'a mut NodeList,
+	program: HandleRef<Program>,
 	scope: HandleRef<Scope>,
-	changes: NodeChanges,
-}
-
-#[derive(Default)]
-pub struct NodeChanges {
-	moves: Vec<(Range<usize>, Vec<NodeData>)>,
+	version: usize,
+	new_segments: Vec<NodeList>,
 }
 
 impl<'a> OperatorContext<'a> {
 	pub fn new(nodes: &'a mut NodeList) -> Self {
 		let scope = nodes.scope();
+		let program = scope.program();
+		let version = nodes.version();
 		Self {
 			nodes,
+			program,
 			scope,
-			changes: Default::default(),
+			version,
+			new_segments: Default::default(),
 		}
 	}
 
-	pub fn has_changes(&self) -> bool {
-		self.changes.moves.len() > 0
+	pub fn has_node_changes(&self) -> bool {
+		self.nodes.version() > self.version
+	}
+
+	pub fn program(&self) -> &Program {
+		&self.program
 	}
 
 	pub fn scope(&self) -> &Scope {
@@ -103,29 +108,11 @@ impl<'a> OperatorContext<'a> {
 		self.nodes
 	}
 
-	pub fn replace_nodes<T: RangeBounds<usize>>(&mut self, range: T, nodes: Vec<NodeData>) {
-		let range = compute_range(range, self.nodes.len());
+	pub fn resolve_nodes(&mut self, list: &NodeList) {
+		self.new_segments.push(list.clone())
+	}
 
-		// find the index of the first existing range that is either past the
-		// new range starting point, or overlaps it
-		let index = self
-			.changes
-			.moves
-			.partition_point(|x| x.0.start < range.start && x.0.end <= range.start);
-
-		// validate that the new range does not overlap the existing range
-		if index < self.changes.moves.len() {
-			let next = &self.changes.moves[index].0;
-
-			// handle the new range overlapping the existing one or both being
-			// zero-width insertions at the same point
-			let overlaps = range.end > next.start || &range == next;
-			if overlaps {
-				let (r1, r2) = (range.start, range.end);
-				let (n1, n2) = (next.start, next.end);
-				panic!("operator replacement #{r1}-{r2} overlaps existing #{n1}-{n2}");
-			}
-		}
-		self.changes.moves.insert(index, (range, nodes));
+	pub(crate) fn get_new_segments(&mut self, output: &mut Vec<NodeList>) {
+		output.append(&mut self.new_segments)
 	}
 }
