@@ -48,6 +48,12 @@ impl NodeList {
 		nodes.len()
 	}
 
+	pub fn slice<T: RangeBounds<usize>>(&self, range: T) -> NodeList {
+		let nodes = self.data.nodes.read().unwrap();
+		let range = compute_range(range, self.len());
+		Self::new(self.data.scope.clone(), nodes[range].to_vec())
+	}
+
 	//----------------------------------------------------------------------------------------------------------------//
 	// Operators
 	//----------------------------------------------------------------------------------------------------------------//
@@ -136,6 +142,15 @@ impl NodeList {
 		if changed {
 			self.inc_version();
 		}
+	}
+
+	pub fn replace_all(&mut self, new_nodes: Vec<NodeData>) {
+		{
+			let mut nodes = self.data.nodes.write().unwrap();
+			let nodes = Arc::make_mut(&mut nodes);
+			*nodes = new_nodes;
+		}
+		self.inc_version();
 	}
 
 	pub fn split_by<P: FnMut(&NodeData) -> bool, S: FnMut(NodeList) -> NodeData>(&mut self, mut split: P, mut node: S) {

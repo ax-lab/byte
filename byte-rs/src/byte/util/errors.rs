@@ -158,6 +158,18 @@ impl From<std::io::Error> for Errors {
 	}
 }
 
+impl From<std::string::FromUtf8Error> for Errors {
+	fn from(value: std::string::FromUtf8Error) -> Self {
+		Errors::from(format!("utf8 error: {value}"))
+	}
+}
+
+impl From<std::fmt::Error> for Errors {
+	fn from(value: std::fmt::Error) -> Self {
+		Errors::from(format!("{value}"))
+	}
+}
+
 //====================================================================================================================//
 // Tests
 //====================================================================================================================//

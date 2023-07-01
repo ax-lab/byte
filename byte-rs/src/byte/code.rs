@@ -78,6 +78,10 @@ impl NodeList {
 					return Err(error);
 				}
 			}
+			Node::Print(expr, tail) => {
+				let expr = expr.generate_expr(context)?;
+				Expr::Print(expr.into(), tail)
+			}
 			Node::BinaryOp(op, lhs, rhs) => {
 				let lhs = lhs.generate_expr(context)?;
 				let rhs = rhs.generate_expr(context)?;
@@ -120,6 +124,7 @@ pub enum Expr {
 	Declare(Name, Option<usize>, Arc<Expr>),
 	Value(ValueExpr),
 	Variable(Name, Option<usize>, Type),
+	Print(Arc<Expr>, &'static str),
 	Binary(BinaryOpImpl, Arc<Expr>, Arc<Expr>),
 	Sequence(Vec<Expr>),
 }
@@ -130,6 +135,7 @@ impl Expr {
 			Expr::Declare(.., expr) => expr.get_type(),
 			Expr::Value(value) => Type::Value(value.get_type()),
 			Expr::Variable(.., kind) => kind.clone(),
+			Expr::Print(..) => Type::Value(ValueType::Unit),
 			Expr::Binary(op, ..) => op.get().get_type(),
 			Expr::Sequence(list) => list
 				.last()
@@ -150,6 +156,12 @@ impl Expr {
 				Some(value) => Ok(value),
 				None => Err(Errors::from(format!("variable {name} not set"))),
 			},
+			Expr::Print(expr, tail) => {
+				let value = expr.execute(scope)?;
+				let mut output = scope.stdout();
+				write!(output, "{value}{tail}")?;
+				Ok(Value::from(()))
+			}
 			Expr::Binary(op, lhs, rhs) => {
 				let lhs = lhs.execute(scope)?;
 				let rhs = rhs.execute(scope)?;

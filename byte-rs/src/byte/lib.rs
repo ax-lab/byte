@@ -44,6 +44,27 @@ mod tests {
 	}
 
 	#[test]
+	fn hello_world() -> Result<()> {
+		let compiler = Compiler::new();
+		let mut program = compiler.new_program();
+
+		let output: Arc<RwLock<Vec<u8>>> = Default::default();
+		program.configure_runtime(|rt| {
+			let output = RuntimeOutput::Memory(output.clone());
+			rt.redirect_stdout(output);
+		});
+
+		let nodes = program.load_string("hello", "print 'hello world!!!'");
+		program.run_nodes(&nodes)?;
+
+		let output = output.read().unwrap().clone();
+		let output = String::from_utf8(output)?;
+		assert_eq!(output, "hello world!!!\n");
+
+		Ok(())
+	}
+
+	#[test]
 	fn eval_hello() -> Result<()> {
 		let compiler = Compiler::new();
 		assert_eq!(

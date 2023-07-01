@@ -19,6 +19,7 @@ pub struct ProgramData {
 	run_list: RwLock<Vec<NodeList>>,
 	root_scope: Scope,
 	sources: SourceList,
+	runtime: RwLock<RuntimeScope>,
 }
 
 impl Program {
@@ -30,6 +31,7 @@ impl Program {
 			root_scope.add_operator(Operator::SplitLines);
 			root_scope.add_operator(Operator::Let);
 			root_scope.add_operator(Operator::Bind);
+			root_scope.add_operator(Operator::Print);
 
 			let mut ops = OpMap::new();
 			ops.add(compiler.get_name("+"), BinaryOp::Add);
@@ -47,8 +49,14 @@ impl Program {
 				segments: Default::default(),
 				run_list: Default::default(),
 				sources: SourceList::new(base_path).unwrap(),
+				runtime: Default::default(),
 			}
 		})
+	}
+
+	pub fn configure_runtime<P: FnOnce(&mut RuntimeScope)>(&mut self, action: P) {
+		let mut runtime = self.data.runtime.write().unwrap();
+		(action)(&mut runtime);
 	}
 
 	pub fn default_scanner(&self) -> Scanner {
@@ -94,6 +102,11 @@ impl Program {
 		Ok(list)
 	}
 
+	pub fn run_nodes(&mut self, nodes: &NodeList) -> Result<Value> {
+		self.resolve()?;
+		self.run_resolved_nodes(nodes)
+	}
+
 	fn load_span(&mut self, span: Span) -> NodeList {
 		let node = Node::Module(span.clone()).at(span);
 		let scope = self.root_scope().new_child();
@@ -105,7 +118,11 @@ impl Program {
 
 	fn run_resolved_nodes(&self, nodes: &NodeList) -> Result<Value> {
 		let mut context = CodeContext::new(self.data.compiler.clone());
-		let mut scope = RuntimeScope::new();
+		let scope = self.data.runtime.write();
+		let mut scope = match scope {
+			Ok(scope) => scope,
+			Err(poisoned) => poisoned.into_inner(),
+		};
 		let mut value = Value::from(());
 		for expr in nodes.generate_code(&mut context)? {
 			value = expr.execute(&mut scope)?;

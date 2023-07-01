@@ -7,6 +7,7 @@ pub mod indent;
 pub mod line;
 pub mod module;
 pub mod parse_ops;
+pub mod print;
 
 pub use bind::*;
 pub use bracket::*;
@@ -15,12 +16,14 @@ pub use indent::*;
 pub use line::*;
 pub use module::*;
 pub use parse_ops::*;
+pub use print::*;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Operator {
 	Module,
 	SplitLines,
 	Let,
+	Print,
 	Bind,
 	Binary(ParseBinaryOp),
 }
@@ -33,6 +36,7 @@ pub enum Precedence {
 	SplitLines,
 	Let,
 	OpAdditive,
+	Print,
 	Bind,
 	Least,
 }
@@ -62,6 +66,7 @@ impl Operator {
 			Operator::SplitLines => &SplitLineOperator,
 			Operator::Let => &LetOperator,
 			Operator::Bind => &BindOperator,
+			Operator::Print => &PrintOperator,
 			Operator::Binary(op) => op,
 		}
 	}

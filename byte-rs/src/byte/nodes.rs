@@ -27,6 +27,7 @@ pub enum Node {
 	Let(Name, usize, NodeList),
 	BinaryOp(BinaryOp, NodeList, NodeList),
 	Variable(Name, Option<usize>),
+	Print(NodeList, &'static str),
 }
 
 impl Node {
