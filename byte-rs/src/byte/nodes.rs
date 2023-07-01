@@ -24,7 +24,7 @@ pub enum Node {
 	Line(NodeList),
 	RawText(Span),
 	//----[ AST ]-------------------------------------------------------------//
-	Let(Name, NodeList),
+	Let(Name, usize, NodeList),
 }
 
 impl Node {

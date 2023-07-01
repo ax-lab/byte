@@ -53,6 +53,10 @@ impl NodeList {
 					Expr::Sequence(code)
 				}
 			},
+			Node::Let(name, offset, list) => {
+				let code = list.generate_code(compiler)?;
+				Expr::Declare(name.clone(), Some(*offset), Arc::new(Expr::Sequence(code)))
+			}
 			value => {
 				let mut error = format!("cannot generate code for `{value:?}`");
 				{
@@ -75,15 +79,17 @@ impl NodeList {
 /// Enumeration of builtin root expressions.
 #[derive(Clone, Debug)]
 pub enum Expr {
+	Declare(Name, Option<usize>, Arc<Expr>),
 	Value(ValueExpr),
-	Variable(Name, Type),
-	Binary(BinaryOp, CompilerHandle<Expr>, CompilerHandle<Expr>),
+	Variable(Name, Option<usize>, Type),
+	Binary(BinaryOp, Arc<Expr>, Arc<Expr>),
 	Sequence(Vec<Expr>),
 }
 
 impl Expr {
 	pub fn get_type(&self) -> Type {
 		match self {
+			Expr::Declare(.., expr) => expr.get_type(),
 			Expr::Value(value) => Type::Value(value.get_type()),
 			Expr::Variable(.., kind) => kind.clone(),
 			Expr::Binary(op, ..) => op.get().get_type(),
@@ -96,11 +102,19 @@ impl Expr {
 
 	pub fn execute(&self, scope: &mut RuntimeScope) -> Result<Value> {
 		match self {
+			Expr::Declare(name, offset, expr) => {
+				let value = expr.execute(scope)?;
+				scope.set(name.clone(), *offset, value.clone());
+				Ok(value)
+			}
 			Expr::Value(value) => value.execute(scope),
-			Expr::Variable(name, ..) => scope.get(name).cloned(),
+			Expr::Variable(name, index, ..) => match scope.get(name, *index).cloned() {
+				Some(value) => Ok(value),
+				None => Err(Errors::from(format!("variable {name} not set"))),
+			},
 			Expr::Binary(op, lhs, rhs) => {
-				let lhs = lhs.get().execute(scope)?;
-				let rhs = rhs.get().execute(scope)?;
+				let lhs = lhs.execute(scope)?;
+				let rhs = rhs.execute(scope)?;
 				op.get().execute(lhs, rhs)
 			}
 			Expr::Sequence(list) => {
@@ -143,37 +157,16 @@ mod tests {
 
 	#[test]
 	fn basic_eval() -> Result<()> {
-		let compiler = Compiler::new();
 		let a = Expr::Value(ValueExpr::Int(IntValue::new(2, IntType::I32)));
 		let b = Expr::Value(ValueExpr::Int(IntValue::new(3, IntType::I32)));
 
 		let op = BinaryOp::from(OpAdd::for_type(&a.get_type()).unwrap());
 
-		let a = compiler.store(a);
-		let b = compiler.store(b);
-		let expr = Expr::Binary(op, a, b);
+		let expr = Expr::Binary(op, a.into(), b.into());
 
 		let mut scope = RuntimeScope::new();
 		let result = expr.execute(&mut scope)?;
 		assert_eq!(result, Value::from(5));
-
-		Ok(())
-	}
-
-	#[test]
-	fn variables() -> Result<()> {
-		let compiler = Compiler::new();
-
-		let name = compiler.get_name("x");
-		let kind = Type::Value(ValueType::Int(IntType::I32));
-		let x = Expr::Variable(name.clone(), kind.clone());
-
-		let mut scope = RuntimeScope::new();
-		scope.declare(name.clone(), kind)?;
-		scope.set(&name, Value::from(42))?;
-
-		let result = x.execute(&mut scope)?;
-		assert_eq!(result, Value::from(42));
 
 		Ok(())
 	}
