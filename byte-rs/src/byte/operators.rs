@@ -1,5 +1,6 @@
 use super::*;
 
+pub mod bind;
 pub mod bracket;
 pub mod decl;
 pub mod indent;
@@ -7,6 +8,7 @@ pub mod line;
 pub mod module;
 pub mod parse_ops;
 
+pub use bind::*;
 pub use bracket::*;
 pub use decl::*;
 pub use indent::*;
@@ -19,6 +21,7 @@ pub enum Operator {
 	Module,
 	SplitLines,
 	Let,
+	Bind,
 	Binary(ParseBinaryOp),
 }
 
@@ -30,6 +33,7 @@ pub enum Precedence {
 	SplitLines,
 	Let,
 	OpAdditive,
+	Bind,
 	Least,
 }
 
@@ -57,6 +61,7 @@ impl Operator {
 			Operator::Module => &ModuleOperator,
 			Operator::SplitLines => &SplitLineOperator,
 			Operator::Let => &LetOperator,
+			Operator::Bind => &BindOperator,
 			Operator::Binary(op) => op,
 		}
 	}

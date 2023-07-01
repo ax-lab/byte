@@ -119,6 +119,25 @@ impl NodeList {
 		}
 	}
 
+	pub fn replace<P: FnMut(&NodeData) -> Option<NodeData>>(&mut self, mut replace: P) {
+		let changed = {
+			let mut nodes = self.data.nodes.write().unwrap();
+			let nodes = Arc::make_mut(&mut nodes);
+			let mut changed = false;
+			for it in nodes.iter_mut() {
+				if let Some(new_node) = replace(it) {
+					*it = new_node;
+					changed = true;
+				}
+			}
+			changed
+		};
+
+		if changed {
+			self.inc_version();
+		}
+	}
+
 	pub fn split_by<P: FnMut(&NodeData) -> bool, S: FnMut(NodeList) -> NodeData>(&mut self, mut split: P, mut node: S) {
 		let changed = {
 			let mut new_nodes = Vec::new();

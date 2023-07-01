@@ -26,34 +26,61 @@ pub use values::*;
 
 use super::*;
 
+pub struct CodeContext {
+	compiler: CompilerRef,
+	declares: HashMap<(Name, Option<usize>), Type>,
+}
+
+impl CodeContext {
+	pub fn new(compiler: CompilerRef) -> Self {
+		let compiler = compiler;
+		Self {
+			compiler,
+			declares: Default::default(),
+		}
+	}
+}
+
 impl NodeList {
-	pub fn generate_code(&self, compiler: &Compiler) -> Result<Vec<Expr>> {
+	pub fn generate_code(&self, context: &mut CodeContext) -> Result<Vec<Expr>> {
 		let mut output = Vec::new();
 		for it in self.iter() {
-			let node = self.generate_node(compiler, &it)?;
+			let node = self.generate_node(context, &it)?;
 			output.push(node);
 		}
 		Ok(output)
 	}
 
-	fn generate_node(&self, compiler: &Compiler, node: &NodeData) -> Result<Expr> {
+	fn generate_node(&self, context: &mut CodeContext, node: &NodeData) -> Result<Expr> {
+		let compiler = context.compiler.get();
 		let value = match node.get() {
 			Node::Integer(value) => {
 				let value = IntValue::new(*value, DEFAULT_INT);
 				Expr::Value(ValueExpr::Int(value))
 			}
 			Node::Literal(value) => {
-				let value = StrValue::new(value, compiler);
+				let value = StrValue::new(value, &compiler);
 				Expr::Value(ValueExpr::Str(value))
 			}
-			Node::Line(list) => list.generate_expr(compiler)?,
+			Node::Line(list) => list.generate_expr(context)?,
 			Node::Let(name, offset, list) => {
-				let code = list.generate_code(compiler)?;
-				Expr::Declare(name.clone(), Some(*offset), Arc::new(Expr::Sequence(code)))
+				let expr = list.generate_expr(context)?;
+				let kind = expr.get_type();
+				context.declares.insert((name.clone(), Some(*offset)), kind);
+				Expr::Declare(name.clone(), Some(*offset), Arc::new(expr))
+			}
+			Node::Variable(name, index) => {
+				if let Some(kind) = context.declares.get(&(name.clone(), *index)) {
+					Expr::Variable(name.clone(), *index, kind.clone())
+				} else {
+					let error = format!("variable `{name}` ({index:?}) does not match any declaration");
+					let error = Errors::from_at(error, node.span().clone());
+					return Err(error);
+				}
 			}
 			Node::BinaryOp(op, lhs, rhs) => {
-				let lhs = lhs.generate_expr(compiler)?;
-				let rhs = rhs.generate_expr(compiler)?;
+				let lhs = lhs.generate_expr(context)?;
+				let rhs = rhs.generate_expr(context)?;
 				let op = op.for_types(&lhs.get_type(), &rhs.get_type())?;
 				Expr::Binary(op, lhs.into(), rhs.into())
 			}
@@ -71,11 +98,11 @@ impl NodeList {
 		Ok(value)
 	}
 
-	fn generate_expr(&self, compiler: &Compiler) -> Result<Expr> {
+	fn generate_expr(&self, context: &mut CodeContext) -> Result<Expr> {
 		let expr = match self.len() {
 			0 => Expr::Value(ValueExpr::Unit),
 			_ => {
-				let code = self.generate_code(compiler)?;
+				let code = self.generate_code(context)?;
 				Expr::Sequence(code)
 			}
 		};

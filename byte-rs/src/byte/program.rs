@@ -29,6 +29,7 @@ impl Program {
 			root_scope.add_operator(Operator::Module);
 			root_scope.add_operator(Operator::SplitLines);
 			root_scope.add_operator(Operator::Let);
+			root_scope.add_operator(Operator::Bind);
 
 			let mut ops = OpMap::new();
 			ops.add(compiler.get_name("+"), BinaryOp::Add);
@@ -103,10 +104,10 @@ impl Program {
 	}
 
 	fn run_resolved_nodes(&self, nodes: &NodeList) -> Result<Value> {
-		let compiler = self.data.compiler.get();
+		let mut context = CodeContext::new(self.data.compiler.clone());
 		let mut scope = RuntimeScope::new();
 		let mut value = Value::from(());
-		for expr in nodes.generate_code(&compiler)? {
+		for expr in nodes.generate_code(&mut context)? {
 			value = expr.execute(&mut scope)?;
 		}
 		Ok(value)

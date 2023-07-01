@@ -97,6 +97,25 @@ impl Scope {
 	// Bindings
 	//----------------------------------------------------------------------------------------------------------------//
 
+	pub fn lookup(&self, name: &Name, offset: Option<usize>) -> Option<Option<usize>> {
+		let value = {
+			let bindings = self.data.bindings.read().unwrap();
+			if let Some(value) = bindings.get(&name) {
+				value.lookup_index(offset)
+			} else {
+				None
+			}
+		};
+
+		value.or_else(|| {
+			if let Some(parent) = self.parent() {
+				parent.lookup(name, offset)
+			} else {
+				None
+			}
+		})
+	}
+
 	pub fn get_static(&self, name: Name) -> Option<BindingValue> {
 		let value = {
 			let bindings = self.data.bindings.read().unwrap();
@@ -209,6 +228,26 @@ impl BindingList {
 				self.value_from.insert(index, (offset, value));
 				true
 			}
+		}
+	}
+
+	pub fn lookup_index(&self, offset: Option<usize>) -> Option<Option<usize>> {
+		let static_value = || if self.value_static.is_some() { Some(None) } else { None };
+		if let Some(offset) = offset {
+			let index = self.value_from.binary_search_by_key(&offset, |x| x.0);
+			let index = match index {
+				Ok(index) => index,
+				Err(index) => {
+					if index > 0 {
+						index - 1
+					} else {
+						return (static_value)();
+					}
+				}
+			};
+			Some(Some(self.value_from[index].0))
+		} else {
+			(static_value)()
 		}
 	}
 

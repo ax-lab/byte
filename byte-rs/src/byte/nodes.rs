@@ -26,6 +26,7 @@ pub enum Node {
 	//----[ AST ]-------------------------------------------------------------//
 	Let(Name, usize, NodeList),
 	BinaryOp(BinaryOp, NodeList, NodeList),
+	Variable(Name, Option<usize>),
 }
 
 impl Node {
