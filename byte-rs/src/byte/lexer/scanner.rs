@@ -1,10 +1,5 @@
 use super::*;
 
-static COMMON_SYMBOLS: &[&'static str] = &["(", ")", "[", "]", "{", "}", ";", ":", ",", ".", "=", "+"];
-
-const ALPHA: &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz";
-const DIGIT: &'static str = "0123456789";
-
 /// Trait for a matcher that can be used by the [`Scanner`].
 pub trait Matcher: Cell {
 	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<NodeData>;
@@ -24,14 +19,6 @@ impl Scanner {
 			matchers: Default::default(),
 			table: Default::default(),
 		}
-	}
-
-	pub fn register_common_symbols(&mut self) {
-		for it in COMMON_SYMBOLS.iter() {
-			self.add_symbol(it);
-		}
-		self.add_word_chars(ALPHA);
-		self.add_word_next_chars(DIGIT);
 	}
 
 	pub fn add_matcher<T: Matcher + 'static>(&mut self, matcher: T) {

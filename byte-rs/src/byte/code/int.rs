@@ -9,11 +9,17 @@ pub trait IsIntType {
 	fn op_add(a: Self::Data, b: Self::Data) -> Self::Data;
 	fn op_sub(a: Self::Data, b: Self::Data) -> Self::Data;
 
+	fn op_mul(a: Self::Data, b: Self::Data) -> Self::Data;
+	fn op_div(a: Self::Data, b: Self::Data) -> Self::Data;
+
 	fn from_value(value: &Value) -> Result<Self::Data> {
 		if let Some(value) = value.get::<Self::Data>() {
 			Ok(*value)
 		} else {
-			todo!()
+			let typ = std::any::type_name::<Self::Data>();
+			let error = format!("`{value:?}` is not a valid {typ}");
+			let error = Errors::from(error);
+			Err(error)
 		}
 	}
 }
@@ -81,6 +87,14 @@ mod macros {
 
 				fn op_sub(a: Self::Data, b: Self::Data) -> Self::Data {
 					a - b
+				}
+
+				fn op_mul(a: Self::Data, b: Self::Data) -> Self::Data {
+					a * b
+				}
+
+				fn op_div(a: Self::Data, b: Self::Data) -> Self::Data {
+					a / b
 				}
 			}
 

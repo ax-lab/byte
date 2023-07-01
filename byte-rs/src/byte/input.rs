@@ -255,11 +255,13 @@ impl Span {
 					col += tab_width - (col % tab_width);
 					false
 				} else if char == '\n' {
+					col = 0;
 					if !cr {
 						row += 1;
 					}
 					false
 				} else if char == '\r' {
+					col = 0;
 					row += 1;
 					true
 				} else {

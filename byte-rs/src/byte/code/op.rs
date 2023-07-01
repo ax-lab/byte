@@ -3,6 +3,7 @@ use super::*;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum BinaryOp {
 	Add,
+	Mul,
 }
 
 impl BinaryOp {
@@ -11,13 +12,23 @@ impl BinaryOp {
 	}
 
 	pub fn for_types(&self, lhs: &Type, rhs: &Type) -> Result<BinaryOpImpl> {
-		match OpAdd::for_types(lhs, rhs) {
-			Some(op) => Ok(BinaryOpImpl::from(op)),
-			None => {
-				let error = format!("operator `{self:?}` is not defined for `{lhs}` and `{rhs}`");
-				let error = Errors::from(error);
-				Err(error)
-			}
+		match self {
+			BinaryOp::Add => match OpAdd::for_types(lhs, rhs) {
+				Some(op) => Ok(BinaryOpImpl::from(op)),
+				None => {
+					let error = format!("operator `{self:?}` is not defined for `{lhs}` and `{rhs}`");
+					let error = Errors::from(error);
+					Err(error)
+				}
+			},
+			BinaryOp::Mul => match OpMul::for_types(lhs, rhs) {
+				Some(op) => Ok(BinaryOpImpl::from(op)),
+				None => {
+					let error = format!("operator `{self:?}` is not defined for `{lhs}` and `{rhs}`");
+					let error = Errors::from(error);
+					Err(error)
+				}
+			},
 		}
 	}
 }

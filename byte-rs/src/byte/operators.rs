@@ -35,8 +35,9 @@ pub enum Precedence {
 	Module,
 	SplitLines,
 	Let,
-	OpAdditive,
 	Print,
+	OpAdditive,
+	OpMultiplicative,
 	Bind,
 	Least,
 }

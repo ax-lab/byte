@@ -16,11 +16,13 @@
 pub mod int;
 pub mod op;
 pub mod op_add;
+pub mod op_mul;
 pub mod runtime_scope;
 pub mod values;
 
 pub use op::*;
 pub use op_add::*;
+pub use op_mul::*;
 pub use runtime_scope::*;
 pub use values::*;
 
@@ -194,6 +196,10 @@ impl Type {
 		match self {
 			Type::Value(kind) => kind.validate_value(value),
 		}
+	}
+
+	pub fn is_string(&self) -> bool {
+		self == &Type::Value(ValueType::Str)
 	}
 }
 

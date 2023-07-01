@@ -268,6 +268,10 @@ impl<T: Ord + ?Sized> Ord for CompilerHandle<T> {
 // Compiler data
 //====================================================================================================================//
 
+static COMMON_SYMBOLS: &[&'static str] = &["(", ")", "[", "]", "{", "}", ";", ":", ",", ".", "=", "+", "*"];
+const ALPHA: &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz";
+const DIGIT: &'static str = "0123456789";
+
 struct CompilerData {
 	base_path: PathBuf,
 
@@ -299,6 +303,42 @@ impl CompilerData {
 				strings: Default::default(),
 			}
 		})
+	}
+}
+
+impl Compiler {
+	pub(crate) fn configure_root_scope(&self, scope: &mut Scope) {
+		scope.add_operator(Operator::Module);
+		scope.add_operator(Operator::SplitLines);
+		scope.add_operator(Operator::Let);
+		scope.add_operator(Operator::Bind);
+		scope.add_operator(Operator::Print);
+
+		let mut ops = OpMap::new();
+		ops.add(self.get_name("+"), BinaryOp::Add);
+		scope.add_operator(Operator::Binary(ParseBinaryOp(
+			ops,
+			Precedence::OpAdditive,
+			Grouping::Left,
+		)));
+
+		let mut ops = OpMap::new();
+		ops.add(self.get_name("*"), BinaryOp::Mul);
+		scope.add_operator(Operator::Binary(ParseBinaryOp(
+			ops,
+			Precedence::OpMultiplicative,
+			Grouping::Left,
+		)));
+	}
+}
+
+impl Scanner {
+	pub fn register_common_symbols(&mut self) {
+		for it in COMMON_SYMBOLS.iter() {
+			self.add_symbol(it);
+		}
+		self.add_word_chars(ALPHA);
+		self.add_word_next_chars(DIGIT);
 	}
 }
 
