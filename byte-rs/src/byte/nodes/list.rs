@@ -154,6 +154,8 @@ impl NodeList {
 		}
 	}
 
+	// TODO: move the parsing functions to the eval context and allow them to receive a context reference
+
 	pub fn fold_first<P: FnMut(&NodeData) -> bool, S: FnMut(NodeList, NodeData, NodeList) -> NodeData>(
 		&mut self,
 		mut fold: P,
@@ -163,6 +165,37 @@ impl NodeList {
 		{
 			let mut nodes = self.data.nodes.write().unwrap();
 			for i in 0..nodes.len() {
+				if fold(&nodes[i]) {
+					let scope = &self.data.scope;
+					let nodes = Arc::make_mut(&mut nodes);
+
+					let lhs = nodes[0..i].to_vec();
+					let cur = nodes[i].clone();
+					let rhs = nodes[i + 1..].to_vec();
+					let lhs = NodeList::new(scope.clone(), lhs);
+					let rhs = NodeList::new(scope.clone(), rhs);
+					let node = make_node(lhs, cur, rhs);
+					*nodes = vec![node];
+					changed = true;
+					break;
+				}
+			}
+		}
+
+		if changed {
+			self.inc_version();
+		}
+	}
+
+	pub fn fold_last<P: FnMut(&NodeData) -> bool, S: FnMut(NodeList, NodeData, NodeList) -> NodeData>(
+		&mut self,
+		mut fold: P,
+		mut make_node: S,
+	) {
+		let mut changed = false;
+		{
+			let mut nodes = self.data.nodes.write().unwrap();
+			for i in (0..nodes.len()).rev() {
 				if fold(&nodes[i]) {
 					let scope = &self.data.scope;
 					let nodes = Arc::make_mut(&mut nodes);

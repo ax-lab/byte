@@ -46,16 +46,16 @@ impl NodeList {
 				let value = StrValue::new(value, compiler);
 				Expr::Value(ValueExpr::Str(value))
 			}
-			Node::Line(list) => match list.len() {
-				0 => Expr::Value(ValueExpr::Unit),
-				_ => {
-					let code = list.generate_code(compiler)?;
-					Expr::Sequence(code)
-				}
-			},
+			Node::Line(list) => list.generate_expr(compiler)?,
 			Node::Let(name, offset, list) => {
 				let code = list.generate_code(compiler)?;
 				Expr::Declare(name.clone(), Some(*offset), Arc::new(Expr::Sequence(code)))
+			}
+			Node::BinaryOp(op, lhs, rhs) => {
+				let lhs = lhs.generate_expr(compiler)?;
+				let rhs = rhs.generate_expr(compiler)?;
+				let op = op.for_types(&lhs.get_type(), &rhs.get_type())?;
+				Expr::Binary(op, lhs.into(), rhs.into())
 			}
 			value => {
 				let mut error = format!("cannot generate code for `{value:?}`");
@@ -70,6 +70,17 @@ impl NodeList {
 		};
 		Ok(value)
 	}
+
+	fn generate_expr(&self, compiler: &Compiler) -> Result<Expr> {
+		let expr = match self.len() {
+			0 => Expr::Value(ValueExpr::Unit),
+			_ => {
+				let code = self.generate_code(compiler)?;
+				Expr::Sequence(code)
+			}
+		};
+		Ok(expr)
+	}
 }
 
 //====================================================================================================================//
@@ -82,7 +93,7 @@ pub enum Expr {
 	Declare(Name, Option<usize>, Arc<Expr>),
 	Value(ValueExpr),
 	Variable(Name, Option<usize>, Type),
-	Binary(BinaryOp, Arc<Expr>, Arc<Expr>),
+	Binary(BinaryOpImpl, Arc<Expr>, Arc<Expr>),
 	Sequence(Vec<Expr>),
 }
 
@@ -147,6 +158,12 @@ impl Type {
 	}
 }
 
+impl Display for Type {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{self:?}")
+	}
+}
+
 //====================================================================================================================//
 // Tests
 //====================================================================================================================//
@@ -160,7 +177,7 @@ mod tests {
 		let a = Expr::Value(ValueExpr::Int(IntValue::new(2, IntType::I32)));
 		let b = Expr::Value(ValueExpr::Int(IntValue::new(3, IntType::I32)));
 
-		let op = BinaryOp::from(OpAdd::for_type(&a.get_type()).unwrap());
+		let op = BinaryOpImpl::from(OpAdd::for_type(&a.get_type()).unwrap());
 
 		let expr = Expr::Binary(op, a.into(), b.into());
 

@@ -5,34 +5,38 @@ pub mod decl;
 pub mod indent;
 pub mod line;
 pub mod module;
-pub mod op_binary;
-pub mod op_ternary;
-pub mod op_unary;
+pub mod parse_ops;
 
 pub use bracket::*;
 pub use decl::*;
 pub use indent::*;
 pub use line::*;
 pub use module::*;
-pub use op_binary::*;
-pub use op_ternary::*;
-pub use op_unary::*;
+pub use parse_ops::*;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Operator {
 	Module,
 	SplitLines,
 	Let,
+	Binary(ParseBinaryOp),
 }
 
 /// Global evaluation precedence for language nodes.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Precedence {
 	Highest,
 	Module,
 	SplitLines,
 	Let,
+	OpAdditive,
 	Least,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub enum Grouping {
+	Left,
+	Right,
 }
 
 impl Operator {
@@ -53,6 +57,7 @@ impl Operator {
 			Operator::Module => &ModuleOperator,
 			Operator::SplitLines => &SplitLineOperator,
 			Operator::Let => &LetOperator,
+			Operator::Binary(op) => op,
 		}
 	}
 }

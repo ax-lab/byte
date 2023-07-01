@@ -24,12 +24,21 @@ pub struct ProgramData {
 impl Program {
 	pub fn new(compiler: &Compiler) -> Program {
 		let base_path = compiler.base_path();
-		let compiler = compiler.get_ref();
 		Program::new_cyclic(|handle| {
 			let mut root_scope = Scope::new(handle);
 			root_scope.add_operator(Operator::Module);
 			root_scope.add_operator(Operator::SplitLines);
 			root_scope.add_operator(Operator::Let);
+
+			let mut ops = OpMap::new();
+			ops.add(compiler.get_name("+"), BinaryOp::Add);
+			root_scope.add_operator(Operator::Binary(ParseBinaryOp(
+				ops,
+				Precedence::OpAdditive,
+				Grouping::Left,
+			)));
+
+			let compiler = compiler.get_ref();
 			ProgramData {
 				compiler,
 				root_scope,

@@ -25,6 +25,7 @@ pub enum Node {
 	RawText(Span),
 	//----[ AST ]-------------------------------------------------------------//
 	Let(Name, usize, NodeList),
+	BinaryOp(BinaryOp, NodeList, NodeList),
 }
 
 impl Node {
