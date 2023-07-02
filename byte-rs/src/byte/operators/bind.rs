@@ -7,8 +7,8 @@ impl IsOperator for BindOperator {
 		Precedence::Bind
 	}
 
-	fn predicate(&self, node: &Node) -> bool {
-		matches!(node, Node::Word(..))
+	fn predicate(&self, node: &NodeData) -> bool {
+		matches!(node.get(), Node::Word(..))
 	}
 
 	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {

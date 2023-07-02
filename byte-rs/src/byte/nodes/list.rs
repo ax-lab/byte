@@ -33,6 +33,10 @@ impl NodeList {
 		self.data.scope.get()
 	}
 
+	pub fn scope_handle(&self) -> Handle<Scope> {
+		self.data.scope.clone()
+	}
+
 	pub fn scope_mut(&mut self) -> HandleMut<Scope> {
 		unsafe { self.data.scope.get_mut() }
 	}
@@ -68,9 +72,39 @@ impl NodeList {
 		NodeListIterator { index: 0, nodes }
 	}
 
-	pub fn contains<P: Fn(&Node) -> bool>(&self, predicate: P) -> bool {
+	pub fn contains<P: Fn(&NodeData) -> bool>(&self, predicate: P) -> bool {
 		let nodes = self.data.nodes.read().unwrap();
-		nodes.iter().any(|x| predicate(x.get()))
+		nodes.iter().any(|x| predicate(x))
+	}
+
+	pub fn contains_delimiter_pair(&self, sta: &Name, end: &Name) -> bool {
+		let nodes = self.data.nodes.read().unwrap();
+
+		let nodes = nodes.iter();
+		let mut nodes = nodes.skip_while(|x| x.name().as_ref() != Some(sta));
+		if let Some(..) = nodes.next() {
+			let mut nodes = nodes.skip_while(|x| x.name().as_ref() != Some(end));
+			nodes.next().is_some()
+		} else {
+			false
+		}
+	}
+
+	pub fn split_ternary(&self, sta: &Name, end: &Name) -> Option<(Vec<NodeData>, Vec<NodeData>, Vec<NodeData>)> {
+		let nodes = self.data.nodes.read().unwrap();
+		for i in (0..nodes.len()).rev() {
+			if nodes[i].is_name(sta) {
+				for j in i + 1..nodes.len() {
+					if nodes[j].is_name(end) {
+						let a = nodes[0..i].to_vec();
+						let b = nodes[i + 1..j].to_vec();
+						let c = nodes[j + 1..].to_vec();
+						return Some((a, b, c));
+					}
+				}
+			}
+		}
+		None
 	}
 
 	pub fn get_next_operator(&self, max_precedence: Option<Precedence>) -> Result<Option<Operator>> {

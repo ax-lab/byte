@@ -322,6 +322,13 @@ impl Compiler {
 		scope.add_operator(Operator::Print);
 		scope.add_operator(Operator::Comma);
 
+		let ternary = TernaryOp(
+			self.get_name("?"),
+			self.get_name(":"),
+			Arc::new(|a, b, c| Node::Conditional(a, b, c)),
+		);
+		scope.add_operator(Operator::Ternary(ternary));
+
 		// brackets
 		let mut brackets = BracketPairs::new();
 		brackets.add(

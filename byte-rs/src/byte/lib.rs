@@ -28,6 +28,7 @@ pub trait ResultExtension {
 	type Result;
 
 	fn and(self, other: Self) -> Self;
+	fn or(self, other: Self) -> Self;
 	fn handle(self, error: &mut Errors) -> Self::Result;
 	fn unless(self, errors: Errors) -> Self;
 }
@@ -40,6 +41,20 @@ impl<T: Default> ResultExtension for Result<T> {
 			Ok(..) => other,
 			Err(errors) => match other {
 				Ok(..) => Err(errors),
+				Err(other) => {
+					let mut errors = errors;
+					errors.append(&other);
+					Err(errors)
+				}
+			},
+		}
+	}
+
+	fn or(self, other: Self) -> Self {
+		match self {
+			Ok(a) => Ok(a),
+			Err(errors) => match other {
+				Ok(b) => Ok(b),
 				Err(other) => {
 					let mut errors = errors;
 					errors.append(&other);

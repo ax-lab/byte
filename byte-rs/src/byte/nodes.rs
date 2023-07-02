@@ -33,6 +33,7 @@ pub enum Node {
 	BinaryOp(BinaryOp, NodeList, NodeList),
 	Variable(Name, Option<usize>),
 	Print(NodeList, &'static str),
+	Conditional(NodeList, NodeList, NodeList),
 }
 
 impl Node {
@@ -107,6 +108,14 @@ impl NodeData {
 
 	pub fn name(&self) -> Option<Name> {
 		self.get().name()
+	}
+
+	pub fn is_name(&self, name: &Name) -> bool {
+		match self.get() {
+			Node::Symbol(n) => n == name,
+			Node::Word(n) => n == name,
+			_ => false,
+		}
 	}
 }
 

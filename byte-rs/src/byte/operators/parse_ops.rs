@@ -82,8 +82,8 @@ impl IsOperator for ParseBinaryOp {
 		self.1
 	}
 
-	fn predicate(&self, node: &Node) -> bool {
-		match node {
+	fn predicate(&self, node: &NodeData) -> bool {
+		match node.get() {
 			Node::Word(name) | Node::Symbol(name) => self.0.contains(name),
 			_ => false,
 		}

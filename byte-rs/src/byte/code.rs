@@ -152,6 +152,12 @@ impl NodeList {
 				}
 				Expr::Sequence(sequence)
 			}
+			Node::Conditional(a, b, c) => {
+				let a = a.generate_expr(context)?;
+				let b = b.generate_expr(context)?;
+				let c = c.generate_expr(context)?;
+				Expr::Conditional(a.into(), b.into(), c.into())
+			}
 			value => {
 				let mut error = format!("cannot generate code for `{value:?}`");
 				{
@@ -193,6 +199,7 @@ pub enum Expr {
 	Never,
 	Unit,
 	Declare(Name, Option<usize>, Arc<Expr>),
+	Conditional(Arc<Expr>, Arc<Expr>, Arc<Expr>),
 	Value(ValueExpr),
 	Variable(Name, Option<usize>, Type),
 	Print(Arc<Expr>, &'static str),
@@ -213,6 +220,15 @@ impl Expr {
 			Expr::Unary(op, ..) => op.get().get_type(),
 			Expr::Binary(op, ..) => op.get().get_type(),
 			Expr::Sequence(list) => list.last().map(|x| x.get_type()).unwrap_or_else(|| Type::Unit),
+			Expr::Conditional(_, a, b) => {
+				let a = a.get_type();
+				let b = b.get_type();
+				if a == b {
+					a
+				} else {
+					Type::Or(a.into(), b.into())
+				}
+			}
 		}
 	}
 
@@ -263,6 +279,15 @@ impl Expr {
 				}
 				Ok(value)
 			}
+			Expr::Conditional(cond, a, b) => {
+				let cond = cond.execute(scope)?;
+				let cond = cond.to_bool()?;
+				if cond {
+					a.execute(scope)
+				} else {
+					b.execute(scope)
+				}
+			}
 		}
 	}
 
@@ -286,6 +311,7 @@ pub enum Type {
 	Unit,
 	Never,
 	Value(ValueType),
+	Or(Arc<Type>, Arc<Type>),
 }
 
 impl Type {
@@ -294,6 +320,11 @@ impl Type {
 			Type::Unit => value.is::<()>(),
 			Type::Never => false,
 			Type::Value(kind) => kind.is_valid_value(value),
+			Type::Or(a, b) => {
+				let a = a.validate_value(value);
+				let b = b.validate_value(value);
+				a.or(b).is_ok()
+			}
 		};
 		if valid {
 			Ok(())

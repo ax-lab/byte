@@ -7,8 +7,8 @@ impl IsOperator for SplitLineOperator {
 		Precedence::SplitLines
 	}
 
-	fn predicate(&self, node: &Node) -> bool {
-		node == &Node::Break
+	fn predicate(&self, node: &NodeData) -> bool {
+		node.get() == &Node::Break
 	}
 
 	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {

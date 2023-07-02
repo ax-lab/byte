@@ -7,7 +7,7 @@ impl IsOperator for ReplaceSymbol {
 		self.2
 	}
 
-	fn predicate(&self, node: &Node) -> bool {
+	fn predicate(&self, node: &NodeData) -> bool {
 		node.name().as_ref() == Some(&self.0)
 	}
 

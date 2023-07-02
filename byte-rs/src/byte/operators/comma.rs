@@ -7,8 +7,8 @@ impl IsOperator for CommaOperator {
 		Precedence::Comma
 	}
 
-	fn predicate(&self, node: &Node) -> bool {
-		if let Node::Symbol(name) = node {
+	fn predicate(&self, node: &NodeData) -> bool {
+		if let Node::Symbol(name) = node.get() {
 			name == ","
 		} else {
 			false
@@ -20,7 +20,7 @@ impl IsOperator for CommaOperator {
 
 		let mut nodes = context.nodes().clone();
 		let span = nodes.span();
-		let items = nodes.split_by_items(|n| self.predicate(n.get()));
+		let items = nodes.split_by_items(|n| self.predicate(n));
 
 		for it in items.iter() {
 			context.resolve_nodes(it);

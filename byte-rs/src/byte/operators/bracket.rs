@@ -131,8 +131,8 @@ impl IsOperator for BracketPairs {
 		Precedence::Brackets
 	}
 
-	fn predicate(&self, node: &Node) -> bool {
-		match node {
+	fn predicate(&self, node: &NodeData) -> bool {
+		match node.get() {
 			Node::Symbol(name) => self.pairs.contains_key(name),
 			_ => false,
 		}

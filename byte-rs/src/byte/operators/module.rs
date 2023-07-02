@@ -7,8 +7,8 @@ impl IsOperator for ModuleOperator {
 		Precedence::Module
 	}
 
-	fn predicate(&self, node: &Node) -> bool {
-		matches!(node, &Node::Module(..))
+	fn predicate(&self, node: &NodeData) -> bool {
+		matches!(node.get(), &Node::Module(..))
 	}
 
 	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {

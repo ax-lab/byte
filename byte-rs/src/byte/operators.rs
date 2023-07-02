@@ -10,6 +10,7 @@ pub mod module;
 pub mod parse_ops;
 pub mod print;
 pub mod replace_symbol;
+pub mod ternary;
 
 pub use bind::*;
 pub use bracket::*;
@@ -21,6 +22,7 @@ pub use module::*;
 pub use parse_ops::*;
 pub use print::*;
 pub use replace_symbol::*;
+pub use ternary::*;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Operator {
@@ -28,6 +30,7 @@ pub enum Operator {
 	Brackets(BracketPairs),
 	SplitLines,
 	Let,
+	Ternary(TernaryOp),
 	Print,
 	Comma,
 	Replace(Name, Node, Precedence),
@@ -45,6 +48,7 @@ pub enum Precedence {
 	SplitLines,
 	Let,
 	Print,
+	Ternary,
 	Comma,
 	OpUnaryPrefix,
 	OpBooleanOr,
@@ -90,9 +94,36 @@ impl Operator {
 			Operator::UnaryPrefix(op) => Arc::new(op.clone()),
 			Operator::Comma => Arc::new(CommaOperator),
 			Operator::Brackets(pairs) => Arc::new(pairs.clone()),
+			Operator::Ternary(op) => Arc::new(op.clone()),
 		}
 	}
 }
+
+/*
+	TODO: implement operators protocol
+
+	- Operators should support application to any NodeList and any number of
+	  times.
+
+	- When an operator makes no change to the NodeList or scope, then it's
+	  considered as not applicable.
+
+	- For performance reasons, operators should prune themselves from
+	  application as soon and as quick as possible.
+
+	- Performance: keep a set of applicable operators for a NodeList and
+	  remove operators as they are applied. When the list changes, check if
+	  any new node triggers an operator.
+
+	- Some operators may require complex parsing, at the end of which may
+	  result in the operator no applying. Operator application should be a two
+	  step process of parsing and committing.
+
+	- Keep a dirty flag for node ranges to detect if multiple operators try to
+	  change the same set of nodes. This would allow multiple operators with
+	  the same precedence, as long as they act on separate nodes.
+
+*/
 
 pub trait IsOperator {
 	fn precedence(&self) -> Precedence;
@@ -103,7 +134,7 @@ pub trait IsOperator {
 		nodes.contains(|x| self.predicate(x))
 	}
 
-	fn predicate(&self, node: &Node) -> bool {
+	fn predicate(&self, node: &NodeData) -> bool {
 		let _ = node;
 		false
 	}
