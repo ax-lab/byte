@@ -52,7 +52,7 @@ impl OpOr {
 }
 
 impl IsBinaryOp for OpOr {
-	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<Value> {
+	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue> {
 		let lhs = (self.eval_fn)(scope, lhs)?;
 		let result = if !lhs {
 			let rhs = (self.eval_fn)(scope, rhs)?;
@@ -60,7 +60,7 @@ impl IsBinaryOp for OpOr {
 		} else {
 			true
 		};
-		Ok(Value::from(result))
+		Ok(Value::from(result).into())
 	}
 
 	fn get_type(&self) -> Type {
@@ -72,7 +72,7 @@ pub struct BooleanEval;
 
 impl BooleanEval {
 	pub fn eval(scope: &mut RuntimeScope, expr: &Expr) -> Result<bool> {
-		let value = expr.execute(scope)?;
+		let value = expr.execute(scope)?.value();
 		value.to_bool()
 	}
 }
@@ -96,7 +96,7 @@ impl IntegerToBoolean {
 	}
 
 	fn eval<T: IsIntType>(scope: &mut RuntimeScope, expr: &Expr) -> Result<bool> {
-		let value = expr.execute(scope)?;
+		let value = expr.execute(scope)?.value();
 		value
 			.to_bool()
 			.or_else(|_| T::from_value(&value).map(|x| !T::is_zero(x)))

@@ -17,6 +17,7 @@ pub mod int;
 pub mod op;
 pub mod op_add;
 pub mod op_and;
+pub mod op_assign;
 pub mod op_div;
 pub mod op_minus;
 pub mod op_mod;
@@ -32,6 +33,7 @@ pub mod values;
 pub use op::*;
 pub use op_add::*;
 pub use op_and::*;
+pub use op_assign::*;
 pub use op_div::*;
 pub use op_minus::*;
 pub use op_mod::*;
@@ -47,6 +49,24 @@ pub use values::*;
 use super::*;
 
 const DEBUG_NODES: bool = false;
+
+// TODO: figure out NULL
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub struct Null;
+
+has_traits!(Null: IsValue, WithDebug, WithDisplay);
+
+impl Debug for Null {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "null")
+	}
+}
+
+impl Display for Null {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "null")
+	}
+}
 
 pub struct CodeContext {
 	compiler: CompilerRef,
@@ -75,7 +95,7 @@ impl NodeList {
 			}
 		}
 
-		if errors.len() > 0 && DEBUG_NODES {
+		if (errors.len() > 0 && DEBUG_NODES) || DUMP_CODE {
 			println!("\n----- NODE DUMP -----\n");
 			let mut output = String::new();
 			let _ = self.output(ReprMode::Debug, ReprFormat::Full, &mut output);
@@ -97,10 +117,7 @@ impl NodeList {
 				let value = IntValue::new(*value, DEFAULT_INT);
 				Expr::Value(ValueExpr::Int(value))
 			}
-			Node::Null => {
-				// TODO: figure out null
-				Expr::Unit
-			}
+			Node::Null => Expr::Null,
 			Node::Literal(value) => {
 				let value = StrValue::new(value, &compiler);
 				Expr::Value(ValueExpr::Str(value))
@@ -181,7 +198,11 @@ impl NodeList {
 					let node = self.generate_node(context, &it)?;
 					output.push(node);
 				}
-				Expr::Sequence(output)
+				if output.len() == 1 {
+					output.into_iter().next().unwrap()
+				} else {
+					Expr::Sequence(output)
+				}
 			}
 		};
 		Ok(expr)
@@ -198,6 +219,7 @@ pub enum Expr {
 	#[default]
 	Never,
 	Unit,
+	Null,
 	Declare(Name, Option<usize>, Arc<Expr>),
 	Conditional(Arc<Expr>, Arc<Expr>, Arc<Expr>),
 	Value(ValueExpr),
@@ -213,9 +235,10 @@ impl Expr {
 		match self {
 			Expr::Never => Type::Never,
 			Expr::Unit => Type::Unit,
+			Expr::Null => Type::Null,
 			Expr::Declare(.., expr) => expr.get_type(),
 			Expr::Value(value) => Type::Value(value.get_type()),
-			Expr::Variable(.., kind) => kind.clone(),
+			Expr::Variable(.., kind) => Type::Ref(kind.clone().into()),
 			Expr::Print(..) => Type::Unit,
 			Expr::Unary(op, ..) => op.get().get_type(),
 			Expr::Binary(op, ..) => op.get().get_type(),
@@ -232,28 +255,29 @@ impl Expr {
 		}
 	}
 
-	pub fn execute(&self, scope: &mut RuntimeScope) -> Result<Value> {
+	pub fn execute(&self, scope: &mut RuntimeScope) -> Result<ExprValue> {
 		match self {
 			Expr::Never => {
 				let error = format!("never expression cannot be evaluated");
 				Err(Errors::from(error))
 			}
-			Expr::Unit => Ok(Value::from(())),
+			Expr::Unit => Ok(Value::from(()).into()),
+			Expr::Null => Ok(Value::from(Null).into()),
 			Expr::Declare(name, offset, expr) => {
 				let value = expr.execute(scope)?;
-				scope.set(name.clone(), *offset, value.clone());
+				scope.set(name.clone(), *offset, value.clone().into());
 				Ok(value)
 			}
-			Expr::Value(value) => value.execute(scope),
+			Expr::Value(value) => value.execute(scope).map(|x| x.into()),
 			Expr::Variable(name, index, ..) => match scope.get(name, *index).cloned() {
-				Some(value) => Ok(value),
+				Some(value) => Ok(ExprValue::Variable(name.clone(), index.clone(), value)),
 				None => Err(Errors::from(format!("variable {name} not set"))),
 			},
 			Expr::Print(expr, tail) => {
 				let list = expr.as_sequence();
 				let mut values = Vec::new();
-				for expr in list {
-					let value = expr.execute(scope)?;
+				for expr in list.iter() {
+					let value = expr.execute(scope)?.value();
 					if !value.is_unit() {
 						values.push(value)
 					}
@@ -267,21 +291,20 @@ impl Expr {
 					write!(output, "{it}")?;
 				}
 				write!(output, "{tail}")?;
-				Ok(Value::from(()))
+				Ok(Value::from(()).into())
 			}
 			Expr::Unary(op, arg) => op.get().execute(scope, &arg),
 			Expr::Binary(op, lhs, rhs) => op.get().execute(scope, lhs, rhs),
 			Expr::Sequence(list) => {
-				let mut value = Value::from(());
+				let mut value = Value::from(()).into();
 				for it in list.iter() {
-					let next = it.execute(scope)?;
-					value = Value::from(next);
+					value = it.execute(scope)?;
 				}
 				Ok(value)
 			}
 			Expr::Conditional(cond, a, b) => {
 				let cond = cond.execute(scope)?;
-				let cond = cond.to_bool()?;
+				let cond = cond.value().to_bool()?;
 				if cond {
 					a.execute(scope)
 				} else {
@@ -301,6 +324,33 @@ impl Expr {
 	}
 }
 
+#[derive(Clone, Debug)]
+pub enum ExprValue {
+	Value(Value),
+	Variable(Name, Option<usize>, Value),
+}
+
+impl ExprValue {
+	pub fn value(self) -> Value {
+		match self {
+			ExprValue::Value(value) => value,
+			ExprValue::Variable(.., value) => value,
+		}
+	}
+}
+
+impl From<ExprValue> for Value {
+	fn from(expr_value: ExprValue) -> Self {
+		expr_value.value()
+	}
+}
+
+impl From<Value> for ExprValue {
+	fn from(value: Value) -> Self {
+		ExprValue::Value(value)
+	}
+}
+
 //====================================================================================================================//
 // Types
 //====================================================================================================================//
@@ -309,9 +359,11 @@ impl Expr {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Type {
 	Unit,
+	Null,
 	Never,
 	Value(ValueType),
 	Or(Arc<Type>, Arc<Type>),
+	Ref(Arc<Type>),
 }
 
 impl Type {
@@ -319,12 +371,14 @@ impl Type {
 		let valid = match self {
 			Type::Unit => value.is::<()>(),
 			Type::Never => false,
+			Type::Null => false,
 			Type::Value(kind) => kind.is_valid_value(value),
 			Type::Or(a, b) => {
 				let a = a.validate_value(value);
 				let b = b.validate_value(value);
-				a.or(b).is_ok()
+				return a.or(b);
 			}
+			Type::Ref(val) => return val.validate_value(value),
 		};
 		if valid {
 			Ok(())
@@ -336,12 +390,20 @@ impl Type {
 		}
 	}
 
+	/// Return the actual type for the a value, disregarding reference types.
+	pub fn value(&self) -> &Type {
+		match self {
+			Type::Ref(val) => &*val,
+			_ => self,
+		}
+	}
+
 	pub fn is_string(&self) -> bool {
-		self == &Type::Value(ValueType::Str)
+		self.value() == &Type::Value(ValueType::Str)
 	}
 
 	pub fn is_boolean(&self) -> bool {
-		self == &Type::Value(ValueType::Bool)
+		self.value() == &Type::Value(ValueType::Bool)
 	}
 
 	pub fn is_int(&self) -> bool {
@@ -349,7 +411,7 @@ impl Type {
 	}
 
 	pub fn get_int_type(&self) -> Option<&IntType> {
-		match self {
+		match self.value() {
 			Type::Value(ValueType::Int(int)) => Some(int),
 			_ => None,
 		}
@@ -380,7 +442,7 @@ mod tests {
 		let expr = Expr::Binary(op, a.into(), b.into());
 
 		let mut scope = RuntimeScope::new();
-		let result = expr.execute(&mut scope)?;
+		let result = expr.execute(&mut scope)?.value();
 		assert_eq!(result, Value::from(5));
 
 		Ok(())

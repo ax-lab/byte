@@ -25,9 +25,9 @@ impl OpNot {
 }
 
 impl IsUnaryOp for OpNot {
-	fn execute(&self, scope: &mut RuntimeScope, arg: &Expr) -> Result<Value> {
-		let arg = arg.execute(scope)?;
-		(self.eval_fn)(arg)
+	fn execute(&self, scope: &mut RuntimeScope, arg: &Expr) -> Result<ExprValue> {
+		let arg = arg.execute(scope)?.into();
+		(self.eval_fn)(arg).map(|x| x.into())
 	}
 
 	fn get_type(&self) -> Type {

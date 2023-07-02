@@ -88,6 +88,10 @@ impl Value {
 	pub fn to_bool(&self) -> Result<bool> {
 		if let Some(value) = self.get::<bool>() {
 			Ok(*value)
+		} else if let Some(value) = self.get::<DefaultInt>() {
+			// TODO: have a general way of converting ints
+			// TODO: this is temp behavior
+			Ok(*value != 0)
 		} else {
 			let error = format!("value `{self:?}` is not a valid boolean");
 			Err(Errors::from(error))

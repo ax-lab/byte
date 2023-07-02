@@ -20,7 +20,11 @@ pub use program::*;
 pub use scope::*;
 pub use util::*;
 
+// TODO: create a "CompilerInfo" struct that can be apply to any value, node, or error, containing compiler source information.
+
 const MAX_ERRORS: usize = 10;
+
+const DUMP_CODE: bool = false;
 
 pub type Result<T> = std::result::Result<T, Errors>;
 

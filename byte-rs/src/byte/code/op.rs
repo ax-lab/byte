@@ -14,6 +14,7 @@ pub enum UnaryOp {
 
 impl UnaryOp {
 	pub fn for_type(&self, arg: &Type) -> Result<UnaryOpImpl> {
+		let arg = arg.value();
 		let result = match self {
 			UnaryOp::Not => OpNot::for_type(arg).map(|op| UnaryOpImpl::from(op)),
 			UnaryOp::Neg => OpNeg::for_type(arg).map(|op| UnaryOpImpl::from(op)),
@@ -33,7 +34,7 @@ impl UnaryOp {
 }
 
 pub trait IsUnaryOp: IsValue + WithDebug {
-	fn execute(&self, scope: &mut RuntimeScope, arg: &Expr) -> Result<Value>;
+	fn execute(&self, scope: &mut RuntimeScope, arg: &Expr) -> Result<ExprValue>;
 	fn get_type(&self) -> Type;
 }
 
@@ -80,6 +81,7 @@ pub enum BinaryOp {
 	Mod,
 	And,
 	Or,
+	Assign,
 }
 
 impl BinaryOp {
@@ -88,6 +90,11 @@ impl BinaryOp {
 	}
 
 	pub fn for_types(&self, lhs: &Type, rhs: &Type) -> Result<BinaryOpImpl> {
+		// TODO: find a solution to get a span here and/or to apply spans to chained errors.
+
+		let lhs_ref = lhs;
+		let lhs = lhs.value();
+		let rhs = rhs.value();
 		let result = match self {
 			BinaryOp::Add => OpAdd::for_types(lhs, rhs).map(|op| BinaryOpImpl::from(op)),
 			BinaryOp::Sub => OpSub::for_types(lhs, rhs).map(|op| BinaryOpImpl::from(op)),
@@ -96,6 +103,20 @@ impl BinaryOp {
 			BinaryOp::Mod => OpMod::for_types(lhs, rhs).map(|op| BinaryOpImpl::from(op)),
 			BinaryOp::And => OpAnd::for_types(lhs, rhs).map(|op| BinaryOpImpl::from(op)),
 			BinaryOp::Or => OpOr::for_types(lhs, rhs).map(|op| BinaryOpImpl::from(op)),
+			BinaryOp::Assign => {
+				if lhs != rhs {
+					let error = format!("cannot assign `{rhs:?}` to `{lhs:?}`");
+					let error = Errors::from(error);
+					return Err(error);
+				} else if !matches!(lhs_ref, Type::Ref(..)) {
+					let error = format!("cannot assign to non-reference `{lhs_ref}`");
+					let error = Errors::from(error);
+					return Err(error);
+				}
+
+				// TODO: the operator actually needs access to the whole expression
+				Some(BinaryOpImpl::from(OpAssign(lhs.clone())))
+			}
 		};
 
 		match result {
@@ -110,7 +131,7 @@ impl BinaryOp {
 }
 
 pub trait IsBinaryOp: IsValue + WithDebug {
-	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<Value>;
+	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue>;
 	fn get_type(&self) -> Type;
 }
 

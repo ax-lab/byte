@@ -356,6 +356,14 @@ impl Compiler {
 
 		// binary
 
+		let mut ops = OpMap::new();
+		ops.add(self.get_name("="), BinaryOp::Assign);
+		scope.add_operator(Operator::Binary(ParseBinaryOp(
+			ops,
+			Precedence::OpAssign,
+			Grouping::Right,
+		)));
+
 		// additive
 		let mut ops = OpMap::new();
 		ops.add(self.get_name("+"), BinaryOp::Add);

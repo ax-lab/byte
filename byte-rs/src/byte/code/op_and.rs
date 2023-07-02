@@ -50,7 +50,7 @@ impl OpAnd {
 }
 
 impl IsBinaryOp for OpAnd {
-	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<Value> {
+	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue> {
 		let lhs = (self.eval_fn)(scope, lhs)?;
 		let result = if lhs {
 			let rhs = (self.eval_fn)(scope, rhs)?;
@@ -58,7 +58,7 @@ impl IsBinaryOp for OpAnd {
 		} else {
 			true
 		};
-		Ok(Value::from(result))
+		Ok(Value::from(result).into())
 	}
 
 	fn get_type(&self) -> Type {

@@ -113,7 +113,7 @@ impl Program {
 		};
 		let mut value = Value::from(());
 		for expr in nodes.generate_code(&mut context)? {
-			value = expr.execute(&mut scope)?;
+			value = expr.execute(&mut scope)?.value();
 		}
 		Ok(value)
 	}

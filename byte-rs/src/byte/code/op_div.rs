@@ -36,10 +36,10 @@ impl OpDiv {
 }
 
 impl IsBinaryOp for OpDiv {
-	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<Value> {
-		let lhs = lhs.execute(scope)?;
-		let rhs = rhs.execute(scope)?;
-		(self.eval_fn)(lhs, rhs)
+	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue> {
+		let lhs = lhs.execute(scope)?.into();
+		let rhs = rhs.execute(scope)?.into();
+		(self.eval_fn)(lhs, rhs).map(|x| x.into())
 	}
 
 	fn get_type(&self) -> Type {

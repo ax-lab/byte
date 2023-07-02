@@ -50,6 +50,7 @@ pub enum Precedence {
 	Print,
 	Ternary,
 	Comma,
+	OpAssign,
 	OpUnaryPrefix,
 	OpBooleanOr,
 	OpBooleanAnd,
