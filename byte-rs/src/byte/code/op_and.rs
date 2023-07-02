@@ -56,7 +56,7 @@ impl IsBinaryOp for OpAnd {
 			let rhs = (self.eval_fn)(scope, rhs)?;
 			rhs
 		} else {
-			true
+			false
 		};
 		Ok(Value::from(result).into())
 	}
