@@ -322,6 +322,16 @@ impl Compiler {
 		scope.add_operator(Operator::Print);
 		scope.add_operator(Operator::Comma);
 
+		// brackets
+		let mut brackets = BracketPairs::new();
+		brackets.add(
+			self.get_name("("),
+			self.get_name(")"),
+			Arc::new(|_, n, _| Node::Group(n)),
+		);
+
+		scope.add_operator(Operator::Brackets(brackets));
+
 		// boolean
 		scope.add_operator(Operator::Replace(
 			self.get_name("true"),

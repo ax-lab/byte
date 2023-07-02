@@ -71,6 +71,7 @@ impl<T: Default> ResultExtension for Result<T> {
 use std::{
 	collections::HashMap,
 	collections::HashSet,
+	collections::VecDeque,
 	fmt::{Debug, Display, Formatter, Write},
 	hash::Hash,
 	ops::{Deref, DerefMut, Range, RangeBounds},

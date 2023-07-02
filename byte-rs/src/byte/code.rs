@@ -106,6 +106,7 @@ impl NodeList {
 				Expr::Value(ValueExpr::Str(value))
 			}
 			Node::Line(list) => list.generate_expr(context)?,
+			Node::Group(list) => list.generate_expr(context)?,
 			Node::Let(name, offset, list) => {
 				let expr = list.generate_expr(context)?;
 				let kind = expr.get_type();

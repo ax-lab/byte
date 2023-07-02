@@ -25,6 +25,7 @@ pub use replace_symbol::*;
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Operator {
 	Module,
+	Brackets(BracketPairs),
 	SplitLines,
 	Let,
 	Print,
@@ -40,6 +41,7 @@ pub enum Operator {
 pub enum Precedence {
 	Highest,
 	Module,
+	Brackets,
 	SplitLines,
 	Let,
 	Print,
@@ -87,6 +89,7 @@ impl Operator {
 			Operator::Binary(op) => Arc::new(op.clone()),
 			Operator::UnaryPrefix(op) => Arc::new(op.clone()),
 			Operator::Comma => Arc::new(CommaOperator),
+			Operator::Brackets(pairs) => Arc::new(pairs.clone()),
 		}
 	}
 }

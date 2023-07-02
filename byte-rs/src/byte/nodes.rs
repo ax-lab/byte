@@ -26,6 +26,7 @@ pub enum Node {
 	Line(NodeList),
 	Sequence(Vec<NodeList>),
 	RawText(Span),
+	Group(NodeList),
 	//----[ AST ]-------------------------------------------------------------//
 	Let(Name, usize, NodeList),
 	UnaryOp(UnaryOp, NodeList),

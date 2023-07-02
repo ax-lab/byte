@@ -21,6 +21,10 @@ impl NodeList {
 		Self { data: data.into() }
 	}
 
+	pub fn as_vec_deque(&self) -> VecDeque<NodeData> {
+		VecDeque::from_iter(self.iter())
+	}
+
 	pub fn version(&self) -> usize {
 		*self.data.version.read().unwrap()
 	}
