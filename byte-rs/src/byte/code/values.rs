@@ -145,7 +145,11 @@ impl ValueType {
 
 pub const DEFAULT_INT: IntType = IntType::I64;
 
-pub const fn int(value: i64) -> i64 {
+pub type DefaultInt = i64;
+
+pub type DefaultIntImpl = int::I64;
+
+pub const fn int(value: DefaultInt) -> DefaultInt {
 	value
 }
 

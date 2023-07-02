@@ -24,7 +24,10 @@ impl OpPlus {
 					eval_fn: IntegerPlus::eval_for(&int),
 				}),
 				ValueType::Float(_) => todo!(),
-				_ => None,
+				ValueType::Str => Some(Self {
+					output: Type::Value(ValueType::Int(DEFAULT_INT)),
+					eval_fn: StringPlus::eval,
+				}),
 			},
 			_ => None,
 		}
@@ -82,5 +85,15 @@ impl IntegerPlus {
 			IntType::I128 => Self::eval::<I128>,
 			IntType::U128 => Self::eval::<U128>,
 		}
+	}
+}
+
+struct StringPlus;
+
+impl StringPlus {
+	fn eval(arg: Value) -> Result<Value> {
+		let arg: DefaultInt = arg.to_string().parse()?;
+		let out = Value::from(arg);
+		Ok(out)
 	}
 }
