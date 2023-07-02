@@ -33,7 +33,7 @@ impl UnaryOp {
 }
 
 pub trait IsUnaryOp: IsValue + WithDebug {
-	fn execute(&self, arg: Value) -> Result<Value>;
+	fn execute(&self, scope: &mut RuntimeScope, arg: &Expr) -> Result<Value>;
 	fn get_type(&self) -> Type;
 }
 
@@ -110,7 +110,7 @@ impl BinaryOp {
 }
 
 pub trait IsBinaryOp: IsValue + WithDebug {
-	fn execute(&self, lhs: Value, rhs: Value) -> Result<Value>;
+	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<Value>;
 	fn get_type(&self) -> Type;
 }
 

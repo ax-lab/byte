@@ -1,11 +1,14 @@
 use super::*;
 
-use int::*;
-
-#[derive(Debug)]
 pub struct OpAnd {
 	output: Type,
-	eval_fn: fn(Value, Value) -> Result<Value>,
+	eval_fn: fn(&mut RuntimeScope, &Expr) -> Result<bool>,
+}
+
+impl Debug for OpAnd {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		write!(f, "OpAnd")
+	}
 }
 
 has_traits!(OpAnd: IsBinaryOp);
@@ -22,7 +25,7 @@ impl OpAnd {
 				let int_type = lhs.get_int_type().or_else(|| rhs.get_int_type()).unwrap();
 				Some(Self {
 					output,
-					eval_fn: IntegerAnd::eval_for(int_type),
+					eval_fn: IntegerToBoolean::eval_for(int_type),
 				})
 			} else {
 				None
@@ -33,11 +36,11 @@ impl OpAnd {
 			Type::Value(value) => match value {
 				ValueType::Bool => Some(Self {
 					output,
-					eval_fn: BooleanAnd::eval,
+					eval_fn: BooleanEval::eval,
 				}),
 				ValueType::Int(int) => Some(Self {
 					output,
-					eval_fn: IntegerAnd::eval_for(&int),
+					eval_fn: IntegerToBoolean::eval_for(&int),
 				}),
 				_ => None,
 			},
@@ -47,48 +50,18 @@ impl OpAnd {
 }
 
 impl IsBinaryOp for OpAnd {
-	fn execute(&self, lhs: Value, rhs: Value) -> Result<Value> {
-		(self.eval_fn)(lhs, rhs)
+	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<Value> {
+		let lhs = (self.eval_fn)(scope, lhs)?;
+		let result = if lhs {
+			let rhs = (self.eval_fn)(scope, rhs)?;
+			rhs
+		} else {
+			true
+		};
+		Ok(Value::from(result))
 	}
 
 	fn get_type(&self) -> Type {
 		self.output.clone()
-	}
-}
-
-struct BooleanAnd;
-
-impl BooleanAnd {
-	fn eval(lhs: Value, rhs: Value) -> Result<Value> {
-		let lhs = lhs.to_bool()?;
-		let rhs = rhs.to_bool()?;
-		let out = Value::from(lhs && rhs);
-		Ok(out)
-	}
-}
-
-struct IntegerAnd;
-
-impl IntegerAnd {
-	fn eval<T: IsIntType>(lhs: Value, rhs: Value) -> Result<Value> {
-		let lhs = lhs.to_bool().or_else(|_| T::from_value(&lhs).map(|x| !T::is_zero(x)))?;
-		let rhs = rhs.to_bool().or_else(|_| T::from_value(&rhs).map(|x| !T::is_zero(x)))?;
-		let out = Value::from(lhs && rhs);
-		Ok(out)
-	}
-
-	fn eval_for(int: &IntType) -> fn(Value, Value) -> Result<Value> {
-		match int {
-			IntType::I8 => Self::eval::<I8>,
-			IntType::U8 => Self::eval::<U8>,
-			IntType::I16 => Self::eval::<I16>,
-			IntType::U16 => Self::eval::<U16>,
-			IntType::I32 => Self::eval::<I32>,
-			IntType::U32 => Self::eval::<U32>,
-			IntType::I64 => Self::eval::<I64>,
-			IntType::U64 => Self::eval::<U64>,
-			IntType::I128 => Self::eval::<I128>,
-			IntType::U128 => Self::eval::<U128>,
-		}
 	}
 }

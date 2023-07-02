@@ -46,6 +46,8 @@ pub use values::*;
 
 use super::*;
 
+const DEBUG_NODES: bool = false;
+
 pub struct CodeContext {
 	compiler: CompilerRef,
 	declares: HashMap<(Name, Option<usize>), Type>,
@@ -72,6 +74,15 @@ impl NodeList {
 				break;
 			}
 		}
+
+		if errors.len() > 0 && DEBUG_NODES {
+			println!("\n----- NODE DUMP -----\n");
+			let mut output = String::new();
+			let _ = self.output(ReprMode::Debug, ReprFormat::Full, &mut output);
+			println!("{output}");
+			println!("\n---------------------");
+		}
+
 		Ok(output).unless(errors)
 	}
 
@@ -241,15 +252,8 @@ impl Expr {
 				write!(output, "{tail}")?;
 				Ok(Value::from(()))
 			}
-			Expr::Unary(op, arg) => {
-				let arg = arg.execute(scope)?;
-				op.get().execute(arg)
-			}
-			Expr::Binary(op, lhs, rhs) => {
-				let lhs = lhs.execute(scope)?;
-				let rhs = rhs.execute(scope)?;
-				op.get().execute(lhs, rhs)
-			}
+			Expr::Unary(op, arg) => op.get().execute(scope, &arg),
+			Expr::Binary(op, lhs, rhs) => op.get().execute(scope, lhs, rhs),
 			Expr::Sequence(list) => {
 				let mut value = Value::from(());
 				for it in list.iter() {

@@ -36,7 +36,9 @@ impl OpDiv {
 }
 
 impl IsBinaryOp for OpDiv {
-	fn execute(&self, lhs: Value, rhs: Value) -> Result<Value> {
+	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<Value> {
+		let lhs = lhs.execute(scope)?;
+		let rhs = rhs.execute(scope)?;
 		(self.eval_fn)(lhs, rhs)
 	}
 

@@ -2,10 +2,15 @@ use super::*;
 
 use int::*;
 
-#[derive(Debug)]
 pub struct OpOr {
 	output: Type,
-	eval_fn: fn(Value, Value) -> Result<Value>,
+	eval_fn: fn(&mut RuntimeScope, &Expr) -> Result<bool>,
+}
+
+impl Debug for OpOr {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		write!(f, "OpOr")
+	}
 }
 
 has_traits!(OpOr: IsBinaryOp);
@@ -22,7 +27,7 @@ impl OpOr {
 				let int_type = lhs.get_int_type().or_else(|| rhs.get_int_type()).unwrap();
 				Some(Self {
 					output,
-					eval_fn: IntegerOr::eval_for(int_type),
+					eval_fn: IntegerToBoolean::eval_for(int_type),
 				})
 			} else {
 				None
@@ -33,11 +38,11 @@ impl OpOr {
 			Type::Value(value) => match value {
 				ValueType::Bool => Some(Self {
 					output,
-					eval_fn: BooleanOr::eval,
+					eval_fn: BooleanEval::eval,
 				}),
 				ValueType::Int(int) => Some(Self {
 					output,
-					eval_fn: IntegerOr::eval_for(&int),
+					eval_fn: IntegerToBoolean::eval_for(&int),
 				}),
 				_ => None,
 			},
@@ -47,8 +52,15 @@ impl OpOr {
 }
 
 impl IsBinaryOp for OpOr {
-	fn execute(&self, lhs: Value, rhs: Value) -> Result<Value> {
-		(self.eval_fn)(lhs, rhs)
+	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<Value> {
+		let lhs = (self.eval_fn)(scope, lhs)?;
+		let result = if !lhs {
+			let rhs = (self.eval_fn)(scope, rhs)?;
+			rhs
+		} else {
+			true
+		};
+		Ok(Value::from(result))
 	}
 
 	fn get_type(&self) -> Type {
@@ -56,28 +68,19 @@ impl IsBinaryOp for OpOr {
 	}
 }
 
-struct BooleanOr;
+pub struct BooleanEval;
 
-impl BooleanOr {
-	fn eval(lhs: Value, rhs: Value) -> Result<Value> {
-		let lhs = lhs.to_bool()?;
-		let rhs = rhs.to_bool()?;
-		let out = Value::from(lhs || rhs);
-		Ok(out)
+impl BooleanEval {
+	pub fn eval(scope: &mut RuntimeScope, expr: &Expr) -> Result<bool> {
+		let value = expr.execute(scope)?;
+		value.to_bool()
 	}
 }
 
-struct IntegerOr;
+pub struct IntegerToBoolean;
 
-impl IntegerOr {
-	fn eval<T: IsIntType>(lhs: Value, rhs: Value) -> Result<Value> {
-		let lhs = lhs.to_bool().or_else(|_| T::from_value(&lhs).map(|x| !T::is_zero(x)))?;
-		let rhs = rhs.to_bool().or_else(|_| T::from_value(&rhs).map(|x| !T::is_zero(x)))?;
-		let out = Value::from(lhs || rhs);
-		Ok(out)
-	}
-
-	fn eval_for(int: &IntType) -> fn(Value, Value) -> Result<Value> {
+impl IntegerToBoolean {
+	pub fn eval_for(int: &IntType) -> fn(&mut RuntimeScope, &Expr) -> Result<bool> {
 		match int {
 			IntType::I8 => Self::eval::<I8>,
 			IntType::U8 => Self::eval::<U8>,
@@ -90,5 +93,12 @@ impl IntegerOr {
 			IntType::I128 => Self::eval::<I128>,
 			IntType::U128 => Self::eval::<U128>,
 		}
+	}
+
+	fn eval<T: IsIntType>(scope: &mut RuntimeScope, expr: &Expr) -> Result<bool> {
+		let value = expr.execute(scope)?;
+		value
+			.to_bool()
+			.or_else(|_| T::from_value(&value).map(|x| !T::is_zero(x)))
 	}
 }
