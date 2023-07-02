@@ -20,7 +20,53 @@ pub use program::*;
 pub use scope::*;
 pub use util::*;
 
+const MAX_ERRORS: usize = 10;
+
 pub type Result<T> = std::result::Result<T, Errors>;
+
+pub trait ResultExtension {
+	type Result;
+
+	fn and(self, other: Self) -> Self;
+	fn handle(self, error: &mut Errors) -> Self::Result;
+	fn unless(self, errors: Errors) -> Self;
+}
+
+impl<T: Default> ResultExtension for Result<T> {
+	type Result = T;
+
+	fn and(self, other: Self) -> Self {
+		match self {
+			Ok(..) => other,
+			Err(errors) => match other {
+				Ok(..) => Err(errors),
+				Err(other) => {
+					let mut errors = errors;
+					errors.append(&other);
+					Err(errors)
+				}
+			},
+		}
+	}
+
+	fn handle(self, errors: &mut Errors) -> Self::Result {
+		match self {
+			Ok(value) => value,
+			Err(errs) => {
+				errors.append(&errs);
+				Self::Result::default()
+			}
+		}
+	}
+
+	fn unless(self, errors: Errors) -> Self {
+		if !errors.empty() {
+			self.and(Err(errors))
+		} else {
+			self
+		}
+	}
+}
 
 use std::{
 	collections::HashMap,

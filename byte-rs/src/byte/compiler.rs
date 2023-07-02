@@ -268,7 +268,9 @@ impl<T: Ord + ?Sized> Ord for CompilerHandle<T> {
 // Compiler data
 //====================================================================================================================//
 
-static COMMON_SYMBOLS: &[&'static str] = &["(", ")", "[", "]", "{", "}", ";", ":", ",", ".", "=", "+", "*"];
+static COMMON_SYMBOLS: &[&'static str] = &[
+	"(", ")", "[", "]", "{", "}", ";", ":", ",", ".", "=", "+", "-", "*", "/", "%", "!", "?",
+];
 const ALPHA: &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz";
 const DIGIT: &'static str = "0123456789";
 
@@ -308,26 +310,83 @@ impl CompilerData {
 
 impl Compiler {
 	pub(crate) fn configure_root_scope(&self, scope: &mut Scope) {
+		//--------------------------------------------------------------------------------------------------------//
+		// Operators
+		//--------------------------------------------------------------------------------------------------------//
+
+		//general parsing
 		scope.add_operator(Operator::Module);
 		scope.add_operator(Operator::SplitLines);
 		scope.add_operator(Operator::Let);
 		scope.add_operator(Operator::Bind);
 		scope.add_operator(Operator::Print);
+		scope.add_operator(Operator::Comma);
 
+		// boolean
+		scope.add_operator(Operator::Replace(
+			self.get_name("true"),
+			Node::Boolean(true),
+			Precedence::Boolean(true),
+		));
+		scope.add_operator(Operator::Replace(
+			self.get_name("false"),
+			Node::Boolean(false),
+			Precedence::Boolean(false),
+		));
+
+		// null
+		scope.add_operator(Operator::Replace(self.get_name("null"), Node::Null, Precedence::Null));
+
+		// binary
+
+		// additive
 		let mut ops = OpMap::new();
 		ops.add(self.get_name("+"), BinaryOp::Add);
+		ops.add(self.get_name("-"), BinaryOp::Sub);
 		scope.add_operator(Operator::Binary(ParseBinaryOp(
 			ops,
 			Precedence::OpAdditive,
 			Grouping::Left,
 		)));
 
+		// multiplicative
 		let mut ops = OpMap::new();
 		ops.add(self.get_name("*"), BinaryOp::Mul);
+		ops.add(self.get_name("/"), BinaryOp::Div);
+		ops.add(self.get_name("%"), BinaryOp::Mod);
 		scope.add_operator(Operator::Binary(ParseBinaryOp(
 			ops,
 			Precedence::OpMultiplicative,
 			Grouping::Left,
+		)));
+
+		// boolean
+		let mut ops = OpMap::new();
+		ops.add(self.get_name("and"), BinaryOp::And);
+		scope.add_operator(Operator::Binary(ParseBinaryOp(
+			ops,
+			Precedence::OpBooleanAnd,
+			Grouping::Right,
+		)));
+
+		let mut ops = OpMap::new();
+		ops.add(self.get_name("or"), BinaryOp::Or);
+		scope.add_operator(Operator::Binary(ParseBinaryOp(
+			ops,
+			Precedence::OpBooleanOr,
+			Grouping::Right,
+		)));
+
+		// unary
+
+		let mut ops = OpMap::new();
+		ops.add(self.get_name("not"), UnaryOp::Not);
+		ops.add(self.get_name("!"), UnaryOp::Neg);
+		ops.add(self.get_name("+"), UnaryOp::Plus);
+		ops.add(self.get_name("-"), UnaryOp::Minus);
+		scope.add_operator(Operator::UnaryPrefix(ParseUnaryPrefixOp(
+			ops,
+			Precedence::OpUnaryPrefix,
 		)));
 	}
 }

@@ -8,8 +8,6 @@ use super::*;
 
 #[derive(Clone, Debug)]
 pub enum ValueExpr {
-	Unit,
-	Never,
 	Bool(bool),
 	Str(StrValue),
 	Int(IntValue),
@@ -19,8 +17,6 @@ pub enum ValueExpr {
 impl ValueExpr {
 	pub fn get_type(&self) -> ValueType {
 		match self {
-			ValueExpr::Unit => ValueType::Unit,
-			ValueExpr::Never => ValueType::Never,
 			ValueExpr::Bool(..) => ValueType::Bool,
 			ValueExpr::Str(..) => ValueType::Str,
 			ValueExpr::Int(int) => ValueType::Int(int.get_type()),
@@ -30,8 +26,6 @@ impl ValueExpr {
 
 	pub fn execute(&self, scope: &mut RuntimeScope) -> Result<Value> {
 		match self {
-			ValueExpr::Unit => Ok(Value::from(())),
-			ValueExpr::Never => Err(Errors::from("evaluated to never value")),
 			ValueExpr::Bool(value) => Ok(Value::from(*value)),
 			ValueExpr::Str(value) => Ok(Value::from(value.get())),
 			ValueExpr::Int(value) => value.execute(scope),
@@ -132,8 +126,6 @@ impl FloatValue {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ValueType {
-	Unit,
-	Never,
 	Bool,
 	Str,
 	Int(IntType),
@@ -141,22 +133,12 @@ pub enum ValueType {
 }
 
 impl ValueType {
-	pub fn validate_value(&self, value: &Value) -> Result<()> {
-		let valid = match self {
-			ValueType::Unit => value.is::<()>(),
-			ValueType::Never => false,
+	pub fn is_valid_value(&self, value: &Value) -> bool {
+		match self {
 			ValueType::Bool => value.is::<bool>(),
 			ValueType::Str => value.is::<String>(),
 			ValueType::Int(int) => int.is_valid_value(value),
 			ValueType::Float(float) => float.is_valid_value(value),
-		};
-		if valid {
-			Ok(())
-		} else {
-			let typ = value.type_name();
-			Err(Errors::from(format!(
-				"value `{value}` of type `{typ}` is not valid {self:?}"
-			)))
 		}
 	}
 }

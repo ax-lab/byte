@@ -327,6 +327,19 @@ impl Debug for Span {
 	}
 }
 
+impl Hash for Span {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		match self {
+			Span::None => 0.hash(state),
+			Span::Some { source, offset, length } => {
+				source.as_ptr().hash(state);
+				offset.hash(state);
+				length.hash(state);
+			}
+		}
+	}
+}
+
 //====================================================================================================================//
 // Cursor
 //====================================================================================================================//

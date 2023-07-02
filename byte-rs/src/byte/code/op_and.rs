@@ -3,31 +3,42 @@ use super::*;
 use int::*;
 
 #[derive(Debug)]
-pub struct OpMul {
+pub struct OpAnd {
 	output: Type,
 	eval_fn: fn(Value, Value) -> Result<Value>,
 }
 
-has_traits!(OpMul: IsBinaryOp);
+has_traits!(OpAnd: IsBinaryOp);
 
-impl OpMul {
+impl OpAnd {
 	pub fn for_type(lhs: &Type) -> Option<Self> {
 		Self::for_types(lhs, lhs)
 	}
 
 	pub fn for_types(lhs: &Type, rhs: &Type) -> Option<Self> {
+		let output = Type::Value(ValueType::Bool);
 		if lhs != rhs {
-			return None;
+			return if (lhs.is_int() || lhs.is_boolean()) && (rhs.is_int() || rhs.is_boolean()) {
+				let int_type = lhs.get_int_type().or_else(|| rhs.get_int_type()).unwrap();
+				Some(Self {
+					output,
+					eval_fn: IntegerAnd::eval_for(int_type),
+				})
+			} else {
+				None
+			};
 		}
 
-		let output = lhs.clone();
 		match output {
 			Type::Value(value) => match value {
+				ValueType::Bool => Some(Self {
+					output,
+					eval_fn: BooleanAnd::eval,
+				}),
 				ValueType::Int(int) => Some(Self {
 					output,
-					eval_fn: IntegerMul::eval_for(&int),
+					eval_fn: IntegerAnd::eval_for(&int),
 				}),
-				ValueType::Float(_) => todo!(),
 				_ => None,
 			},
 			_ => None,
@@ -35,7 +46,7 @@ impl OpMul {
 	}
 }
 
-impl IsBinaryOp for OpMul {
+impl IsBinaryOp for OpAnd {
 	fn execute(&self, lhs: Value, rhs: Value) -> Result<Value> {
 		(self.eval_fn)(lhs, rhs)
 	}
@@ -45,13 +56,24 @@ impl IsBinaryOp for OpMul {
 	}
 }
 
-struct IntegerMul;
+struct BooleanAnd;
 
-impl IntegerMul {
+impl BooleanAnd {
+	fn eval(lhs: Value, rhs: Value) -> Result<Value> {
+		let lhs = lhs.to_bool()?;
+		let rhs = rhs.to_bool()?;
+		let out = Value::from(lhs && rhs);
+		Ok(out)
+	}
+}
+
+struct IntegerAnd;
+
+impl IntegerAnd {
 	fn eval<T: IsIntType>(lhs: Value, rhs: Value) -> Result<Value> {
-		let lhs = T::from_value(&lhs)?;
-		let rhs = T::from_value(&rhs)?;
-		let out = Value::from(T::op_mul(lhs, rhs));
+		let lhs = lhs.to_bool().or_else(|_| T::from_value(&lhs).map(|x| !T::is_zero(x)))?;
+		let rhs = rhs.to_bool().or_else(|_| T::from_value(&rhs).map(|x| !T::is_zero(x)))?;
+		let out = Value::from(lhs && rhs);
 		Ok(out)
 	}
 

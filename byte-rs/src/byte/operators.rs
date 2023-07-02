@@ -2,21 +2,25 @@ use super::*;
 
 pub mod bind;
 pub mod bracket;
+pub mod comma;
 pub mod decl;
 pub mod indent;
 pub mod line;
 pub mod module;
 pub mod parse_ops;
 pub mod print;
+pub mod replace_symbol;
 
 pub use bind::*;
 pub use bracket::*;
+pub use comma::*;
 pub use decl::*;
 pub use indent::*;
 pub use line::*;
 pub use module::*;
 pub use parse_ops::*;
 pub use print::*;
+pub use replace_symbol::*;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Operator {
@@ -24,8 +28,11 @@ pub enum Operator {
 	SplitLines,
 	Let,
 	Print,
+	Comma,
+	Replace(Name, Node, Precedence),
 	Bind,
 	Binary(ParseBinaryOp),
+	UnaryPrefix(ParseUnaryPrefixOp),
 }
 
 /// Global evaluation precedence for language nodes.
@@ -36,8 +43,14 @@ pub enum Precedence {
 	SplitLines,
 	Let,
 	Print,
+	Comma,
+	OpUnaryPrefix,
+	OpBooleanOr,
+	OpBooleanAnd,
 	OpAdditive,
 	OpMultiplicative,
+	Boolean(bool),
+	Null,
 	Bind,
 	Least,
 }
@@ -61,14 +74,19 @@ impl Operator {
 		self.get_impl().apply(context, errors)
 	}
 
-	fn get_impl(&self) -> &dyn IsOperator {
+	fn get_impl(&self) -> Arc<dyn IsOperator> {
 		match self {
-			Operator::Module => &ModuleOperator,
-			Operator::SplitLines => &SplitLineOperator,
-			Operator::Let => &LetOperator,
-			Operator::Bind => &BindOperator,
-			Operator::Print => &PrintOperator,
-			Operator::Binary(op) => op,
+			Operator::Module => Arc::new(ModuleOperator),
+			Operator::SplitLines => Arc::new(SplitLineOperator),
+			Operator::Let => Arc::new(LetOperator),
+			Operator::Bind => Arc::new(BindOperator),
+			Operator::Print => Arc::new(PrintOperator),
+			Operator::Replace(name, node, precedence) => {
+				Arc::new(ReplaceSymbol(name.clone(), node.clone(), *precedence))
+			}
+			Operator::Binary(op) => Arc::new(op.clone()),
+			Operator::UnaryPrefix(op) => Arc::new(op.clone()),
+			Operator::Comma => Arc::new(CommaOperator),
 		}
 	}
 }

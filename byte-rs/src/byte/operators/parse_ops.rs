@@ -121,3 +121,33 @@ impl IsOperator for ParseBinaryOp {
 		}
 	}
 }
+
+//====================================================================================================================//
+// ParseUnaryOp
+//====================================================================================================================//
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ParseUnaryPrefixOp(pub OpMap<UnaryOp>, pub Precedence);
+
+impl IsOperator for ParseUnaryPrefixOp {
+	fn precedence(&self) -> Precedence {
+		self.1
+	}
+
+	fn can_apply(&self, nodes: &NodeList) -> bool {
+		match nodes.get(0).as_ref().map(|x| x.get()) {
+			Some(Node::Word(name) | Node::Symbol(name)) => self.0.contains(name),
+			_ => false,
+		}
+	}
+
+	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
+		let _ = errors;
+		let nodes = context.nodes();
+		let op = self.0.op_for_node(&nodes.get(0).unwrap()).unwrap();
+		let arg = nodes.slice(1..);
+		let new = Node::UnaryOp(op, arg.clone()).at(nodes.span());
+		nodes.replace_all(vec![new]);
+		context.resolve_nodes(&arg);
+	}
+}

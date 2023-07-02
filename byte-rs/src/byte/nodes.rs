@@ -9,7 +9,7 @@ pub use list::*;
 /// Nodes relate to the source code, representing language constructs of all
 /// levels, from files, raw text, and tokens, all the way to fully fledged
 /// definitions.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Node {
 	//----[ Tokens ]----------------------------------------------------------//
 	Break,
@@ -19,12 +19,16 @@ pub enum Node {
 	Symbol(Name),
 	Literal(String),
 	Integer(u128),
+	Boolean(bool),
+	Null,
 	//----[ Structural ]------------------------------------------------------//
 	Module(Span),
 	Line(NodeList),
+	Sequence(Vec<NodeList>),
 	RawText(Span),
 	//----[ AST ]-------------------------------------------------------------//
 	Let(Name, usize, NodeList),
+	UnaryOp(UnaryOp, NodeList),
 	BinaryOp(BinaryOp, NodeList, NodeList),
 	Variable(Name, Option<usize>),
 	Print(NodeList, &'static str),
@@ -125,3 +129,10 @@ impl PartialEq for NodeData {
 }
 
 impl Eq for NodeData {}
+
+impl Hash for NodeData {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		self.node.hash(state);
+		self.span.hash(state);
+	}
+}

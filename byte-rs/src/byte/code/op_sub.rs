@@ -3,50 +3,39 @@ use super::*;
 use int::*;
 
 #[derive(Debug)]
-pub struct OpAdd {
+pub struct OpSub {
 	output: Type,
 	eval_fn: fn(Value, Value) -> Result<Value>,
 }
 
-has_traits!(OpAdd: IsBinaryOp);
+has_traits!(OpSub: IsBinaryOp);
 
-impl OpAdd {
+impl OpSub {
 	pub fn for_type(lhs: &Type) -> Option<Self> {
 		Self::for_types(lhs, lhs)
 	}
 
 	pub fn for_types(lhs: &Type, rhs: &Type) -> Option<Self> {
 		if lhs != rhs {
-			return if lhs.is_string() || rhs.is_string() {
-				Some(Self {
-					output: Type::Value(ValueType::Str),
-					eval_fn: StringFormatAdd::eval,
-				})
-			} else {
-				None
-			};
+			return None;
 		}
 
 		let output = lhs.clone();
 		match output {
 			Type::Value(value) => match value {
-				ValueType::Bool => None,
-				ValueType::Str => Some(Self {
-					output,
-					eval_fn: StringAdd::eval,
-				}),
 				ValueType::Int(int) => Some(Self {
 					output,
-					eval_fn: IntegerAdd::eval_for(&int),
+					eval_fn: IntegerSub::eval_for(&int),
 				}),
 				ValueType::Float(_) => todo!(),
+				_ => None,
 			},
 			_ => None,
 		}
 	}
 }
 
-impl IsBinaryOp for OpAdd {
+impl IsBinaryOp for OpSub {
 	fn execute(&self, lhs: Value, rhs: Value) -> Result<Value> {
 		(self.eval_fn)(lhs, rhs)
 	}
@@ -56,13 +45,13 @@ impl IsBinaryOp for OpAdd {
 	}
 }
 
-struct IntegerAdd;
+struct IntegerSub;
 
-impl IntegerAdd {
+impl IntegerSub {
 	fn eval<T: IsIntType>(lhs: Value, rhs: Value) -> Result<Value> {
 		let lhs = T::from_value(&lhs)?;
 		let rhs = T::from_value(&rhs)?;
-		let out = Value::from(T::op_add(lhs, rhs));
+		let out = Value::from(T::op_sub(lhs, rhs));
 		Ok(out)
 	}
 
@@ -79,35 +68,5 @@ impl IntegerAdd {
 			IntType::I128 => Self::eval::<I128>,
 			IntType::U128 => Self::eval::<U128>,
 		}
-	}
-}
-
-struct StringAdd;
-
-impl StringAdd {
-	fn eval(lhs: Value, rhs: Value) -> Result<Value> {
-		let lhs = Self::to_string(&lhs)?;
-		let rhs = Self::to_string(&rhs)?;
-		let out = format!("{lhs}{rhs}");
-		Ok(Value::from(out))
-	}
-
-	fn to_string(value: &Value) -> Result<&str> {
-		if let Some(value) = value.get::<String>() {
-			Ok(value)
-		} else {
-			let error = format!("`{value:?}` is not a valid string");
-			let error = Errors::from(error);
-			Err(error)
-		}
-	}
-}
-
-struct StringFormatAdd;
-
-impl StringFormatAdd {
-	fn eval(lhs: Value, rhs: Value) -> Result<Value> {
-		let out = format!("{lhs}{rhs}");
-		Ok(Value::from(out))
 	}
 }

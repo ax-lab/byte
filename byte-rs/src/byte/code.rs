@@ -16,13 +16,31 @@
 pub mod int;
 pub mod op;
 pub mod op_add;
+pub mod op_and;
+pub mod op_div;
+pub mod op_minus;
+pub mod op_mod;
 pub mod op_mul;
+pub mod op_neg;
+pub mod op_not;
+pub mod op_or;
+pub mod op_plus;
+pub mod op_sub;
 pub mod runtime_scope;
 pub mod values;
 
 pub use op::*;
 pub use op_add::*;
+pub use op_and::*;
+pub use op_div::*;
+pub use op_minus::*;
+pub use op_mod::*;
 pub use op_mul::*;
+pub use op_neg::*;
+pub use op_not::*;
+pub use op_or::*;
+pub use op_plus::*;
+pub use op_sub::*;
 pub use runtime_scope::*;
 pub use values::*;
 
@@ -46,19 +64,31 @@ impl CodeContext {
 impl NodeList {
 	pub fn generate_code(&self, context: &mut CodeContext) -> Result<Vec<Expr>> {
 		let mut output = Vec::new();
+		let mut errors = Errors::new();
 		for it in self.iter() {
-			let node = self.generate_node(context, &it)?;
+			let node = self.generate_node(context, &it).handle(&mut errors);
 			output.push(node);
+			if errors.len() >= MAX_ERRORS {
+				break;
+			}
 		}
-		Ok(output)
+		Ok(output).unless(errors)
 	}
 
 	fn generate_node(&self, context: &mut CodeContext, node: &NodeData) -> Result<Expr> {
 		let compiler = context.compiler.get();
 		let value = match node.get() {
+			Node::Boolean(value) => {
+				let value = ValueExpr::Bool(*value);
+				Expr::Value(value)
+			}
 			Node::Integer(value) => {
 				let value = IntValue::new(*value, DEFAULT_INT);
 				Expr::Value(ValueExpr::Int(value))
+			}
+			Node::Null => {
+				// TODO: figure out null
+				Expr::Unit
 			}
 			Node::Literal(value) => {
 				let value = StrValue::new(value, &compiler);
@@ -84,11 +114,31 @@ impl NodeList {
 				let expr = expr.generate_expr(context)?;
 				Expr::Print(expr.into(), tail)
 			}
+			Node::UnaryOp(op, arg) => {
+				let arg = arg.generate_expr(context)?;
+				let op = op.for_type(&arg.get_type())?;
+				Expr::Unary(op, arg.into())
+			}
 			Node::BinaryOp(op, lhs, rhs) => {
 				let lhs = lhs.generate_expr(context)?;
 				let rhs = rhs.generate_expr(context)?;
 				let op = op.for_types(&lhs.get_type(), &rhs.get_type())?;
 				Expr::Binary(op, lhs.into(), rhs.into())
+			}
+			Node::Sequence(list) => {
+				let mut errors = Errors::new();
+				let mut sequence = Vec::new();
+				for it in list.iter() {
+					let it = it.generate_expr(context).handle(&mut errors);
+					sequence.push(it);
+					if errors.len() >= MAX_ERRORS {
+						break;
+					}
+				}
+				if !errors.empty() {
+					return Err(errors);
+				}
+				Expr::Sequence(sequence)
 			}
 			value => {
 				let mut error = format!("cannot generate code for `{value:?}`");
@@ -106,10 +156,14 @@ impl NodeList {
 
 	fn generate_expr(&self, context: &mut CodeContext) -> Result<Expr> {
 		let expr = match self.len() {
-			0 => Expr::Value(ValueExpr::Unit),
+			0 => Expr::Unit,
 			_ => {
-				let code = self.generate_code(context)?;
-				Expr::Sequence(code)
+				let mut output = Vec::new();
+				for it in self.iter() {
+					let node = self.generate_node(context, &it)?;
+					output.push(node);
+				}
+				Expr::Sequence(output)
 			}
 		};
 		Ok(expr)
@@ -121,12 +175,16 @@ impl NodeList {
 //====================================================================================================================//
 
 /// Enumeration of builtin root expressions.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub enum Expr {
+	#[default]
+	Never,
+	Unit,
 	Declare(Name, Option<usize>, Arc<Expr>),
 	Value(ValueExpr),
 	Variable(Name, Option<usize>, Type),
 	Print(Arc<Expr>, &'static str),
+	Unary(UnaryOpImpl, Arc<Expr>),
 	Binary(BinaryOpImpl, Arc<Expr>, Arc<Expr>),
 	Sequence(Vec<Expr>),
 }
@@ -134,20 +192,25 @@ pub enum Expr {
 impl Expr {
 	pub fn get_type(&self) -> Type {
 		match self {
+			Expr::Never => Type::Never,
+			Expr::Unit => Type::Unit,
 			Expr::Declare(.., expr) => expr.get_type(),
 			Expr::Value(value) => Type::Value(value.get_type()),
 			Expr::Variable(.., kind) => kind.clone(),
-			Expr::Print(..) => Type::Value(ValueType::Unit),
+			Expr::Print(..) => Type::Unit,
+			Expr::Unary(op, ..) => op.get().get_type(),
 			Expr::Binary(op, ..) => op.get().get_type(),
-			Expr::Sequence(list) => list
-				.last()
-				.map(|x| x.get_type())
-				.unwrap_or_else(|| Type::Value(ValueType::Unit)),
+			Expr::Sequence(list) => list.last().map(|x| x.get_type()).unwrap_or_else(|| Type::Unit),
 		}
 	}
 
 	pub fn execute(&self, scope: &mut RuntimeScope) -> Result<Value> {
 		match self {
+			Expr::Never => {
+				let error = format!("never expression cannot be evaluated");
+				Err(Errors::from(error))
+			}
+			Expr::Unit => Ok(Value::from(())),
 			Expr::Declare(name, offset, expr) => {
 				let value = expr.execute(scope)?;
 				scope.set(name.clone(), *offset, value.clone());
@@ -159,10 +222,28 @@ impl Expr {
 				None => Err(Errors::from(format!("variable {name} not set"))),
 			},
 			Expr::Print(expr, tail) => {
-				let value = expr.execute(scope)?;
+				let list = expr.as_sequence();
+				let mut values = Vec::new();
+				for expr in list {
+					let value = expr.execute(scope)?;
+					if !value.is_unit() {
+						values.push(value)
+					}
+				}
+
 				let mut output = scope.stdout();
-				write!(output, "{value}{tail}")?;
+				for (i, it) in values.into_iter().enumerate() {
+					if i > 0 {
+						write!(output, " ")?;
+					}
+					write!(output, "{it}")?;
+				}
+				write!(output, "{tail}")?;
 				Ok(Value::from(()))
+			}
+			Expr::Unary(op, arg) => {
+				let arg = arg.execute(scope)?;
+				op.get().execute(arg)
 			}
 			Expr::Binary(op, lhs, rhs) => {
 				let lhs = lhs.execute(scope)?;
@@ -179,6 +260,15 @@ impl Expr {
 			}
 		}
 	}
+
+	pub fn as_sequence(&self) -> Vec<Expr> {
+		let mut output = Vec::new();
+		match self {
+			Expr::Sequence(list) => output = list.clone(),
+			expr => output.push(expr.clone()),
+		}
+		output
+	}
 }
 
 //====================================================================================================================//
@@ -188,18 +278,45 @@ impl Expr {
 /// Enumeration of builtin types.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Type {
+	Unit,
+	Never,
 	Value(ValueType),
 }
 
 impl Type {
 	pub fn validate_value(&self, value: &Value) -> Result<()> {
-		match self {
-			Type::Value(kind) => kind.validate_value(value),
+		let valid = match self {
+			Type::Unit => value.is::<()>(),
+			Type::Never => false,
+			Type::Value(kind) => kind.is_valid_value(value),
+		};
+		if valid {
+			Ok(())
+		} else {
+			let typ = value.type_name();
+			Err(Errors::from(format!(
+				"value `{value}` of type `{typ}` is not valid {self:?}"
+			)))
 		}
 	}
 
 	pub fn is_string(&self) -> bool {
 		self == &Type::Value(ValueType::Str)
+	}
+
+	pub fn is_boolean(&self) -> bool {
+		self == &Type::Value(ValueType::Bool)
+	}
+
+	pub fn is_int(&self) -> bool {
+		self.get_int_type().is_some()
+	}
+
+	pub fn get_int_type(&self) -> Option<&IntType> {
+		match self {
+			Type::Value(ValueType::Int(int)) => Some(int),
+			_ => None,
+		}
 	}
 }
 

@@ -80,6 +80,19 @@ impl Value {
 			inner: Arc::downgrade(&self.inner),
 		}
 	}
+
+	pub fn is_unit(&self) -> bool {
+		self.is::<()>()
+	}
+
+	pub fn to_bool(&self) -> Result<bool> {
+		if let Some(value) = self.get::<bool>() {
+			Ok(*value)
+		} else {
+			let error = format!("value `{self:?}` is not a valid boolean");
+			Err(Errors::from(error))
+		}
+	}
 }
 
 impl HasTraits for Value {

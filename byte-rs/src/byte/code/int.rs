@@ -6,11 +6,16 @@ pub trait IsIntType {
 
 	fn new_value(v: u128) -> Result<Self::Data>;
 
+	fn is_zero(a: Self::Data) -> bool;
+
 	fn op_add(a: Self::Data, b: Self::Data) -> Self::Data;
 	fn op_sub(a: Self::Data, b: Self::Data) -> Self::Data;
 
 	fn op_mul(a: Self::Data, b: Self::Data) -> Self::Data;
 	fn op_div(a: Self::Data, b: Self::Data) -> Self::Data;
+	fn op_mod(a: Self::Data, b: Self::Data) -> Self::Data;
+
+	fn op_neg(a: Self::Data) -> Self::Data;
 
 	fn from_value(value: &Value) -> Result<Self::Data> {
 		if let Some(value) = value.get::<Self::Data>() {
@@ -25,7 +30,7 @@ pub trait IsIntType {
 }
 
 pub trait IsSignedIntType: IsIntType {
-	fn op_minus(v: Self::Data) -> Result<Self::Data>;
+	fn op_minus(v: Self::Data) -> Self::Data;
 }
 
 int_type!(Isize: isize, i);
@@ -81,6 +86,10 @@ mod macros {
 					}
 				}
 
+				fn is_zero(a: Self::Data) -> bool {
+					a == 0
+				}
+
 				fn op_add(a: Self::Data, b: Self::Data) -> Self::Data {
 					a + b
 				}
@@ -95,6 +104,18 @@ mod macros {
 
 				fn op_div(a: Self::Data, b: Self::Data) -> Self::Data {
 					a / b
+				}
+
+				fn op_mod(a: Self::Data, b: Self::Data) -> Self::Data {
+					a % b
+				}
+
+				fn op_neg(a: Self::Data) -> Self::Data {
+					if a == 0 {
+						1
+					} else {
+						0
+					}
 				}
 			}
 
@@ -118,8 +139,8 @@ mod macros {
 	macro_rules! int_type_signed {
 		($name:ident : $int:ty) => {
 			impl IsSignedIntType for $name {
-				fn op_minus(v: Self::Data) -> Result<Self::Data> {
-					Ok(-v)
+				fn op_minus(v: Self::Data) -> Self::Data {
+					-v
 				}
 			}
 		};

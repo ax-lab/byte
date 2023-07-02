@@ -188,6 +188,31 @@ impl NodeList {
 		}
 	}
 
+	pub fn split_by_items<P: FnMut(&NodeData) -> bool>(&mut self, mut split: P) -> Vec<NodeList> {
+		let mut new_nodes = Vec::new();
+		let mut line = Vec::new();
+
+		let scope = &self.data.scope;
+
+		let mut nodes = self.data.nodes.write().unwrap();
+		let nodes = Arc::make_mut(&mut nodes);
+
+		for it in nodes.iter() {
+			if split(it) {
+				let nodes = std::mem::take(&mut line);
+				new_nodes.push(NodeList::new(scope.clone(), nodes));
+			} else {
+				line.push(it.clone());
+			}
+		}
+
+		if line.len() > 0 {
+			let nodes = Self::new(self.data.scope.clone(), std::mem::take(&mut line));
+			new_nodes.push(nodes);
+		}
+		new_nodes
+	}
+
 	// TODO: move the parsing functions to the eval context and allow them to receive a context reference
 
 	pub fn fold_first<P: FnMut(&NodeData) -> bool, S: FnMut(NodeList, NodeData, NodeList) -> NodeData>(
@@ -331,6 +356,15 @@ impl PartialEq for NodeList {
 }
 
 impl Eq for NodeList {}
+
+impl Hash for NodeList {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		let nodes = self.data.nodes.read().unwrap();
+		for it in nodes.iter() {
+			it.hash(state);
+		}
+	}
+}
 
 //====================================================================================================================//
 // NodeListData
