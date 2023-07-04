@@ -12,8 +12,16 @@ impl Context {
 	pub fn source_at(&self, offset: usize) -> Option<Source> {
 		self.read_sources(|data| {
 			let sources = data.sources_sorted.read().unwrap();
-			let index = sources.partition_point(|it| it.offset > offset);
-			sources.get(index).map(|data| Source { data: data.clone() })
+			let index = sources.partition_point(|it| it.offset + it.text.len() < offset);
+			if let Some(source) = sources.get(index) {
+				if source.offset <= offset {
+					Some(Source { data: source.clone() })
+				} else {
+					None
+				}
+			} else {
+				None
+			}
 		})
 	}
 
@@ -244,6 +252,8 @@ mod tests {
 
 	#[test]
 	fn source_loading() -> Result<()> {
+		const ALIGN: usize = SOURCE_OFFSET_ALIGNMENT;
+
 		let context = Context::get();
 		let a = context.load_source_text("input A", "123456");
 		let b = context.load_source_text("input B", "some data");
@@ -254,9 +264,9 @@ mod tests {
 		assert_eq!(b.len(), 9);
 		assert_eq!(c.len(), 0);
 		assert_eq!(a.offset(), 0);
-		assert_eq!(b.offset(), SOURCE_OFFSET_ALIGNMENT);
-		assert_eq!(c.offset(), SOURCE_OFFSET_ALIGNMENT * 2);
-		assert_eq!(d.offset(), SOURCE_OFFSET_ALIGNMENT * 3);
+		assert_eq!(b.offset(), ALIGN);
+		assert_eq!(c.offset(), ALIGN * 2);
+		assert_eq!(d.offset(), ALIGN * 3);
 
 		assert_eq!(a.name(), "input A");
 		assert_eq!(b.name(), "input B");
@@ -283,6 +293,24 @@ mod tests {
 		assert_eq!(f2.name(), f1.name());
 		assert_eq!(f2.path(), f1.path());
 		assert_eq!(f2.offset(), f1.offset());
+
+		assert!(context.source_at(0) == Some(a.clone()));
+		assert!(context.source_at(1) == Some(a.clone()));
+		assert!(context.source_at(6) == Some(a.clone()));
+
+		assert!(context.source_at(7) == None);
+		assert!(context.source_at(ALIGN) == Some(b.clone()));
+		assert!(context.source_at(ALIGN + 1) == Some(b.clone()));
+		assert!(context.source_at(ALIGN + b.len()) == Some(b.clone()));
+
+		assert!(context.source_at(ALIGN + b.len() + 1) == None);
+		assert!(context.source_at(ALIGN * 2 - 1) == None);
+		assert!(context.source_at(ALIGN * 2) == Some(c.clone()));
+
+		assert!(context.source_at(ALIGN * 3) == Some(d.clone()));
+		assert!(context.source_at(ALIGN * 4) == Some(f1.clone()));
+		assert!(context.source_at(ALIGN * 4 + f1.len()) == Some(f1.clone()));
+		assert!(context.source_at(ALIGN * 4 + f1.len() + 1) == None);
 
 		Ok(())
 	}
