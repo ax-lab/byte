@@ -35,7 +35,7 @@ fn main() {
 						}
 						"--show-config" => {
 							println!("\nGlobal configuration:\n");
-							println!("- Tab size:  {}", context.tab_size());
+							println!("- Tab width: {}", context.tab_width());
 							println!("- Base path: {}", context.base_path().to_string_lossy());
 							println!("\n");
 							true

@@ -23,8 +23,21 @@ pub use program::*;
 pub use scope::*;
 pub use util::*;
 
-/// Default initial tab size used by [`Context`] when no other value is set.
-const DEFAULT_TAB_SIZE: usize = 4;
+/// Default initial tab-width for the compiler.
+///
+/// This can be overridden at the [`Context`] or [`Source`] level.
+///
+/// The tab-width is used to compute column and indentation levels for tabs
+/// in the source code. This is mostly visible when reporting a location.
+///
+/// As such, changing the tab-width has only "cosmetic" effects in compiler
+/// messages and reported locations.
+///
+/// Changing the tab-width DOES change the relationship between space and tabs
+/// in indentation, which would have semantic implications, except that
+/// inconsistent use of tabs and spaces in the indentation of continuous lines
+/// is forbidden.
+const DEFAULT_TAB_WIDTH: usize = 4;
 
 // TODO: create a "CompilerInfo" struct that can be apply to any value, node, or error, containing compiler source information.
 

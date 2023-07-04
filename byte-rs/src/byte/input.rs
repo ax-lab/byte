@@ -34,15 +34,21 @@ impl Span {
 	pub fn start(&self) -> Cursor {
 		Cursor {
 			span: self.clone(),
-			source: self.source_list(),
+			source: self.source(),
 			line: 0,
 			column: 0,
 			indent: 0,
-			tab_width: 0,
 		}
 	}
 
-	pub fn source_list(&self) -> Option<Source> {
+	pub fn tab_width(&self) -> usize {
+		match self {
+			Span::None => DEFAULT_TAB_WIDTH,
+			Span::Some { source, .. } => source.tab_width(),
+		}
+	}
+
+	pub fn source(&self) -> Option<Source> {
 		match self {
 			Span::None => None,
 			Span::Some { source, .. } => Some(source.clone()),
@@ -73,7 +79,7 @@ impl Span {
 
 	/// Span for the full source text, if this is a partial span. Otherwise
 	/// returns the current span itself.
-	pub fn source(&self) -> Span {
+	pub fn source_span(&self) -> Span {
 		match self {
 			Span::None => Span::None,
 			Span::Some { source, .. } => Span::Some {
@@ -119,12 +125,12 @@ impl Span {
 
 	/// Returns the line and column number for this span start location.
 	pub fn line_column(&self, tab_width: usize) -> Option<(usize, usize)> {
-		if let Some(source) = self.source_list() {
+		if let Some(source) = self.source() {
 			let offset = self.offset() - source.offset();
 			let prefix = &source.text().as_bytes()[..offset];
 			let prefix = unsafe { std::str::from_utf8_unchecked(prefix) };
 
-			let tab_width = if tab_width == 0 { DEFAULT_TAB_SIZE } else { tab_width };
+			let tab_width = if tab_width == 0 { DEFAULT_TAB_WIDTH } else { tab_width };
 
 			let mut row = 0;
 			let mut col = 0;
@@ -163,7 +169,7 @@ impl Debug for Span {
 		let text = self.text();
 		let chars = text.chars().count();
 
-		if let Some(source) = self.source_list() {
+		if let Some(source) = self.source() {
 			let offset = self.offset();
 			let length = self.len();
 			let sta = offset - source.offset();
@@ -216,7 +222,6 @@ pub struct Cursor {
 	line: usize,
 	column: usize,
 	indent: usize,
-	tab_width: usize,
 }
 
 impl Cursor {
@@ -245,24 +250,6 @@ impl Cursor {
 		cursor.column = column;
 		cursor.indent = indent;
 		cursor
-	}
-
-	/// Make a new copy of the current cursor setting a new tab-width value.
-	///
-	/// If the tab-width is zero, then use [`DEFAULT_TAB_WIDTH`].
-	pub fn with_tab_width(&self, tab_width: usize) -> Self {
-		let mut cursor = self.clone();
-		cursor.tab_width = tab_width;
-		cursor
-	}
-
-	/// Tab-width for the cursor.
-	pub fn tab_width(&self) -> usize {
-		if self.tab_width == 0 {
-			DEFAULT_TAB_SIZE
-		} else {
-			self.tab_width
-		}
 	}
 
 	/// True if at the end of the input.
@@ -355,7 +342,7 @@ impl Cursor {
 
 	/// Advance the cursor.
 	pub fn advance(&mut self, length: usize) {
-		let tab_width = self.tab_width();
+		let tab_width = self.span().tab_width();
 		let data = self.data();
 
 		let mut skip = &data[..length];

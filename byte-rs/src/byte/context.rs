@@ -68,17 +68,6 @@ impl Context {
 		})
 	}
 
-	/// Default tab size used by input sources to compute column and
-	/// indentation values.
-	pub fn tab_size(&self) -> usize {
-		let tab_size = self.read(|ctx| ctx.tab_size);
-		if tab_size == 0 {
-			DEFAULT_TAB_SIZE
-		} else {
-			tab_size
-		}
-	}
-
 	fn read<T, P: FnOnce(&ContextData) -> T>(&self, reader: P) -> T {
 		reader(&self.data)
 	}
@@ -111,10 +100,6 @@ pub struct ContextWriter<'a> {
 }
 
 impl<'a> ContextWriter<'a> {
-	pub fn set_tab_size(&mut self, size: usize) -> usize {
-		self.write(|ctx| std::mem::replace(&mut ctx.tab_size, size))
-	}
-
 	fn write<T, P: FnOnce(&mut ContextData) -> T>(&mut self, writer: P) -> T {
 		writer(&mut self.data)
 	}
@@ -126,7 +111,6 @@ impl<'a> ContextWriter<'a> {
 
 #[derive(Default, Clone)]
 struct ContextData {
-	tab_size: usize,
 	sources: ContextDataSources,
 }
 
@@ -194,122 +178,122 @@ mod tests {
 	pub fn defaults() {
 		// default context
 		let context = Context::get();
-		assert_eq!(context.tab_size(), DEFAULT_TAB_SIZE);
+		assert_eq!(context.tab_width(), DEFAULT_TAB_WIDTH);
 
 		// change default
-		let context = context.write(|ctx| ctx.set_tab_size(8));
-		assert_eq!(context.tab_size(), 8);
+		let context = context.write(|ctx| ctx.set_tab_width(8));
+		assert_eq!(context.tab_width(), 8);
 
 		// check that changes are visible globally
-		assert_eq!(Context::get().tab_size(), 8);
-		check_tab_size(8);
+		assert_eq!(Context::get().tab_width(), 8);
+		check_tab_width(8);
 
 		// a cloned context will inherit the values (and not change)
 		let cloned = context.clone();
-		assert_eq!(cloned.tab_size(), 8);
+		assert_eq!(cloned.tab_width(), 8);
 
 		// any new context will inherit the values (and not change)
 		let another = Context::get();
-		assert_eq!(another.tab_size(), 8);
+		assert_eq!(another.tab_width(), 8);
 
 		// check that nothing has changed
-		check_tab_size(8);
+		check_tab_width(8);
 
 		// make a new change to the "original" context
-		let context = context.write(|ctx| ctx.set_tab_size(12));
-		assert_eq!(context.tab_size(), 12);
+		let context = context.write(|ctx| ctx.set_tab_width(12));
+		assert_eq!(context.tab_width(), 12);
 
 		// change should not be visible to already created contexts
-		assert_eq!(another.tab_size(), 8);
-		assert_eq!(cloned.tab_size(), 8);
+		assert_eq!(another.tab_width(), 8);
+		assert_eq!(cloned.tab_width(), 8);
 
 		// but should be visible elsewhere
-		check_tab_size(12);
+		check_tab_width(12);
 
 		// save this new change to check later
 		let cloned2 = context.clone();
 
 		// test that changes are properly stacked
-		let sub = context.clone().write(|ctx| ctx.set_tab_size(11));
-		assert_eq!(sub.tab_size(), 11);
-		check_tab_size(11);
+		let sub = context.clone().write(|ctx| ctx.set_tab_width(11));
+		assert_eq!(sub.tab_width(), 11);
+		check_tab_width(11);
 		drop(sub);
-		check_tab_size(12);
+		check_tab_width(12);
 
 		// dropping all changes should return to the original
 		drop(context);
-		check_tab_size(DEFAULT_TAB_SIZE);
-		assert_eq!(Context::get().tab_size(), DEFAULT_TAB_SIZE);
+		check_tab_width(DEFAULT_TAB_WIDTH);
+		assert_eq!(Context::get().tab_width(), DEFAULT_TAB_WIDTH);
 
 		// created contexts should not be affected
-		assert_eq!(another.tab_size(), 8);
-		assert_eq!(cloned.tab_size(), 8);
-		assert_eq!(cloned2.tab_size(), 12);
+		assert_eq!(another.tab_width(), 8);
+		assert_eq!(cloned.tab_width(), 8);
+		assert_eq!(cloned2.tab_width(), 12);
 
 		// everything should still be back to normal after dropping all clones
 		drop(another);
-		check_tab_size(DEFAULT_TAB_SIZE);
+		check_tab_width(DEFAULT_TAB_WIDTH);
 		drop(cloned2);
-		check_tab_size(DEFAULT_TAB_SIZE);
+		check_tab_width(DEFAULT_TAB_WIDTH);
 		drop(cloned);
-		check_tab_size(DEFAULT_TAB_SIZE);
+		check_tab_width(DEFAULT_TAB_WIDTH);
 	}
 
 	/// Test that interleaved context changes work properly.
 	#[test]
 	pub fn interleaved() {
-		check_tab_size(DEFAULT_TAB_SIZE);
+		check_tab_width(DEFAULT_TAB_WIDTH);
 
 		let context1 = Context::get();
 		let context2 = Context::get();
 
-		let context1 = context1.write(|ctx| ctx.set_tab_size(1));
-		check_tab_size(1);
+		let context1 = context1.write(|ctx| ctx.set_tab_width(1));
+		check_tab_width(1);
 
-		let context2 = context2.write(|ctx| ctx.set_tab_size(2));
-		check_tab_size(2);
+		let context2 = context2.write(|ctx| ctx.set_tab_width(2));
+		check_tab_width(2);
 
 		drop(context1);
-		check_tab_size(2);
+		check_tab_width(2);
 		drop(context2);
-		check_tab_size(DEFAULT_TAB_SIZE);
+		check_tab_width(DEFAULT_TAB_WIDTH);
 
-		let context1 = Context::get().write(|ctx| ctx.set_tab_size(1));
-		check_tab_size(1);
-		let context2 = context1.clone().write(|ctx| ctx.set_tab_size(2));
-		check_tab_size(2);
-		let context3 = context2.clone().write(|ctx| ctx.set_tab_size(3));
-		check_tab_size(3);
-		let context4 = context3.clone().write(|ctx| ctx.set_tab_size(4));
-		check_tab_size(4);
+		let context1 = Context::get().write(|ctx| ctx.set_tab_width(1));
+		check_tab_width(1);
+		let context2 = context1.clone().write(|ctx| ctx.set_tab_width(2));
+		check_tab_width(2);
+		let context3 = context2.clone().write(|ctx| ctx.set_tab_width(3));
+		check_tab_width(3);
+		let context4 = context3.clone().write(|ctx| ctx.set_tab_width(4));
+		check_tab_width(4);
 
 		drop(context3);
-		check_tab_size(4);
+		check_tab_width(4);
 
 		drop(context2);
-		check_tab_size(4);
+		check_tab_width(4);
 
 		drop(context4);
-		check_tab_size(1);
+		check_tab_width(1);
 
 		drop(context1);
-		check_tab_size(DEFAULT_TAB_SIZE);
+		check_tab_width(DEFAULT_TAB_WIDTH);
 	}
 
 	/// Test context behavior with threads.
 	#[test]
 	pub fn threads() {
-		check_tab_size(DEFAULT_TAB_SIZE);
+		check_tab_width(DEFAULT_TAB_WIDTH);
 
 		// set a new context
-		let context = Context::get().write(|ctx| ctx.set_tab_size(8));
-		check_tab_size(8);
+		let context = Context::get().write(|ctx| ctx.set_tab_width(8));
+		check_tab_width(8);
 
 		// normal threads won't see the context changes by default
-		let t1 = thread::spawn(|| check_tab_size(DEFAULT_TAB_SIZE));
+		let t1 = thread::spawn(|| check_tab_width(DEFAULT_TAB_WIDTH));
 		t1.join().unwrap();
 
-		let sub = context.clone().write(|ctx| ctx.set_tab_size(13));
+		let sub = context.clone().write(|ctx| ctx.set_tab_width(13));
 
 		let main = Arc::new((Mutex::new(false), Condvar::new()));
 		let wait = Arc::clone(&main);
@@ -318,13 +302,13 @@ mod tests {
 		// even if the default has changed
 		let t2 = context.spawn(move || {
 			// inherited the changes from the spawn context
-			check_tab_size(8);
+			check_tab_width(8);
 
 			// make changes only in this thread
-			let thread_context = Context::get().write(|ctx| ctx.set_tab_size(12));
-			check_tab_size(12);
+			let thread_context = Context::get().write(|ctx| ctx.set_tab_width(12));
+			check_tab_width(12);
 			drop(thread_context);
-			check_tab_size(8);
+			check_tab_width(8);
 
 			// wait for the original context to drop...
 			let (done, var) = &*wait;
@@ -334,14 +318,14 @@ mod tests {
 			}
 
 			// ...it should not affect the thread
-			check_tab_size(8);
+			check_tab_width(8);
 		});
 
 		// dropping contexts won't affect the already spawned thread
-		check_tab_size(13);
+		check_tab_width(13);
 		drop(sub);
 		drop(context);
-		check_tab_size(DEFAULT_TAB_SIZE);
+		check_tab_width(DEFAULT_TAB_WIDTH);
 
 		let (done, var) = &*main;
 		*done.lock().unwrap() = true;
@@ -349,10 +333,10 @@ mod tests {
 
 		// the thread finishing should have no effect on the original
 		t2.join().unwrap();
-		check_tab_size(DEFAULT_TAB_SIZE);
+		check_tab_width(DEFAULT_TAB_WIDTH);
 	}
 
-	fn check_tab_size(size: usize) {
-		assert_eq!(Context::get().tab_size(), size);
+	fn check_tab_width(size: usize) {
+		assert_eq!(Context::get().tab_width(), size);
 	}
 }

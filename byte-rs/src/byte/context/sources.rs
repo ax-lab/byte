@@ -8,6 +8,13 @@ impl Context {
 		self.read_sources(|data| data.base_path.clone())
 	}
 
+	/// Default tab-width used by input sources created from this context.
+	///
+	/// See [`DEFAULT_TAB_WIDTH`].
+	pub fn tab_width(&self) -> usize {
+		self.read_sources(|ctx| ctx.tab_width)
+	}
+
 	/// Returns the source that contains the given offset.
 	pub fn source_at(&self, offset: usize) -> Option<Source> {
 		self.read_sources(|data| {
@@ -86,6 +93,20 @@ impl Source {
 		self.text().len()
 	}
 
+	/// Tab-width for this source. See [`DEFAULT_TAB_WIDTH`].
+	pub fn tab_width(&self) -> usize {
+		*self.data.tab_width.read().unwrap()
+	}
+
+	/// Sets a custom tab-width for this source.
+	///
+	/// This has effect globally. It is meant to set the tab-width parsed from
+	/// directives in the file.
+	pub fn set_tab_width(&self, size: usize) -> usize {
+		let mut tab_width = self.data.tab_width.write().unwrap();
+		std::mem::replace(&mut tab_width, if size == 0 { DEFAULT_TAB_WIDTH } else { size })
+	}
+
 	/// Name for this source.
 	///
 	/// All sources have a non-empty name, but those are not necessarily unique.
@@ -140,6 +161,12 @@ impl<'a> ContextWriter<'a> {
 		Ok(path)
 	}
 
+	pub fn set_tab_width(&mut self, size: usize) -> usize {
+		self.write_sources(|ctx| {
+			std::mem::replace(&mut ctx.tab_width, if size == 0 { DEFAULT_TAB_WIDTH } else { size })
+		})
+	}
+
 	fn write_sources<T, P: FnOnce(&mut ContextDataSources) -> T>(&mut self, writer: P) -> T {
 		self.write(|data| writer(&mut data.sources))
 	}
@@ -147,6 +174,7 @@ impl<'a> ContextWriter<'a> {
 
 #[derive(Clone)]
 pub(super) struct ContextDataSources {
+	tab_width: usize,
 	base_path: PathBuf,
 	sources_offset: Arc<RwLock<usize>>,
 	sources_by_path: Arc<RwLock<HashMap<PathBuf, Result<Arc<SourceData>>>>>,
@@ -158,6 +186,7 @@ impl Default for ContextDataSources {
 		let base_path = std::fs::canonicalize(".").expect("failed to get the canonical current dir, giving up");
 		Self {
 			base_path,
+			tab_width: DEFAULT_TAB_WIDTH,
 			sources_offset: Default::default(),
 			sources_by_path: Default::default(),
 			sources_sorted: Default::default(),
@@ -174,6 +203,7 @@ struct SourceData {
 	text: String,
 	path: Option<PathBuf>,
 	offset: usize,
+	tab_width: RwLock<usize>,
 }
 
 impl ContextDataSources {
@@ -188,6 +218,7 @@ impl ContextDataSources {
 			text,
 			path: None,
 			offset,
+			tab_width: RwLock::new(self.tab_width),
 		});
 
 		sorted.push(source.clone());
@@ -215,6 +246,7 @@ impl ContextDataSources {
 							text,
 							path: Some(abs_path.clone()),
 							offset,
+							tab_width: RwLock::new(self.tab_width),
 						});
 						sorted.push(source.clone());
 						Ok(source)
