@@ -1,10 +1,5 @@
 use super::*;
 
-/// Default tab width across the compiler.
-///
-/// This affects reported column numbers and the computed indentation values.
-pub const DEFAULT_TAB_WIDTH: usize = 4;
-
 /// Contains the whole program being compiled. This includes all files, text
 /// segments, pre-defined symbols, libraries, etc.
 pub struct Program {
@@ -14,7 +9,6 @@ pub struct Program {
 #[doc(hidden)]
 pub struct ProgramData {
 	compiler: CompilerRef,
-	tab_width: usize,
 	segments: RwLock<Vec<NodeList>>,
 	run_list: RwLock<Vec<NodeList>>,
 	root_scope: Scope,
@@ -33,7 +27,6 @@ impl Program {
 			ProgramData {
 				compiler,
 				root_scope,
-				tab_width: DEFAULT_TAB_WIDTH,
 				segments: Default::default(),
 				run_list: Default::default(),
 				sources: SourceList::new(base_path).unwrap(),
@@ -53,10 +46,6 @@ impl Program {
 
 	pub fn root_scope(&self) -> &Scope {
 		&self.data.root_scope
-	}
-
-	pub fn tab_width(&self) -> usize {
-		self.data.tab_width
 	}
 
 	pub fn run(&self) -> Result<Value> {

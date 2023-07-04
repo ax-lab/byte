@@ -245,7 +245,7 @@ impl Span {
 			let prefix = &source.data[..offset];
 			let prefix = unsafe { std::str::from_utf8_unchecked(prefix) };
 
-			let tab_width = if tab_width == 0 { DEFAULT_TAB_WIDTH } else { tab_width };
+			let tab_width = if tab_width == 0 { DEFAULT_TAB_SIZE } else { tab_width };
 
 			let mut row = 0;
 			let mut col = 0;
@@ -396,7 +396,7 @@ impl Cursor {
 	/// Tab-width for the cursor.
 	pub fn tab_width(&self) -> usize {
 		if self.tab_width == 0 {
-			DEFAULT_TAB_WIDTH
+			DEFAULT_TAB_SIZE
 		} else {
 			self.tab_width
 		}

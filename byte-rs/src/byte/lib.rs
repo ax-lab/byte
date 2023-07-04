@@ -1,3 +1,6 @@
+pub mod context;
+pub use context::*;
+
 pub mod code;
 pub mod compiler;
 pub mod handle;
@@ -19,6 +22,9 @@ pub use operators::*;
 pub use program::*;
 pub use scope::*;
 pub use util::*;
+
+/// Default initial tab size used by [`Context`] when no other value is set.
+const DEFAULT_TAB_SIZE: usize = 4;
 
 // TODO: create a "CompilerInfo" struct that can be apply to any value, node, or error, containing compiler source information.
 
