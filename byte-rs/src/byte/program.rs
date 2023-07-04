@@ -18,7 +18,7 @@ pub struct ProgramData {
 
 impl Program {
 	pub fn new(compiler: &Compiler) -> Program {
-		let base_path = compiler.base_path();
+		let base_path = Context::get().base_path();
 		Program::new_cyclic(|handle| {
 			let mut root_scope = Scope::new(handle);
 			compiler.configure_root_scope(&mut root_scope);

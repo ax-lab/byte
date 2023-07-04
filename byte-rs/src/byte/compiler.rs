@@ -12,20 +12,9 @@ impl Compiler {
 	/// Create a new compiler instance with default settings using the current
 	/// path as base path.
 	pub fn new() -> Self {
-		Self::new_with_path(".").unwrap()
-	}
-
-	/// Create a new compiler instance with default settings and the given
-	/// base path.
-	pub fn new_with_path<T: AsRef<Path>>(base_path: T) -> Result<Self> {
-		let base_path = std::fs::canonicalize(base_path)?;
-		Ok(Self {
-			data: CompilerData::new(base_path),
-		})
-	}
-
-	pub fn base_path(&self) -> PathBuf {
-		self.data.base_path.clone()
+		Self {
+			data: CompilerData::new(),
+		}
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
@@ -275,8 +264,6 @@ const ALPHA: &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwx
 const DIGIT: &'static str = "0123456789";
 
 struct CompilerData {
-	base_path: PathBuf,
-
 	// default scanner used by any new compiler context
 	scanner: Scanner,
 
@@ -288,7 +275,7 @@ struct CompilerData {
 }
 
 impl CompilerData {
-	pub fn new(base_path: PathBuf) -> Arc<Self> {
+	pub fn new() -> Arc<Self> {
 		Arc::new_cyclic(|data| {
 			let compiler = CompilerRef { data: data.clone() };
 
@@ -299,7 +286,6 @@ impl CompilerData {
 			scanner.add_matcher(IntegerMatcher);
 
 			CompilerData {
-				base_path,
 				scanner,
 				arena: Default::default(),
 				strings: Default::default(),

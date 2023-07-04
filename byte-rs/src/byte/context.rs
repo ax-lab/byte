@@ -7,6 +7,8 @@ use std::{
 
 use super::*;
 
+pub mod sources;
+
 /// Provides a context that can be shared between functions across the current
 /// stack for the current thread.
 ///
@@ -29,6 +31,10 @@ impl Context {
 			data: ContextData::get_active(),
 			dispose: None,
 		}
+	}
+
+	pub fn with<T, P: FnOnce(&Self) -> T>(self, action: P) -> T {
+		action(&self)
 	}
 
 	/// Apply changes to the context for the current thread using the given
@@ -61,6 +67,8 @@ impl Context {
 		})
 	}
 
+	/// Default tab size used by input sources to compute column and
+	/// indentation values.
 	pub fn tab_size(&self) -> usize {
 		let tab_size = self.read(|ctx| ctx.tab_size);
 		if tab_size == 0 {
@@ -70,8 +78,8 @@ impl Context {
 		}
 	}
 
-	fn read<T, P: FnOnce(&ContextData) -> T>(&self, predicate: P) -> T {
-		predicate(&self.data)
+	fn read<T, P: FnOnce(&ContextData) -> T>(&self, reader: P) -> T {
+		reader(&self.data)
 	}
 }
 
@@ -106,8 +114,8 @@ impl<'a> ContextWriter<'a> {
 		self.write(|ctx| std::mem::replace(&mut ctx.tab_size, size))
 	}
 
-	fn write<T, P: FnOnce(&mut ContextData) -> T>(&mut self, action: P) -> T {
-		action(&mut self.data)
+	fn write<T, P: FnOnce(&mut ContextData) -> T>(&mut self, writer: P) -> T {
+		writer(&mut self.data)
 	}
 }
 
@@ -118,6 +126,7 @@ impl<'a> ContextWriter<'a> {
 #[derive(Default, Clone)]
 struct ContextData {
 	tab_size: usize,
+	sources: sources::Data,
 }
 
 type ContextStack = VecDeque<(Rc<Cell<bool>>, Rc<ContextData>)>;
