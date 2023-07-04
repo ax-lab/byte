@@ -8,6 +8,7 @@ use std::{
 use super::*;
 
 pub mod sources;
+pub use sources::*;
 
 /// Provides a context that can be shared between functions across the current
 /// stack for the current thread.
@@ -126,7 +127,7 @@ impl<'a> ContextWriter<'a> {
 #[derive(Default, Clone)]
 struct ContextData {
 	tab_size: usize,
-	sources: sources::Data,
+	sources: ContextDataSources,
 }
 
 type ContextStack = VecDeque<(Rc<Cell<bool>>, Rc<ContextData>)>;

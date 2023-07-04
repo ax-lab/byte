@@ -1,143 +1,29 @@
 use super::*;
 
-/// Manages a list of input sources for the compiler.
-pub struct SourceList {
-	data: Arc<SourceListData>,
-}
-
-impl CanHandle for SourceList {
-	type Data = SourceListData;
-
-	fn inner_data(&self) -> &Arc<Self::Data> {
-		&self.data
-	}
-
-	fn from_inner_data(data: Arc<Self::Data>) -> Self {
-		SourceList { data }
-	}
-}
-
-impl SourceList {
-	/// Returns a new source list rooted at the given path.
-	pub fn new<P: AsRef<Path>>(base_path: P) -> Result<Self> {
-		let base_path = std::fs::canonicalize(base_path.as_ref())?;
-		let data = SourceListData {
-			base_path: base_path,
-			sources: Default::default(),
-			sources_by_path: Default::default(),
-		};
-		Ok(Self { data: data.into() })
-	}
-
-	/// Add a source file text to the list. Returns a new unique [`Span`].
-	///
-	/// Note that the source name is informative and only used for compiler
-	/// messages.
-	pub fn add_text<T: Into<String>, U: Into<Vec<u8>>>(&self, name: T, data: U) -> Span {
-		let name = name.into();
-		let data = data.into();
-		let mut sources = self.data.sources.write().unwrap();
-		let offset = Self::compute_next_source_offset(&sources);
-		let length = data.len();
-		let source = SourceData { offset, name, data };
-		sources.push(source);
-		Span::Some {
-			source: self.handle(),
-			offset,
-			length,
-		}
-	}
-
-	/// Add a source file to the list, if it has not been added. Returns a
-	/// unique [`Span`] for the given file.
-	///
-	/// Files are uniquely mapped by their canonical path. Multiple calls
-	/// for the same file will return the same [`Span`].
-	pub fn add_file<T: AsRef<Path>>(&self, path: T) -> Result<Span> {
-		let path = path.as_ref();
-		let full_path = if path.is_relative() {
-			self.data.base_path.join(path)
-		} else {
-			path.to_owned()
-		};
-
-		let full_path = match std::fs::canonicalize(full_path) {
-			Ok(path) => path,
-			Err(err) => {
-				let path = path.to_string_lossy();
-				let base = self.data.base_path.to_string_lossy();
-				return Err(Errors::from(format!(
-					"could not solve `{path}`: {err}\n    -- base path is `{base}`"
-				)));
-			}
-		};
-
-		let mut by_path = match self.data.sources_by_path.write() {
-			Ok(data) => data,
-			Err(data) => data.into_inner(),
-		};
-
-		if let Some(index) = by_path.get(&full_path) {
-			let source = match self.data.sources.read() {
-				Ok(data) => data,
-				Err(data) => data.into_inner(),
-			};
-			let source = &source[*index];
-			Ok(Span::Some {
-				source: self.handle(),
-				offset: source.offset,
-				length: source.data.len(),
-			})
-		} else {
-			let name = path.to_string_lossy().to_string();
-			let data = match std::fs::read(path) {
-				Ok(data) => data,
-				Err(err) => {
-					let path = full_path.to_string_lossy();
-					return Err(Errors::from(format!("opening `{path}` ({err}")));
-				}
-			};
-			let mut sources = self.data.sources.write().unwrap();
-			by_path.insert(full_path, sources.len());
-
-			let offset = Self::compute_next_source_offset(&sources);
-			let length = data.len();
-			let source = SourceData { offset, name, data };
-			sources.push(source);
-
-			Ok(Span::Some {
-				source: self.handle(),
-				offset,
-				length,
-			})
-		}
-	}
-
-	fn compute_next_source_offset(sources: &[SourceData]) -> usize {
-		sources
-			.last()
-			.map(|x| {
-				let end = x.offset + x.data.len();
-				// ensure input sources do not overlap by padding the offset
-				end + (Self::OFFSET_ROUNDING - end % Self::OFFSET_ROUNDING)
-			})
-			.unwrap_or(0)
-	}
-
-	// Pad the next input offset rounding to a multiple of this.
-	const OFFSET_ROUNDING: usize = 64;
-}
-
 //====================================================================================================================//
 // Span
 //====================================================================================================================//
+
+impl Source {
+	pub fn span(&self) -> Span {
+		Span::Some {
+			source: self.clone(),
+			offset: self.offset(),
+			length: self.len(),
+		}
+	}
+
+	pub fn start(&self) -> Cursor {
+		self.span().start()
+	}
+}
 
 /// Represents a range of source text from a [`SourceList`].
 #[derive(Clone, Eq, PartialEq)]
 pub enum Span {
 	None,
 	Some {
-		source: Handle<SourceList>,
+		source: Source,
 		offset: usize,
 		length: usize,
 	},
@@ -148,7 +34,7 @@ impl Span {
 	pub fn start(&self) -> Cursor {
 		Cursor {
 			span: self.clone(),
-			source: self.source_list().map(|x| x.data),
+			source: self.source_list(),
 			line: 0,
 			column: 0,
 			indent: 0,
@@ -156,10 +42,10 @@ impl Span {
 		}
 	}
 
-	pub fn source_list(&self) -> Option<SourceList> {
+	pub fn source_list(&self) -> Option<Source> {
 		match self {
 			Span::None => None,
-			Span::Some { source, .. } => Some(source.get().to_inner()),
+			Span::Some { source, .. } => Some(source.clone()),
 		}
 	}
 
@@ -181,17 +67,8 @@ impl Span {
 	}
 
 	/// Raw data for this span.
-	pub fn data(&self) -> HandleMap<SourceList, [u8]> {
-		if let Some(source) = self.source_data() {
-			source.map(|source| {
-				let sta = self.offset() - source.offset;
-				let end = sta + self.len();
-				let data = &source.data[sta..end] as *const [u8];
-				unsafe { &*data }
-			})
-		} else {
-			HandleMap::new_static("".as_bytes())
-		}
+	pub fn data(&self) -> &[u8] {
+		self.text().as_bytes()
 	}
 
 	/// Span for the full source text, if this is a partial span. Otherwise
@@ -199,28 +76,30 @@ impl Span {
 	pub fn source(&self) -> Span {
 		match self {
 			Span::None => Span::None,
-			Span::Some { source, .. } => {
-				let source_data = self.source_data().unwrap();
-				Span::Some {
-					source: source.clone(),
-					offset: source_data.offset,
-					length: source_data.data.len(),
-				}
-			}
+			Span::Some { source, .. } => Span::Some {
+				source: source.clone(),
+				offset: source.offset(),
+				length: source.len(),
+			},
 		}
 	}
 
 	/// Text for this span.
-	pub fn text(&self) -> HandleMap<SourceList, str> {
-		self.data().map(|data| std::str::from_utf8(data).unwrap())
+	pub fn text(&self) -> &str {
+		match self {
+			Span::None => "",
+			Span::Some { source, offset, length } => {
+				let offset = offset - source.offset();
+				&source.text()[offset..offset + length]
+			}
+		}
 	}
 
 	/// Name for the source of this span.
-	pub fn source_name(&self) -> HandleMap<SourceList, str> {
-		if let Some(source) = self.source_data() {
-			source.map(|source| source.name.as_str())
-		} else {
-			HandleMap::new_static("")
+	pub fn source_name(&self) -> &str {
+		match self {
+			Span::None => "",
+			Span::Some { source, .. } => source.name(),
 		}
 	}
 
@@ -240,9 +119,9 @@ impl Span {
 
 	/// Returns the line and column number for this span start location.
 	pub fn line_column(&self, tab_width: usize) -> Option<(usize, usize)> {
-		if let Some(source) = self.source_data() {
-			let offset = self.offset() - source.offset;
-			let prefix = &source.data[..offset];
+		if let Some(source) = self.source_list() {
+			let offset = self.offset() - source.offset();
+			let prefix = &source.text().as_bytes()[..offset];
 			let prefix = unsafe { std::str::from_utf8_unchecked(prefix) };
 
 			let tab_width = if tab_width == 0 { DEFAULT_TAB_SIZE } else { tab_width };
@@ -275,22 +154,6 @@ impl Span {
 			None
 		}
 	}
-
-	fn source_data(&self) -> Option<HandleMap<SourceList, SourceData>> {
-		match self {
-			Span::None => None,
-			Span::Some { source, .. } => Some(source.get_map(|src| {
-				let offset = self.offset();
-				let sources = match src.data.sources.read() {
-					Ok(data) => data,
-					Err(data) => data.into_inner(),
-				};
-				let index = sources.partition_point(|x| x.offset + x.data.len() < offset);
-				let source = &sources[index] as *const SourceData;
-				unsafe { &*source }
-			})),
-		}
-	}
 }
 
 impl Debug for Span {
@@ -300,14 +163,14 @@ impl Debug for Span {
 		let text = self.text();
 		let chars = text.chars().count();
 
-		if let Some(source) = self.source_data() {
+		if let Some(source) = self.source_list() {
 			let offset = self.offset();
 			let length = self.len();
-			let sta = offset - source.offset;
+			let sta = offset - source.offset();
 			let end = sta + length;
 			let len = length;
 
-			let full = sta == 0 && length == source.data.len();
+			let full = sta == 0 && length == source.len();
 
 			write!(f, "<Span ")?;
 			if chars <= MAX_LEN {
@@ -332,7 +195,7 @@ impl Hash for Span {
 		match self {
 			Span::None => 0.hash(state),
 			Span::Some { source, offset, length } => {
-				source.as_ptr().hash(state);
+				source.offset().hash(state);
 				offset.hash(state);
 				length.hash(state);
 			}
@@ -348,7 +211,7 @@ impl Hash for Span {
 #[derive(Clone)]
 pub struct Cursor {
 	#[allow(unused)]
-	source: Option<Arc<SourceListData>>, // ensure source references are valid for the lifetime of the cursor
+	source: Option<Source>, // ensure source references are valid for the lifetime of the cursor
 	span: Span,
 	line: usize,
 	column: usize,
@@ -409,12 +272,12 @@ impl Cursor {
 
 	/// Remaining input data from the cursor position.
 	pub fn data(&self) -> &[u8] {
-		unsafe { &*self.span.data().as_ptr() }
+		self.span.data()
 	}
 
 	/// Remaining input text from the cursor position.
 	pub fn text(&self) -> &str {
-		unsafe { &*self.span.text().as_ptr() }
+		self.span.text()
 	}
 
 	/// Relative line position for the cursor.
@@ -572,23 +435,6 @@ impl Cursor {
 }
 
 //====================================================================================================================//
-// Internals
-//====================================================================================================================//
-
-#[doc(hidden)]
-pub struct SourceListData {
-	base_path: PathBuf,
-	sources: RwLock<Vec<SourceData>>,
-	sources_by_path: RwLock<HashMap<PathBuf, usize>>,
-}
-
-struct SourceData {
-	offset: usize, // global offset for this data in the SourceList
-	name: String,  // source name (e.g. file name)
-	data: Vec<u8>, // source data
-}
-
-//====================================================================================================================//
 // Tests
 //====================================================================================================================//
 
@@ -597,42 +443,9 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn input_list() -> Result<()> {
-		let list = SourceList::new(".")?;
-		let a = list.add_text("input A", "123456");
-		let b = list.add_text("input B", "some data");
-
-		assert_eq!(a.len(), 6);
-		assert_eq!(a.offset(), 0);
-		assert_eq!(b.offset(), SourceList::OFFSET_ROUNDING);
-
-		assert_eq!(a.source_name(), "input A");
-		assert_eq!(b.source_name(), "input B");
-		assert_eq!(a.text(), "123456");
-		assert_eq!(b.text(), "some data");
-
-		let c = list.add_file("testdata/input.txt")?;
-		assert_eq!(c.offset(), SourceList::OFFSET_ROUNDING * 2);
-		assert!(c.source_name().contains("input.txt"));
-		assert_eq!(c.text(), "some test data\n");
-
-		assert!(a != b);
-		assert!(a != c);
-		assert!(b != c);
-
-		let c1 = list.add_file("./testdata/../testdata/input.txt")?;
-		assert!(c1 == c);
-		assert!(c1.source() == c);
-		assert_eq!(c1.text(), c.text());
-		assert_eq!(c1.source().text(), c.text());
-
-		Ok(())
-	}
-
-	#[test]
 	fn cursors() -> Result<()> {
-		let list = SourceList::new(".")?;
-		let input = list.add_text("input A", "123456");
+		let context = Context::get();
+		let input = context.load_source_text("input A", "123456");
 
 		let mut cursor = input.start();
 		assert_eq!(cursor.read(), Some('1'));

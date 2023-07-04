@@ -117,8 +117,8 @@ mod tests {
 		scanner.add_matcher(LiteralMatcher);
 		scanner.add_matcher(IntegerMatcher);
 
-		let sources = SourceList::new(".").unwrap();
-		let input = sources.add_text("test", input);
+		let context = Context::get();
+		let input = context.load_source_text("test", input);
 		let mut cursor = input.start();
 		let mut errors = Errors::new();
 		let mut output = Vec::new();

@@ -12,13 +12,11 @@ pub struct ProgramData {
 	segments: RwLock<Vec<NodeList>>,
 	run_list: RwLock<Vec<NodeList>>,
 	root_scope: Scope,
-	sources: SourceList,
 	runtime: RwLock<RuntimeScope>,
 }
 
 impl Program {
 	pub fn new(compiler: &Compiler) -> Program {
-		let base_path = Context::get().base_path();
 		Program::new_cyclic(|handle| {
 			let mut root_scope = Scope::new(handle);
 			compiler.configure_root_scope(&mut root_scope);
@@ -29,7 +27,6 @@ impl Program {
 				root_scope,
 				segments: Default::default(),
 				run_list: Default::default(),
-				sources: SourceList::new(base_path).unwrap(),
 				runtime: Default::default(),
 			}
 		})
@@ -65,13 +62,15 @@ impl Program {
 	}
 
 	pub fn load_string<T1: Into<String>, T2: AsRef<str>>(&mut self, name: T1, data: T2) -> NodeList {
-		let span = self.data.sources.add_text(name, data.as_ref());
-		self.load_span(span)
+		let context = Context::get();
+		let source = context.load_source_text(name, data.as_ref());
+		self.load_span(source.span())
 	}
 
 	pub fn load_file<T: AsRef<Path>>(&mut self, path: T) -> Result<NodeList> {
-		let span = self.data.sources.add_file(path)?;
-		let list = self.load_span(span);
+		let context = Context::get();
+		let source = context.load_source_file(path)?;
+		let list = self.load_span(source.span());
 
 		let mut run_list = self.data.run_list.write().unwrap();
 		run_list.push(list.clone());

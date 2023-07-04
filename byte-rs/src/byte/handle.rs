@@ -105,12 +105,6 @@ pub struct HandleRef<T: CanHandle> {
 	data: T,
 }
 
-impl<T: CanHandle> HandleRef<T> {
-	pub(crate) fn to_inner(self) -> T {
-		self.data
-	}
-}
-
 impl<T: CanHandle> Deref for HandleRef<T> {
 	type Target = T;
 
