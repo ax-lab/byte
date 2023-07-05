@@ -119,7 +119,7 @@ mod tests {
 
 		let context = Context::get();
 		let input = context.load_source_text("test", input);
-		let mut cursor = input.start();
+		let mut cursor = input.span();
 		let mut errors = Errors::new();
 		let mut output = Vec::new();
 		while let Some(node) = scanner.scan(&mut cursor, &mut errors) {

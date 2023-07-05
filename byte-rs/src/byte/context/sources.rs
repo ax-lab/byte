@@ -34,7 +34,9 @@ impl Context {
 
 	pub fn load_source_text<T: Into<String>, U: Into<String>>(&self, name: T, text: U) -> Source {
 		self.read_sources(|data| {
-			let data = data.add_text(name.into(), text.into());
+			let name = name.into();
+			assert!(name.len() > 0);
+			let data = data.add_text(name, text.into());
 			Source { data }
 		})
 	}
@@ -76,6 +78,12 @@ impl Context {
 #[derive(Clone)]
 pub struct Source {
 	data: Arc<SourceData>,
+}
+
+impl Default for Source {
+	fn default() -> Self {
+		Context::get().source_at(0).unwrap()
+	}
 }
 
 impl Source {
@@ -128,11 +136,16 @@ impl Source {
 	pub fn text(&self) -> &str {
 		self.data.text.as_str()
 	}
+
+	fn as_ptr(&self) -> *const SourceData {
+		Arc::as_ptr(&self.data)
+	}
 }
 
 impl PartialEq for Source {
 	fn eq(&self, other: &Self) -> bool {
-		self.offset() == other.offset()
+		// consider the default source equal regardless of the context
+		(self.data.offset == 0 && other.data.offset == 0) || self.as_ptr() == other.as_ptr()
 	}
 }
 
@@ -140,13 +153,21 @@ impl Eq for Source {}
 
 impl Ord for Source {
 	fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-		self.offset().cmp(&other.offset())
+		self.offset()
+			.cmp(&other.offset())
+			.then_with(|| self.as_ptr().cmp(&other.as_ptr()))
 	}
 }
 
 impl PartialOrd for Source {
 	fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
 		Some(self.cmp(other))
+	}
+}
+
+impl Hash for Source {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		self.as_ptr().hash(state);
 	}
 }
 
@@ -184,13 +205,17 @@ pub(super) struct ContextDataSources {
 impl Default for ContextDataSources {
 	fn default() -> Self {
 		let base_path = std::fs::canonicalize(".").expect("failed to get the canonical current dir, giving up");
-		Self {
+		let output = Self {
 			base_path,
 			tab_width: DEFAULT_TAB_WIDTH,
 			sources_offset: Default::default(),
 			sources_by_path: Default::default(),
 			sources_sorted: Default::default(),
-		}
+		};
+
+		// add the default empty source text at the zero offset
+		output.add_text(String::new(), String::new());
+		output
 	}
 }
 
@@ -295,10 +320,11 @@ mod tests {
 		assert_eq!(a.len(), 6);
 		assert_eq!(b.len(), 9);
 		assert_eq!(c.len(), 0);
-		assert_eq!(a.offset(), 0);
-		assert_eq!(b.offset(), ALIGN);
-		assert_eq!(c.offset(), ALIGN * 2);
-		assert_eq!(d.offset(), ALIGN * 3);
+
+		assert_eq!(a.offset(), ALIGN); // the zero offset is reserved
+		assert_eq!(b.offset(), ALIGN * 2);
+		assert_eq!(c.offset(), ALIGN * 3);
+		assert_eq!(d.offset(), ALIGN * 4);
 
 		assert_eq!(a.name(), "input A");
 		assert_eq!(b.name(), "input B");
@@ -326,24 +352,40 @@ mod tests {
 		assert_eq!(f2.path(), f1.path());
 		assert_eq!(f2.offset(), f1.offset());
 
-		assert!(context.source_at(0) == Some(a.clone()));
-		assert!(context.source_at(1) == Some(a.clone()));
-		assert!(context.source_at(6) == Some(a.clone()));
+		assert!(context.source_at(ALIGN) == Some(a.clone()));
+		assert!(context.source_at(ALIGN + 1) == Some(a.clone()));
+		assert!(context.source_at(ALIGN + 6) == Some(a.clone()));
 
 		assert!(context.source_at(7) == None);
-		assert!(context.source_at(ALIGN) == Some(b.clone()));
-		assert!(context.source_at(ALIGN + 1) == Some(b.clone()));
-		assert!(context.source_at(ALIGN + b.len()) == Some(b.clone()));
+		assert!(context.source_at(ALIGN * 2) == Some(b.clone()));
+		assert!(context.source_at(ALIGN * 2 + 1) == Some(b.clone()));
+		assert!(context.source_at(ALIGN * 2 + b.len()) == Some(b.clone()));
 
 		assert!(context.source_at(ALIGN + b.len() + 1) == None);
-		assert!(context.source_at(ALIGN * 2 - 1) == None);
-		assert!(context.source_at(ALIGN * 2) == Some(c.clone()));
+		assert!(context.source_at(ALIGN * 3 - 1) == None);
+		assert!(context.source_at(ALIGN * 3) == Some(c.clone()));
 
-		assert!(context.source_at(ALIGN * 3) == Some(d.clone()));
-		assert!(context.source_at(ALIGN * 4) == Some(f1.clone()));
-		assert!(context.source_at(ALIGN * 4 + f1.len()) == Some(f1.clone()));
-		assert!(context.source_at(ALIGN * 4 + f1.len() + 1) == None);
+		assert!(context.source_at(ALIGN * 4) == Some(d.clone()));
+		assert!(context.source_at(ALIGN * 5) == Some(f1.clone()));
+		assert!(context.source_at(ALIGN * 5 + f1.len()) == Some(f1.clone()));
+		assert!(context.source_at(ALIGN * 5 + f1.len() + 1) == None);
 
 		Ok(())
+	}
+
+	#[test]
+	fn default_source() {
+		let a = Source::default();
+		let b = Source::default();
+
+		let context = Context::get();
+		let c = context.source_at(0).unwrap();
+
+		assert!(a == b);
+		assert!(a == c);
+		assert!(b == c);
+
+		assert_eq!(a.text(), "");
+		assert_eq!(a.name(), "");
 	}
 }

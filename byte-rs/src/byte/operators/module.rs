@@ -16,7 +16,7 @@ impl IsOperator for ModuleOperator {
 		let scanner = scope.scanner();
 		context.nodes().map_nodes(move |node| {
 			if let Node::Module(input) = node.get() {
-				let mut cursor = input.start();
+				let mut cursor = input.clone();
 				let mut output = Vec::new();
 				while let Some(node) = scanner.scan(&mut cursor, errors) {
 					output.push(node);

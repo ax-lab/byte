@@ -4,23 +4,23 @@ pub use context::*;
 pub mod code;
 pub mod compiler;
 pub mod handle;
-pub mod input;
 pub mod lexer;
 pub mod nodes;
 pub mod operators;
 pub mod program;
 pub mod scope;
+pub mod span;
 pub mod util;
 
 pub use code::*;
 pub use compiler::*;
 pub use handle::*;
-pub use input::*;
 pub use lexer::*;
 pub use nodes::*;
 pub use operators::*;
 pub use program::*;
 pub use scope::*;
+pub use span::*;
 pub use util::*;
 
 /// Default initial tab-width for the compiler.

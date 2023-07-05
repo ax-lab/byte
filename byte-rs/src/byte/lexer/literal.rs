@@ -3,7 +3,7 @@ use super::*;
 pub struct LiteralMatcher;
 
 impl Matcher for LiteralMatcher {
-	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<NodeData> {
+	fn try_match(&self, cursor: &mut Span, errors: &mut Errors) -> Option<NodeData> {
 		let start = cursor.clone();
 		match cursor.read() {
 			Some('\'') => {

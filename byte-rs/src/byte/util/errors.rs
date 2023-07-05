@@ -49,7 +49,7 @@ impl Errors {
 
 	pub fn add_at<T: IsValue>(&mut self, error: T, span: Span) {
 		let list = Arc::make_mut(&mut self.list);
-		list.push_back((Value::from(error), span.location(0)));
+		list.push_back((Value::from(error), span.location()));
 	}
 
 	pub fn iter(&self) -> ErrorIterator {

@@ -3,7 +3,7 @@ use super::*;
 pub struct IntegerMatcher;
 
 impl Matcher for IntegerMatcher {
-	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<NodeData> {
+	fn try_match(&self, cursor: &mut Span, errors: &mut Errors) -> Option<NodeData> {
 		let _ = errors;
 		let start = cursor.clone();
 		match cursor.read() {

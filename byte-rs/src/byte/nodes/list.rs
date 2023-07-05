@@ -43,7 +43,7 @@ impl NodeList {
 
 	pub fn span(&self) -> Span {
 		let nodes = self.data.nodes.read().unwrap();
-		nodes.first().map(|x| x.span().clone()).unwrap_or(Span::None)
+		nodes.first().map(|x| x.span().clone()).unwrap_or(Span::default())
 	}
 
 	pub fn offset(&self) -> usize {
@@ -362,7 +362,7 @@ impl WithRepr for NodeList {
 				let mut output = IndentedFormatter::new(output);
 				write!(output, "\n[{n}] = ")?;
 				write!(output, "{it}")?;
-				if let Some(location) = it.span().location(0) {
+				if let Some(location) = it.span().location() {
 					write!(output, "\t # at {location}")?;
 				}
 			}

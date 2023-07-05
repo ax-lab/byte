@@ -2,7 +2,7 @@ use super::*;
 
 /// Trait for a matcher that can be used by the [`Scanner`].
 pub trait Matcher: Cell {
-	fn try_match(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<NodeData>;
+	fn try_match(&self, cursor: &mut Span, errors: &mut Errors) -> Option<NodeData>;
 }
 
 #[derive(Clone)]
@@ -48,7 +48,7 @@ impl Scanner {
 		}
 	}
 
-	pub fn scan(&self, cursor: &mut Cursor, errors: &mut Errors) -> Option<NodeData> {
+	pub fn scan(&self, cursor: &mut Span, errors: &mut Errors) -> Option<NodeData> {
 		let compiler = &self.compiler.get();
 		loop {
 			// skip spaces
@@ -87,7 +87,7 @@ impl Scanner {
 					  indentation MUST be a prefix of the other
 					  - indentation must be consistent between consecutive lines
 				*/
-				return Some(Node::Indent(cursor.indent()).at(cursor.pos_as_span()));
+				return Some(Node::Indent(cursor.indent()).at(cursor.clone()));
 			}
 
 			// apply registered matchers, those have higher priority
