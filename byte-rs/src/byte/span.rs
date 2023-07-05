@@ -227,6 +227,10 @@ impl Span {
 impl Debug for Span {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		let name = self.source.name();
+		if name.len() == 0 {
+			return write!(f, "<span>");
+		}
+
 		let (line, column) = self.line_column();
 		let (line, column) = (line + 1, column + 1);
 		let length = self.len();
@@ -282,6 +286,45 @@ impl Debug for Span {
 	}
 }
 
+impl Display for Span {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		let name = self.source.name();
+		if name.len() > 0 {
+			let (line, column) = self.line_column();
+			let (line, column) = (line + 1, column + 1);
+			let ctx = Context::get();
+			let fmt = ctx.get_format();
+
+			let (line_end, column_end) = {
+				let mut end = self.clone();
+				end.advance(self.len());
+				end.line_column()
+			};
+			let (line_end, column_end) = (line_end + 1, column_end + 1);
+
+			write!(f, "{}", fmt.separator())?;
+			match fmt.mode() {
+				Mode::Minimal => {
+					write!(f, "L{line}:{column}")?;
+				}
+				Mode::Normal => {
+					write!(f, "{name}:{line}:{column}")?;
+					if self.len() > 0 {
+						write!(f, "…{line_end}:{column_end}")?;
+					}
+				}
+				Mode::Detail => {
+					write!(f, "{name} at L{line}:{column}")?;
+					if self.len() > 0 {
+						write!(f, " to L{line_end}:{column_end}")?;
+					}
+				}
+			}
+		}
+		Ok(())
+	}
+}
+
 //====================================================================================================================//
 // Tests
 //====================================================================================================================//
@@ -291,7 +334,13 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn print() {
+	fn span_format() {
+		let text = format!("{:?}", Span::default());
+		assert_eq!(text, "<span>");
+
+		let text = format!("{}", Span::default());
+		assert_eq!(text, "");
+
 		let minimal = Format::new(Mode::Minimal);
 		let normal = Format::new(Mode::Normal);
 		let detail = Format::new(Mode::Detail).with_line_width(35);
@@ -313,9 +362,17 @@ mod tests {
 		m.advance(prefix.len());
 		l.advance(prefix.len());
 
+		ctx.with_format(minimal.with_separator("at "), || {
+			let text = format!("{s}");
+			assert_eq!(text, "at L4:17");
+		});
+
 		ctx.with_format(minimal, || {
 			let text = format!("{s:?}");
 			assert_eq!(text, "<L4:17+6>");
+
+			let text = format!("{s}");
+			assert_eq!(text, "L4:17");
 
 			let s = s.truncate(0);
 			let text = format!("{s:?}");
@@ -325,6 +382,13 @@ mod tests {
 		ctx.with_format(normal, || {
 			let text = format!("{s:?}");
 			assert_eq!(text, "<span \"small.txt\" L4:17+6>");
+
+			let text = format!("{s}");
+			assert_eq!(text, "small.txt:4:17…4:23");
+
+			let s = s.truncate(0);
+			let text = format!("{s}");
+			assert_eq!(text, "small.txt:4:17");
 
 			let text = format!("{m:?}");
 			assert_eq!(text, "<span \"medium.txt\" L4:17+20>");
@@ -336,6 +400,13 @@ mod tests {
 		ctx.with_format(detail, || {
 			let text = format!("{s:?}");
 			assert_eq!(text, "<span \"small.txt\" L4:17 = \"123456\">");
+
+			let text = format!("{s}");
+			assert_eq!(text, "small.txt at L4:17 to L4:23");
+
+			let s = s.truncate(0);
+			let text = format!("{s}");
+			assert_eq!(text, "small.txt at L4:17");
 
 			let text = format!("{m:?}");
 			assert_eq!(text, "<span \"medium.txt\" L4:17\n    = \"somewhat larger text\"\n>");

@@ -14,16 +14,14 @@ pub enum Mode {
 pub struct Format {
 	mode: Mode,
 	line_width: usize,
+	separator: String,
 }
 
 impl Format {
 	pub fn new(mode: Mode) -> Self {
-		Self { mode, line_width: 0 }
-	}
-
-	pub fn with_line_width(mut self, line_width: usize) -> Self {
-		self.line_width = line_width;
-		self
+		let mut output = Self::default();
+		output.mode = mode;
+		output
 	}
 
 	pub fn mode(&self) -> Mode {
@@ -36,6 +34,22 @@ impl Format {
 		} else {
 			std::cmp::max(self.line_width, 16)
 		}
+	}
+
+	pub fn separator(&self) -> &str {
+		self.separator.as_str()
+	}
+
+	pub fn with_separator<T: Into<String>>(&self, separator: T) -> Self {
+		let mut output = self.clone();
+		output.separator = separator.into();
+		output
+	}
+
+	pub fn with_line_width(&self, line_width: usize) -> Self {
+		let mut output = self.clone();
+		output.line_width = line_width;
+		output
 	}
 }
 
