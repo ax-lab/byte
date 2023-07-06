@@ -62,7 +62,7 @@ pub struct NodeData {
 
 impl NodeData {
 	pub fn new(node: Node, span: Span) -> Self {
-		let id = new_id();
+		let id = Context::id();
 		Self { id, node, span }
 	}
 

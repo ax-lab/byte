@@ -69,6 +69,6 @@ impl<'a> ContextWriter<'a> {
 }
 
 #[derive(Default, Clone)]
-pub(super) struct ContextDataFormat {
+pub(super) struct ContextFormat {
 	config: Format,
 }

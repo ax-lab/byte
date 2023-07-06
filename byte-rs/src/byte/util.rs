@@ -17,33 +17,6 @@ pub use value::*;
 use super::*;
 
 //====================================================================================================================//
-// Ids
-//====================================================================================================================//
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Id(usize);
-
-impl Id {
-	pub fn value(&self) -> usize {
-		self.0
-	}
-}
-
-/// Returns a globally unique, non-zero, increasing numeric ID.
-pub fn new_id() -> Id {
-	use std::sync::atomic::*;
-	static COUNTER: AtomicUsize = AtomicUsize::new(1);
-	let id = COUNTER.fetch_add(1, Ordering::SeqCst);
-	Id(id)
-}
-
-impl Display for Id {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "[#{}]", self.0)
-	}
-}
-
-//====================================================================================================================//
 // Ranges
 //====================================================================================================================//
 

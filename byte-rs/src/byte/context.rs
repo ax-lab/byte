@@ -8,9 +8,11 @@ use std::{
 use super::*;
 
 pub mod format;
+pub mod ids;
 pub mod sources;
 
 pub use format::*;
+pub use ids::*;
 pub use sources::*;
 
 /// Provides a context that can be shared between functions across the current
@@ -26,6 +28,13 @@ pub use sources::*;
 pub struct Context {
 	data: Rc<ContextData>,
 	dispose: Option<Rc<Cell<bool>>>,
+}
+
+#[derive(Default, Clone)]
+struct ContextData {
+	sources: ContextSources,
+	format: ContextFormat,
+	ids: ContextIds,
 }
 
 impl Context {
@@ -111,12 +120,6 @@ impl<'a> ContextWriter<'a> {
 //====================================================================================================================//
 // Internals
 //====================================================================================================================//
-
-#[derive(Default, Clone)]
-struct ContextData {
-	sources: ContextDataSources,
-	format: ContextDataFormat,
-}
 
 type ContextStack = VecDeque<(Rc<Cell<bool>>, Rc<ContextData>)>;
 

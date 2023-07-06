@@ -65,7 +65,7 @@ impl Context {
 		})
 	}
 
-	fn read_sources<T, P: FnOnce(&ContextDataSources) -> T>(&self, reader: P) -> T {
+	fn read_sources<T, P: FnOnce(&ContextSources) -> T>(&self, reader: P) -> T {
 		self.read(|data| reader(&data.sources))
 	}
 }
@@ -188,13 +188,13 @@ impl<'a> ContextWriter<'a> {
 		})
 	}
 
-	fn write_sources<T, P: FnOnce(&mut ContextDataSources) -> T>(&mut self, writer: P) -> T {
+	fn write_sources<T, P: FnOnce(&mut ContextSources) -> T>(&mut self, writer: P) -> T {
 		self.write(|data| writer(&mut data.sources))
 	}
 }
 
 #[derive(Clone)]
-pub(super) struct ContextDataSources {
+pub(super) struct ContextSources {
 	tab_width: usize,
 	base_path: PathBuf,
 	sources_offset: Arc<RwLock<usize>>,
@@ -202,7 +202,7 @@ pub(super) struct ContextDataSources {
 	sources_sorted: Arc<RwLock<Vec<Arc<SourceData>>>>,
 }
 
-impl Default for ContextDataSources {
+impl Default for ContextSources {
 	fn default() -> Self {
 		let base_path = std::fs::canonicalize(".").expect("failed to get the canonical current dir, giving up");
 		let output = Self {
@@ -231,7 +231,7 @@ struct SourceData {
 	tab_width: RwLock<usize>,
 }
 
-impl ContextDataSources {
+impl ContextSources {
 	fn add_text(&self, name: String, text: String) -> Arc<SourceData> {
 		// those need to be locked in the same order as get_file
 		let mut offset = self.sources_offset.write().unwrap();
