@@ -7,8 +7,8 @@ impl IsOperator for CommaOperator {
 		Precedence::Comma
 	}
 
-	fn predicate(&self, node: &NodeData) -> bool {
-		if let Node::Symbol(symbol) = node.get() {
+	fn predicate(&self, node: &Node) -> bool {
+		if let Node::Symbol(symbol, ..) = node {
 			symbol == ","
 		} else {
 			false
@@ -26,7 +26,7 @@ impl IsOperator for CommaOperator {
 			context.resolve_nodes(it);
 		}
 
-		let node = Node::Sequence(items).at(span);
+		let node = Node::Sequence(items, at(span));
 		nodes.replace_all(vec![node]);
 	}
 }

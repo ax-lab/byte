@@ -33,7 +33,7 @@ pub enum Operator {
 	Ternary(TernaryOp),
 	Print,
 	Comma,
-	Replace(Symbol, Node, Precedence),
+	Replace(Symbol, fn(Span) -> Node, Precedence),
 	Bind,
 	Binary(ParseBinaryOp),
 	UnaryPrefix(ParseUnaryPrefixOp),
@@ -135,7 +135,7 @@ pub trait IsOperator {
 		nodes.contains(|x| self.predicate(x))
 	}
 
-	fn predicate(&self, node: &NodeData) -> bool {
+	fn predicate(&self, node: &Node) -> bool {
 		let _ = node;
 		false
 	}

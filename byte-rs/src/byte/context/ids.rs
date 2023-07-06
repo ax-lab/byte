@@ -26,10 +26,7 @@ impl Id {
 
 	/// Associate a source [`Span`] with this id.
 	pub fn at(self, span: Span) -> Self {
-		Context::get().read(|data| {
-			let mut span_map = data.ids.span_map.write().unwrap();
-			span_map.insert(self.clone(), span);
-		});
+		self.set_span(span);
 		self
 	}
 
@@ -40,11 +37,18 @@ impl Id {
 			span_map.get(self).cloned().unwrap_or_default()
 		})
 	}
+
+	pub fn set_span(&self, span: Span) {
+		Context::get().read(|data| {
+			let mut span_map = data.ids.span_map.write().unwrap();
+			span_map.insert(self.clone(), span);
+		});
+	}
 }
 
 impl Debug for Id {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "[#{}]", self.value())
+		write!(f, "#{}", self.value())
 	}
 }
 

@@ -26,7 +26,7 @@ impl<T: Clone> OpMap<T> {
 		self.map.contains_key(&symbol)
 	}
 
-	pub fn op_for_node(&self, node: &NodeData) -> Option<T> {
+	pub fn op_for_node(&self, node: &Node) -> Option<T> {
 		node.symbol().and_then(|symbol| self.map.get(&symbol)).cloned()
 	}
 }
@@ -82,9 +82,9 @@ impl IsOperator for ParseBinaryOp {
 		self.1
 	}
 
-	fn predicate(&self, node: &NodeData) -> bool {
-		match node.get() {
-			Node::Word(symbol) | Node::Symbol(symbol) => self.0.contains(symbol),
+	fn predicate(&self, node: &Node) -> bool {
+		match node {
+			Node::Word(symbol, ..) | Node::Symbol(symbol, ..) => self.0.contains(symbol),
 			_ => false,
 		}
 	}
@@ -93,7 +93,7 @@ impl IsOperator for ParseBinaryOp {
 		let _ = errors;
 		let mut new_lists = Vec::new();
 
-		let is_op = |node: &NodeData| {
+		let is_op = |node: &Node| {
 			if let Some(symbol) = node.symbol() {
 				self.0.contains(&symbol)
 			} else {
@@ -101,13 +101,12 @@ impl IsOperator for ParseBinaryOp {
 			}
 		};
 
-		let fold = |lhs: NodeList, op: NodeData, rhs: NodeList| {
+		let fold = |lhs: NodeList, op: Node, rhs: NodeList| {
 			new_lists.push(lhs.clone());
 			new_lists.push(rhs.clone());
 			let op = self.0.op_for_node(&op).unwrap();
 			let span = lhs.span();
-			let node = Node::BinaryOp(op, lhs, rhs);
-			node.at(span)
+			Node::BinaryOp(op, lhs, rhs, at(span))
 		};
 
 		if self.2 == Grouping::Left {
@@ -135,8 +134,8 @@ impl IsOperator for ParseUnaryPrefixOp {
 	}
 
 	fn can_apply(&self, nodes: &NodeList) -> bool {
-		match nodes.get(0).as_ref().map(|x| x.get()) {
-			Some(Node::Word(symbol) | Node::Symbol(symbol)) => self.0.contains(symbol),
+		match nodes.get(0).as_ref() {
+			Some(Node::Word(symbol, ..) | Node::Symbol(symbol, ..)) => self.0.contains(symbol),
 			_ => false,
 		}
 	}
@@ -146,7 +145,7 @@ impl IsOperator for ParseUnaryPrefixOp {
 		let nodes = context.nodes();
 		let op = self.0.op_for_node(&nodes.get(0).unwrap()).unwrap();
 		let arg = nodes.slice(1..);
-		let new = Node::UnaryOp(op, arg.clone()).at(nodes.span());
+		let new = Node::UnaryOp(op, arg.clone(), at(nodes.span()));
 		nodes.replace_all(vec![new]);
 		context.resolve_nodes(&arg);
 	}

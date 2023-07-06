@@ -67,7 +67,7 @@ impl BracketPairs {
 		reverse.insert(right);
 	}
 
-	fn parse_nodes(&self, nodes: &NodeList, new_lists: &mut Vec<NodeList>) -> Result<Vec<NodeData>> {
+	fn parse_nodes(&self, nodes: &NodeList, new_lists: &mut Vec<NodeList>) -> Result<Vec<Node>> {
 		let mut items = nodes.as_vec_deque();
 		self.parse_bracket(nodes.scope().handle(), &mut items, None, new_lists)
 	}
@@ -75,10 +75,10 @@ impl BracketPairs {
 	fn parse_bracket(
 		&self,
 		scope: Handle<Scope>,
-		nodes: &mut VecDeque<NodeData>,
+		nodes: &mut VecDeque<Node>,
 		pair: Option<(Span, Symbol, Symbol)>,
 		new_lists: &mut Vec<NodeList>,
-	) -> Result<Vec<NodeData>> {
+	) -> Result<Vec<Node>> {
 		let end = pair.as_ref().map(|(.., end)| end);
 		let mut output = Vec::new();
 		while let Some(node) = nodes.pop_front() {
@@ -118,9 +118,9 @@ impl BracketPairs {
 		}
 	}
 
-	fn get_pair(&self, node: &NodeData) -> Option<(Symbol, (Symbol, BracketFn))> {
-		match node.get() {
-			Node::Symbol(symbol) => self.pairs.get(symbol).map(|end| (symbol.clone(), end.clone())),
+	fn get_pair(&self, node: &Node) -> Option<(Symbol, (Symbol, BracketFn))> {
+		match node {
+			Node::Symbol(symbol, ..) => self.pairs.get(symbol).map(|end| (symbol.clone(), end.clone())),
 			_ => None,
 		}
 	}
@@ -131,9 +131,9 @@ impl IsOperator for BracketPairs {
 		Precedence::Brackets
 	}
 
-	fn predicate(&self, node: &NodeData) -> bool {
-		match node.get() {
-			Node::Symbol(symbol) => self.pairs.contains_key(symbol),
+	fn predicate(&self, node: &Node) -> bool {
+		match node {
+			Node::Symbol(symbol, ..) => self.pairs.contains_key(symbol),
 			_ => false,
 		}
 	}

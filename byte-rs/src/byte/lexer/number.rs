@@ -3,7 +3,7 @@ use super::*;
 pub struct IntegerMatcher;
 
 impl Matcher for IntegerMatcher {
-	fn try_match(&self, cursor: &mut Span, errors: &mut Errors) -> Option<NodeData> {
+	fn try_match(&self, cursor: &mut Span, errors: &mut Errors) -> Option<Node> {
 		let _ = errors;
 		let start = cursor.clone();
 		match cursor.read() {
@@ -22,7 +22,7 @@ impl Matcher for IntegerMatcher {
 					}
 				}
 				*cursor = pos;
-				Some(Node::Integer(value).at(cursor.span_from(&start)))
+				Some(Node::Integer(value, at(cursor.span_from(&start))))
 			}
 
 			_ => None,

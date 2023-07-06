@@ -287,7 +287,7 @@ impl Compiler {
 		let ternary = TernaryOp(
 			Context::symbol("?"),
 			Context::symbol(":"),
-			Arc::new(|a, b, c| Node::Conditional(a, b, c)),
+			Arc::new(|a, b, c| Node::Conditional(a, b, c, id())),
 		);
 		scope.add_operator(Operator::Ternary(ternary));
 
@@ -296,7 +296,7 @@ impl Compiler {
 		brackets.add(
 			Context::symbol("("),
 			Context::symbol(")"),
-			Arc::new(|_, n, _| Node::Group(n)),
+			Arc::new(|_, n, _| Node::Group(n, id())),
 		);
 
 		scope.add_operator(Operator::Brackets(brackets));
@@ -304,17 +304,21 @@ impl Compiler {
 		// boolean
 		scope.add_operator(Operator::Replace(
 			Context::symbol("true"),
-			Node::Boolean(true),
+			|span| Node::Boolean(true, at(span)),
 			Precedence::Boolean(true),
 		));
 		scope.add_operator(Operator::Replace(
 			Context::symbol("false"),
-			Node::Boolean(false),
+			|span| Node::Boolean(false, at(span)),
 			Precedence::Boolean(false),
 		));
 
 		// null
-		scope.add_operator(Operator::Replace(Context::symbol("null"), Node::Null, Precedence::Null));
+		scope.add_operator(Operator::Replace(
+			Context::symbol("null"),
+			|span| Node::Null(at(span)),
+			Precedence::Null,
+		));
 
 		// binary
 

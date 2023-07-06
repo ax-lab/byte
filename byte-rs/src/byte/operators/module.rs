@@ -7,15 +7,15 @@ impl IsOperator for ModuleOperator {
 		Precedence::Module
 	}
 
-	fn predicate(&self, node: &NodeData) -> bool {
-		matches!(node.get(), &Node::Module(..))
+	fn predicate(&self, node: &Node) -> bool {
+		matches!(node, &Node::Module(..))
 	}
 
 	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
 		let scope = context.scope();
 		let scanner = scope.scanner();
 		context.nodes().map_nodes(move |node| {
-			if let Node::Module(input) = node.get() {
+			if let Node::Module(input, ..) = node {
 				let mut cursor = input.clone();
 				let mut output = Vec::new();
 				while let Some(node) = scanner.scan(&mut cursor, errors) {

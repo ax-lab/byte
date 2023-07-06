@@ -8,14 +8,14 @@ impl IsOperator for PrintOperator {
 	}
 
 	fn can_apply(&self, nodes: &NodeList) -> bool {
-		nodes.is_keyword(0, "print")
+		nodes.is_keyword(0, &"print".into())
 	}
 
 	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
 		let _ = errors;
 		let nodes = context.nodes();
 		let args = nodes.slice(1..);
-		let print = Node::Print(args.clone(), "\n").at(nodes.span());
+		let print = Node::Print(args.clone(), "\n", at(nodes.span()));
 		nodes.replace_all(vec![print]);
 		context.resolve_nodes(&args);
 	}

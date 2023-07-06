@@ -47,6 +47,14 @@ const DUMP_CODE: bool = false;
 
 pub type Result<T> = std::result::Result<T, Errors>;
 
+pub fn id() -> Id {
+	Context::id()
+}
+
+pub fn at(span: Span) -> Id {
+	Context::id().at(span)
+}
+
 pub trait ResultExtension {
 	type Result;
 

@@ -84,7 +84,7 @@ impl Program {
 	}
 
 	fn load_span(&mut self, span: Span) -> NodeList {
-		let node = Node::Module(span.clone()).at(span);
+		let node = Node::Module(span.clone(), at(span));
 		let scope = self.root_scope().new_child();
 		let list = NodeList::from_single(scope, node);
 		let mut segments = self.data.segments.write().unwrap();

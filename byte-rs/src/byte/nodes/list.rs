@@ -8,11 +8,11 @@ pub struct NodeList {
 has_traits!(NodeList: WithRepr);
 
 impl NodeList {
-	pub fn from_single(scope: Handle<Scope>, node: NodeData) -> Self {
+	pub fn from_single(scope: Handle<Scope>, node: Node) -> Self {
 		Self::new(scope, vec![node])
 	}
 
-	pub fn new(scope: Handle<Scope>, nodes: Vec<NodeData>) -> Self {
+	pub fn new(scope: Handle<Scope>, nodes: Vec<Node>) -> Self {
 		let data = NodeListData {
 			version: RwLock::new(0),
 			scope,
@@ -21,7 +21,7 @@ impl NodeList {
 		Self { data: data.into() }
 	}
 
-	pub fn as_vec_deque(&self) -> VecDeque<NodeData> {
+	pub fn as_vec_deque(&self) -> VecDeque<Node> {
 		VecDeque::from_iter(self.iter())
 	}
 
@@ -72,7 +72,7 @@ impl NodeList {
 		NodeListIterator { index: 0, nodes }
 	}
 
-	pub fn contains<P: Fn(&NodeData) -> bool>(&self, predicate: P) -> bool {
+	pub fn contains<P: Fn(&Node) -> bool>(&self, predicate: P) -> bool {
 		let nodes = self.data.nodes.read().unwrap();
 		nodes.iter().any(|x| predicate(x))
 	}
@@ -90,7 +90,7 @@ impl NodeList {
 		}
 	}
 
-	pub fn split_ternary(&self, sta: &Symbol, end: &Symbol) -> Option<(Vec<NodeData>, Vec<NodeData>, Vec<NodeData>)> {
+	pub fn split_ternary(&self, sta: &Symbol, end: &Symbol) -> Option<(Vec<Node>, Vec<Node>, Vec<Node>)> {
 		let nodes = self.data.nodes.read().unwrap();
 		for i in (0..nodes.len()).rev() {
 			if nodes[i].has_symbol(sta) {
@@ -140,7 +140,7 @@ impl NodeList {
 		}
 	}
 
-	pub fn map_nodes<P: FnMut(&NodeData) -> Option<Vec<NodeData>>>(&mut self, mut predicate: P) {
+	pub fn map_nodes<P: FnMut(&Node) -> Option<Vec<Node>>>(&mut self, mut predicate: P) {
 		let mut changed = false;
 		{
 			let mut nodes = self.data.nodes.write().unwrap();
@@ -163,7 +163,7 @@ impl NodeList {
 		}
 	}
 
-	pub fn replace<P: FnMut(&NodeData) -> Option<NodeData>>(&mut self, mut replace: P) {
+	pub fn replace<P: FnMut(&Node) -> Option<Node>>(&mut self, mut replace: P) {
 		let changed = {
 			let mut nodes = self.data.nodes.write().unwrap();
 			let nodes = Arc::make_mut(&mut nodes);
@@ -182,7 +182,7 @@ impl NodeList {
 		}
 	}
 
-	pub fn replace_all(&mut self, new_nodes: Vec<NodeData>) {
+	pub fn replace_all(&mut self, new_nodes: Vec<Node>) {
 		{
 			let mut nodes = self.data.nodes.write().unwrap();
 			let nodes = Arc::make_mut(&mut nodes);
@@ -191,7 +191,7 @@ impl NodeList {
 		self.inc_version();
 	}
 
-	pub fn split_by<P: FnMut(&NodeData) -> bool, S: FnMut(NodeList) -> NodeData>(&mut self, mut split: P, mut node: S) {
+	pub fn split_by<P: FnMut(&Node) -> bool, S: FnMut(NodeList) -> Node>(&mut self, mut split: P, mut node: S) {
 		let changed = {
 			let mut new_nodes = Vec::new();
 			let mut line = Vec::new();
@@ -226,7 +226,7 @@ impl NodeList {
 		}
 	}
 
-	pub fn split_by_items<P: FnMut(&NodeData) -> bool>(&mut self, mut split: P) -> Vec<NodeList> {
+	pub fn split_by_items<P: FnMut(&Node) -> bool>(&mut self, mut split: P) -> Vec<NodeList> {
 		let mut new_nodes = Vec::new();
 		let mut line = Vec::new();
 
@@ -253,7 +253,7 @@ impl NodeList {
 
 	// TODO: move the parsing functions to the eval context and allow them to receive a context reference
 
-	pub fn fold_first<P: FnMut(&NodeData) -> bool, S: FnMut(NodeList, NodeData, NodeList) -> NodeData>(
+	pub fn fold_first<P: FnMut(&Node) -> bool, S: FnMut(NodeList, Node, NodeList) -> Node>(
 		&mut self,
 		mut fold: P,
 		mut make_node: S,
@@ -284,7 +284,7 @@ impl NodeList {
 		}
 	}
 
-	pub fn fold_last<P: FnMut(&NodeData) -> bool, S: FnMut(NodeList, NodeData, NodeList) -> NodeData>(
+	pub fn fold_last<P: FnMut(&Node) -> bool, S: FnMut(NodeList, Node, NodeList) -> Node>(
 		&mut self,
 		mut fold: P,
 		mut make_node: S,
@@ -324,7 +324,7 @@ impl NodeList {
 	// Parsing helpers
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub fn get(&self, index: usize) -> Option<NodeData> {
+	pub fn get(&self, index: usize) -> Option<Node> {
 		let nodes = self.data.nodes.read().unwrap();
 		nodes.get(index).cloned()
 	}
@@ -334,20 +334,20 @@ impl NodeList {
 		nodes.get(index).and_then(|x| x.symbol())
 	}
 
-	pub fn test_at<P: FnOnce(&NodeData) -> bool>(&self, index: usize, predicate: P) -> bool {
+	pub fn test_at<P: FnOnce(&Node) -> bool>(&self, index: usize, predicate: P) -> bool {
 		let nodes = self.data.nodes.read().unwrap();
 		nodes.get(index).map(|x| predicate(x)).unwrap_or(false)
 	}
 
 	pub fn is_identifier(&self, index: usize) -> bool {
-		self.test_at(index, |x| matches!(x.get(), Node::Word(..)))
+		self.test_at(index, |x| matches!(x, Node::Word(..)))
 	}
 
-	pub fn is_keyword(&self, index: usize, word: &str) -> bool {
+	pub fn is_keyword(&self, index: usize, word: &Symbol) -> bool {
 		self.test_at(index, |x| x.is_word(word))
 	}
 
-	pub fn is_symbol(&self, index: usize, symbol: &str) -> bool {
+	pub fn is_symbol(&self, index: usize, symbol: &Symbol) -> bool {
 		self.test_at(index, |x| x.is_symbol(symbol))
 	}
 }
@@ -399,7 +399,7 @@ impl Hash for NodeList {
 	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
 		let nodes = self.data.nodes.read().unwrap();
 		for it in nodes.iter() {
-			it.hash(state);
+			it.id().hash(state);
 		}
 	}
 }
@@ -411,7 +411,7 @@ impl Hash for NodeList {
 struct NodeListData {
 	version: RwLock<usize>,
 	scope: Handle<Scope>,
-	nodes: RwLock<Arc<Vec<NodeData>>>,
+	nodes: RwLock<Arc<Vec<Node>>>,
 }
 
 //====================================================================================================================//
@@ -420,11 +420,11 @@ struct NodeListData {
 
 pub struct NodeListIterator {
 	index: usize,
-	nodes: Arc<Vec<NodeData>>,
+	nodes: Arc<Vec<Node>>,
 }
 
 impl Iterator for NodeListIterator {
-	type Item = NodeData;
+	type Item = Node;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		let output = self.nodes.get(self.index);

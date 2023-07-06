@@ -194,7 +194,7 @@ struct BindingList {
 #[derive(Clone)]
 pub enum BindingValue {
 	NodeList(NodeList),
-	Node(NodeData),
+	Node(Node),
 }
 
 impl BindingValue {

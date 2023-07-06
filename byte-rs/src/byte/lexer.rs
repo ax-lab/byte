@@ -21,47 +21,45 @@ mod tests {
 	#[test]
 	fn empty() {
 		let actual = tokenize("");
-		assert_eq!(actual, Vec::new());
+		assert!(actual.len() == 0);
 
 		let actual = tokenize("    ");
-		assert_eq!(actual, Vec::new());
+		assert!(actual.len() == 0);
 
 		let actual = tokenize("\n");
-		assert_eq!(actual, Vec::new());
+		assert!(actual.len() == 0);
 
 		let actual = tokenize("\r");
-		assert_eq!(actual, Vec::new());
+		assert!(actual.len() == 0);
 
 		let actual = tokenize("\r\n");
-		assert_eq!(actual, Vec::new());
+		assert!(actual.len() == 0);
 
 		let actual = tokenize("\n    ");
-		assert_eq!(actual, Vec::new());
+		assert!(actual.len() == 0);
 
 		let actual = tokenize("    \n");
-		assert_eq!(actual, Vec::new());
+		assert!(actual.len() == 0);
 
 		let actual = tokenize("\t\n\n\r\n    \r    \n");
-		assert_eq!(actual, Vec::new());
+		assert!(actual.len() == 0);
 	}
 
 	#[test]
 	fn simple_scanning() {
 		let actual = tokenize("a, b (\n\tsome_name123\n)");
-		assert_eq!(
-			actual,
-			vec![
-				word("a"),
-				sym(","),
-				word("b"),
-				sym("("),
-				eol(),
-				indent(4),
-				word("some_name123"),
-				eol(),
-				sym(")")
-			]
-		);
+		let mut actual = actual.into_iter();
+		let mut get = || actual.next().unwrap();
+		check!(get(), Node::Word(s, ..)   if s == "a");
+		check!(get(), Node::Symbol(s, ..) if s == ",");
+		check!(get(), Node::Word(s, ..)   if s == "b");
+		check!(get(), Node::Symbol(s, ..) if s == "(");
+		check!(get(), Node::Break(..));
+		check!(get(), Node::Indent(4, ..));
+		check!(get(), Node::Word(s, ..)   if s == "some_name123");
+		check!(get(), Node::Break(..));
+		check!(get(), Node::Symbol(s, ..) if s == ")");
+		assert!(actual.next().is_none());
 	}
 
 	#[test]
@@ -76,30 +74,48 @@ mod tests {
 			"",
 			"print 1, 2, 3",
 		];
+
 		let actual = tokenize(input.join("\n").as_str());
-		assert_eq!(
-			actual,
-			vec![
-				comment(),
-				eol(),
-				word("print"),
-				literal("hello world!"),
-				eol(),
-				comment(),
-				eol(),
-				word("print"),
-				int(1),
-				sym(","),
-				int(2),
-				sym(","),
-				int(3),
-			]
-		)
+		let mut actual = actual.into_iter();
+		let mut get = || actual.next().unwrap();
+
+		check!(get(), Node::Comment(..));
+		check!(get(), Node::Break(..));
+		check!(get(), Node::Word(s, ..)   if s == "print");
+		check!(get(), Node::Literal(s, ..) if s == "hello world!");
+		check!(get(), Node::Break(..));
+		check!(get(), Node::Comment(..));
+		check!(get(), Node::Break(..));
+		check!(get(), Node::Word(s, ..)   if s == "print");
+		check!(get(), Node::Integer(1, ..));
+		check!(get(), Node::Symbol(s, ..) if s == ",");
+		check!(get(), Node::Integer(2, ..));
+		check!(get(), Node::Symbol(s, ..) if s == ",");
+		check!(get(), Node::Integer(3, ..));
+
+		assert!(actual.next().is_none());
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
 	// Helpers
 	//----------------------------------------------------------------------------------------------------------------//
+
+	mod macros {
+		#[macro_export]
+		macro_rules! check {
+			($x:expr, $y:pat if $($rest:tt)*) => {
+				let x = $x;
+				let e = format!("{x}");
+				assert!(matches!(x, $y if $($rest)*), "match failed: {e}");
+			};
+
+			($x:expr, $y:pat) => {
+				let x = $x;
+				let e = format!("{x}");
+				assert!(matches!(x, $y), "match failed: {e}");
+			};
+		}
+	}
 
 	fn tokenize(input: &str) -> Vec<Node> {
 		let mut scanner = Scanner::new();
@@ -114,7 +130,7 @@ mod tests {
 		let mut errors = Errors::new();
 		let mut output = Vec::new();
 		while let Some(node) = scanner.scan(&mut cursor, &mut errors) {
-			output.push(node.to_inner());
+			output.push(node);
 		}
 
 		if errors.len() > 0 {
@@ -124,33 +140,5 @@ mod tests {
 
 		assert!(cursor.at_end());
 		output
-	}
-
-	fn word(name: &str) -> Node {
-		Node::Word(Context::symbol(name))
-	}
-
-	fn sym(name: &str) -> Node {
-		Node::Symbol(Context::symbol(name))
-	}
-
-	fn eol() -> Node {
-		Node::Break
-	}
-
-	fn indent(width: usize) -> Node {
-		Node::Indent(width)
-	}
-
-	fn comment() -> Node {
-		Node::Comment
-	}
-
-	fn literal(str: &str) -> Node {
-		Node::Literal(str.to_string())
-	}
-
-	fn int(value: u128) -> Node {
-		Node::Integer(value)
 	}
 }

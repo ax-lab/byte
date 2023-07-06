@@ -7,8 +7,8 @@ impl IsOperator for SplitLineOperator {
 		Precedence::SplitLines
 	}
 
-	fn predicate(&self, node: &NodeData) -> bool {
-		node.get() == &Node::Break
+	fn predicate(&self, node: &Node) -> bool {
+		matches!(node, Node::Break(..))
 	}
 
 	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
@@ -16,11 +16,11 @@ impl IsOperator for SplitLineOperator {
 
 		let mut to_resolve = Vec::new();
 		context.nodes().split_by(
-			|n| n.get() == &Node::Break,
+			|n| matches!(n, Node::Break(..)),
 			|list| {
 				to_resolve.push(list.clone());
 				let span = list.span();
-				Node::Line(list).at(span)
+				Node::Line(list, at(span))
 			},
 		);
 
