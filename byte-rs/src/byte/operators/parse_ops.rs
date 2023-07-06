@@ -8,7 +8,7 @@ use super::*;
 
 #[derive(Clone)]
 pub struct OpMap<T: Clone> {
-	map: BTreeMap<Name, T>,
+	map: BTreeMap<Symbol, T>,
 }
 
 impl<T: Clone> OpMap<T> {
@@ -18,16 +18,16 @@ impl<T: Clone> OpMap<T> {
 		}
 	}
 
-	pub fn add(&mut self, symbol: Name, op: T) {
+	pub fn add(&mut self, symbol: Symbol, op: T) {
 		self.map.insert(symbol, op);
 	}
 
-	pub fn contains(&self, symbol: &Name) -> bool {
+	pub fn contains(&self, symbol: &Symbol) -> bool {
 		self.map.contains_key(&symbol)
 	}
 
 	pub fn op_for_node(&self, node: &NodeData) -> Option<T> {
-		node.name().and_then(|symbol| self.map.get(&symbol)).cloned()
+		node.symbol().and_then(|symbol| self.map.get(&symbol)).cloned()
 	}
 }
 
@@ -84,7 +84,7 @@ impl IsOperator for ParseBinaryOp {
 
 	fn predicate(&self, node: &NodeData) -> bool {
 		match node.get() {
-			Node::Word(name) | Node::Symbol(name) => self.0.contains(name),
+			Node::Word(symbol) | Node::Symbol(symbol) => self.0.contains(symbol),
 			_ => false,
 		}
 	}
@@ -94,8 +94,8 @@ impl IsOperator for ParseBinaryOp {
 		let mut new_lists = Vec::new();
 
 		let is_op = |node: &NodeData| {
-			if let Some(name) = node.name() {
-				self.0.contains(&name)
+			if let Some(symbol) = node.symbol() {
+				self.0.contains(&symbol)
 			} else {
 				false
 			}
@@ -136,7 +136,7 @@ impl IsOperator for ParseUnaryPrefixOp {
 
 	fn can_apply(&self, nodes: &NodeList) -> bool {
 		match nodes.get(0).as_ref().map(|x| x.get()) {
-			Some(Node::Word(name) | Node::Symbol(name)) => self.0.contains(name),
+			Some(Node::Word(symbol) | Node::Symbol(symbol)) => self.0.contains(symbol),
 			_ => false,
 		}
 	}

@@ -77,25 +77,25 @@ impl NodeList {
 		nodes.iter().any(|x| predicate(x))
 	}
 
-	pub fn contains_delimiter_pair(&self, sta: &Name, end: &Name) -> bool {
+	pub fn contains_delimiter_pair(&self, sta: &Symbol, end: &Symbol) -> bool {
 		let nodes = self.data.nodes.read().unwrap();
 
 		let nodes = nodes.iter();
-		let mut nodes = nodes.skip_while(|x| x.name().as_ref() != Some(sta));
+		let mut nodes = nodes.skip_while(|x| x.symbol().as_ref() != Some(sta));
 		if let Some(..) = nodes.next() {
-			let mut nodes = nodes.skip_while(|x| x.name().as_ref() != Some(end));
+			let mut nodes = nodes.skip_while(|x| x.symbol().as_ref() != Some(end));
 			nodes.next().is_some()
 		} else {
 			false
 		}
 	}
 
-	pub fn split_ternary(&self, sta: &Name, end: &Name) -> Option<(Vec<NodeData>, Vec<NodeData>, Vec<NodeData>)> {
+	pub fn split_ternary(&self, sta: &Symbol, end: &Symbol) -> Option<(Vec<NodeData>, Vec<NodeData>, Vec<NodeData>)> {
 		let nodes = self.data.nodes.read().unwrap();
 		for i in (0..nodes.len()).rev() {
-			if nodes[i].is_name(sta) {
+			if nodes[i].has_symbol(sta) {
 				for j in i + 1..nodes.len() {
-					if nodes[j].is_name(end) {
+					if nodes[j].has_symbol(end) {
 						let a = nodes[0..i].to_vec();
 						let b = nodes[i + 1..j].to_vec();
 						let c = nodes[j + 1..].to_vec();
@@ -329,9 +329,9 @@ impl NodeList {
 		nodes.get(index).cloned()
 	}
 
-	pub fn get_name(&self, index: usize) -> Option<Name> {
+	pub fn get_symbol(&self, index: usize) -> Option<Symbol> {
 		let nodes = self.data.nodes.read().unwrap();
-		nodes.get(index).and_then(|x| x.name())
+		nodes.get(index).and_then(|x| x.symbol())
 	}
 
 	pub fn test_at<P: FnOnce(&NodeData) -> bool>(&self, index: usize, predicate: P) -> bool {

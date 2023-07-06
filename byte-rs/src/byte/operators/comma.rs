@@ -8,8 +8,8 @@ impl IsOperator for CommaOperator {
 	}
 
 	fn predicate(&self, node: &NodeData) -> bool {
-		if let Node::Symbol(name) = node.get() {
-			name == ","
+		if let Node::Symbol(symbol) = node.get() {
+			symbol == ","
 		} else {
 			false
 		}

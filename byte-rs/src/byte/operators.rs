@@ -33,7 +33,7 @@ pub enum Operator {
 	Ternary(TernaryOp),
 	Print,
 	Comma,
-	Replace(Name, Node, Precedence),
+	Replace(Symbol, Node, Precedence),
 	Bind,
 	Binary(ParseBinaryOp),
 	UnaryPrefix(ParseUnaryPrefixOp),
@@ -88,8 +88,8 @@ impl Operator {
 			Operator::Let => Arc::new(LetOperator),
 			Operator::Bind => Arc::new(BindOperator),
 			Operator::Print => Arc::new(PrintOperator),
-			Operator::Replace(name, node, precedence) => {
-				Arc::new(ReplaceSymbol(name.clone(), node.clone(), *precedence))
+			Operator::Replace(symbol, node, precedence) => {
+				Arc::new(ReplaceSymbol(symbol.clone(), node.clone(), *precedence))
 			}
 			Operator::Binary(op) => Arc::new(op.clone()),
 			Operator::UnaryPrefix(op) => Arc::new(op.clone()),
@@ -147,7 +147,7 @@ pub struct OperatorContext<'a> {
 	scope: HandleRef<Scope>,
 	version: usize,
 	new_segments: Vec<NodeList>,
-	declares: Vec<(Name, Option<usize>, BindingValue)>,
+	declares: Vec<(Symbol, Option<usize>, BindingValue)>,
 }
 
 impl<'a> OperatorContext<'a> {
@@ -185,19 +185,19 @@ impl<'a> OperatorContext<'a> {
 		self.new_segments.push(list.clone())
 	}
 
-	pub fn declare_static(&mut self, name: Name, value: BindingValue) {
-		self.declares.push((name, None, value));
+	pub fn declare_static(&mut self, symbol: Symbol, value: BindingValue) {
+		self.declares.push((symbol, None, value));
 	}
 
-	pub fn declare_at(&mut self, name: Name, offset: usize, value: BindingValue) {
-		self.declares.push((name, Some(offset), value));
+	pub fn declare_at(&mut self, symbol: Symbol, offset: usize, value: BindingValue) {
+		self.declares.push((symbol, Some(offset), value));
 	}
 
 	pub(crate) fn get_new_segments(&mut self, output: &mut Vec<NodeList>) {
 		output.append(&mut self.new_segments)
 	}
 
-	pub(crate) fn get_declares(&mut self) -> Vec<(Name, Option<usize>, BindingValue)> {
+	pub(crate) fn get_declares(&mut self) -> Vec<(Symbol, Option<usize>, BindingValue)> {
 		std::mem::take(&mut self.declares)
 	}
 }

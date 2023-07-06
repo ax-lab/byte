@@ -11,7 +11,7 @@ pub struct ScopeData {
 	children: RwLock<Vec<Arc<ScopeData>>>,
 	scanner: Option<Scanner>,
 	operators: Arc<RwLock<HashSet<Operator>>>,
-	bindings: RwLock<HashMap<Name, BindingList>>,
+	bindings: RwLock<HashMap<Symbol, BindingList>>,
 }
 
 impl ScopeData {
@@ -97,7 +97,7 @@ impl Scope {
 	// Bindings
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub fn lookup(&self, name: &Name, offset: Option<usize>) -> Option<Option<usize>> {
+	pub fn lookup(&self, name: &Symbol, offset: Option<usize>) -> Option<Option<usize>> {
 		let value = {
 			let bindings = self.data.bindings.read().unwrap();
 			if let Some(value) = bindings.get(&name) {
@@ -116,7 +116,7 @@ impl Scope {
 		})
 	}
 
-	pub fn get_static(&self, name: Name) -> Option<BindingValue> {
+	pub fn get_static(&self, name: Symbol) -> Option<BindingValue> {
 		let value = {
 			let bindings = self.data.bindings.read().unwrap();
 			bindings.get(&name).and_then(|x| x.get_static().cloned())
@@ -131,7 +131,7 @@ impl Scope {
 		})
 	}
 
-	pub fn get_at(&self, name: Name, offset: usize) -> Option<BindingValue> {
+	pub fn get_at(&self, name: Symbol, offset: usize) -> Option<BindingValue> {
 		let value = {
 			let bindings = self.data.bindings.read().unwrap();
 			bindings.get(&name).and_then(|x| x.get_at(offset).cloned())
@@ -146,7 +146,7 @@ impl Scope {
 		})
 	}
 
-	pub fn set_static(&mut self, name: Name, value: BindingValue) -> Result<()> {
+	pub fn set_static(&mut self, name: Symbol, value: BindingValue) -> Result<()> {
 		let mut bindings = self.data.bindings.write().unwrap();
 		let binding = bindings.entry(name.clone()).or_insert(Default::default());
 		let span = value.span();
@@ -159,7 +159,7 @@ impl Scope {
 		}
 	}
 
-	pub fn set_at(&mut self, name: Name, offset: usize, value: BindingValue) -> Result<()> {
+	pub fn set_at(&mut self, name: Symbol, offset: usize, value: BindingValue) -> Result<()> {
 		let mut bindings = self.data.bindings.write().unwrap();
 		let binding = bindings.entry(name.clone()).or_insert(Default::default());
 		let span = value.span();

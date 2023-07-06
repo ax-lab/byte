@@ -10,10 +10,12 @@ use super::*;
 pub mod format;
 pub mod ids;
 pub mod sources;
+pub mod symbols;
 
 pub use format::*;
 pub use ids::*;
 pub use sources::*;
+pub use symbols::*;
 
 /// Provides a context that can be shared between functions across the current
 /// stack for the current thread.
@@ -32,9 +34,10 @@ pub struct Context {
 
 #[derive(Default, Clone)]
 struct ContextData {
+	ids: ContextIds,
 	sources: ContextSources,
 	format: ContextFormat,
-	ids: ContextIds,
+	symbols: ContextSymbols,
 }
 
 impl Context {

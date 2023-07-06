@@ -15,8 +15,8 @@ pub enum Node {
 	Break,
 	Indent(usize),
 	Comment,
-	Word(Name),
-	Symbol(Name),
+	Word(Symbol),
+	Symbol(Symbol),
 	Literal(String),
 	Integer(u128),
 	Boolean(bool),
@@ -28,10 +28,10 @@ pub enum Node {
 	RawText(Span),
 	Group(NodeList),
 	//----[ AST ]-------------------------------------------------------------//
-	Let(Name, usize, NodeList),
+	Let(Symbol, usize, NodeList),
 	UnaryOp(UnaryOp, NodeList),
 	BinaryOp(BinaryOp, NodeList, NodeList),
-	Variable(Name, Option<usize>),
+	Variable(Symbol, Option<usize>),
 	Print(NodeList, &'static str),
 	Conditional(NodeList, NodeList, NodeList),
 }
@@ -41,14 +41,14 @@ impl Node {
 		NodeData::new(self, span)
 	}
 
-	pub fn name(&self) -> Option<Name> {
-		let name = match self {
-			Node::Word(name) => name,
-			Node::Symbol(name) => name,
-			Node::Let(name, ..) => name,
+	pub fn symbol(&self) -> Option<Symbol> {
+		let symbol = match self {
+			Node::Word(symbol) => symbol,
+			Node::Symbol(symbol) => symbol,
+			Node::Let(symbol, ..) => symbol,
 			_ => return None,
 		};
-		Some(name.clone())
+		Some(symbol.clone())
 	}
 }
 
@@ -106,14 +106,14 @@ impl NodeData {
 		}
 	}
 
-	pub fn name(&self) -> Option<Name> {
-		self.get().name()
+	pub fn symbol(&self) -> Option<Symbol> {
+		self.get().symbol()
 	}
 
-	pub fn is_name(&self, name: &Name) -> bool {
+	pub fn has_symbol(&self, symbol: &Symbol) -> bool {
 		match self.get() {
-			Node::Symbol(n) => n == name,
-			Node::Word(n) => n == name,
+			Node::Symbol(s) => s == symbol,
+			Node::Word(s) => s == symbol,
 			_ => false,
 		}
 	}

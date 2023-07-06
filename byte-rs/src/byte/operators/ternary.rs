@@ -3,7 +3,7 @@ use super::*;
 pub type TernaryNodeFn = Arc<dyn Fn(NodeList, NodeList, NodeList) -> Node>;
 
 #[derive(Clone)]
-pub struct TernaryOp(pub Name, pub Name, pub TernaryNodeFn);
+pub struct TernaryOp(pub Symbol, pub Symbol, pub TernaryNodeFn);
 
 impl IsOperator for TernaryOp {
 	fn precedence(&self) -> Precedence {

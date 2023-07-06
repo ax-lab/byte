@@ -70,7 +70,7 @@ impl Display for Null {
 
 pub struct CodeContext {
 	compiler: CompilerRef,
-	declares: HashMap<(Name, Option<usize>), Type>,
+	declares: HashMap<(Symbol, Option<usize>), Type>,
 }
 
 impl CodeContext {
@@ -220,10 +220,10 @@ pub enum Expr {
 	Never,
 	Unit,
 	Null,
-	Declare(Name, Option<usize>, Arc<Expr>),
+	Declare(Symbol, Option<usize>, Arc<Expr>),
 	Conditional(Arc<Expr>, Arc<Expr>, Arc<Expr>),
 	Value(ValueExpr),
-	Variable(Name, Option<usize>, Type),
+	Variable(Symbol, Option<usize>, Type),
 	Print(Arc<Expr>, &'static str),
 	Unary(UnaryOpImpl, Arc<Expr>),
 	Binary(BinaryOpImpl, Arc<Expr>, Arc<Expr>),
@@ -327,7 +327,7 @@ impl Expr {
 #[derive(Clone, Debug)]
 pub enum ExprValue {
 	Value(Value),
-	Variable(Name, Option<usize>, Value),
+	Variable(Symbol, Option<usize>, Value),
 }
 
 impl ExprValue {

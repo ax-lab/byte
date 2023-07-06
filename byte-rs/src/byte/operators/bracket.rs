@@ -2,12 +2,12 @@ use std::collections::BTreeMap;
 
 use super::*;
 
-pub type BracketFn = Arc<dyn Fn(Name, NodeList, Name) -> Node>;
+pub type BracketFn = Arc<dyn Fn(Symbol, NodeList, Symbol) -> Node>;
 
 #[derive(Clone, Default)]
 pub struct BracketPairs {
-	pairs: Arc<BTreeMap<Name, (Name, BracketFn)>>,
-	reverse: Arc<HashSet<Name>>,
+	pairs: Arc<BTreeMap<Symbol, (Symbol, BracketFn)>>,
+	reverse: Arc<HashSet<Symbol>>,
 }
 
 impl Hash for BracketPairs {
@@ -60,7 +60,7 @@ impl BracketPairs {
 		Self::default()
 	}
 
-	pub fn add(&mut self, left: Name, right: Name, bracket_fn: BracketFn) {
+	pub fn add(&mut self, left: Symbol, right: Symbol, bracket_fn: BracketFn) {
 		let pairs = Arc::make_mut(&mut self.pairs);
 		pairs.insert(left, (right.clone(), bracket_fn));
 		let reverse = Arc::make_mut(&mut self.reverse);
@@ -76,14 +76,14 @@ impl BracketPairs {
 		&self,
 		scope: Handle<Scope>,
 		nodes: &mut VecDeque<NodeData>,
-		pair: Option<(Span, Name, Name)>,
+		pair: Option<(Span, Symbol, Symbol)>,
 		new_lists: &mut Vec<NodeList>,
 	) -> Result<Vec<NodeData>> {
 		let end = pair.as_ref().map(|(.., end)| end);
 		let mut output = Vec::new();
 		while let Some(node) = nodes.pop_front() {
-			if let Some(name) = node.name() {
-				if Some(&name) == end {
+			if let Some(symbol) = node.symbol() {
+				if Some(&symbol) == end {
 					return Ok(output);
 				} else if let Some((sta, (end, bracket_fn))) = self.get_pair(&node) {
 					let span = node.span().clone();
@@ -97,8 +97,8 @@ impl BracketPairs {
 					new_lists.push(list.clone());
 					let node = (bracket_fn)(sta, list, end);
 					output.push(node.at(span));
-				} else if self.reverse.contains(&name) {
-					let error = format!("unpaired end bracket `{name}`");
+				} else if self.reverse.contains(&symbol) {
+					let error = format!("unpaired end bracket `{symbol}`");
 					let error = Errors::from_at(error, node.span().clone());
 					return Err(error);
 				} else {
@@ -118,9 +118,9 @@ impl BracketPairs {
 		}
 	}
 
-	fn get_pair(&self, node: &NodeData) -> Option<(Name, (Name, BracketFn))> {
+	fn get_pair(&self, node: &NodeData) -> Option<(Symbol, (Symbol, BracketFn))> {
 		match node.get() {
-			Node::Symbol(name) => self.pairs.get(name).map(|end| (name.clone(), end.clone())),
+			Node::Symbol(symbol) => self.pairs.get(symbol).map(|end| (symbol.clone(), end.clone())),
 			_ => None,
 		}
 	}
@@ -133,7 +133,7 @@ impl IsOperator for BracketPairs {
 
 	fn predicate(&self, node: &NodeData) -> bool {
 		match node.get() {
-			Node::Symbol(name) => self.pairs.contains_key(name),
+			Node::Symbol(symbol) => self.pairs.contains_key(symbol),
 			_ => false,
 		}
 	}

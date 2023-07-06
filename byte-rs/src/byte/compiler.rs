@@ -64,6 +64,7 @@ impl Compiler {
 	/// Calling this method with the same string value, will always return the
 	/// same string reference.
 	pub fn intern<T: AsRef<str>>(&self, str: T) -> CompilerHandle<str> {
+		// TODO: remove
 		let str = str.as_ref();
 		let names = self.data.strings.read().unwrap();
 		if let Some(value) = names.get(str) {
@@ -276,10 +277,8 @@ struct CompilerData {
 
 impl CompilerData {
 	pub fn new() -> Arc<Self> {
-		Arc::new_cyclic(|data| {
-			let compiler = CompilerRef { data: data.clone() };
-
-			let mut scanner = Scanner::new(compiler.clone());
+		Arc::new({
+			let mut scanner = Scanner::new();
 			scanner.register_common_symbols();
 			scanner.add_matcher(CommentMatcher);
 			scanner.add_matcher(LiteralMatcher);
@@ -309,8 +308,8 @@ impl Compiler {
 		scope.add_operator(Operator::Comma);
 
 		let ternary = TernaryOp(
-			self.get_name("?"),
-			self.get_name(":"),
+			Context::symbol("?"),
+			Context::symbol(":"),
 			Arc::new(|a, b, c| Node::Conditional(a, b, c)),
 		);
 		scope.add_operator(Operator::Ternary(ternary));
@@ -318,8 +317,8 @@ impl Compiler {
 		// brackets
 		let mut brackets = BracketPairs::new();
 		brackets.add(
-			self.get_name("("),
-			self.get_name(")"),
+			Context::symbol("("),
+			Context::symbol(")"),
 			Arc::new(|_, n, _| Node::Group(n)),
 		);
 
@@ -327,23 +326,23 @@ impl Compiler {
 
 		// boolean
 		scope.add_operator(Operator::Replace(
-			self.get_name("true"),
+			Context::symbol("true"),
 			Node::Boolean(true),
 			Precedence::Boolean(true),
 		));
 		scope.add_operator(Operator::Replace(
-			self.get_name("false"),
+			Context::symbol("false"),
 			Node::Boolean(false),
 			Precedence::Boolean(false),
 		));
 
 		// null
-		scope.add_operator(Operator::Replace(self.get_name("null"), Node::Null, Precedence::Null));
+		scope.add_operator(Operator::Replace(Context::symbol("null"), Node::Null, Precedence::Null));
 
 		// binary
 
 		let mut ops = OpMap::new();
-		ops.add(self.get_name("="), BinaryOp::Assign);
+		ops.add(Context::symbol("="), BinaryOp::Assign);
 		scope.add_operator(Operator::Binary(ParseBinaryOp(
 			ops,
 			Precedence::OpAssign,
@@ -352,8 +351,8 @@ impl Compiler {
 
 		// additive
 		let mut ops = OpMap::new();
-		ops.add(self.get_name("+"), BinaryOp::Add);
-		ops.add(self.get_name("-"), BinaryOp::Sub);
+		ops.add(Context::symbol("+"), BinaryOp::Add);
+		ops.add(Context::symbol("-"), BinaryOp::Sub);
 		scope.add_operator(Operator::Binary(ParseBinaryOp(
 			ops,
 			Precedence::OpAdditive,
@@ -362,9 +361,9 @@ impl Compiler {
 
 		// multiplicative
 		let mut ops = OpMap::new();
-		ops.add(self.get_name("*"), BinaryOp::Mul);
-		ops.add(self.get_name("/"), BinaryOp::Div);
-		ops.add(self.get_name("%"), BinaryOp::Mod);
+		ops.add(Context::symbol("*"), BinaryOp::Mul);
+		ops.add(Context::symbol("/"), BinaryOp::Div);
+		ops.add(Context::symbol("%"), BinaryOp::Mod);
 		scope.add_operator(Operator::Binary(ParseBinaryOp(
 			ops,
 			Precedence::OpMultiplicative,
@@ -373,7 +372,7 @@ impl Compiler {
 
 		// boolean
 		let mut ops = OpMap::new();
-		ops.add(self.get_name("and"), BinaryOp::And);
+		ops.add(Context::symbol("and"), BinaryOp::And);
 		scope.add_operator(Operator::Binary(ParseBinaryOp(
 			ops,
 			Precedence::OpBooleanAnd,
@@ -381,7 +380,7 @@ impl Compiler {
 		)));
 
 		let mut ops = OpMap::new();
-		ops.add(self.get_name("or"), BinaryOp::Or);
+		ops.add(Context::symbol("or"), BinaryOp::Or);
 		scope.add_operator(Operator::Binary(ParseBinaryOp(
 			ops,
 			Precedence::OpBooleanOr,
@@ -391,10 +390,10 @@ impl Compiler {
 		// unary
 
 		let mut ops = OpMap::new();
-		ops.add(self.get_name("not"), UnaryOp::Not);
-		ops.add(self.get_name("!"), UnaryOp::Neg);
-		ops.add(self.get_name("+"), UnaryOp::Plus);
-		ops.add(self.get_name("-"), UnaryOp::Minus);
+		ops.add(Context::symbol("not"), UnaryOp::Not);
+		ops.add(Context::symbol("!"), UnaryOp::Neg);
+		ops.add(Context::symbol("+"), UnaryOp::Plus);
+		ops.add(Context::symbol("-"), UnaryOp::Minus);
 		scope.add_operator(Operator::UnaryPrefix(ParseUnaryPrefixOp(
 			ops,
 			Precedence::OpUnaryPrefix,

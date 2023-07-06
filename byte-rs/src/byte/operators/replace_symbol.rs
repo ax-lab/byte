@@ -1,6 +1,6 @@
 use super::*;
 
-pub struct ReplaceSymbol(pub Name, pub Node, pub Precedence);
+pub struct ReplaceSymbol(pub Symbol, pub Node, pub Precedence);
 
 impl IsOperator for ReplaceSymbol {
 	fn precedence(&self) -> Precedence {
@@ -8,14 +8,14 @@ impl IsOperator for ReplaceSymbol {
 	}
 
 	fn predicate(&self, node: &NodeData) -> bool {
-		node.name().as_ref() == Some(&self.0)
+		node.symbol().as_ref() == Some(&self.0)
 	}
 
 	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
 		let _ = errors;
 		let nodes = context.nodes();
 		nodes.replace(|node| {
-			if node.name().as_ref() == Some(&self.0) {
+			if node.symbol().as_ref() == Some(&self.0) {
 				let span = node.span().clone();
 				let node = self.1.clone();
 				Some(node.at(span))

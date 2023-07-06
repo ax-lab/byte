@@ -18,7 +18,7 @@ impl IsOperator for LetOperator {
 		context.nodes().fold_first(
 			|node| node.is_symbol("="),
 			|lhs, _, rhs| {
-				let name = lhs.get_name(lhs.len() - 1).unwrap();
+				let name = lhs.get_symbol(lhs.len() - 1).unwrap();
 				let offset = rhs.offset();
 				let value = BindingValue::NodeList(rhs.clone());
 				new_lists.push(rhs.clone());

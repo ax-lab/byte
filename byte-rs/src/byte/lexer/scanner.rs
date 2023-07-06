@@ -7,15 +7,13 @@ pub trait Matcher: Cell {
 
 #[derive(Clone)]
 pub struct Scanner {
-	compiler: CompilerRef,
 	matchers: Arc<Vec<Arc<dyn Matcher>>>,
 	table: Arc<SymbolTable<ScanAction>>,
 }
 
 impl Scanner {
-	pub fn new(compiler: CompilerRef) -> Self {
+	pub fn new() -> Self {
 		Self {
-			compiler,
 			matchers: Default::default(),
 			table: Default::default(),
 		}
@@ -26,9 +24,9 @@ impl Scanner {
 		matchers.push(Arc::new(matcher));
 	}
 
-	pub fn add_symbol(&mut self, name: &str) {
+	pub fn add_symbol(&mut self, symbol: &str) {
 		let table = Arc::make_mut(&mut self.table);
-		table.add(name, ScanAction::Symbol(name.to_string()));
+		table.add(symbol, ScanAction::Symbol(symbol.to_string()));
 	}
 
 	pub fn add_word_chars(&mut self, chars: &str) {
@@ -49,7 +47,6 @@ impl Scanner {
 	}
 
 	pub fn scan(&self, cursor: &mut Span, errors: &mut Errors) -> Option<NodeData> {
-		let compiler = &self.compiler.get();
 		loop {
 			// skip spaces
 			let line_start = cursor.is_indent();
@@ -130,14 +127,14 @@ impl Scanner {
 						cursor.advance(size);
 					}
 
-					// generate a Name token
+					// generate a Word token
 					let span = cursor.span_from(&start);
-					let name = span.text().to_string();
-					Some(Node::Word(compiler.get_name(name)).at(span))
+					let symbol = span.text().to_string();
+					Some(Node::Word(Context::symbol(symbol)).at(span))
 				}
 
 				// predefined symbol
-				ScanAction::Symbol(name) => Some(Node::Symbol(compiler.get_name(name)).at(span)),
+				ScanAction::Symbol(symbol) => Some(Node::Symbol(Context::symbol(symbol)).at(span)),
 			};
 		}
 	}

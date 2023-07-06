@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::*;
 
 pub struct RuntimeScope {
-	values: HashMap<(Name, Option<usize>), Value>,
+	values: HashMap<(Symbol, Option<usize>), Value>,
 	stdout: RuntimeOutput,
 	stderr: RuntimeOutput,
 }
@@ -13,11 +13,11 @@ impl RuntimeScope {
 		Default::default()
 	}
 
-	pub fn set(&mut self, name: Name, index: Option<usize>, value: Value) -> Option<Value> {
+	pub fn set(&mut self, name: Symbol, index: Option<usize>, value: Value) -> Option<Value> {
 		self.values.insert((name, index), value)
 	}
 
-	pub fn get(&self, name: &Name, index: Option<usize>) -> Option<&Value> {
+	pub fn get(&self, name: &Symbol, index: Option<usize>) -> Option<&Value> {
 		self.values.get(&(name.clone(), index))
 	}
 
