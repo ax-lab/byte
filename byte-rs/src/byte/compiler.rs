@@ -59,25 +59,6 @@ impl Compiler {
 		unsafe { &*handle.as_ptr() }
 	}
 
-	/// Store a string in the compiler instance, deduplicating values.
-	///
-	/// Calling this method with the same string value, will always return the
-	/// same string reference.
-	pub fn intern<T: AsRef<str>>(&self, str: T) -> CompilerHandle<str> {
-		// TODO: remove
-		let str = str.as_ref();
-		let names = self.data.strings.read().unwrap();
-		if let Some(value) = names.get(str) {
-			self.make_handle(value.as_str())
-		} else {
-			drop(names);
-			let mut names = self.data.strings.write().unwrap();
-			names.insert(str.to_string());
-			let value = names.get(str).unwrap();
-			self.make_handle(value.as_str())
-		}
-	}
-
 	/// Binds the lifetime of the given reference to self.
 	///
 	/// This should only be used to rebind immutable references to compiler
@@ -270,9 +251,6 @@ struct CompilerData {
 
 	// arena storage for global data that is never deallocated
 	arena: ArenaSet,
-
-	// storage for interned strings
-	strings: Arc<RwLock<HashSet<String>>>,
 }
 
 impl CompilerData {
@@ -287,7 +265,6 @@ impl CompilerData {
 			CompilerData {
 				scanner,
 				arena: Default::default(),
-				strings: Default::default(),
 			}
 		})
 	}
@@ -408,32 +385,5 @@ impl Scanner {
 		}
 		self.add_word_chars(ALPHA);
 		self.add_word_next_chars(DIGIT);
-	}
-}
-
-//====================================================================================================================//
-// Tests
-//====================================================================================================================//
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn intern() {
-		let compiler = Compiler::new();
-		let a1 = compiler.intern("abc");
-		let a2 = compiler.intern("abc");
-		let b1 = compiler.intern("123");
-		let b2 = compiler.intern("123");
-
-		assert_eq!(a1, "abc");
-		assert_eq!(a2, "abc");
-		assert_eq!(b1, "123");
-		assert_eq!(b2, "123");
-
-		assert!(a1.as_ptr() == a2.as_ptr());
-		assert!(b1.as_ptr() == b2.as_ptr());
-		assert!(a1.as_ptr() != b1.as_ptr());
 	}
 }
