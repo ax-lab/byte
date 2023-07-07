@@ -52,12 +52,6 @@ impl std::fmt::Display for Value {
 // Repr
 //====================================================================================================================//
 
-/// Dynamic trait combining [`Debug`] + [`Display`] with more granular control
-/// over the output representation.
-pub trait WithRepr {
-	fn output(&self, mode: ReprMode, format: ReprFormat, output: &mut dyn std::fmt::Write) -> std::fmt::Result;
-}
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ReprMode {
 	Debug,
@@ -74,80 +68,25 @@ impl ReprMode {
 	}
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Ord, PartialOrd)]
-pub enum ReprFormat {
-	Word,
-	Line,
-	Full,
-}
-
-impl Value {
-	pub fn with_repr(&self) -> Option<&dyn WithRepr> {
-		get_trait!(self, WithRepr)
-	}
-}
-
-mod repr_macros {
-	#[macro_export]
-	macro_rules! fmt_from_repr {
-		($type:ty) => {
-			impl ::std::fmt::Debug for $type {
-				fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-					use $crate::util::format::*;
-					if let Some(value) = get_trait!(self, WithRepr) {
-						value.output(ReprMode::Debug, ReprFormat::Line, f)
-					} else if let Some(value) = get_trait!(self, WithDebug) {
-						value.fmt_debug(f)
-					} else if let Some(value) = get_trait!(self, WithDisplay) {
-						value.fmt_display(f)
-					} else {
-						let ptr = self as *const Self;
-						write!(f, "Value({}: {ptr:?})", stringify!($type))
-					}
-				}
-			}
-
-			impl ::std::fmt::Display for $type {
-				fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-					use $crate::util::format::*;
-					if let Some(value) = get_trait!(self, WithRepr) {
-						value.output(ReprMode::Display, ReprFormat::Line, f)
-					} else if let Some(value) = get_trait!(self, WithDisplay) {
-						value.fmt_display(f)
-					} else {
-						write!(f, "Value({})", stringify!($type))
-					}
-				}
-			}
-		};
-	}
-
-	pub use fmt_from_repr;
-}
-
-pub use repr_macros::*;
-
 //====================================================================================================================//
 // Format mixin
 //====================================================================================================================//
 
 trait MixinFormattedOutput {
-	fn output(&self, mode: ReprMode, format: ReprFormat, output: &mut dyn std::fmt::Write) -> std::fmt::Result;
+	fn output(&self, mode: ReprMode, output: &mut dyn std::fmt::Write) -> std::fmt::Result;
 
 	fn fmt_debug(&self, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
-		self.output(ReprMode::Debug, ReprFormat::Line, output)
+		self.output(ReprMode::Debug, output)
 	}
 
 	fn fmt_display(&self, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
-		self.output(ReprMode::Display, ReprFormat::Line, output)
+		self.output(ReprMode::Display, output)
 	}
 }
 
 impl<T: IsValue + ?Sized> MixinFormattedOutput for T {
-	fn output(&self, mode: ReprMode, format: ReprFormat, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
-		if let Some(value) = get_trait!(self, WithRepr) {
-			value.output(mode, format, output)
-		} else if mode == ReprMode::Debug {
+	fn output(&self, mode: ReprMode, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
+		if mode == ReprMode::Debug {
 			if let Some(value) = get_trait!(self, WithDebug) {
 				value.fmt_debug(output)
 			} else {

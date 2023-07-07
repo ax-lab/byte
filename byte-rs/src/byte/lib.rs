@@ -3,6 +3,7 @@ pub use context::*;
 
 pub mod code;
 pub mod compiler;
+pub mod errors;
 pub mod handle;
 pub mod lexer;
 pub mod nodes;
@@ -14,6 +15,7 @@ pub mod util;
 
 pub use code::*;
 pub use compiler::*;
+pub use errors::*;
 pub use handle::*;
 pub use lexer::*;
 pub use nodes::*;
