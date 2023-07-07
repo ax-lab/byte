@@ -7,7 +7,7 @@ pub const MAX_ERRORS: usize = 32;
 /// List of errors.
 #[derive(Clone, Default)]
 pub struct Errors {
-	list: Arc<VecDeque<(Value, Option<String>)>>,
+	list: Arc<VecDeque<(String, Span)>>,
 }
 
 impl Errors {
@@ -15,15 +15,15 @@ impl Errors {
 		Self::default()
 	}
 
-	pub fn from<T: IsValue>(error: T) -> Self {
+	pub fn from<T: Into<String>>(error: T) -> Self {
 		let mut errors = Self::new();
-		errors.add(error);
+		errors.add(error, Span::default());
 		errors
 	}
 
-	pub fn from_at<T: IsValue>(error: T, span: Span) -> Self {
+	pub fn from_at<T: Into<String>>(error: T, span: Span) -> Self {
 		let mut errors = Self::new();
-		errors.add_at(error, span);
+		errors.add(error, span);
 		errors
 	}
 
@@ -42,14 +42,9 @@ impl Errors {
 		}
 	}
 
-	pub fn add<T: IsValue>(&mut self, error: T) {
+	pub fn add<T: Into<String>>(&mut self, error: T, span: Span) {
 		let list = Arc::make_mut(&mut self.list);
-		list.push_back((Value::from(error), None));
-	}
-
-	pub fn add_at<T: IsValue>(&mut self, error: T, span: Span) {
-		let list = Arc::make_mut(&mut self.list);
-		list.push_back((Value::from(error), span.location()));
+		list.push_back((error.into(), span));
 	}
 
 	pub fn iter(&self) -> ErrorIterator {
@@ -65,13 +60,13 @@ impl Errors {
 //====================================================================================================================//
 
 pub struct ErrorData {
-	data: Value,
-	span: Option<String>,
+	data: String,
+	span: Span,
 }
 
 pub struct ErrorIterator {
 	next: usize,
-	list: Arc<VecDeque<(Value, Option<String>)>>,
+	list: Arc<VecDeque<(String, Span)>>,
 }
 
 impl Iterator for ErrorIterator {
@@ -87,19 +82,75 @@ impl Iterator for ErrorIterator {
 	}
 }
 
-impl WithRepr for ErrorData {
-	fn output(&self, mode: ReprMode, format: ReprFormat, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
-		if let Some(location) = &self.span {
+impl Display for ErrorData {
+	fn fmt(&self, output: &mut Formatter<'_>) -> std::fmt::Result {
+		if let Some(location) = self.span.location() {
 			write!(output, "at {location}: ")?;
 		}
-		if let Some(data) = get_trait!(&self.data, WithRepr) {
-			data.output(mode, format, output)?;
-		} else if mode == ReprMode::Debug {
-			write!(output, "{:?}", self.data)?;
-		} else {
-			write!(output, "{}", self.data)?;
+		write!(output, "{}", self.data)
+	}
+}
+
+//====================================================================================================================//
+// Result
+//====================================================================================================================//
+
+pub trait ResultExtension {
+	type Result;
+
+	fn and(self, other: Self) -> Self;
+	fn or(self, other: Self) -> Self;
+	fn handle(self, error: &mut Errors) -> Self::Result;
+	fn unless(self, errors: Errors) -> Self;
+}
+
+impl<T: Default> ResultExtension for Result<T> {
+	type Result = T;
+
+	fn and(self, other: Self) -> Self {
+		match self {
+			Ok(..) => other,
+			Err(errors) => match other {
+				Ok(..) => Err(errors),
+				Err(other) => {
+					let mut errors = errors;
+					errors.append(&other);
+					Err(errors)
+				}
+			},
 		}
-		Ok(())
+	}
+
+	fn or(self, other: Self) -> Self {
+		match self {
+			Ok(a) => Ok(a),
+			Err(errors) => match other {
+				Ok(b) => Ok(b),
+				Err(other) => {
+					let mut errors = errors;
+					errors.append(&other);
+					Err(errors)
+				}
+			},
+		}
+	}
+
+	fn handle(self, errors: &mut Errors) -> Self::Result {
+		match self {
+			Ok(value) => value,
+			Err(errs) => {
+				errors.append(&errs);
+				Self::Result::default()
+			}
+		}
+	}
+
+	fn unless(self, errors: Errors) -> Self {
+		if !errors.empty() {
+			self.and(Err(errors))
+		} else {
+			self
+		}
 	}
 }
 
@@ -109,44 +160,43 @@ impl WithRepr for ErrorData {
 
 impl Error for Errors {}
 
-has_traits!(Errors: WithRepr);
-
-impl WithRepr for Errors {
-	fn output(&self, mode: ReprMode, format: ReprFormat, mut output: &mut dyn std::fmt::Write) -> std::fmt::Result {
-		let debug = mode.is_debug();
+impl Display for Errors {
+	fn fmt(&self, output: &mut Formatter<'_>) -> std::fmt::Result {
 		if self.len() == 0 {
-			if debug {
-				write!(output, "<NoErrors>")
-			} else {
-				write!(output, "")
-			}
+			write!(output, "")
 		} else {
-			if debug {
-				write!(output, "<Errors")?;
-			} else {
-				write!(output, "Errors:\n")?;
-			}
-
+			write!(output, "Errors:\n")?;
 			{
 				let mut output = output.indented();
 				for (n, it) in self.iter().enumerate() {
 					write!(output, "\n[{}]", n + 1)?;
-					write!(output, " ")?;
-					it.output(ReprMode::Display, format, &mut output)?;
+					write!(output, " {it}")?;
 				}
 			}
-
-			if debug {
-				write!(output, "\n>")?;
-			} else {
-				write!(output, "\n")?;
-			}
+			write!(output, "\n")?;
 			Ok(())
 		}
 	}
 }
 
-fmt_from_repr!(Errors);
+impl Debug for Errors {
+	fn fmt(&self, output: &mut Formatter<'_>) -> std::fmt::Result {
+		if self.len() == 0 {
+			write!(output, "<NoErrors>")
+		} else {
+			write!(output, "<Errors")?;
+			{
+				let mut output = output.indented();
+				for (n, it) in self.iter().enumerate() {
+					write!(output, "\n[{}]", n + 1)?;
+					write!(output, " {it}")?;
+				}
+			}
+			write!(output, "\n>")?;
+			Ok(())
+		}
+	}
+}
 
 //====================================================================================================================//
 // Conversion
@@ -187,11 +237,11 @@ mod tests {
 	#[test]
 	fn test_output() {
 		let mut errors = Errors::default();
-		errors.add("some error 1");
-		errors.add("some error 2".to_string());
-		errors.add("error A");
-		errors.add("error B");
-		errors.add("error C\n    with some detail");
+		errors.add("some error 1", Span::default());
+		errors.add("some error 2".to_string(), Span::default());
+		errors.add("error A", Span::default());
+		errors.add("error B", Span::default());
+		errors.add("error C\n    with some detail", Span::default());
 
 		let expected = vec![
 			"Errors:",

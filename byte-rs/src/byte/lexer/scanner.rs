@@ -114,7 +114,7 @@ impl Scanner {
 			break match action {
 				// no match or explicitly invalid match
 				ScanAction::None | ScanAction::WordNext => {
-					errors.add_at("invalid symbol", span);
+					errors.add("invalid symbol", span);
 					None
 				}
 

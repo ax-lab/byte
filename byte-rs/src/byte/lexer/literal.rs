@@ -16,7 +16,7 @@ impl Matcher for LiteralMatcher {
 
 						None => {
 							let span = cursor.span_from(&start);
-							errors.add_at("unclosed string literal", span.clone());
+							errors.add("unclosed string literal", span.clone());
 							break Some(Bit::Literal(value).at(span));
 						}
 

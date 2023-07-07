@@ -22,7 +22,7 @@ impl IsOperator for BindOperator {
 					Some(value)
 				} else {
 					let error = format!("undefined symbol `{name}`");
-					errors.add_at(error, span);
+					errors.add(error, span);
 					None
 				}
 			} else {
