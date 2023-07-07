@@ -8,7 +8,7 @@ pub struct Program {
 
 #[doc(hidden)]
 pub struct ProgramData {
-	compiler: CompilerRef,
+	scanner: Scanner,
 	segments: RwLock<Vec<NodeList>>,
 	run_list: RwLock<Vec<NodeList>>,
 	root_scope: Scope,
@@ -20,10 +20,10 @@ impl Program {
 		Program::new_cyclic(|handle| {
 			let mut root_scope = Scope::new(handle);
 			compiler.configure_root_scope(&mut root_scope);
+			let scanner = compiler.scanner().clone();
 
-			let compiler = compiler.get_ref();
 			ProgramData {
-				compiler,
+				scanner,
 				root_scope,
 				segments: Default::default(),
 				run_list: Default::default(),
@@ -38,7 +38,7 @@ impl Program {
 	}
 
 	pub fn default_scanner(&self) -> Scanner {
-		self.data.compiler.get().scanner().clone()
+		self.data.scanner.clone()
 	}
 
 	pub fn root_scope(&self) -> &Scope {
@@ -93,7 +93,7 @@ impl Program {
 	}
 
 	fn run_resolved_nodes(&self, nodes: &NodeList) -> Result<Value> {
-		let mut context = CodeContext::new(self.data.compiler.clone());
+		let mut context = CodeContext::new();
 		let scope = self.data.runtime.write();
 		let mut scope = match scope {
 			Ok(scope) => scope,

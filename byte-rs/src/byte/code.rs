@@ -69,15 +69,12 @@ impl Display for Null {
 }
 
 pub struct CodeContext {
-	compiler: CompilerRef,
 	declares: HashMap<(Symbol, Option<usize>), Type>,
 }
 
 impl CodeContext {
-	pub fn new(compiler: CompilerRef) -> Self {
-		let compiler = compiler;
+	pub fn new() -> Self {
 		Self {
-			compiler,
 			declares: Default::default(),
 		}
 	}
@@ -107,7 +104,6 @@ impl NodeList {
 	}
 
 	fn generate_node(&self, context: &mut CodeContext, node: &Node) -> Result<Expr> {
-		let compiler = context.compiler.get();
 		let value = match node.bit() {
 			Bit::Boolean(value) => {
 				let value = ValueExpr::Bool(*value);
@@ -119,7 +115,7 @@ impl NodeList {
 			}
 			Bit::Null => Expr::Null,
 			Bit::Literal(value) => {
-				let value = StrValue::new(value, &compiler);
+				let value = StrValue::new(value);
 				Expr::Value(ValueExpr::Str(value))
 			}
 			Bit::Line(list) => list.generate_expr(context)?,

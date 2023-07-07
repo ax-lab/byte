@@ -27,7 +27,7 @@ impl ValueExpr {
 	pub fn execute(&self, scope: &mut RuntimeScope) -> Result<Value> {
 		match self {
 			ValueExpr::Bool(value) => Ok(Value::from(*value)),
-			ValueExpr::Str(value) => Ok(Value::from(value.get())),
+			ValueExpr::Str(value) => Ok(Value::from(value.get().to_string())),
 			ValueExpr::Int(value) => value.execute(scope),
 			ValueExpr::Float(_) => todo!(),
 		}
@@ -35,16 +35,16 @@ impl ValueExpr {
 }
 
 #[derive(Clone, Debug)]
-pub struct StrValue(CompilerHandle<String>);
+pub struct StrValue(Arc<String>);
 
 impl StrValue {
-	pub fn new<T: AsRef<str>>(str: T, compiler: &Compiler) -> Self {
-		let handle = compiler.store(str.as_ref().to_string());
-		Self(handle)
+	pub fn new<T: Into<String>>(str: T) -> Self {
+		let str = str.into();
+		Self(Arc::new(str))
 	}
 
-	pub fn get(&self) -> String {
-		self.0.get().to_string()
+	pub fn get(&self) -> &str {
+		self.0.as_str()
 	}
 }
 
@@ -105,7 +105,7 @@ pub enum FloatValue {
 	Value {
 		kind: FloatType,
 		base: u8,
-		mantissa: CompilerHandle<Vec<u8>>,
+		mantissa: Arc<Vec<u8>>,
 		exp: i32,
 	},
 }
