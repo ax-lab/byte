@@ -109,8 +109,6 @@ use super::*;
 #[derive(Debug, Eq, PartialEq)]
 pub struct RawText(pub Input);
 
-has_traits!(RawText: IsNode);
-
 impl IsNode for RawText {}
 
 pub struct ExpandRawText;

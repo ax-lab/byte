@@ -5,8 +5,6 @@ pub struct NodeList {
 	data: Arc<NodeListData>,
 }
 
-has_traits!(NodeList);
-
 impl NodeList {
 	pub fn from_single(scope: Handle<Scope>, node: Node) -> Self {
 		Self::new(scope, vec![node])
