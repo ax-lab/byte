@@ -263,7 +263,7 @@ impl Debug for Span {
 		let length = self.len();
 
 		let ctx = Context::get();
-		let fmt = ctx.get_format();
+		let fmt = ctx.format();
 		if fmt.mode() == Mode::Minimal {
 			write!(f, "<L{line}:{column}")?;
 			if length > 0 {
@@ -320,7 +320,7 @@ impl Display for Span {
 			let (line, column) = self.line_column();
 			let (line, column) = (line + 1, column + 1);
 			let ctx = Context::get();
-			let fmt = ctx.get_format();
+			let fmt = ctx.format();
 
 			let (line_end, column_end) = {
 				let mut end = self.clone();
@@ -368,9 +368,9 @@ mod tests {
 		let text = format!("{}", Span::default());
 		assert_eq!(text, "");
 
-		let minimal = Format::new(Mode::Minimal);
-		let normal = Format::new(Mode::Normal);
-		let detail = Format::new(Mode::Detail).with_line_width(35);
+		let minimal = Format::default().with_mode(Mode::Minimal);
+		let normal = Format::default().with_mode(Mode::Normal);
+		let detail = Format::default().with_mode(Mode::Detail).with_line_width(35);
 
 		let ctx = Context::get();
 		let prefix = "\n\n\n\t\t\t\t";

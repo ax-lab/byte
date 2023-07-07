@@ -98,7 +98,7 @@ impl NodeList {
 		if (errors.len() > 0 && DEBUG_NODES) || DUMP_CODE {
 			println!("\n----- NODE DUMP -----\n");
 			let mut output = String::new();
-			let _ = self.output(ReprMode::Debug, ReprFormat::Full, &mut output);
+			let _ = write!(output, "{self:?}");
 			println!("{output}");
 			println!("\n---------------------");
 		}
@@ -180,7 +180,7 @@ impl NodeList {
 				{
 					let mut output = error.indented();
 					let _ = write!(output, "\n\n");
-					let _ = self.output(ReprMode::Debug, ReprFormat::Full, &mut output);
+					let _ = write!(output, "{self:?}");
 				}
 				let error = Errors::from_at(error, node.span().clone());
 				return Err(error);

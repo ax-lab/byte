@@ -54,7 +54,12 @@ impl Bit {
 
 impl Display for Bit {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "{self:?}")
+		match self {
+			Bit::Line(nodes) => {
+				write!(f, "Line::{nodes:?}")
+			}
+			_ => write!(f, "{self:?}"),
+		}
 	}
 }
 
@@ -112,15 +117,18 @@ impl Debug for Node {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		write!(f, "{:?}", self.bit())?;
 
-		let format = Format::new(Mode::Minimal).with_separator(" @");
-		Context::get().with_format(format, || write!(f, "{}", self.span()))
+		let ctx = Context::get();
+		let format = ctx.format().with_mode(Mode::Minimal).with_separator(" @");
+		ctx.with_format(format, || write!(f, "{}", self.span()))
 	}
 }
 
 impl Display for Node {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		write!(f, "{}", self.bit())?;
-		let format = Format::new(Mode::Normal).with_separator(" at ");
-		Context::get().with_format(format, || write!(f, "{}", self.span()))
+
+		let ctx = Context::get();
+		let format = ctx.format().with_mode(Mode::Minimal).with_separator(" @");
+		ctx.with_format(format, || write!(f, "{:#}", self.span()))
 	}
 }

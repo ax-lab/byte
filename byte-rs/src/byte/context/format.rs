@@ -15,17 +15,26 @@ pub struct Format {
 	mode: Mode,
 	line_width: usize,
 	separator: String,
+	nested: bool,
 }
 
 impl Format {
-	pub fn new(mode: Mode) -> Self {
-		let mut output = Self::default();
-		output.mode = mode;
-		output
-	}
-
 	pub fn mode(&self) -> Mode {
 		self.mode
+	}
+
+	pub fn with_mode(mut self, mode: Mode) -> Self {
+		self.mode = mode;
+		self
+	}
+
+	pub fn nested(&self) -> bool {
+		self.nested
+	}
+
+	pub fn as_nested(mut self) -> Format {
+		self.nested = true;
+		self
 	}
 
 	pub fn line_width(&self) -> usize {
@@ -54,7 +63,7 @@ impl Format {
 }
 
 impl Context {
-	pub fn get_format(&self) -> Format {
+	pub fn format(&self) -> Format {
 		self.read(|ctx| ctx.format.config.clone())
 	}
 	pub fn with_format<T, P: FnOnce() -> T>(&self, format: Format, run: P) -> T {

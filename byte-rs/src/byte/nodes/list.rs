@@ -5,7 +5,7 @@ pub struct NodeList {
 	data: Arc<NodeListData>,
 }
 
-has_traits!(NodeList: WithRepr);
+has_traits!(NodeList);
 
 impl NodeList {
 	pub fn from_single(scope: Handle<Scope>, node: Node) -> Self {
@@ -351,40 +351,49 @@ impl NodeList {
 	}
 }
 
-impl WithRepr for NodeList {
-	fn output(&self, mode: ReprMode, format: ReprFormat, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
+impl Debug for NodeList {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		let ctx = Context::get();
 		let nodes = self.data.nodes.read().unwrap();
-		let _ = (mode, format);
-		if format == ReprFormat::Full {
-			write!(output, "Nodes(")?;
-			for (n, it) in nodes.iter().enumerate() {
-				let mut output = IndentedFormatter::new(output);
-				write!(output, "\n[{n}] = ")?;
-				write!(output, "{it}")?;
-				if let Some(location) = it.span().location() {
-					write!(output, "\t # at {location}")?;
+		write!(f, "Nodes(")?;
+		for (n, it) in nodes.iter().enumerate() {
+			let mut output = IndentedFormatter::new(f);
+			if n == 0 && !ctx.format().nested() {
+				if let Some(location) = self.span().location() {
+					write!(output, "\n# {location}")?;
 				}
 			}
-			if nodes.len() > 0 {
+
+			ctx.with_format(ctx.format().as_nested(), || {
 				write!(output, "\n")?;
-			}
-			write!(output, ")")
-		} else {
-			write!(output, "{{")?;
-			for (n, it) in nodes.iter().enumerate() {
-				let mut output = IndentedFormatter::new(output);
-				write!(output, "{}", if n > 0 { ", " } else { " " })?;
-				write!(output, "{it}")?;
-			}
-			if nodes.len() > 0 {
-				write!(output, " ")?;
-			}
-			write!(output, "}}")
+				if nodes.len() > 1 {
+					write!(output, "[{n}] = ")?;
+				}
+				write!(output, "{it}")
+			})?
 		}
+		if nodes.len() > 0 {
+			write!(f, "\n")?;
+		}
+		write!(f, ")")
 	}
 }
 
-fmt_from_repr!(NodeList);
+impl Display for NodeList {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		let nodes = self.data.nodes.read().unwrap();
+		write!(f, "{{")?;
+		for (n, it) in nodes.iter().enumerate() {
+			let mut output = IndentedFormatter::new(f);
+			write!(output, "{}", if n > 0 { ", " } else { " " })?;
+			write!(output, "{it}")?;
+		}
+		if nodes.len() > 0 {
+			write!(f, " ")?;
+		}
+		write!(f, "}}")
+	}
+}
 
 impl PartialEq for NodeList {
 	fn eq(&self, other: &Self) -> bool {
