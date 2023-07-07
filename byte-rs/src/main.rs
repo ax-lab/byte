@@ -78,7 +78,7 @@ fn execute(files: Vec<String>, eval: Vec<String>) -> Result<()> {
 	for (n, expr) in eval.into_iter().enumerate() {
 		let name = format!("{{eval #{n}}}");
 		let result = program.eval(name, expr)?;
-		println!("#{n:02} => {result} ({})", result.type_name());
+		println!("#{n:02} => {result} ({})", result.get_type().name());
 	}
 
 	Ok(())

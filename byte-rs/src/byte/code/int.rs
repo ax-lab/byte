@@ -2,7 +2,7 @@ use super::*;
 
 /// Trait representing any integer type.
 pub trait IsIntType {
-	type Data: Copy + Clone + IsValue;
+	type Data: Copy + Clone;
 
 	fn new_value(v: u128) -> Result<Self::Data>;
 

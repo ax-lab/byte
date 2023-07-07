@@ -13,7 +13,6 @@
 //! resolved, symbols statically bound, values stored as plain byte data, and
 //! any sort of dynamic code expansion and generation (e.g. macros) completed.
 
-pub mod int;
 pub mod op;
 pub mod op_add;
 pub mod op_and;
@@ -49,24 +48,6 @@ pub use values::*;
 use super::*;
 
 const DEBUG_NODES: bool = false;
-
-// TODO: figure out NULL
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
-pub struct Null;
-
-has_traits!(Null: IsValue, WithDebug, WithDisplay);
-
-impl Debug for Null {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "null")
-	}
-}
-
-impl Display for Null {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "null")
-	}
-}
 
 pub struct CodeContext {
 	declares: HashMap<(Symbol, Option<usize>), Type>,
@@ -110,7 +91,7 @@ impl NodeList {
 				Expr::Value(value)
 			}
 			Bit::Integer(value) => {
-				let value = IntValue::new(*value, DEFAULT_INT);
+				let value = IntValue::new(*value, DEFAULT_INT).at_pos(node.span())?;
 				Expr::Value(ValueExpr::Int(value))
 			}
 			Bit::Null => Expr::Null,
@@ -233,7 +214,7 @@ impl Expr {
 			Expr::Unit => Type::Unit,
 			Expr::Null => Type::Null,
 			Expr::Declare(.., expr) => expr.get_type(),
-			Expr::Value(value) => Type::Value(value.get_type()),
+			Expr::Value(value) => value.get_type().value().clone(),
 			Expr::Variable(.., kind) => Type::Ref(kind.clone().into()),
 			Expr::Print(..) => Type::Unit,
 			Expr::Unary(op, ..) => op.get().get_type(),
@@ -258,7 +239,7 @@ impl Expr {
 				Err(Errors::from(error, Span::default()))
 			}
 			Expr::Unit => Ok(Value::from(()).into()),
-			Expr::Null => Ok(Value::from(Null).into()),
+			Expr::Null => Ok(Value::Null.into()),
 			Expr::Declare(name, offset, expr) => {
 				let value = expr.execute(scope)?;
 				scope.set(name.clone(), *offset, value.clone().into());
@@ -300,7 +281,7 @@ impl Expr {
 			}
 			Expr::Conditional(cond, a, b) => {
 				let cond = cond.execute(scope)?;
-				let cond = cond.value().to_bool()?;
+				let cond = cond.value().bool()?;
 				if cond {
 					a.execute(scope)
 				} else {
@@ -348,80 +329,6 @@ impl From<Value> for ExprValue {
 }
 
 //====================================================================================================================//
-// Types
-//====================================================================================================================//
-
-/// Enumeration of builtin types.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Type {
-	Unit,
-	Null,
-	Never,
-	Value(ValueType),
-	Or(Arc<Type>, Arc<Type>),
-	Ref(Arc<Type>),
-}
-
-impl Type {
-	pub fn validate_value(&self, value: &Value) -> Result<()> {
-		let valid = match self {
-			Type::Unit => value.is::<()>(),
-			Type::Never => false,
-			Type::Null => false,
-			Type::Value(kind) => kind.is_valid_value(value),
-			Type::Or(a, b) => {
-				let a = a.validate_value(value);
-				let b = b.validate_value(value);
-				return a.or(b);
-			}
-			Type::Ref(val) => return val.validate_value(value),
-		};
-		if valid {
-			Ok(())
-		} else {
-			let typ = value.type_name();
-			Err(Errors::from(
-				format!("value `{value}` of type `{typ}` is not valid {self:?}"),
-				Span::default(),
-			))
-		}
-	}
-
-	/// Return the actual type for the a value, disregarding reference types.
-	pub fn value(&self) -> &Type {
-		match self {
-			Type::Ref(val) => &*val,
-			_ => self,
-		}
-	}
-
-	pub fn is_string(&self) -> bool {
-		self.value() == &Type::Value(ValueType::Str)
-	}
-
-	pub fn is_boolean(&self) -> bool {
-		self.value() == &Type::Value(ValueType::Bool)
-	}
-
-	pub fn is_int(&self) -> bool {
-		self.get_int_type().is_some()
-	}
-
-	pub fn get_int_type(&self) -> Option<&IntType> {
-		match self.value() {
-			Type::Value(ValueType::Int(int)) => Some(int),
-			_ => None,
-		}
-	}
-}
-
-impl Display for Type {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{self:?}")
-	}
-}
-
-//====================================================================================================================//
 // Tests
 //====================================================================================================================//
 
@@ -431,8 +338,8 @@ mod tests {
 
 	#[test]
 	fn basic_eval() -> Result<()> {
-		let a = Expr::Value(ValueExpr::Int(IntValue::new(2, IntType::I32)));
-		let b = Expr::Value(ValueExpr::Int(IntValue::new(3, IntType::I32)));
+		let a = Expr::Value(ValueExpr::Int(IntValue::I32(2)));
+		let b = Expr::Value(ValueExpr::Int(IntValue::I32(3)));
 
 		let op = BinaryOpImpl::from(OpAdd::for_type(&a.get_type()).unwrap());
 

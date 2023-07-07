@@ -130,19 +130,18 @@ impl Display for ErrorData {
 // Result
 //====================================================================================================================//
 
-pub trait ResultExtension {
+pub trait ResultChain {
 	type Result;
 
 	fn and(self, other: Self) -> Self;
 	fn or(self, other: Self) -> Self;
-	fn handle(self, error: &mut Errors) -> Self::Result;
 	fn unless(self, errors: Errors) -> Self;
 
 	fn at_pos(self, span: Span) -> Self;
 	fn at<T: Into<String>>(self, context: T, span: Span) -> Self;
 }
 
-impl<T: Default> ResultExtension for Result<T> {
+impl<T> ResultChain for Result<T> {
 	type Result = T;
 
 	fn and(self, other: Self) -> Self {
@@ -173,16 +172,6 @@ impl<T: Default> ResultExtension for Result<T> {
 		}
 	}
 
-	fn handle(self, errors: &mut Errors) -> Self::Result {
-		match self {
-			Ok(value) => value,
-			Err(errs) => {
-				errors.append(&errs);
-				Self::Result::default()
-			}
-		}
-	}
-
 	fn unless(self, errors: Errors) -> Self {
 		if !errors.empty() {
 			self.and(Err(errors))
@@ -202,6 +191,26 @@ impl<T: Default> ResultExtension for Result<T> {
 		match self {
 			ok @ Ok(_) => ok,
 			Err(errors) => Err(errors.at(context, span)),
+		}
+	}
+}
+
+pub trait ResultChainDefault {
+	type Result;
+
+	fn handle(self, error: &mut Errors) -> Self::Result;
+}
+
+impl<T: Default> ResultChainDefault for Result<T> {
+	type Result = T;
+
+	fn handle(self, errors: &mut Errors) -> Self::Result {
+		match self {
+			Ok(value) => value,
+			Err(errs) => {
+				errors.append(&errs);
+				Self::Result::default()
+			}
 		}
 	}
 }

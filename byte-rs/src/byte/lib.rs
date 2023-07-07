@@ -12,6 +12,7 @@ pub mod program;
 pub mod scope;
 pub mod span;
 pub mod util;
+pub mod values;
 
 pub use code::*;
 pub use compiler::*;
@@ -24,6 +25,7 @@ pub use program::*;
 pub use scope::*;
 pub use span::*;
 pub use util::*;
+pub use values::*;
 
 /// Default initial tab-width for the compiler.
 ///
@@ -67,6 +69,17 @@ use std::{
 	path::{Path, PathBuf},
 	sync::{Arc, RwLock, Weak},
 };
+
+mod macros {
+	#[macro_export]
+	macro_rules! err {
+		($($t:tt)*) => {{
+			Err(Errors::from(format!($($t)*), Span::default()))
+		}};
+	}
+}
+
+pub use macros::*;
 
 #[cfg(test)]
 mod tests {

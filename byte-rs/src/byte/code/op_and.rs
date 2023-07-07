@@ -1,14 +1,8 @@
 use super::*;
 
+#[derive(Debug)]
 pub struct OpAnd {
 	output: Type,
-	eval_fn: fn(&mut RuntimeScope, &Expr) -> Result<bool>,
-}
-
-impl Debug for OpAnd {
-	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "OpAnd")
-	}
 }
 
 impl OpAnd {
@@ -17,46 +11,35 @@ impl OpAnd {
 	}
 
 	pub fn for_types(lhs: &Type, rhs: &Type) -> Option<Self> {
-		let output = Type::Value(ValueType::Bool);
-		if lhs != rhs {
-			return if (lhs.is_int() || lhs.is_boolean()) && (rhs.is_int() || rhs.is_boolean()) {
-				let int_type = lhs.get_int_type().or_else(|| rhs.get_int_type()).unwrap();
-				Some(Self {
-					output,
-					eval_fn: IntegerToBoolean::eval_for(int_type),
-				})
-			} else {
-				None
-			};
-		}
+		let lhs = lhs.bool_output();
+		let rhs = rhs.bool_output();
+		let lhs = if let Some(lhs) = lhs {
+			lhs
+		} else {
+			return None;
+		};
+		let rhs = if let Some(rhs) = rhs {
+			rhs
+		} else {
+			return None;
+		};
 
-		match output {
-			Type::Value(value) => match value {
-				ValueType::Bool => Some(Self {
-					output,
-					eval_fn: BooleanEval::eval,
-				}),
-				ValueType::Int(int) => Some(Self {
-					output,
-					eval_fn: IntegerToBoolean::eval_for(&int),
-				}),
-				_ => None,
-			},
-			_ => None,
-		}
+		let output = Type::merge_for_upcast(lhs, rhs);
+		Some(Self { output })
 	}
 }
 
 impl IsBinaryOp for OpAnd {
 	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue> {
-		let lhs = (self.eval_fn)(scope, lhs)?;
-		let result = if lhs {
-			let rhs = (self.eval_fn)(scope, rhs)?;
-			rhs
+		let lhs = lhs.execute(scope)?.value();
+		let (lhs, bool) = Type::to_bool_output(&lhs)?;
+		if bool {
+			let rhs = rhs.execute(scope)?.value();
+			let (rhs, _) = Type::to_bool_output(&rhs)?;
+			Ok(rhs.into())
 		} else {
-			false
-		};
-		Ok(Value::from(result).into())
+			Ok(lhs.into())
+		}
 	}
 
 	fn get_type(&self) -> Type {

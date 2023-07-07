@@ -1,7 +1,7 @@
 use super::*;
 
 /// Trait for a matcher that can be used by the [`Scanner`].
-pub trait Matcher: Cell {
+pub trait Matcher {
 	fn try_match(&self, cursor: &mut Span, errors: &mut Errors) -> Option<Node>;
 }
 

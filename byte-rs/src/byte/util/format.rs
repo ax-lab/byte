@@ -26,28 +26,6 @@ impl<T: std::fmt::Display> WithDisplay for T {
 	}
 }
 
-impl Value {
-	pub fn with_debug(&self) -> Option<&dyn WithDebug> {
-		get_trait!(self, WithDebug)
-	}
-
-	pub fn with_display(&self) -> Option<&dyn WithDisplay> {
-		get_trait!(self, WithDisplay)
-	}
-}
-
-impl std::fmt::Debug for Value {
-	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		self.as_value().fmt_debug(f)
-	}
-}
-
-impl std::fmt::Display for Value {
-	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		self.as_value().fmt_display(f)
-	}
-}
-
 //====================================================================================================================//
 // Repr
 //====================================================================================================================//
@@ -84,13 +62,13 @@ trait MixinFormattedOutput {
 	}
 }
 
-impl<T: IsValue + ?Sized> MixinFormattedOutput for T {
+impl<T: ?Sized + HasTraits> MixinFormattedOutput for T {
 	fn output(&self, mode: ReprMode, output: &mut dyn std::fmt::Write) -> std::fmt::Result {
 		if mode == ReprMode::Debug {
 			if let Some(value) = get_trait!(self, WithDebug) {
 				value.fmt_debug(output)
 			} else {
-				let name = self.type_name();
+				let name = std::any::type_name::<Self>();
 				let ptr = self as *const T;
 				write!(output, "<{name}: {ptr:?}>")
 			}
@@ -98,7 +76,7 @@ impl<T: IsValue + ?Sized> MixinFormattedOutput for T {
 			if let Some(value) = get_trait!(self, WithDisplay) {
 				value.fmt_display(output)
 			} else {
-				let name = self.type_name();
+				let name = std::any::type_name::<Self>();
 				write!(output, "({name})")
 			}
 		}
