@@ -3,8 +3,6 @@ use super::*;
 #[derive(Debug)]
 pub struct OpAssign(pub Type);
 
-has_traits!(OpAssign: IsBinaryOp);
-
 impl IsBinaryOp for OpAssign {
 	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue> {
 		let typ = rhs.get_type();

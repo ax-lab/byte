@@ -8,8 +8,6 @@ pub struct OpNeg {
 	eval_fn: fn(Value) -> Result<Value>,
 }
 
-has_traits!(OpNeg: IsUnaryOp);
-
 impl OpNeg {
 	pub fn for_type(arg: &Type) -> Option<Self> {
 		let output = arg.clone();

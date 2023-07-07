@@ -33,7 +33,7 @@ impl UnaryOp {
 	}
 }
 
-pub trait IsUnaryOp: IsValue + WithDebug {
+pub trait IsUnaryOp: WithDebug + 'static {
 	fn execute(&self, scope: &mut RuntimeScope, arg: &Expr) -> Result<ExprValue>;
 	fn get_type(&self) -> Type;
 }
@@ -51,14 +51,7 @@ impl<T: IsUnaryOp> From<T> for UnaryOpImpl {
 
 impl UnaryOpImpl {
 	pub fn get(&self) -> &dyn IsUnaryOp {
-		get_trait!(self, IsUnaryOp).unwrap()
-	}
-}
-
-impl HasTraits for UnaryOpImpl {
-	fn get_trait(&self, type_id: std::any::TypeId) -> Option<&dyn HasTraits> {
-		with_trait!(self, type_id, WithDebug);
-		self.inner.get_trait(type_id)
+		self.inner.as_ref()
 	}
 }
 
@@ -130,7 +123,7 @@ impl BinaryOp {
 	}
 }
 
-pub trait IsBinaryOp: IsValue + WithDebug {
+pub trait IsBinaryOp: WithDebug + 'static {
 	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue>;
 	fn get_type(&self) -> Type;
 }
@@ -148,14 +141,7 @@ impl<T: IsBinaryOp> From<T> for BinaryOpImpl {
 
 impl BinaryOpImpl {
 	pub fn get(&self) -> &dyn IsBinaryOp {
-		get_trait!(self, IsBinaryOp).unwrap()
-	}
-}
-
-impl HasTraits for BinaryOpImpl {
-	fn get_trait(&self, type_id: std::any::TypeId) -> Option<&dyn HasTraits> {
-		with_trait!(self, type_id, WithDebug);
-		self.inner.get_trait(type_id)
+		self.inner.as_ref()
 	}
 }
 

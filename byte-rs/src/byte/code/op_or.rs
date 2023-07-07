@@ -13,8 +13,6 @@ impl Debug for OpOr {
 	}
 }
 
-has_traits!(OpOr: IsBinaryOp);
-
 impl OpOr {
 	pub fn for_type(lhs: &Type) -> Option<Self> {
 		Self::for_types(lhs, lhs)

@@ -9,7 +9,7 @@ pub trait WithDebug {
 	fn fmt_debug(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result;
 }
 
-impl<T: IsValue + std::fmt::Debug> WithDebug for T {
+impl<T: std::fmt::Debug> WithDebug for T {
 	fn fmt_debug(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result {
 		write!(f, "{self:?}")
 	}
@@ -20,7 +20,7 @@ pub trait WithDisplay {
 	fn fmt_display(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result;
 }
 
-impl<T: IsValue + std::fmt::Display> WithDisplay for T {
+impl<T: std::fmt::Display> WithDisplay for T {
 	fn fmt_display(&self, f: &mut dyn std::fmt::Write) -> std::fmt::Result {
 		write!(f, "{self}")
 	}

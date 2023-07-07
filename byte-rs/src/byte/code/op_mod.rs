@@ -8,8 +8,6 @@ pub struct OpMod {
 	eval_fn: fn(Value, Value) -> Result<Value>,
 }
 
-has_traits!(OpMod: IsBinaryOp);
-
 impl OpMod {
 	pub fn for_type(lhs: &Type) -> Option<Self> {
 		Self::for_types(lhs, lhs)

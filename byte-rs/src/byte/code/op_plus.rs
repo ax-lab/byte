@@ -8,8 +8,6 @@ pub struct OpPlus {
 	eval_fn: fn(Value) -> Result<Value>,
 }
 
-has_traits!(OpPlus: IsUnaryOp);
-
 impl OpPlus {
 	pub fn for_type(arg: &Type) -> Option<Self> {
 		let output = arg.clone();

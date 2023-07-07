@@ -6,8 +6,6 @@ pub struct OpNot {
 	eval_fn: fn(Value) -> Result<Value>,
 }
 
-has_traits!(OpNot: IsUnaryOp);
-
 impl OpNot {
 	pub fn for_type(arg: &Type) -> Option<Self> {
 		let output = arg.clone();

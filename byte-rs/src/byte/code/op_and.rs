@@ -11,8 +11,6 @@ impl Debug for OpAnd {
 	}
 }
 
-has_traits!(OpAnd: IsBinaryOp);
-
 impl OpAnd {
 	pub fn for_type(lhs: &Type) -> Option<Self> {
 		Self::for_types(lhs, lhs)

@@ -122,8 +122,6 @@ mod macros {
 				}
 			}
 
-			has_traits!($name);
-
 			impl std::fmt::Display for $name {
 				fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 					let name = stringify!($name);
