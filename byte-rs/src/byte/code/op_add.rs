@@ -99,7 +99,7 @@ impl StringAdd {
 			Ok(value)
 		} else {
 			let error = format!("`{value:?}` is not a valid string");
-			let error = Errors::from(error);
+			let error = Errors::from(error, Span::default());
 			Err(error)
 		}
 	}

@@ -14,7 +14,7 @@ impl IsBinaryOp for OpAssign {
 			ExprValue::Value(..) => {
 				// TODO: runtime should have access to the source of expressions
 				let error = format!("cannot assign `{typ}` to non-reference");
-				let error = Errors::from(error);
+				let error = Errors::from(error, Span::default());
 				Err(error)
 			}
 			ExprValue::Variable(name, index, ..) => {

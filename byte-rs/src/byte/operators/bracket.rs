@@ -100,7 +100,7 @@ impl BracketPairs {
 					output.push(node.at(pos.to(end_pos)));
 				} else if self.reverse.contains(&next_symbol) {
 					let error = format!("unpaired right bracket `{next_symbol}`");
-					let error = Errors::from_at(error, next.span().clone());
+					let error = Errors::from(error, next.span().clone());
 					return Err(error);
 				} else {
 					output.push(next);
@@ -112,7 +112,7 @@ impl BracketPairs {
 
 		if let Some((pos, sta, end)) = pair {
 			let error = format!("bracket `{sta}` is missing `{end}`");
-			let error = Errors::from_at(error, pos);
+			let error = Errors::from(error, pos);
 			Err(error)
 		} else {
 			let span = output.last().map(|x| x.span()).unwrap_or_default();

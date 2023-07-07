@@ -135,7 +135,7 @@ impl NodeList {
 					Expr::Variable(name.clone(), *index, kind.clone())
 				} else {
 					let error = format!("variable `{name}` ({index:?}) does not match any declaration");
-					let error = Errors::from_at(error, node.span().clone());
+					let error = Errors::from(error, node.span().clone());
 					return Err(error);
 				}
 			}
@@ -182,7 +182,7 @@ impl NodeList {
 					let _ = write!(output, "\n\n");
 					let _ = write!(output, "{self:?}");
 				}
-				let error = Errors::from_at(error, node.span().clone());
+				let error = Errors::from(error, node.span().clone());
 				return Err(error);
 			}
 		};
@@ -259,7 +259,7 @@ impl Expr {
 		match self {
 			Expr::Never => {
 				let error = format!("never expression cannot be evaluated");
-				Err(Errors::from(error))
+				Err(Errors::from(error, Span::default()))
 			}
 			Expr::Unit => Ok(Value::from(()).into()),
 			Expr::Null => Ok(Value::from(Null).into()),
@@ -271,7 +271,7 @@ impl Expr {
 			Expr::Value(value) => value.execute(scope).map(|x| x.into()),
 			Expr::Variable(name, index, ..) => match scope.get(name, *index).cloned() {
 				Some(value) => Ok(ExprValue::Variable(name.clone(), index.clone(), value)),
-				None => Err(Errors::from(format!("variable {name} not set"))),
+				None => Err(Errors::from(format!("variable {name} not set"), Span::default())),
 			},
 			Expr::Print(expr, tail) => {
 				let list = expr.as_sequence();
@@ -384,9 +384,10 @@ impl Type {
 			Ok(())
 		} else {
 			let typ = value.type_name();
-			Err(Errors::from(format!(
-				"value `{value}` of type `{typ}` is not valid {self:?}"
-			)))
+			Err(Errors::from(
+				format!("value `{value}` of type `{typ}` is not valid {self:?}"),
+				Span::default(),
+			))
 		}
 	}
 

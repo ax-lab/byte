@@ -55,9 +55,10 @@ impl Context {
 				Err(err) => {
 					let path = path.to_string_lossy();
 					let base = data.base_path.to_string_lossy();
-					return Err(Errors::from(format!(
-						"could not solve `{path}`: {err} (base path is `{base}`)"
-					)));
+					return Err(Errors::from(
+						format!("could not solve `{path}`: {err} (base path is `{base}`)"),
+						Span::default(),
+					));
 				}
 			};
 
@@ -276,10 +277,10 @@ impl ContextSources {
 						sorted.push(source.clone());
 						Ok(source)
 					}
-					Err(err) => Err(Errors::from(format!("opening `{name}`: {err}"))),
+					Err(err) => Err(Errors::from(format!("opening `{name}`: {err}"), Span::default())),
 				},
 				Err(err) => {
-					return Err(Errors::from(format!("opening `{name}`: {err}")));
+					return Err(Errors::from(format!("opening `{name}`: {err}"), Span::default()));
 				}
 			};
 

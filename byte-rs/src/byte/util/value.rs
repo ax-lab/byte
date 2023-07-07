@@ -94,7 +94,7 @@ impl Value {
 			Ok(*value != 0)
 		} else {
 			let error = format!("value `{self:?}` is not a valid boolean");
-			Err(Errors::from(error))
+			Err(Errors::from(error, Span::default()))
 		}
 	}
 }

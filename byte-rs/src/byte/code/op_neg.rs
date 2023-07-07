@@ -55,7 +55,7 @@ impl BooleanNeg {
 			Ok(*value)
 		} else {
 			let error = format!("value `{value:?}` is neg a valid boolean");
-			Err(Errors::from(error))
+			Err(Errors::from(error, Span::default()))
 		}
 	}
 }

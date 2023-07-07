@@ -15,13 +15,48 @@ impl Errors {
 		Self::default()
 	}
 
-	pub fn from<T: Into<String>>(error: T) -> Self {
-		let mut errors = Self::new();
-		errors.add(error, Span::default());
-		errors
+	pub fn at_pos(mut self, new_span: Span) -> Self {
+		let list = Arc::make_mut(&mut self.list);
+		for (_, span) in list.iter_mut() {
+			if *span == Span::default() {
+				*span = new_span.clone()
+			}
+		}
+		self
 	}
 
-	pub fn from_at<T: Into<String>>(error: T, span: Span) -> Self {
+	pub fn at<T: Into<String>>(mut self, context: T, span: Span) -> Self {
+		let context = context.into();
+		match self.list.len() {
+			0 => {
+				let list = Arc::make_mut(&mut self.list);
+				list.push_back((context, span));
+				self
+			}
+			1 => {
+				let list = Arc::make_mut(&mut self.list);
+				list[0].0 = format!("{context}: {}", list[0].0);
+				if list[0].1 == Span::default() {
+					list[0].1 = span;
+				}
+				self
+			}
+			_ => {
+				let mut output = context;
+				{
+					let mut output = output.indented();
+					let _ = write!(output, ":\n");
+					for (n, it) in self.iter().enumerate() {
+						let _ = write!(output, "\n[{}]", n + 1);
+						let _ = write!(output, " {it}");
+					}
+				}
+				Errors::from(output, span)
+			}
+		}
+	}
+
+	pub fn from<T: Into<String>>(error: T, span: Span) -> Self {
 		let mut errors = Self::new();
 		errors.add(error, span);
 		errors
@@ -102,6 +137,9 @@ pub trait ResultExtension {
 	fn or(self, other: Self) -> Self;
 	fn handle(self, error: &mut Errors) -> Self::Result;
 	fn unless(self, errors: Errors) -> Self;
+
+	fn at_pos(self, span: Span) -> Self;
+	fn at<T: Into<String>>(self, context: T, span: Span) -> Self;
 }
 
 impl<T: Default> ResultExtension for Result<T> {
@@ -150,6 +188,20 @@ impl<T: Default> ResultExtension for Result<T> {
 			self.and(Err(errors))
 		} else {
 			self
+		}
+	}
+
+	fn at_pos(self, span: Span) -> Self {
+		match self {
+			ok @ Ok(_) => ok,
+			Err(errors) => Err(errors.at_pos(span)),
+		}
+	}
+
+	fn at<U: Into<String>>(self, context: U, span: Span) -> Self {
+		match self {
+			ok @ Ok(_) => ok,
+			Err(errors) => Err(errors.at(context, span)),
 		}
 	}
 }
@@ -204,25 +256,25 @@ impl Debug for Errors {
 
 impl From<std::io::Error> for Errors {
 	fn from(value: std::io::Error) -> Self {
-		Errors::from(format!("io error: {value}"))
+		Errors::from(format!("io error: {value}"), Span::default())
 	}
 }
 
 impl From<std::string::FromUtf8Error> for Errors {
 	fn from(value: std::string::FromUtf8Error) -> Self {
-		Errors::from(format!("utf8 error: {value}"))
+		Errors::from(format!("utf8 error: {value}"), Span::default())
 	}
 }
 
 impl From<std::fmt::Error> for Errors {
 	fn from(value: std::fmt::Error) -> Self {
-		Errors::from(format!("{value}"))
+		Errors::from(format!("{value}"), Span::default())
 	}
 }
 
 impl From<std::num::ParseIntError> for Errors {
 	fn from(value: std::num::ParseIntError) -> Self {
-		Errors::from(format!("{value}"))
+		Errors::from(format!("{value}"), Span::default())
 	}
 }
 

@@ -154,7 +154,7 @@ impl Scope {
 			Ok(())
 		} else {
 			let error = format!("static `{name}` already defined");
-			let error = Errors::from_at(error, span);
+			let error = Errors::from(error, span);
 			Err(error)
 		}
 	}
@@ -167,7 +167,7 @@ impl Scope {
 			Ok(())
 		} else {
 			let error = format!("`{name}` already defined for the given offset");
-			let error = Errors::from_at(error, span);
+			let error = Errors::from(error, span);
 			Err(error)
 		}
 	}

@@ -130,7 +130,7 @@ impl NodeList {
 					let _ = write!(error, ", {op:?}");
 				}
 				let _ = write!(error.indented(), "\n-> {self:?}");
-				Err(Errors::from_at(error, self.span()))
+				Err(Errors::from(error, self.span()))
 			} else {
 				Ok(Some(op))
 			}

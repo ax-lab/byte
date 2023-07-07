@@ -23,7 +23,7 @@ pub trait IsIntType {
 		} else {
 			let typ = std::any::type_name::<Self::Data>();
 			let error = format!("`{value:?}` is not a valid {typ}");
-			let error = Errors::from(error);
+			let error = Errors::from(error, Span::default());
 			Err(error)
 		}
 	}
@@ -82,7 +82,10 @@ mod macros {
 					if v <= Self::Data::MAX as u128 {
 						Ok(v as Self::Data)
 					} else {
-						Err(Errors::from(format!("value overflows {}", stringify!($int))))
+						Err(Errors::from(
+							format!("value overflows {}", stringify!($int)),
+							Span::default(),
+						))
 					}
 				}
 

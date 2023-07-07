@@ -26,7 +26,7 @@ impl UnaryOp {
 			Some(op) => Ok(op),
 			None => {
 				let error = format!("operator `{self:?}` is not defined for `{arg}`");
-				let error = Errors::from(error);
+				let error = Errors::from(error, Span::default());
 				Err(error)
 			}
 		}
@@ -106,11 +106,11 @@ impl BinaryOp {
 			BinaryOp::Assign => {
 				if lhs != rhs {
 					let error = format!("cannot assign `{rhs:?}` to `{lhs:?}`");
-					let error = Errors::from(error);
+					let error = Errors::from(error, Span::default());
 					return Err(error);
 				} else if !matches!(lhs_ref, Type::Ref(..)) {
 					let error = format!("cannot assign to non-reference `{lhs_ref}`");
-					let error = Errors::from(error);
+					let error = Errors::from(error, Span::default());
 					return Err(error);
 				}
 
@@ -123,7 +123,7 @@ impl BinaryOp {
 			Some(op) => Ok(op),
 			None => {
 				let error = format!("operator `{self:?}` is not defined for `{lhs}` and `{rhs}`");
-				let error = Errors::from(error);
+				let error = Errors::from(error, Span::default());
 				Err(error)
 			}
 		}

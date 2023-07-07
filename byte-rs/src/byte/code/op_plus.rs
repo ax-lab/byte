@@ -58,7 +58,7 @@ impl BooleanPlus {
 			Ok(*value)
 		} else {
 			let error = format!("value `{value:?}` is plus a valid boolean");
-			Err(Errors::from(error))
+			Err(Errors::from(error, Span::default()))
 		}
 	}
 }
