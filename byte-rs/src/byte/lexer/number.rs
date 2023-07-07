@@ -22,7 +22,7 @@ impl Matcher for IntegerMatcher {
 					}
 				}
 				*cursor = pos;
-				Some(Node::Integer(value, at(cursor.span_from(&start))))
+				Some(Bit::Integer(value).at(cursor.span_from(&start)))
 			}
 
 			_ => None,

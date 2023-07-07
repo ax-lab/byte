@@ -83,8 +83,8 @@ impl IsOperator for ParseBinaryOp {
 	}
 
 	fn predicate(&self, node: &Node) -> bool {
-		match node {
-			Node::Word(symbol, ..) | Node::Symbol(symbol, ..) => self.0.contains(symbol),
+		match node.bit() {
+			Bit::Word(symbol) | Bit::Symbol(symbol) => self.0.contains(symbol),
 			_ => false,
 		}
 	}
@@ -106,7 +106,7 @@ impl IsOperator for ParseBinaryOp {
 			new_lists.push(rhs.clone());
 			let op = self.0.op_for_node(&op).unwrap();
 			let span = lhs.span();
-			Node::BinaryOp(op, lhs, rhs, at(span))
+			Bit::BinaryOp(op, lhs, rhs).at(span)
 		};
 
 		if self.2 == Grouping::Left {
@@ -134,8 +134,8 @@ impl IsOperator for ParseUnaryPrefixOp {
 	}
 
 	fn can_apply(&self, nodes: &NodeList) -> bool {
-		match nodes.get(0).as_ref() {
-			Some(Node::Word(symbol, ..) | Node::Symbol(symbol, ..)) => self.0.contains(symbol),
+		match nodes.get(0).as_ref().map(|x| x.bit()) {
+			Some(Bit::Word(symbol) | Bit::Symbol(symbol)) => self.0.contains(symbol),
 			_ => false,
 		}
 	}
@@ -145,7 +145,7 @@ impl IsOperator for ParseUnaryPrefixOp {
 		let nodes = context.nodes();
 		let op = self.0.op_for_node(&nodes.get(0).unwrap()).unwrap();
 		let arg = nodes.slice(1..);
-		let new = Node::UnaryOp(op, arg.clone(), at(nodes.span()));
+		let new = Bit::UnaryOp(op, arg.clone()).at(nodes.span());
 		nodes.replace_all(vec![new]);
 		context.resolve_nodes(&arg);
 	}

@@ -8,17 +8,17 @@ impl IsOperator for BindOperator {
 	}
 
 	fn predicate(&self, node: &Node) -> bool {
-		matches!(node, Node::Word(..))
+		matches!(node.bit(), Bit::Word(..))
 	}
 
 	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
 		let mut nodes = context.nodes().clone();
 		let scope = nodes.scope();
 		nodes.replace(|node| {
-			if let Node::Word(name, ..) = node {
+			if let Bit::Word(name) = node.bit() {
 				let span = node.span().clone();
 				if let Some(index) = scope.lookup(name, Some(node.offset())) {
-					let value = Node::Variable(name.clone(), index, at(span));
+					let value = Bit::Variable(name.clone(), index).at(span);
 					Some(value)
 				} else {
 					let error = format!("undefined symbol `{name}`");

@@ -49,16 +49,16 @@ mod tests {
 	fn simple_scanning() {
 		let actual = tokenize("a, b (\n\tsome_name123\n)");
 		let mut actual = actual.into_iter();
-		let mut get = || actual.next().unwrap();
-		check!(get(), Node::Word(s, ..)   if s == "a");
-		check!(get(), Node::Symbol(s, ..) if s == ",");
-		check!(get(), Node::Word(s, ..)   if s == "b");
-		check!(get(), Node::Symbol(s, ..) if s == "(");
-		check!(get(), Node::Break(..));
-		check!(get(), Node::Indent(4, ..));
-		check!(get(), Node::Word(s, ..)   if s == "some_name123");
-		check!(get(), Node::Break(..));
-		check!(get(), Node::Symbol(s, ..) if s == ")");
+		let mut get = || actual.next().unwrap().bit().clone();
+		check!(get(), Bit::Word(s)   if s == "a");
+		check!(get(), Bit::Symbol(s) if s == ",");
+		check!(get(), Bit::Word(s)   if s == "b");
+		check!(get(), Bit::Symbol(s) if s == "(");
+		check!(get(), Bit::Break);
+		check!(get(), Bit::Indent(4));
+		check!(get(), Bit::Word(s)   if s == "some_name123");
+		check!(get(), Bit::Break);
+		check!(get(), Bit::Symbol(s) if s == ")");
 		assert!(actual.next().is_none());
 	}
 
@@ -77,21 +77,21 @@ mod tests {
 
 		let actual = tokenize(input.join("\n").as_str());
 		let mut actual = actual.into_iter();
-		let mut get = || actual.next().unwrap();
+		let mut get = || actual.next().unwrap().bit().clone();
 
-		check!(get(), Node::Comment(..));
-		check!(get(), Node::Break(..));
-		check!(get(), Node::Word(s, ..)   if s == "print");
-		check!(get(), Node::Literal(s, ..) if s == "hello world!");
-		check!(get(), Node::Break(..));
-		check!(get(), Node::Comment(..));
-		check!(get(), Node::Break(..));
-		check!(get(), Node::Word(s, ..)   if s == "print");
-		check!(get(), Node::Integer(1, ..));
-		check!(get(), Node::Symbol(s, ..) if s == ",");
-		check!(get(), Node::Integer(2, ..));
-		check!(get(), Node::Symbol(s, ..) if s == ",");
-		check!(get(), Node::Integer(3, ..));
+		check!(get(), Bit::Comment);
+		check!(get(), Bit::Break);
+		check!(get(), Bit::Word(s)   if s == "print");
+		check!(get(), Bit::Literal(s) if s == "hello world!");
+		check!(get(), Bit::Break);
+		check!(get(), Bit::Comment);
+		check!(get(), Bit::Break);
+		check!(get(), Bit::Word(s)   if s == "print");
+		check!(get(), Bit::Integer(1));
+		check!(get(), Bit::Symbol(s) if s == ",");
+		check!(get(), Bit::Integer(2));
+		check!(get(), Bit::Symbol(s) if s == ",");
+		check!(get(), Bit::Integer(3));
 
 		assert!(actual.next().is_none());
 	}

@@ -28,6 +28,33 @@ impl Source {
 }
 
 impl Span {
+	pub fn merge(a: Span, b: Span) -> Span {
+		if a.offset() == 0 {
+			b
+		} else if b.offset() == 0 {
+			a
+		} else if a.source != b.source {
+			Span::default()
+		} else {
+			let (mut a, b) = if b.offset < a.offset { (b, a) } else { (a, b) };
+			a.length = (b.offset + b.length) - a.offset;
+			a
+		}
+	}
+
+	pub fn from_nodes<T: IntoIterator<Item = Node>>(nodes: T) -> Self {
+		let mut nodes = nodes.into_iter();
+		let sta = nodes.next().map(|x| x.span());
+		let end = nodes.last().map(|x| x.span());
+		let sta = sta.unwrap_or_default();
+		let end = end.unwrap_or_default();
+		Self::merge(sta, end)
+	}
+
+	pub fn to(self, other: Span) -> Span {
+		Self::merge(self, other)
+	}
+
 	/// Global offset for this span as given by the [`Source`] offset.
 	pub fn source_range(&self) -> (usize, usize) {
 		let sta = self.offset();

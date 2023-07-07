@@ -63,7 +63,7 @@ impl Scanner {
 				// ignore empty or space-only lines
 				let span = cursor.advance_span(size);
 				if !line_start {
-					return Some(Node::Break(at(span)));
+					return Some(Bit::Break.at(span));
 				} else {
 					continue;
 				}
@@ -84,7 +84,7 @@ impl Scanner {
 					  indentation MUST be a prefix of the other
 					  - indentation must be consistent between consecutive lines
 				*/
-				return Some(Node::Indent(cursor.indent(), at(cursor.clone())));
+				return Some(Bit::Indent(cursor.indent()).at(cursor.clone()));
 			}
 
 			// apply registered matchers, those have higher priority
@@ -130,11 +130,11 @@ impl Scanner {
 					// generate a Word token
 					let span = cursor.span_from(&start);
 					let symbol = span.text().to_string();
-					Some(Node::Word(Context::symbol(symbol), at(span)))
+					Some(Bit::Word(Context::symbol(symbol)).at(span))
 				}
 
 				// predefined symbol
-				ScanAction::Symbol(symbol) => Some(Node::Symbol(Context::symbol(symbol), at(span))),
+				ScanAction::Symbol(symbol) => Some(Bit::Symbol(Context::symbol(symbol)).at(span)),
 			};
 		}
 	}

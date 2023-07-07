@@ -11,13 +11,13 @@ impl Matcher for LiteralMatcher {
 				loop {
 					match cursor.read() {
 						Some('\'') => {
-							break Some(Node::Literal(value, at(cursor.span_from(&start))));
+							break Some(Bit::Literal(value).at(cursor.span_from(&start)));
 						}
 
 						None => {
 							let span = cursor.span_from(&start);
 							errors.add_at("unclosed string literal", span.clone());
-							break Some(Node::Literal(value, at(span)));
+							break Some(Bit::Literal(value).at(span));
 						}
 
 						Some(char) => value.push(char),

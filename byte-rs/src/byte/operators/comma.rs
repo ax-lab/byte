@@ -8,7 +8,7 @@ impl IsOperator for CommaOperator {
 	}
 
 	fn predicate(&self, node: &Node) -> bool {
-		if let Node::Symbol(symbol, ..) = node {
+		if let Bit::Symbol(symbol) = node.bit() {
 			symbol == ","
 		} else {
 			false
@@ -26,7 +26,7 @@ impl IsOperator for CommaOperator {
 			context.resolve_nodes(it);
 		}
 
-		let node = Node::Sequence(items, at(span));
+		let node = Bit::Sequence(items).at(span);
 		nodes.replace_all(vec![node]);
 	}
 }

@@ -15,7 +15,7 @@ impl IsOperator for PrintOperator {
 		let _ = errors;
 		let nodes = context.nodes();
 		let args = nodes.slice(1..);
-		let print = Node::Print(args.clone(), "\n", at(nodes.span()));
+		let print = Bit::Print(args.clone(), "\n").at(nodes.span());
 		nodes.replace_all(vec![print]);
 		context.resolve_nodes(&args);
 	}

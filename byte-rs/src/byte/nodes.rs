@@ -4,81 +4,70 @@ pub mod list;
 
 pub use list::*;
 
-/// Enumeration of all available language nodes.
+/// Enumeration of all available language elements.
 ///
 /// Nodes relate to the source code, representing language constructs of all
 /// levels, from files, raw text, and tokens, all the way to fully fledged
 /// definitions.
-#[derive(Clone, Debug)]
-pub enum Node {
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum Bit {
 	//----[ Tokens ]----------------------------------------------------------//
-	Break(Id),
-	Indent(usize, Id),
-	Comment(Id),
-	Word(Symbol, Id),
-	Symbol(Symbol, Id),
-	Literal(String, Id),
-	Integer(u128, Id),
-	Boolean(bool, Id),
-	Null(Id),
+	Break,
+	Indent(usize),
+	Comment,
+	Word(Symbol),
+	Symbol(Symbol),
+	Literal(String),
+	Integer(u128),
+	Boolean(bool),
+	Null,
 	//----[ Structural ]------------------------------------------------------//
-	Module(Span, Id),
-	Line(NodeList, Id),
-	Sequence(Vec<NodeList>, Id),
-	RawText(Span, Id),
-	Group(NodeList, Id),
+	Module(Span),
+	Line(NodeList),
+	Sequence(Vec<NodeList>),
+	RawText(Span),
+	Group(NodeList),
 	//----[ AST ]-------------------------------------------------------------//
-	Let(Symbol, usize, NodeList, Id),
-	UnaryOp(UnaryOp, NodeList, Id),
-	BinaryOp(BinaryOp, NodeList, NodeList, Id),
-	Variable(Symbol, Option<usize>, Id),
-	Print(NodeList, &'static str, Id),
-	Conditional(NodeList, NodeList, NodeList, Id),
+	Let(Symbol, usize, NodeList),
+	UnaryOp(UnaryOp, NodeList),
+	BinaryOp(BinaryOp, NodeList, NodeList),
+	Variable(Symbol, Option<usize>),
+	Print(NodeList, &'static str),
+	Conditional(NodeList, NodeList, NodeList),
 }
 
-impl Node {
+impl Bit {
 	pub fn at(self, span: Span) -> Node {
-		let id = self.id();
-		id.set_span(span);
-		self
+		Node(self, at(span))
 	}
 
 	pub fn symbol(&self) -> Option<Symbol> {
 		let symbol = match self {
-			Node::Word(symbol, ..) => symbol,
-			Node::Symbol(symbol, ..) => symbol,
-			Node::Let(symbol, ..) => symbol,
+			Bit::Word(symbol) => symbol,
+			Bit::Symbol(symbol) => symbol,
+			Bit::Let(symbol, ..) => symbol,
 			_ => return None,
 		};
 		Some(symbol.clone())
 	}
 }
 
+impl Display for Bit {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		write!(f, "{self:?}")
+	}
+}
+
+#[derive(Clone)]
+pub struct Node(Bit, Id);
+
 impl Node {
 	pub fn id(&self) -> Id {
-		let id = match self {
-			Node::Break(id) => id,
-			Node::Indent(.., id) => id,
-			Node::Comment(id) => id,
-			Node::Word(.., id) => id,
-			Node::Symbol(.., id) => id,
-			Node::Literal(.., id) => id,
-			Node::Integer(.., id) => id,
-			Node::Boolean(.., id) => id,
-			Node::Null(id) => id,
-			Node::Module(.., id) => id,
-			Node::Line(.., id) => id,
-			Node::Sequence(.., id) => id,
-			Node::RawText(.., id) => id,
-			Node::Group(.., id) => id,
-			Node::Let(.., id) => id,
-			Node::UnaryOp(.., id) => id,
-			Node::BinaryOp(.., id) => id,
-			Node::Variable(.., id) => id,
-			Node::Print(.., id) => id,
-			Node::Conditional(.., id) => id,
-		};
-		id.clone()
+		self.1.clone()
+	}
+
+	pub fn bit(&self) -> &Bit {
+		&self.0
 	}
 
 	pub fn span(&self) -> Span {
@@ -94,29 +83,44 @@ impl Node {
 	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn is_symbol(&self, expected: &Symbol) -> bool {
-		match self {
-			Node::Symbol(symbol, ..) => symbol == expected,
+		match self.bit() {
+			Bit::Symbol(symbol) => symbol == expected,
 			_ => false,
 		}
 	}
 
 	pub fn is_word(&self, expected: &Symbol) -> bool {
-		match self {
-			Node::Word(symbol, ..) => symbol == expected,
+		match self.bit() {
+			Bit::Word(symbol) => symbol == expected,
 			_ => false,
 		}
 	}
 
 	pub fn has_symbol(&self, symbol: &Symbol) -> bool {
-		match self {
-			Node::Symbol(s, ..) | Node::Word(s, ..) => s == symbol,
+		match self.bit() {
+			Bit::Symbol(s) | Bit::Word(s) => s == symbol,
 			_ => false,
 		}
+	}
+
+	pub fn symbol(&self) -> Option<Symbol> {
+		self.bit().symbol()
+	}
+}
+
+impl Debug for Node {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		write!(f, "{:?}", self.bit())?;
+
+		let format = Format::new(Mode::Minimal).with_separator(" @");
+		Context::get().with_format(format, || write!(f, "{}", self.span()))
 	}
 }
 
 impl Display for Node {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "{:?}", self)
+		write!(f, "{}", self.bit())?;
+		let format = Format::new(Mode::Normal).with_separator(" at ");
+		Context::get().with_format(format, || write!(f, "{}", self.span()))
 	}
 }

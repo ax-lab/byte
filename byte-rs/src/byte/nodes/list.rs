@@ -42,8 +42,7 @@ impl NodeList {
 	}
 
 	pub fn span(&self) -> Span {
-		let nodes = self.data.nodes.read().unwrap();
-		nodes.first().map(|x| x.span().clone()).unwrap_or(Span::default())
+		Span::from_nodes(self.iter())
 	}
 
 	pub fn offset(&self) -> usize {
@@ -340,7 +339,7 @@ impl NodeList {
 	}
 
 	pub fn is_identifier(&self, index: usize) -> bool {
-		self.test_at(index, |x| matches!(x, Node::Word(..)))
+		self.test_at(index, |x| matches!(x.bit(), Bit::Word(..)))
 	}
 
 	pub fn is_keyword(&self, index: usize, word: &Symbol) -> bool {

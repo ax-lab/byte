@@ -8,14 +8,14 @@ impl IsOperator for ModuleOperator {
 	}
 
 	fn predicate(&self, node: &Node) -> bool {
-		matches!(node, &Node::Module(..))
+		matches!(node.bit(), Bit::Module(..))
 	}
 
 	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
 		let scope = context.scope();
 		let scanner = scope.scanner();
 		context.nodes().map_nodes(move |node| {
-			if let Node::Module(input, ..) = node {
+			if let Bit::Module(input) = node.bit() {
 				let mut cursor = input.clone();
 				let mut output = Vec::new();
 				while let Some(node) = scanner.scan(&mut cursor, errors) {

@@ -22,11 +22,10 @@ impl IsOperator for TernaryOp {
 		let a = NodeList::new(nodes.scope_handle(), a);
 		let b = NodeList::new(nodes.scope_handle(), b);
 		let c = NodeList::new(nodes.scope_handle(), c);
-		let span = a.span().clone();
 		context.resolve_nodes(&a);
 		context.resolve_nodes(&b);
 		context.resolve_nodes(&c);
-		let node = (self.2)(a, b, c).at(span);
+		let node = (self.2)(a, b, c);
 		nodes.replace_all(vec![node]);
 	}
 }

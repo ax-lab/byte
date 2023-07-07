@@ -24,7 +24,8 @@ impl IsOperator for LetOperator {
 				let value = BindingValue::NodeList(rhs.clone());
 				new_lists.push(rhs.clone());
 				declares.push((name.clone(), offset, value));
-				Node::Let(name, offset, rhs, at(lhs.span()))
+				let rhs_span = rhs.span();
+				Bit::Let(name, offset, rhs).at(lhs.span().to(rhs_span))
 			},
 		);
 

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use super::*;
 
-pub type BracketFn = Arc<dyn Fn(Symbol, NodeList, Symbol) -> Node>;
+pub type BracketFn = Arc<dyn Fn(Symbol, NodeList, Symbol) -> Bit>;
 
 #[derive(Clone, Default)]
 pub struct BracketPairs {
@@ -70,6 +70,7 @@ impl BracketPairs {
 	fn parse_nodes(&self, nodes: &NodeList, new_lists: &mut Vec<NodeList>) -> Result<Vec<Node>> {
 		let mut items = nodes.as_vec_deque();
 		self.parse_bracket(nodes.scope().handle(), &mut items, None, new_lists)
+			.map(|x| x.0)
 	}
 
 	fn parse_bracket(
@@ -78,34 +79,34 @@ impl BracketPairs {
 		nodes: &mut VecDeque<Node>,
 		pair: Option<(Span, Symbol, Symbol)>,
 		new_lists: &mut Vec<NodeList>,
-	) -> Result<Vec<Node>> {
+	) -> Result<(Vec<Node>, Span)> {
 		let end = pair.as_ref().map(|(.., end)| end);
 		let mut output = Vec::new();
-		while let Some(node) = nodes.pop_front() {
-			if let Some(symbol) = node.symbol() {
-				if Some(&symbol) == end {
-					return Ok(output);
-				} else if let Some((sta, (end, bracket_fn))) = self.get_pair(&node) {
-					let span = node.span().clone();
-					let list = self.parse_bracket(
+		while let Some(next) = nodes.pop_front() {
+			let pos = next.span().clone();
+			if let Some(next_symbol) = next.symbol() {
+				if Some(&next_symbol) == end {
+					return Ok((output, pos));
+				} else if let Some((sta, (end, bracket_fn))) = self.get_pair(&next) {
+					let (list, end_pos) = self.parse_bracket(
 						scope.clone(),
 						nodes,
-						Some((span.clone(), sta.clone(), end.clone())),
+						Some((pos.clone(), sta.clone(), end.clone())),
 						new_lists,
 					)?;
 					let list = NodeList::new(scope.clone(), list);
 					new_lists.push(list.clone());
 					let node = (bracket_fn)(sta, list, end);
-					output.push(node.at(span));
-				} else if self.reverse.contains(&symbol) {
-					let error = format!("unpaired end bracket `{symbol}`");
-					let error = Errors::from_at(error, node.span().clone());
+					output.push(node.at(pos.to(end_pos)));
+				} else if self.reverse.contains(&next_symbol) {
+					let error = format!("unpaired right bracket `{next_symbol}`");
+					let error = Errors::from_at(error, next.span().clone());
 					return Err(error);
 				} else {
-					output.push(node);
+					output.push(next);
 				}
 			} else {
-				output.push(node);
+				output.push(next);
 			}
 		}
 
@@ -114,13 +115,14 @@ impl BracketPairs {
 			let error = Errors::from_at(error, pos);
 			Err(error)
 		} else {
-			Ok(output)
+			let span = output.last().map(|x| x.span()).unwrap_or_default();
+			Ok((output, span))
 		}
 	}
 
 	fn get_pair(&self, node: &Node) -> Option<(Symbol, (Symbol, BracketFn))> {
-		match node {
-			Node::Symbol(symbol, ..) => self.pairs.get(symbol).map(|end| (symbol.clone(), end.clone())),
+		match node.bit() {
+			Bit::Symbol(left) => self.pairs.get(left).map(|right| (left.clone(), right.clone())),
 			_ => None,
 		}
 	}
@@ -132,8 +134,8 @@ impl IsOperator for BracketPairs {
 	}
 
 	fn predicate(&self, node: &Node) -> bool {
-		match node {
-			Node::Symbol(symbol, ..) => self.pairs.contains_key(symbol),
+		match node.bit() {
+			Bit::Symbol(symbol) => self.pairs.contains_key(symbol),
 			_ => false,
 		}
 	}

@@ -36,7 +36,7 @@ impl Matcher for CommentMatcher {
 					*cursor = pos;
 				}
 
-				Some(Node::Comment(at(cursor.span_from(&start))))
+				Some(Bit::Comment.at(cursor.span_from(&start)))
 			}
 
 			_ => None,
