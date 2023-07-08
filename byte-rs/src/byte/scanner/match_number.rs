@@ -3,7 +3,7 @@ use super::*;
 pub struct IntegerMatcher;
 
 impl IsMatcher for IntegerMatcher {
-	fn try_match(&self, cursor: &mut Span, errors: &mut Errors) -> Option<Node> {
+	fn try_match(&self, cursor: &mut Span, errors: &mut Errors) -> Option<(Token, Span)> {
 		let _ = errors;
 		let start = cursor.clone();
 		match cursor.read() {
@@ -22,7 +22,7 @@ impl IsMatcher for IntegerMatcher {
 					}
 				}
 				*cursor = pos;
-				Some(Bit::Token(Token::Integer(value)).at(cursor.span_from(&start)))
+				Some((Token::Integer(value), cursor.span_from(&start)))
 			}
 
 			_ => None,

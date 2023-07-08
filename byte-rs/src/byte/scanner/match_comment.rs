@@ -6,7 +6,7 @@ pub struct Comment;
 pub struct CommentMatcher;
 
 impl IsMatcher for CommentMatcher {
-	fn try_match(&self, cursor: &mut Span, errors: &mut Errors) -> Option<Node> {
+	fn try_match(&self, cursor: &mut Span, errors: &mut Errors) -> Option<(Token, Span)> {
 		let _ = errors;
 		let start = cursor.clone();
 		let next = cursor.read();
@@ -36,7 +36,7 @@ impl IsMatcher for CommentMatcher {
 					*cursor = pos;
 				}
 
-				Some(Bit::Token(Token::Comment).at(cursor.span_from(&start)))
+				Some((Token::Comment, cursor.span_from(&start)))
 			}
 
 			_ => None,

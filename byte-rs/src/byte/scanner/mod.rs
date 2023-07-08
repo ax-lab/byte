@@ -34,6 +34,11 @@ pub use match_literal::*;
 pub use match_number::*;
 pub use match_symbols::*;
 
+/// Trait for a [`Token`] matcher used by the [`Matcher`].
+pub trait IsMatcher {
+	fn try_match(&self, cursor: &mut Span, errors: &mut Errors) -> Option<(Token, Span)>;
+}
+
 //====================================================================================================================//
 // Tests
 //====================================================================================================================//

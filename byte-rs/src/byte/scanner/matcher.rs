@@ -1,10 +1,5 @@
 use super::*;
 
-/// Trait for a matcher that can be used by the [`Matcher`].
-pub trait IsMatcher {
-	fn try_match(&self, cursor: &mut Span, errors: &mut Errors) -> Option<Node>;
-}
-
 #[derive(Clone)]
 pub struct Matcher {
 	matchers: Arc<Vec<Arc<dyn IsMatcher>>>,
@@ -90,9 +85,9 @@ impl Matcher {
 			// apply registered matchers, those have higher priority
 			let start = cursor.clone();
 			for it in self.matchers.iter() {
-				if let Some(node) = it.try_match(cursor, errors) {
+				if let Some((token, span)) = it.try_match(cursor, errors) {
 					assert!(cursor.offset() > start.offset());
-					return Some(node);
+					return Some(Bit::Token(token).at(span));
 				} else if !errors.empty() {
 					return None;
 				} else {
