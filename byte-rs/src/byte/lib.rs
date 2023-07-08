@@ -103,7 +103,7 @@ mod tests {
 			rt.redirect_stdout(output);
 		});
 
-		let nodes = program.load_string("hello", "print 'hello world!!!'");
+		let nodes = program.load_string("hello", "print 'hello world!!!'")?;
 		program.run_nodes(&nodes)?;
 
 		let output = output.read().unwrap().clone();

@@ -78,7 +78,6 @@ impl Compiler {
 		//--------------------------------------------------------------------------------------------------------//
 
 		//general parsing
-		scope.add_operator(Operator::Module);
 		scope.add_operator(Operator::SplitLines);
 		scope.add_operator(Operator::Let);
 		scope.add_operator(Operator::Bind);

@@ -62,12 +62,12 @@ impl Program {
 	}
 
 	pub fn eval<T1: Into<String>, T2: AsRef<str>>(&mut self, name: T1, text: T2) -> Result<Value> {
-		let nodes = self.load_string(name, text);
+		let nodes = self.load_string(name, text)?;
 		self.resolve()?;
 		self.run_resolved_nodes(&nodes)
 	}
 
-	pub fn load_string<T1: Into<String>, T2: AsRef<str>>(&mut self, name: T1, data: T2) -> NodeList {
+	pub fn load_string<T1: Into<String>, T2: AsRef<str>>(&mut self, name: T1, data: T2) -> Result<NodeList> {
 		let context = Context::get();
 		let source = context.load_source_text(name, data.as_ref());
 		self.load_span(source.span())
@@ -76,7 +76,7 @@ impl Program {
 	pub fn load_file<T: AsRef<Path>>(&mut self, path: T) -> Result<NodeList> {
 		let context = Context::get();
 		let source = context.load_source_file(path)?;
-		let list = self.load_span(source.span());
+		let list = self.load_span(source.span())?;
 
 		let mut run_list = self.data.run_list.write().unwrap();
 		run_list.push(list.clone());
@@ -89,13 +89,14 @@ impl Program {
 		self.run_resolved_nodes(nodes)
 	}
 
-	fn load_span(&mut self, span: Span) -> NodeList {
-		let node = Bit::Module(span.clone()).at(span);
+	fn load_span(&mut self, span: Span) -> Result<NodeList> {
+		let mut matcher = self.default_matcher();
+		let nodes = scan(&mut matcher, &span)?;
 		let scope = self.root_scope().new_child();
-		let list = NodeList::from_single(scope, node);
+		let list = NodeList::new(scope, nodes);
 		let mut segments = self.data.segments.write().unwrap();
 		segments.push(list.clone());
-		list
+		Ok(list)
 	}
 
 	fn run_resolved_nodes(&self, nodes: &NodeList) -> Result<Value> {

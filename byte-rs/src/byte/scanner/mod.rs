@@ -18,10 +18,12 @@ use super::*;
 
 pub mod chars;
 pub mod matcher;
+pub mod scanning;
 pub mod token;
 
 pub use chars::*;
 pub use matcher::*;
+pub use scanning::*;
 pub use token::*;
 
 pub mod match_comment;
@@ -78,16 +80,16 @@ mod tests {
 	fn simple_scanning() {
 		let actual = tokenize("a, b (\n\tsome_name123\n)");
 		let mut actual = actual.into_iter();
-		let mut get = || actual.next().unwrap().bit().clone();
-		check!(get(), Bit::Token(Token::Word(s))   if s == "a");
-		check!(get(), Bit::Token(Token::Symbol(s)) if s == ",");
-		check!(get(), Bit::Token(Token::Word(s))   if s == "b");
-		check!(get(), Bit::Token(Token::Symbol(s)) if s == "(");
-		check!(get(), Bit::Token(Token::Break));
-		check!(get(), Bit::Token(Token::Indent(4)));
-		check!(get(), Bit::Token(Token::Word(s))   if s == "some_name123");
-		check!(get(), Bit::Token(Token::Break));
-		check!(get(), Bit::Token(Token::Symbol(s)) if s == ")");
+		let mut get = || actual.next().unwrap().clone();
+		check!(get(), Token::Word(s)   if s == "a");
+		check!(get(), Token::Symbol(s) if s == ",");
+		check!(get(), Token::Word(s)   if s == "b");
+		check!(get(), Token::Symbol(s) if s == "(");
+		check!(get(), Token::Break);
+		check!(get(), Token::Indent(4));
+		check!(get(), Token::Word(s)   if s == "some_name123");
+		check!(get(), Token::Break);
+		check!(get(), Token::Symbol(s) if s == ")");
 		assert!(actual.next().is_none());
 	}
 
@@ -106,21 +108,21 @@ mod tests {
 
 		let actual = tokenize(input.join("\n").as_str());
 		let mut actual = actual.into_iter();
-		let mut get = || actual.next().unwrap().bit().clone();
+		let mut get = || actual.next().unwrap().clone();
 
-		check!(get(), Bit::Token(Token::Comment));
-		check!(get(), Bit::Token(Token::Break));
-		check!(get(), Bit::Token(Token::Word(s))   if s == "print");
-		check!(get(), Bit::Token(Token::Literal(s)) if s.as_str() == "hello world!");
-		check!(get(), Bit::Token(Token::Break));
-		check!(get(), Bit::Token(Token::Comment));
-		check!(get(), Bit::Token(Token::Break));
-		check!(get(), Bit::Token(Token::Word(s))   if s == "print");
-		check!(get(), Bit::Token(Token::Integer(1)));
-		check!(get(), Bit::Token(Token::Symbol(s)) if s == ",");
-		check!(get(), Bit::Token(Token::Integer(2)));
-		check!(get(), Bit::Token(Token::Symbol(s)) if s == ",");
-		check!(get(), Bit::Token(Token::Integer(3)));
+		check!(get(), Token::Comment);
+		check!(get(), Token::Break);
+		check!(get(), Token::Word(s)   if s == "print");
+		check!(get(), Token::Literal(s) if s.as_str() == "hello world!");
+		check!(get(), Token::Break);
+		check!(get(), Token::Comment);
+		check!(get(), Token::Break);
+		check!(get(), Token::Word(s)   if s == "print");
+		check!(get(), Token::Integer(1));
+		check!(get(), Token::Symbol(s) if s == ",");
+		check!(get(), Token::Integer(2));
+		check!(get(), Token::Symbol(s) if s == ",");
+		check!(get(), Token::Integer(3));
 
 		assert!(actual.next().is_none());
 	}
@@ -134,19 +136,19 @@ mod tests {
 		macro_rules! check {
 			($x:expr, $y:pat if $($rest:tt)*) => {
 				let x = $x;
-				let e = format!("{x}");
+				let e = format!("{x:?}");
 				assert!(matches!(x, $y if $($rest)*), "match failed: {e}");
 			};
 
 			($x:expr, $y:pat) => {
 				let x = $x;
-				let e = format!("{x}");
+				let e = format!("{x:?}");
 				assert!(matches!(x, $y), "match failed: {e}");
 			};
 		}
 	}
 
-	fn tokenize(input: &str) -> Vec<Node> {
+	fn tokenize(input: &str) -> Vec<Token> {
 		let mut matcher = Matcher::new();
 		matcher.register_common_symbols();
 		matcher.add_matcher(CommentMatcher);
@@ -158,8 +160,8 @@ mod tests {
 		let mut cursor = input.span();
 		let mut errors = Errors::new();
 		let mut output = Vec::new();
-		while let Some(node) = matcher.scan(&mut cursor, &mut errors) {
-			output.push(node);
+		while let Some((token, ..)) = matcher.scan(&mut cursor, &mut errors) {
+			output.push(token);
 		}
 
 		if errors.len() > 0 {

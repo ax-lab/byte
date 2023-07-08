@@ -28,6 +28,7 @@ impl Source {
 }
 
 impl Span {
+	/// Return a [`Span`] spanning the entire range of the given spans.
 	pub fn merge(a: Span, b: Span) -> Span {
 		if a.offset() == 0 {
 			b
@@ -42,6 +43,7 @@ impl Span {
 		}
 	}
 
+	/// Returns a [`Span`] combining the entire range of the given nodes.
 	pub fn from_nodes<T: IntoIterator<Item = Node>>(nodes: T) -> Self {
 		let mut nodes = nodes.into_iter();
 		let sta = nodes.next().map(|x| x.span());
@@ -51,8 +53,14 @@ impl Span {
 		Self::merge(sta, end)
 	}
 
+	/// Return a new span with the range from the current to the given span.
 	pub fn to(self, other: Span) -> Span {
 		Self::merge(self, other)
+	}
+
+	/// Return a span with zero-length from the current span position.
+	pub fn pos(&self) -> Span {
+		self.truncate(0)
 	}
 
 	/// Global offset for this span as given by the [`Source`] offset.

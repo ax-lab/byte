@@ -41,7 +41,7 @@ impl Matcher {
 		}
 	}
 
-	pub fn scan(&self, cursor: &mut Span, errors: &mut Errors) -> Option<Node> {
+	pub fn scan(&self, cursor: &mut Span, errors: &mut Errors) -> Option<(Token, Span)> {
 		loop {
 			// skip spaces
 			let line_start = cursor.is_indent();
@@ -58,7 +58,7 @@ impl Matcher {
 				// ignore empty or space-only lines
 				let span = cursor.advance_span(size);
 				if !line_start {
-					return Some(Bit::Token(Token::Break).at(span));
+					return Some((Token::Break, span));
 				} else {
 					continue;
 				}
@@ -79,7 +79,7 @@ impl Matcher {
 					  indentation MUST be a prefix of the other
 					  - indentation must be consistent between consecutive lines
 				*/
-				return Some(Bit::Token(Token::Indent(cursor.indent())).at(cursor.clone()));
+				return Some((Token::Indent(cursor.indent()), cursor.clone()));
 			}
 
 			// apply registered matchers, those have higher priority
@@ -87,7 +87,7 @@ impl Matcher {
 			for it in self.matchers.iter() {
 				if let Some((token, span)) = it.try_match(cursor, errors) {
 					assert!(cursor.offset() > start.offset());
-					return Some(Bit::Token(token).at(span));
+					return Some((token, span));
 				} else if !errors.empty() {
 					return None;
 				} else {
@@ -125,11 +125,11 @@ impl Matcher {
 					// generate a Word token
 					let span = cursor.span_from(&start);
 					let symbol = span.text().to_string();
-					Some(Bit::Token(Token::Word(Context::symbol(symbol))).at(span))
+					Some((Token::Word(Context::symbol(symbol)), span))
 				}
 
 				// predefined symbol
-				ScanAction::Symbol(symbol) => Some(Bit::Token(Token::Symbol(Context::symbol(symbol))).at(span)),
+				ScanAction::Symbol(symbol) => Some((Token::Symbol(Context::symbol(symbol)), span)),
 			};
 		}
 	}

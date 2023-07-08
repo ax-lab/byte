@@ -15,7 +15,6 @@ pub enum Bit {
 	Null,
 	Boolean(bool),
 	//----[ Structural ]------------------------------------------------------//
-	Module(Span),
 	Line(NodeList),
 	Sequence(Vec<NodeList>),
 	RawText(Span),

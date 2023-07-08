@@ -6,7 +6,6 @@ pub mod comma;
 pub mod decl;
 pub mod indent;
 pub mod line;
-pub mod module;
 pub mod parse_ops;
 pub mod print;
 pub mod replace_symbol;
@@ -18,7 +17,6 @@ pub use comma::*;
 pub use decl::*;
 pub use indent::*;
 pub use line::*;
-pub use module::*;
 pub use parse_ops::*;
 pub use print::*;
 pub use replace_symbol::*;
@@ -26,7 +24,6 @@ pub use ternary::*;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Operator {
-	Module,
 	Brackets(BracketPairs),
 	SplitLines,
 	Let,
@@ -43,7 +40,6 @@ pub enum Operator {
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Precedence {
 	Highest,
-	Module,
 	Brackets,
 	SplitLines,
 	Let,
@@ -83,7 +79,6 @@ impl Operator {
 
 	fn get_impl(&self) -> Arc<dyn IsOperator> {
 		match self {
-			Operator::Module => Arc::new(ModuleOperator),
 			Operator::SplitLines => Arc::new(SplitLineOperator),
 			Operator::Let => Arc::new(LetOperator),
 			Operator::Bind => Arc::new(BindOperator),
