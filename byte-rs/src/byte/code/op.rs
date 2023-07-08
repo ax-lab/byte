@@ -33,7 +33,7 @@ impl UnaryOp {
 	}
 }
 
-pub trait IsUnaryOp: WithDebug + 'static {
+pub trait IsUnaryOp: Debug + 'static {
 	fn execute(&self, scope: &mut RuntimeScope, arg: &Expr) -> Result<ExprValue>;
 	fn get_type(&self) -> Type;
 }
@@ -57,7 +57,7 @@ impl UnaryOpImpl {
 
 impl Debug for UnaryOpImpl {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		self.get().fmt_debug(f)
+		self.get().fmt(f)
 	}
 }
 
@@ -123,7 +123,7 @@ impl BinaryOp {
 	}
 }
 
-pub trait IsBinaryOp: WithDebug + 'static {
+pub trait IsBinaryOp: Debug + 'static {
 	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue>;
 	fn get_type(&self) -> Type;
 }
@@ -147,6 +147,6 @@ impl BinaryOpImpl {
 
 impl Debug for BinaryOpImpl {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		self.get().fmt_debug(f)
+		self.get().fmt(f)
 	}
 }
