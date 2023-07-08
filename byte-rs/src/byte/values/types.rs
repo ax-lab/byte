@@ -132,7 +132,7 @@ impl Type {
 			Value::Never => (Value::Never, false),
 			Value::Null => (Value::Null, false),
 			value @ Value::Bool(v) => (value.clone(), *v),
-			value @ Value::Int(v) => (value.clone(), v.is_zero()),
+			value @ Value::Int(v) => (value.clone(), !v.is_zero()),
 			value @ Value::String(v) => (value.clone(), v.len() > 0),
 		};
 		Ok(value)
