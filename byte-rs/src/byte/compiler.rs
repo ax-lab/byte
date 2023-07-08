@@ -21,8 +21,8 @@ impl Compiler {
 	// Module loading and compilation
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub fn scanner(&self) -> &Scanner {
-		&self.data.scanner
+	pub fn matcher(&self) -> &Matcher {
+		&self.data.matcher
 	}
 
 	pub fn new_program(&self) -> Program {
@@ -53,20 +53,20 @@ const ALPHA: &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwx
 const DIGIT: &'static str = "0123456789";
 
 struct CompilerData {
-	// default scanner used by any new compiler context
-	scanner: Scanner,
+	// default matcher used by any new compiler context
+	matcher: Matcher,
 }
 
 impl CompilerData {
 	pub fn new() -> Arc<Self> {
 		Arc::new({
-			let mut scanner = Scanner::new();
-			scanner.register_common_symbols();
-			scanner.add_matcher(CommentMatcher);
-			scanner.add_matcher(LiteralMatcher);
-			scanner.add_matcher(IntegerMatcher);
+			let mut matcher = Matcher::new();
+			matcher.register_common_symbols();
+			matcher.add_matcher(CommentMatcher);
+			matcher.add_matcher(LiteralMatcher);
+			matcher.add_matcher(IntegerMatcher);
 
-			CompilerData { scanner }
+			CompilerData { matcher }
 		})
 	}
 }
@@ -186,7 +186,7 @@ impl Compiler {
 	}
 }
 
-impl Scanner {
+impl Matcher {
 	pub fn register_common_symbols(&mut self) {
 		for it in COMMON_SYMBOLS.iter() {
 			self.add_symbol(it);

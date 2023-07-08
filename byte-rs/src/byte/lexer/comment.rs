@@ -5,7 +5,7 @@ pub struct Comment;
 
 pub struct CommentMatcher;
 
-impl Matcher for CommentMatcher {
+impl IsMatcher for CommentMatcher {
 	fn try_match(&self, cursor: &mut Span, errors: &mut Errors) -> Option<Node> {
 		let _ = errors;
 		let start = cursor.clone();

@@ -8,7 +8,7 @@ pub struct Program {
 
 #[doc(hidden)]
 pub struct ProgramData {
-	scanner: Scanner,
+	matcher: Matcher,
 	segments: RwLock<Vec<NodeList>>,
 	run_list: RwLock<Vec<NodeList>>,
 	root_scope: Scope,
@@ -21,10 +21,10 @@ impl Program {
 		Program::new_cyclic(|handle| {
 			let mut root_scope = Scope::new(handle);
 			compiler.configure_root_scope(&mut root_scope);
-			let scanner = compiler.scanner().clone();
+			let matcher = compiler.matcher().clone();
 
 			ProgramData {
-				scanner,
+				matcher,
 				root_scope,
 				segments: Default::default(),
 				run_list: Default::default(),
@@ -43,8 +43,8 @@ impl Program {
 		(action)(&mut runtime);
 	}
 
-	pub fn default_scanner(&self) -> Scanner {
-		self.data.scanner.clone()
+	pub fn default_matcher(&self) -> Matcher {
+		self.data.matcher.clone()
 	}
 
 	pub fn root_scope(&self) -> &Scope {

@@ -3,15 +3,15 @@ use super::*;
 pub mod chars;
 pub mod comment;
 pub mod literal;
+pub mod matcher;
 pub mod number;
-pub mod scanner;
 pub mod symbols;
 
 pub use chars::*;
 pub use comment::*;
 pub use literal::*;
+pub use matcher::*;
 pub use number::*;
-pub use scanner::*;
 pub use symbols::*;
 
 #[cfg(test)]
@@ -118,18 +118,18 @@ mod tests {
 	}
 
 	fn tokenize(input: &str) -> Vec<Node> {
-		let mut scanner = Scanner::new();
-		scanner.register_common_symbols();
-		scanner.add_matcher(CommentMatcher);
-		scanner.add_matcher(LiteralMatcher);
-		scanner.add_matcher(IntegerMatcher);
+		let mut matcher = Matcher::new();
+		matcher.register_common_symbols();
+		matcher.add_matcher(CommentMatcher);
+		matcher.add_matcher(LiteralMatcher);
+		matcher.add_matcher(IntegerMatcher);
 
 		let context = Context::get();
 		let input = context.load_source_text("test", input);
 		let mut cursor = input.span();
 		let mut errors = Errors::new();
 		let mut output = Vec::new();
-		while let Some(node) = scanner.scan(&mut cursor, &mut errors) {
+		while let Some(node) = matcher.scan(&mut cursor, &mut errors) {
 			output.push(node);
 		}
 

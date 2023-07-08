@@ -9,7 +9,7 @@ pub struct ScopeData {
 	program: Handle<Program>,
 	parent: Option<Handle<Scope>>,
 	children: RwLock<Vec<Arc<ScopeData>>>,
-	scanner: Option<Scanner>,
+	matcher: Option<Matcher>,
 	operators: Arc<RwLock<HashSet<Operator>>>,
 	bindings: RwLock<HashMap<Symbol, BindingList>>,
 }
@@ -20,7 +20,7 @@ impl ScopeData {
 			program,
 			parent: Default::default(),
 			children: Default::default(),
-			scanner: Default::default(),
+			matcher: Default::default(),
 			operators: Default::default(),
 			bindings: Default::default(),
 		}
@@ -52,16 +52,16 @@ impl Scope {
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
-	// Scanner
+	// Matcher
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub fn scanner(&self) -> Scanner {
-		if let Some(ref scanner) = self.data.scanner {
-			scanner.clone()
+	pub fn matcher(&self) -> Matcher {
+		if let Some(ref matcher) = self.data.matcher {
+			matcher.clone()
 		} else if let Some(parent) = self.parent() {
-			parent.scanner()
+			parent.matcher()
 		} else {
-			self.data.program.read(|x| x.default_scanner().clone())
+			self.data.program.read(|x| x.default_matcher().clone())
 		}
 	}
 

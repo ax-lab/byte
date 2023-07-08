@@ -1,17 +1,17 @@
 use super::*;
 
-/// Trait for a matcher that can be used by the [`Scanner`].
-pub trait Matcher {
+/// Trait for a matcher that can be used by the [`Matcher`].
+pub trait IsMatcher {
 	fn try_match(&self, cursor: &mut Span, errors: &mut Errors) -> Option<Node>;
 }
 
 #[derive(Clone)]
-pub struct Scanner {
-	matchers: Arc<Vec<Arc<dyn Matcher>>>,
+pub struct Matcher {
+	matchers: Arc<Vec<Arc<dyn IsMatcher>>>,
 	table: Arc<SymbolTable<ScanAction>>,
 }
 
-impl Scanner {
+impl Matcher {
 	pub fn new() -> Self {
 		Self {
 			matchers: Default::default(),
@@ -19,7 +19,7 @@ impl Scanner {
 		}
 	}
 
-	pub fn add_matcher<T: Matcher + 'static>(&mut self, matcher: T) {
+	pub fn add_matcher<T: IsMatcher + 'static>(&mut self, matcher: T) {
 		let matchers = Arc::make_mut(&mut self.matchers);
 		matchers.push(Arc::new(matcher));
 	}

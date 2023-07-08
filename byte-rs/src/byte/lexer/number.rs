@@ -2,7 +2,7 @@ use super::*;
 
 pub struct IntegerMatcher;
 
-impl Matcher for IntegerMatcher {
+impl IsMatcher for IntegerMatcher {
 	fn try_match(&self, cursor: &mut Span, errors: &mut Errors) -> Option<Node> {
 		let _ = errors;
 		let start = cursor.clone();
