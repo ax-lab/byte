@@ -41,7 +41,7 @@ impl Matcher {
 		}
 	}
 
-	pub fn scan(&self, cursor: &mut Span, errors: &mut Errors) -> Option<(Token, Span)> {
+	pub fn scan(&mut self, cursor: &mut Span, errors: &mut Errors) -> Option<(Token, Span)> {
 		loop {
 			// skip spaces
 			let line_start = cursor.is_indent();

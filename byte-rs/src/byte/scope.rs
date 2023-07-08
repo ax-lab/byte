@@ -1,22 +1,68 @@
 use super::*;
 
+pub struct ScopeList {
+	id: Id,
+	root: Arc<ScopeData>,
+}
+
+impl ScopeList {
+	pub fn new(program: Handle<Program>) -> Self {
+		let id = id();
+		let root = ScopeData::new(id, program);
+		Self { id, root: root.into() }
+	}
+
+	pub fn get_root_writer(&self) -> ScopeWriter {
+		self.get_writer(self.get_root())
+	}
+
+	pub fn get_root(&self) -> Scope {
+		Scope {
+			data: self.root.clone(),
+		}
+	}
+
+	pub fn get_writer(&self, scope: Scope) -> ScopeWriter {
+		assert!(scope.data.list_id == self.id);
+		ScopeWriter { data: scope.data }
+	}
+}
+
 pub struct Scope {
 	data: Arc<ScopeData>,
 }
 
-#[doc(hidden)]
-pub struct ScopeData {
+pub struct ScopeWriter {
+	data: Arc<ScopeData>,
+}
+
+#[derive(Clone)]
+pub struct ScopeHandle {
+	data: Weak<ScopeData>,
+}
+
+impl ScopeHandle {
+	pub fn get(&self) -> Scope {
+		Scope {
+			data: self.data.upgrade().expect("using orphaned ScopeHandle"),
+		}
+	}
+}
+
+struct ScopeData {
+	list_id: Id,
 	program: Handle<Program>,
-	parent: Option<Handle<Scope>>,
+	parent: Option<ScopeHandle>,
 	children: RwLock<Vec<Arc<ScopeData>>>,
-	matcher: Option<Matcher>,
+	matcher: Arc<RwLock<Option<Matcher>>>,
 	operators: Arc<RwLock<HashSet<Operator>>>,
 	bindings: RwLock<HashMap<Symbol, BindingList>>,
 }
 
 impl ScopeData {
-	pub fn new(program: Handle<Program>) -> Self {
+	pub fn new(list_id: Id, program: Handle<Program>) -> Self {
 		Self {
+			list_id,
 			program,
 			parent: Default::default(),
 			children: Default::default(),
@@ -28,21 +74,21 @@ impl ScopeData {
 }
 
 impl Scope {
-	pub fn new(program: Handle<Program>) -> Self {
-		let data = ScopeData::new(program);
-		Self { data: data.into() }
-	}
-
 	pub fn program(&self) -> HandleRef<Program> {
 		self.data.program.get()
 	}
 
-	pub fn parent(&self) -> Option<HandleRef<Scope>> {
+	pub fn parent(&self) -> Option<Scope> {
 		self.data.parent.as_ref().map(|parent| parent.get())
 	}
 
-	pub fn new_child(&self) -> Handle<Scope> {
-		let mut data = ScopeData::new(self.data.program.clone());
+	pub fn handle(&self) -> ScopeHandle {
+		let data = Arc::downgrade(&self.data);
+		ScopeHandle { data }
+	}
+
+	pub fn new_child(&self) -> ScopeHandle {
+		let mut data = ScopeData::new(self.data.list_id, self.data.program.clone());
 		data.parent = Some(self.handle());
 		let mut children = self.data.children.write().unwrap();
 
@@ -56,23 +102,20 @@ impl Scope {
 	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn matcher(&self) -> Matcher {
-		if let Some(ref matcher) = self.data.matcher {
-			matcher.clone()
+		let matcher = self.data.matcher.read().unwrap().clone();
+		if let Some(matcher) = matcher {
+			matcher
 		} else if let Some(parent) = self.parent() {
 			parent.matcher()
 		} else {
-			self.data.program.read(|x| x.default_matcher().clone())
+			let program = self.program();
+			program.compiler().new_matcher()
 		}
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
 	// Operators
 	//----------------------------------------------------------------------------------------------------------------//
-
-	pub fn add_operator(&mut self, op: Operator) {
-		let mut operators = self.data.operators.write().unwrap();
-		operators.insert(op);
-	}
 
 	pub fn get_operators(&self) -> Vec<Operator> {
 		let mut set = HashSet::new();
@@ -145,6 +188,34 @@ impl Scope {
 			}
 		})
 	}
+}
+
+impl ScopeWriter {
+	pub fn scope(&self) -> Scope {
+		Scope {
+			data: self.data.clone(),
+		}
+	}
+
+	pub fn handle(&self) -> ScopeHandle {
+		ScopeHandle {
+			data: Arc::downgrade(&self.data),
+		}
+	}
+
+	pub fn set_matcher(&mut self, new_matcher: Matcher) {
+		let mut matcher = self.data.matcher.write().unwrap();
+		*matcher = Some(new_matcher);
+	}
+
+	pub fn new_child(&mut self) -> ScopeHandle {
+		self.scope().new_child()
+	}
+
+	pub fn add_operator(&mut self, op: Operator) {
+		let mut operators = self.data.operators.write().unwrap();
+		operators.insert(op);
+	}
 
 	pub fn set_static(&mut self, name: Symbol, value: BindingValue) -> Result<()> {
 		let mut bindings = self.data.bindings.write().unwrap();
@@ -170,18 +241,6 @@ impl Scope {
 			let error = Errors::from(error, span);
 			Err(error)
 		}
-	}
-}
-
-impl CanHandle for Scope {
-	type Data = ScopeData;
-
-	fn inner_data(&self) -> &Arc<Self::Data> {
-		&self.data
-	}
-
-	fn from_inner_data(data: Arc<Self::Data>) -> Self {
-		Scope { data }
 	}
 }
 

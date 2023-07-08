@@ -8,10 +8,10 @@ pub struct Program {
 
 #[doc(hidden)]
 pub struct ProgramData {
-	matcher: Matcher,
+	compiler: Compiler,
+	scopes: ScopeList,
 	segments: RwLock<Vec<NodeList>>,
 	run_list: RwLock<Vec<NodeList>>,
-	root_scope: Scope,
 	runtime: RwLock<RuntimeScope>,
 	dump_code: RwLock<bool>,
 }
@@ -19,19 +19,23 @@ pub struct ProgramData {
 impl Program {
 	pub fn new(compiler: &Compiler) -> Program {
 		Program::new_cyclic(|handle| {
-			let mut root_scope = Scope::new(handle);
+			let compiler = compiler.clone();
+			let scopes = ScopeList::new(handle);
+			let mut root_scope = scopes.get_root_writer();
 			compiler.configure_root_scope(&mut root_scope);
-			let matcher = compiler.matcher().clone();
-
 			ProgramData {
-				matcher,
-				root_scope,
+				compiler,
+				scopes,
 				segments: Default::default(),
 				run_list: Default::default(),
 				runtime: Default::default(),
 				dump_code: Default::default(),
 			}
 		})
+	}
+
+	pub fn compiler(&self) -> &Compiler {
+		&self.data.compiler
 	}
 
 	pub fn dump_code(&mut self) {
@@ -43,12 +47,8 @@ impl Program {
 		(action)(&mut runtime);
 	}
 
-	pub fn default_matcher(&self) -> Matcher {
-		self.data.matcher.clone()
-	}
-
-	pub fn root_scope(&self) -> &Scope {
-		&self.data.root_scope
+	pub fn root_scope(&self) -> Scope {
+		self.data.scopes.get_root()
 	}
 
 	pub fn run(&self) -> Result<Value> {
@@ -90,9 +90,9 @@ impl Program {
 	}
 
 	fn load_span(&mut self, span: Span) -> Result<NodeList> {
-		let mut matcher = self.default_matcher();
-		let nodes = scan(&mut matcher, &span)?;
 		let scope = self.root_scope().new_child();
+		let mut writer = self.data.scopes.get_writer(scope.get());
+		let nodes = scan(&mut writer, &span)?;
 		let list = NodeList::new(scope, nodes);
 		let mut segments = self.data.segments.write().unwrap();
 		segments.push(list.clone());
@@ -168,12 +168,13 @@ impl Program {
 				let declares = context.get_declares();
 				drop(context);
 
-				let mut scope = nodes.scope_mut();
+				let scope = nodes.scope_handle().get();
+				let mut writer = self.data.scopes.get_writer(scope);
 				for (name, offset, value) in declares {
 					let result = if let Some(offset) = offset {
-						scope.set_at(name, offset, value)
+						writer.set_at(name, offset, value)
 					} else {
-						scope.set_static(name, value)
+						writer.set_static(name, value)
 					};
 					match result {
 						Ok(..) => {}

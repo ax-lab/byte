@@ -1,6 +1,7 @@
 use super::*;
 
-pub fn scan(matcher: &mut Matcher, input: &Span) -> Result<Vec<Node>> {
+pub fn scan(writer: &mut ScopeWriter, input: &Span) -> Result<Vec<Node>> {
+	let mut matcher = writer.scope().matcher();
 	let mut errors = Errors::new();
 	let mut output = Vec::new();
 	let mut cursor = input.clone();
@@ -10,6 +11,8 @@ pub fn scan(matcher: &mut Matcher, input: &Span) -> Result<Vec<Node>> {
 			break;
 		}
 	}
+
+	writer.set_matcher(matcher);
 
 	if !cursor.at_end() && errors.empty() {
 		errors.add("failed to parse the entire input", cursor.pos());

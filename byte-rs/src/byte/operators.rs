@@ -138,8 +138,7 @@ pub trait IsOperator {
 
 pub struct OperatorContext<'a> {
 	nodes: &'a mut NodeList,
-	program: HandleRef<Program>,
-	scope: HandleRef<Scope>,
+	scope: Scope,
 	version: usize,
 	new_segments: Vec<NodeList>,
 	declares: Vec<(Symbol, Option<usize>, BindingValue)>,
@@ -148,11 +147,9 @@ pub struct OperatorContext<'a> {
 impl<'a> OperatorContext<'a> {
 	pub fn new(nodes: &'a mut NodeList) -> Self {
 		let scope = nodes.scope();
-		let program = scope.program();
 		let version = nodes.version();
 		Self {
 			nodes,
-			program,
 			scope,
 			version,
 			new_segments: Default::default(),
@@ -162,10 +159,6 @@ impl<'a> OperatorContext<'a> {
 
 	pub fn has_node_changes(&self) -> bool {
 		self.nodes.version() > self.version
-	}
-
-	pub fn program(&self) -> &Program {
-		&self.program
 	}
 
 	pub fn scope(&self) -> &Scope {

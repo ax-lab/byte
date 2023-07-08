@@ -6,11 +6,11 @@ pub struct NodeList {
 }
 
 impl NodeList {
-	pub fn from_single(scope: Handle<Scope>, node: Node) -> Self {
+	pub fn from_single(scope: ScopeHandle, node: Node) -> Self {
 		Self::new(scope, vec![node])
 	}
 
-	pub fn new(scope: Handle<Scope>, nodes: Vec<Node>) -> Self {
+	pub fn new(scope: ScopeHandle, nodes: Vec<Node>) -> Self {
 		let data = NodeListData {
 			version: RwLock::new(0),
 			scope,
@@ -27,16 +27,12 @@ impl NodeList {
 		*self.data.version.read().unwrap()
 	}
 
-	pub fn scope(&self) -> HandleRef<Scope> {
+	pub fn scope(&self) -> Scope {
 		self.data.scope.get()
 	}
 
-	pub fn scope_handle(&self) -> Handle<Scope> {
+	pub fn scope_handle(&self) -> ScopeHandle {
 		self.data.scope.clone()
-	}
-
-	pub fn scope_mut(&mut self) -> HandleMut<Scope> {
-		unsafe { self.data.scope.get_mut() }
 	}
 
 	pub fn span(&self) -> Span {
@@ -105,7 +101,7 @@ impl NodeList {
 	}
 
 	pub fn get_next_operator(&self, max_precedence: Option<Precedence>) -> Result<Option<Operator>> {
-		let operators = self.data.scope.read(|x| x.get_operators()).into_iter();
+		let operators = self.scope().get_operators().into_iter();
 		let operators = operators.take_while(|x| {
 			if let Some(max) = max_precedence {
 				x.precedence() <= max
@@ -416,7 +412,7 @@ impl Hash for NodeList {
 
 struct NodeListData {
 	version: RwLock<usize>,
-	scope: Handle<Scope>,
+	scope: ScopeHandle,
 	nodes: RwLock<Arc<Vec<Node>>>,
 }
 

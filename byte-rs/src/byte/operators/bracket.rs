@@ -69,13 +69,13 @@ impl BracketPairs {
 
 	fn parse_nodes(&self, nodes: &NodeList, new_lists: &mut Vec<NodeList>) -> Result<Vec<Node>> {
 		let mut items = nodes.as_vec_deque();
-		self.parse_bracket(nodes.scope().handle(), &mut items, None, new_lists)
+		self.parse_bracket(nodes.scope_handle(), &mut items, None, new_lists)
 			.map(|x| x.0)
 	}
 
 	fn parse_bracket(
 		&self,
-		scope: Handle<Scope>,
+		scope: ScopeHandle,
 		nodes: &mut VecDeque<Node>,
 		pair: Option<(Span, Symbol, Symbol)>,
 		new_lists: &mut Vec<NodeList>,

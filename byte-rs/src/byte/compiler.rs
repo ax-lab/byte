@@ -1,9 +1,10 @@
 use super::*;
 
-/// Main interface for loading, compiling, and running code.
+/// Main interface for the compiler.
 ///
-/// This is also the parent and ultimate owner of all compilation and runtime
-/// data for any given compilation context.
+/// Provides the default language configuration for a [`Program`] and methods
+/// for loading, compiling, and running code.
+#[derive(Clone)]
 pub struct Compiler {
 	data: Arc<CompilerData>,
 }
@@ -13,7 +14,7 @@ impl Compiler {
 	/// path as base path.
 	pub fn new() -> Self {
 		Self {
-			data: CompilerData::new(),
+			data: CompilerData::new().into(),
 		}
 	}
 
@@ -21,8 +22,8 @@ impl Compiler {
 	// Module loading and compilation
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub fn matcher(&self) -> &Matcher {
-		&self.data.matcher
+	pub fn new_matcher(&self) -> Matcher {
+		self.data.matcher.as_ref().clone()
 	}
 
 	pub fn new_program(&self) -> Program {
@@ -54,25 +55,25 @@ const DIGIT: &'static str = "0123456789";
 
 struct CompilerData {
 	// default matcher used by any new compiler context
-	matcher: Matcher,
+	matcher: Arc<Matcher>,
 }
 
 impl CompilerData {
-	pub fn new() -> Arc<Self> {
-		Arc::new({
-			let mut matcher = Matcher::new();
-			matcher.register_common_symbols();
-			matcher.add_matcher(CommentMatcher);
-			matcher.add_matcher(LiteralMatcher);
-			matcher.add_matcher(IntegerMatcher);
+	pub fn new() -> Self {
+		let mut matcher = Matcher::new();
+		matcher.register_common_symbols();
+		matcher.add_matcher(CommentMatcher);
+		matcher.add_matcher(LiteralMatcher);
+		matcher.add_matcher(IntegerMatcher);
 
-			CompilerData { matcher }
-		})
+		CompilerData {
+			matcher: matcher.into(),
+		}
 	}
 }
 
 impl Compiler {
-	pub(crate) fn configure_root_scope(&self, scope: &mut Scope) {
+	pub(crate) fn configure_root_scope(&self, scope: &mut ScopeWriter) {
 		//--------------------------------------------------------------------------------------------------------//
 		// Operators
 		//--------------------------------------------------------------------------------------------------------//
