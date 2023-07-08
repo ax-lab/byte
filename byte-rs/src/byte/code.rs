@@ -95,15 +95,12 @@ impl NodeList {
 	fn do_generate_node(&self, context: &mut CodeContext, node: &Node) -> Result<Expr> {
 		let value = match node.bit() {
 			Bit::Boolean(value) => Expr::Bool(*value),
-			Bit::Integer(value) => {
+			Bit::Token(Token::Integer(value)) => {
 				let value = IntValue::new(*value, DEFAULT_INT).at_pos(node.span())?;
 				Expr::Int(value)
 			}
 			Bit::Null => Expr::Null,
-			Bit::Literal(value) => {
-				let value = StringValue::new(value);
-				Expr::Str(value)
-			}
+			Bit::Token(Token::Literal(value)) => Expr::Str(value.clone()),
 			Bit::Line(list) => list.generate_expr(context)?,
 			Bit::Group(list) => list.generate_expr(context)?,
 			Bit::Let(name, offset, list) => {

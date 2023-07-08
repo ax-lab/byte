@@ -8,7 +8,7 @@ impl IsOperator for SplitLineOperator {
 	}
 
 	fn predicate(&self, node: &Node) -> bool {
-		matches!(node.bit(), Bit::Break)
+		matches!(node.bit(), Bit::Token(Token::Break))
 	}
 
 	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
@@ -16,7 +16,7 @@ impl IsOperator for SplitLineOperator {
 
 		let mut to_resolve = Vec::new();
 		context.nodes().split_by(
-			|n| matches!(n.bit(), Bit::Break),
+			|n| matches!(n.bit(), Bit::Token(Token::Break)),
 			|list| {
 				to_resolve.push(list.clone());
 				let span = list.span();

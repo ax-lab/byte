@@ -8,14 +8,14 @@ impl IsOperator for BindOperator {
 	}
 
 	fn predicate(&self, node: &Node) -> bool {
-		matches!(node.bit(), Bit::Word(..))
+		matches!(node.bit(), Bit::Token(Token::Word(..)))
 	}
 
 	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
 		let mut nodes = context.nodes().clone();
 		let scope = nodes.scope();
 		nodes.replace(|node| {
-			if let Bit::Word(name) = node.bit() {
+			if let Bit::Token(Token::Word(name)) = node.bit() {
 				let span = node.span().clone();
 				if let Some(index) = scope.lookup(name, Some(node.offset())) {
 					let value = Bit::Variable(name.clone(), index).at(span);

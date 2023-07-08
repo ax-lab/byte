@@ -11,16 +11,9 @@ pub use list::*;
 /// definitions.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Bit {
-	//----[ Tokens ]----------------------------------------------------------//
-	Break,
-	Indent(usize),
-	Comment,
-	Word(Symbol),
-	Symbol(Symbol),
-	Literal(String),
-	Integer(u128),
-	Boolean(bool),
+	Token(Token),
 	Null,
+	Boolean(bool),
 	//----[ Structural ]------------------------------------------------------//
 	Module(Span),
 	Line(NodeList),
@@ -43,8 +36,8 @@ impl Bit {
 
 	pub fn symbol(&self) -> Option<Symbol> {
 		let symbol = match self {
-			Bit::Word(symbol) => symbol,
-			Bit::Symbol(symbol) => symbol,
+			Bit::Token(Token::Word(symbol)) => symbol,
+			Bit::Token(Token::Symbol(symbol)) => symbol,
 			Bit::Let(symbol, ..) => symbol,
 			_ => return None,
 		};
@@ -89,21 +82,21 @@ impl Node {
 
 	pub fn is_symbol(&self, expected: &Symbol) -> bool {
 		match self.bit() {
-			Bit::Symbol(symbol) => symbol == expected,
+			Bit::Token(Token::Symbol(symbol)) => symbol == expected,
 			_ => false,
 		}
 	}
 
 	pub fn is_word(&self, expected: &Symbol) -> bool {
 		match self.bit() {
-			Bit::Word(symbol) => symbol == expected,
+			Bit::Token(Token::Word(symbol)) => symbol == expected,
 			_ => false,
 		}
 	}
 
 	pub fn has_symbol(&self, symbol: &Symbol) -> bool {
 		match self.bit() {
-			Bit::Symbol(s) | Bit::Word(s) => s == symbol,
+			Bit::Token(Token::Symbol(s) | Token::Word(s)) => s == symbol,
 			_ => false,
 		}
 	}

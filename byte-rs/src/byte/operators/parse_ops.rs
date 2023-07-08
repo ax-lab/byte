@@ -84,7 +84,7 @@ impl IsOperator for ParseBinaryOp {
 
 	fn predicate(&self, node: &Node) -> bool {
 		match node.bit() {
-			Bit::Word(symbol) | Bit::Symbol(symbol) => self.0.contains(symbol),
+			Bit::Token(Token::Word(symbol) | Token::Symbol(symbol)) => self.0.contains(symbol),
 			_ => false,
 		}
 	}
@@ -135,7 +135,7 @@ impl IsOperator for ParseUnaryPrefixOp {
 
 	fn can_apply(&self, nodes: &NodeList) -> bool {
 		match nodes.get(0).as_ref().map(|x| x.bit()) {
-			Some(Bit::Word(symbol) | Bit::Symbol(symbol)) => self.0.contains(symbol),
+			Some(Bit::Token(Token::Word(symbol) | Token::Symbol(symbol))) => self.0.contains(symbol),
 			_ => false,
 		}
 	}

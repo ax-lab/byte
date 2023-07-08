@@ -22,7 +22,7 @@ impl IsMatcher for IntegerMatcher {
 					}
 				}
 				*cursor = pos;
-				Some(Bit::Integer(value).at(cursor.span_from(&start)))
+				Some(Bit::Token(Token::Integer(value)).at(cursor.span_from(&start)))
 			}
 
 			_ => None,

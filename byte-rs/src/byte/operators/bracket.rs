@@ -122,7 +122,7 @@ impl BracketPairs {
 
 	fn get_pair(&self, node: &Node) -> Option<(Symbol, (Symbol, BracketFn))> {
 		match node.bit() {
-			Bit::Symbol(left) => self.pairs.get(left).map(|right| (left.clone(), right.clone())),
+			Bit::Token(Token::Symbol(left)) => self.pairs.get(left).map(|right| (left.clone(), right.clone())),
 			_ => None,
 		}
 	}
@@ -135,7 +135,7 @@ impl IsOperator for BracketPairs {
 
 	fn predicate(&self, node: &Node) -> bool {
 		match node.bit() {
-			Bit::Symbol(symbol) => self.pairs.contains_key(symbol),
+			Bit::Token(Token::Symbol(symbol)) => self.pairs.contains_key(symbol),
 			_ => false,
 		}
 	}

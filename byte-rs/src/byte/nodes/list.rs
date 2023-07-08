@@ -337,7 +337,7 @@ impl NodeList {
 	}
 
 	pub fn is_identifier(&self, index: usize) -> bool {
-		self.test_at(index, |x| matches!(x.bit(), Bit::Word(..)))
+		self.test_at(index, |x| matches!(x.bit(), Bit::Token(Token::Word(..))))
 	}
 
 	pub fn is_keyword(&self, index: usize, word: &Symbol) -> bool {

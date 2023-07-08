@@ -36,7 +36,7 @@ impl IsMatcher for CommentMatcher {
 					*cursor = pos;
 				}
 
-				Some(Bit::Comment.at(cursor.span_from(&start)))
+				Some(Bit::Token(Token::Comment).at(cursor.span_from(&start)))
 			}
 
 			_ => None,

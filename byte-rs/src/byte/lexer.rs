@@ -50,15 +50,15 @@ mod tests {
 		let actual = tokenize("a, b (\n\tsome_name123\n)");
 		let mut actual = actual.into_iter();
 		let mut get = || actual.next().unwrap().bit().clone();
-		check!(get(), Bit::Word(s)   if s == "a");
-		check!(get(), Bit::Symbol(s) if s == ",");
-		check!(get(), Bit::Word(s)   if s == "b");
-		check!(get(), Bit::Symbol(s) if s == "(");
-		check!(get(), Bit::Break);
-		check!(get(), Bit::Indent(4));
-		check!(get(), Bit::Word(s)   if s == "some_name123");
-		check!(get(), Bit::Break);
-		check!(get(), Bit::Symbol(s) if s == ")");
+		check!(get(), Bit::Token(Token::Word(s))   if s == "a");
+		check!(get(), Bit::Token(Token::Symbol(s)) if s == ",");
+		check!(get(), Bit::Token(Token::Word(s))   if s == "b");
+		check!(get(), Bit::Token(Token::Symbol(s)) if s == "(");
+		check!(get(), Bit::Token(Token::Break));
+		check!(get(), Bit::Token(Token::Indent(4)));
+		check!(get(), Bit::Token(Token::Word(s))   if s == "some_name123");
+		check!(get(), Bit::Token(Token::Break));
+		check!(get(), Bit::Token(Token::Symbol(s)) if s == ")");
 		assert!(actual.next().is_none());
 	}
 
@@ -79,19 +79,19 @@ mod tests {
 		let mut actual = actual.into_iter();
 		let mut get = || actual.next().unwrap().bit().clone();
 
-		check!(get(), Bit::Comment);
-		check!(get(), Bit::Break);
-		check!(get(), Bit::Word(s)   if s == "print");
-		check!(get(), Bit::Literal(s) if s == "hello world!");
-		check!(get(), Bit::Break);
-		check!(get(), Bit::Comment);
-		check!(get(), Bit::Break);
-		check!(get(), Bit::Word(s)   if s == "print");
-		check!(get(), Bit::Integer(1));
-		check!(get(), Bit::Symbol(s) if s == ",");
-		check!(get(), Bit::Integer(2));
-		check!(get(), Bit::Symbol(s) if s == ",");
-		check!(get(), Bit::Integer(3));
+		check!(get(), Bit::Token(Token::Comment));
+		check!(get(), Bit::Token(Token::Break));
+		check!(get(), Bit::Token(Token::Word(s))   if s == "print");
+		check!(get(), Bit::Token(Token::Literal(s)) if s.as_str() == "hello world!");
+		check!(get(), Bit::Token(Token::Break));
+		check!(get(), Bit::Token(Token::Comment));
+		check!(get(), Bit::Token(Token::Break));
+		check!(get(), Bit::Token(Token::Word(s))   if s == "print");
+		check!(get(), Bit::Token(Token::Integer(1)));
+		check!(get(), Bit::Token(Token::Symbol(s)) if s == ",");
+		check!(get(), Bit::Token(Token::Integer(2)));
+		check!(get(), Bit::Token(Token::Symbol(s)) if s == ",");
+		check!(get(), Bit::Token(Token::Integer(3)));
 
 		assert!(actual.next().is_none());
 	}

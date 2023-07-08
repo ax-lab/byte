@@ -8,7 +8,7 @@ impl IsOperator for CommaOperator {
 	}
 
 	fn predicate(&self, node: &Node) -> bool {
-		if let Bit::Symbol(symbol) = node.bit() {
+		if let Bit::Token(Token::Symbol(symbol)) = node.bit() {
 			symbol == ","
 		} else {
 			false

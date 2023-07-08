@@ -11,13 +11,13 @@ impl IsMatcher for LiteralMatcher {
 				loop {
 					match cursor.read() {
 						Some('\'') => {
-							break Some(Bit::Literal(value).at(cursor.span_from(&start)));
+							break Some(Bit::Token(Token::Literal(value.into())).at(cursor.span_from(&start)));
 						}
 
 						None => {
 							let span = cursor.span_from(&start);
 							errors.add("unclosed string literal", span.clone());
-							break Some(Bit::Literal(value).at(span));
+							break Some(Bit::Token(Token::Literal(value.into())).at(span));
 						}
 
 						Some(char) => value.push(char),
