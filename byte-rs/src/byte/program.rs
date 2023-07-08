@@ -91,9 +91,9 @@ impl Program {
 
 	fn load_span(&mut self, span: Span) -> Result<NodeList> {
 		let scope = self.root_scope().new_child();
-		let mut writer = self.data.scopes.get_writer(scope.get());
-		let nodes = scan(&mut writer, &span)?;
-		let list = NodeList::new(scope, nodes);
+		let mut scope = self.data.scopes.get_writer(scope.get());
+		let nodes = scan(&mut scope, &span)?;
+		let list = NodeList::new(scope.handle(), nodes);
 		let mut segments = self.data.segments.write().unwrap();
 		segments.push(list.clone());
 		Ok(list)

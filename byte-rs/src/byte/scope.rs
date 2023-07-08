@@ -1,5 +1,7 @@
 use super::*;
 
+/// Manages a root [`Scope`] and provides access to writing to scopes
+/// using a [`ScopeWriter`].
 pub struct ScopeList {
 	id: Id,
 	root: Arc<ScopeData>,
@@ -24,18 +26,32 @@ impl ScopeList {
 
 	pub fn get_writer(&self, scope: Scope) -> ScopeWriter {
 		assert!(scope.data.list_id == self.id);
-		ScopeWriter { data: scope.data }
+		ScopeWriter { scope }
 	}
 }
 
+/// Provides read-only access to scoped data for the language.
+///
+/// This includes declared variables, operators, the configured [`Matcher`],
+/// and others.
+///
+/// Scopes can be inherited. Data from a parent scope is used unless it is
+/// overridden by the children.
 pub struct Scope {
 	data: Arc<ScopeData>,
 }
 
+/// Provides write access to the [`Scope`] data. This can only be obtained
+/// through the parent [`ScopeList`] for a scope.
 pub struct ScopeWriter {
-	data: Arc<ScopeData>,
+	scope: Scope,
 }
 
+/// Handle with a weak-reference to a [`Scope`].
+///
+/// This should always be used when storing references to a scope, as it can
+/// be safely stored inside data that is owned by the scope without creating
+/// cycles and leaking memory.
 #[derive(Clone)]
 pub struct ScopeHandle {
 	data: Weak<ScopeData>,
@@ -49,6 +65,7 @@ impl ScopeHandle {
 	}
 }
 
+/// Internal data for a scope.
 struct ScopeData {
 	list_id: Id,
 	program: Handle<Program>,
@@ -72,6 +89,10 @@ impl ScopeData {
 		}
 	}
 }
+
+//====================================================================================================================//
+// Scope read interface
+//====================================================================================================================//
 
 impl Scope {
 	pub fn program(&self) -> HandleRef<Program> {
@@ -190,35 +211,23 @@ impl Scope {
 	}
 }
 
+//====================================================================================================================//
+// Scope write interface
+//====================================================================================================================//
+
 impl ScopeWriter {
-	pub fn scope(&self) -> Scope {
-		Scope {
-			data: self.data.clone(),
-		}
-	}
-
-	pub fn handle(&self) -> ScopeHandle {
-		ScopeHandle {
-			data: Arc::downgrade(&self.data),
-		}
-	}
-
 	pub fn set_matcher(&mut self, new_matcher: Matcher) {
-		let mut matcher = self.data.matcher.write().unwrap();
+		let mut matcher = self.data().matcher.write().unwrap();
 		*matcher = Some(new_matcher);
 	}
 
-	pub fn new_child(&mut self) -> ScopeHandle {
-		self.scope().new_child()
-	}
-
 	pub fn add_operator(&mut self, op: Operator) {
-		let mut operators = self.data.operators.write().unwrap();
+		let mut operators = self.data().operators.write().unwrap();
 		operators.insert(op);
 	}
 
 	pub fn set_static(&mut self, name: Symbol, value: BindingValue) -> Result<()> {
-		let mut bindings = self.data.bindings.write().unwrap();
+		let mut bindings = self.data().bindings.write().unwrap();
 		let binding = bindings.entry(name.clone()).or_insert(Default::default());
 		let span = value.span();
 		if binding.set_static(value) {
@@ -231,7 +240,7 @@ impl ScopeWriter {
 	}
 
 	pub fn set_at(&mut self, name: Symbol, offset: usize, value: BindingValue) -> Result<()> {
-		let mut bindings = self.data.bindings.write().unwrap();
+		let mut bindings = self.data().bindings.write().unwrap();
 		let binding = bindings.entry(name.clone()).or_insert(Default::default());
 		let span = value.span();
 		if binding.set_at(offset, value) {
@@ -242,7 +251,23 @@ impl ScopeWriter {
 			Err(error)
 		}
 	}
+
+	fn data(&mut self) -> &ScopeData {
+		&self.scope.data
+	}
 }
+
+impl Deref for ScopeWriter {
+	type Target = Scope;
+
+	fn deref(&self) -> &Self::Target {
+		&self.scope
+	}
+}
+
+//====================================================================================================================//
+// Internals
+//====================================================================================================================//
 
 #[derive(Default)]
 struct BindingList {
