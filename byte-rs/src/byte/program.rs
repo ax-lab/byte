@@ -13,6 +13,7 @@ pub struct ProgramData {
 	run_list: RwLock<Vec<NodeList>>,
 	root_scope: Scope,
 	runtime: RwLock<RuntimeScope>,
+	dump_code: RwLock<bool>,
 }
 
 impl Program {
@@ -28,8 +29,13 @@ impl Program {
 				segments: Default::default(),
 				run_list: Default::default(),
 				runtime: Default::default(),
+				dump_code: Default::default(),
 			}
 		})
+	}
+
+	pub fn dump_code(&mut self) {
+		*self.data.dump_code.write().unwrap() = true;
 	}
 
 	pub fn configure_runtime<P: FnOnce(&mut RuntimeScope)>(&mut self, action: P) {
@@ -94,6 +100,10 @@ impl Program {
 
 	fn run_resolved_nodes(&self, nodes: &NodeList) -> Result<Value> {
 		let mut context = CodeContext::new();
+		if *self.data.dump_code.read().unwrap() {
+			context.dump_code();
+		}
+
 		let scope = self.data.runtime.write();
 		let mut scope = match scope {
 			Ok(scope) => scope,

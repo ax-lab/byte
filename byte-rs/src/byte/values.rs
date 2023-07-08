@@ -1,9 +1,11 @@
 use super::*;
 
 pub mod int;
+pub mod string;
 pub mod types;
 
 pub use int::*;
+pub use string::*;
 pub use types::*;
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -25,14 +27,14 @@ impl Value {
 		matches!(self, Value::String(..))
 	}
 
-	pub fn string(&self) -> Result<StrValue> {
+	pub fn string(&self) -> Result<StringValue> {
 		let value = match self {
 			Value::Unit => "".into(),
 			Value::Never => return err!("cannot convert never value to string"),
 			Value::Null => "(null)".into(),
 			Value::Bool(value) => (if *value { "true" } else { "false " }).into(),
 			Value::Int(value) => value.to_string().into(),
-			Value::String(value) => StrValue::new_from_arc(value.clone()),
+			Value::String(value) => StringValue::new_from_arc(value.clone()),
 		};
 		Ok(value)
 	}
@@ -80,8 +82,15 @@ impl Value {
 }
 
 impl Display for Value {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{self:?}") // TODO: implement proper
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		match self {
+			Value::Unit => write!(f, "()"),
+			Value::Never => write!(f, "(!)"),
+			Value::Null => write!(f, "null"),
+			Value::Bool(v) => write!(f, "{}", if *v { "true" } else { "false" }),
+			Value::Int(v) => write!(f, "{v}"),
+			Value::String(v) => write!(f, "{v}"),
+		}
 	}
 }
 

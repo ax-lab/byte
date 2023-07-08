@@ -51,7 +51,7 @@ pub enum Precedence {
 	Ternary,
 	Comma,
 	OpAssign,
-	OpUnaryPrefix,
+	OpUnaryPrefix, // FIXME: this needs to be parsed properly
 	OpBooleanOr,
 	OpBooleanAnd,
 	OpAdditive,

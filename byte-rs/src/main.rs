@@ -13,6 +13,7 @@ fn main() {
 			let mut files = Vec::new();
 			let mut eval_list = Vec::new();
 			let mut next_is_eval = false;
+			let mut dump_code = false;
 			for arg in env::args().skip(1) {
 				if next_is_eval {
 					next_is_eval = false;
@@ -31,6 +32,10 @@ fn main() {
 						}
 						"--eval" => {
 							next_is_eval = true;
+							false
+						}
+						"--dump" => {
+							dump_code = true;
 							false
 						}
 						"--show-config" => {
@@ -57,17 +62,20 @@ fn main() {
 				std::process::exit(0);
 			}
 
-			if let Err(errors) = execute(files, eval_list) {
+			let compiler = Compiler::new();
+			let mut program = compiler.new_program();
+			if dump_code {
+				program.dump_code();
+			}
+
+			if let Err(errors) = execute(&mut program, files, eval_list) {
 				println!("\n{errors}");
 				std::process::exit(1);
 			}
 		});
 }
 
-fn execute(files: Vec<String>, eval: Vec<String>) -> Result<()> {
-	let compiler = Compiler::new();
-	let mut program = compiler.new_program();
-
+fn execute(program: &mut Program, files: Vec<String>, eval: Vec<String>) -> Result<()> {
 	for file in files.into_iter() {
 		program.load_file(file)?;
 	}
@@ -76,7 +84,7 @@ fn execute(files: Vec<String>, eval: Vec<String>) -> Result<()> {
 	program.run()?;
 
 	for (n, expr) in eval.into_iter().enumerate() {
-		let name = format!("{{eval #{n}}}");
+		let name = format!("eval[{n}]");
 		let result = program.eval(name, expr)?;
 		println!("#{n:02} => {result} ({})", result.get_type().name());
 	}

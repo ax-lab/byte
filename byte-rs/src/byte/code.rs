@@ -27,7 +27,6 @@ pub mod op_or;
 pub mod op_plus;
 pub mod op_sub;
 pub mod runtime_scope;
-pub mod values;
 
 pub use op::*;
 pub use op_add::*;
@@ -43,7 +42,6 @@ pub use op_or::*;
 pub use op_plus::*;
 pub use op_sub::*;
 pub use runtime_scope::*;
-pub use values::*;
 
 use super::*;
 
@@ -51,13 +49,19 @@ const DEBUG_NODES: bool = false;
 
 pub struct CodeContext {
 	declares: HashMap<(Symbol, Option<usize>), Type>,
+	dump_code: bool,
 }
 
 impl CodeContext {
 	pub fn new() -> Self {
 		Self {
 			declares: Default::default(),
+			dump_code: false,
 		}
+	}
+
+	pub fn dump_code(&mut self) {
+		self.dump_code = true;
 	}
 }
 
@@ -73,8 +77,8 @@ impl NodeList {
 			}
 		}
 
-		if (errors.len() > 0 && DEBUG_NODES) || DUMP_CODE {
-			println!("\n----- NODE DUMP -----\n");
+		if (errors.len() > 0 && DEBUG_NODES) || DUMP_CODE || context.dump_code {
+			println!("\n----- CODE DUMP -----\n");
 			let mut output = String::new();
 			let _ = write!(output, "{self:?}");
 			println!("{output}");
@@ -85,19 +89,20 @@ impl NodeList {
 	}
 
 	fn generate_node(&self, context: &mut CodeContext, node: &Node) -> Result<Expr> {
+		self.do_generate_node(context, node).at_pos(node.span())
+	}
+
+	fn do_generate_node(&self, context: &mut CodeContext, node: &Node) -> Result<Expr> {
 		let value = match node.bit() {
-			Bit::Boolean(value) => {
-				let value = ValueExpr::Bool(*value);
-				Expr::Value(value)
-			}
+			Bit::Boolean(value) => Expr::Bool(*value),
 			Bit::Integer(value) => {
 				let value = IntValue::new(*value, DEFAULT_INT).at_pos(node.span())?;
-				Expr::Value(ValueExpr::Int(value))
+				Expr::Int(value)
 			}
 			Bit::Null => Expr::Null,
 			Bit::Literal(value) => {
-				let value = StrValue::new(value);
-				Expr::Value(ValueExpr::Str(value))
+				let value = StringValue::new(value);
+				Expr::Str(value)
 			}
 			Bit::Line(list) => list.generate_expr(context)?,
 			Bit::Group(list) => list.generate_expr(context)?,
@@ -199,7 +204,9 @@ pub enum Expr {
 	Null,
 	Declare(Symbol, Option<usize>, Arc<Expr>),
 	Conditional(Arc<Expr>, Arc<Expr>, Arc<Expr>),
-	Value(ValueExpr),
+	Bool(bool),
+	Str(StringValue),
+	Int(IntValue),
 	Variable(Symbol, Option<usize>, Type),
 	Print(Arc<Expr>, &'static str),
 	Unary(UnaryOpImpl, Arc<Expr>),
@@ -214,7 +221,9 @@ impl Expr {
 			Expr::Unit => Type::Unit,
 			Expr::Null => Type::Null,
 			Expr::Declare(.., expr) => expr.get_type(),
-			Expr::Value(value) => value.get_type().value().clone(),
+			Expr::Bool(..) => Type::Bool,
+			Expr::Str(..) => Type::String,
+			Expr::Int(int) => Type::Int(int.get_type()),
 			Expr::Variable(.., kind) => Type::Ref(kind.clone().into()),
 			Expr::Print(..) => Type::Unit,
 			Expr::Unary(op, ..) => op.get().get_type(),
@@ -245,7 +254,9 @@ impl Expr {
 				scope.set(name.clone(), *offset, value.clone().into());
 				Ok(value)
 			}
-			Expr::Value(value) => value.execute(scope).map(|x| x.into()),
+			Expr::Bool(value) => Ok(Value::from(*value).into()),
+			Expr::Str(value) => Ok(Value::from(value.to_string()).into()),
+			Expr::Int(value) => Ok(Value::from(value.clone()).into()),
 			Expr::Variable(name, index, ..) => match scope.get(name, *index).cloned() {
 				Some(value) => Ok(ExprValue::Variable(name.clone(), index.clone(), value)),
 				None => Err(Errors::from(format!("variable {name} not set"), Span::default())),
@@ -338,8 +349,8 @@ mod tests {
 
 	#[test]
 	fn basic_eval() -> Result<()> {
-		let a = Expr::Value(ValueExpr::Int(IntValue::I32(2)));
-		let b = Expr::Value(ValueExpr::Int(IntValue::I32(3)));
+		let a = Expr::Int(IntValue::I32(2));
+		let b = Expr::Int(IntValue::I32(3));
 
 		let op = BinaryOpImpl::from(OpAdd::for_type(&a.get_type()).unwrap());
 

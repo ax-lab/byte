@@ -25,7 +25,7 @@ pub fn arithmetic_output(lhs: &Type, rhs: &Type) -> Option<Type> {
 
 pub fn numeric_output(arg: &Type, convert: NumericConversion) -> Option<(Type, bool)> {
 	if let Some(int) = arg.get_int_type(convert) {
-		Some((arg.clone(), int.signed()))
+		Some((Type::Int(int), int.signed()))
 	} else {
 		None
 	}
@@ -192,7 +192,7 @@ pub enum IntType {
 }
 
 impl IntType {
-	pub fn name(&self) -> StrValue {
+	pub fn name(&self) -> StringValue {
 		match self {
 			IntType::I8 => "I8".into(),
 			IntType::U8 => "U8".into(),
