@@ -14,30 +14,6 @@ pub enum Type {
 }
 
 impl Type {
-	pub fn validate_value(&self, value: &Value) -> Result<()> {
-		let valid = match self {
-			Type::Unit => matches!(value, Value::Unit),
-			Type::Never => false,
-			Type::Null => false,
-			Type::Or(a, b) => {
-				let a = a.validate_value(value);
-				let b = b.validate_value(value);
-				return a.or(b);
-			}
-			Type::Ref(val) => return val.validate_value(value),
-			_ => todo!(),
-		};
-		if valid {
-			Ok(())
-		} else {
-			let typ = value.get_type().name();
-			Err(Errors::from(
-				format!("value `{value}` of type `{typ}` is not valid {self:?}"),
-				Span::default(),
-			))
-		}
-	}
-
 	/// Merge two types into an upper base type that encompasses both.
 	///
 	/// If the types are unrelated, this will return [`Type::Or`] instead.
