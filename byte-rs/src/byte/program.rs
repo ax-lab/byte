@@ -6,8 +6,7 @@ pub struct Program {
 	data: Arc<ProgramData>,
 }
 
-#[doc(hidden)]
-pub struct ProgramData {
+struct ProgramData {
 	compiler: Compiler,
 	scopes: ScopeList,
 	segments: RwLock<Vec<NodeList>>,
@@ -16,9 +15,56 @@ pub struct ProgramData {
 	dump_code: RwLock<bool>,
 }
 
+//====================================================================================================================//
+// Handle and reference
+//====================================================================================================================//
+
+/// Handle with a weak reference to a [`Program`].
+///
+/// This allows storing references to a program from data owned by the program
+/// without creating dependency cycles.
+#[derive(Clone)]
+pub struct ProgramHandle {
+	data: Weak<ProgramData>,
+}
+
+impl ProgramHandle {
+	pub fn get(&self) -> ProgramRef {
+		let data = self.data.upgrade().expect("using orphaned program handle");
+		let program = Program { data };
+		ProgramRef { program }
+	}
+}
+
+impl PartialEq for ProgramHandle {
+	fn eq(&self, other: &Self) -> bool {
+		self.data.as_ptr() == other.data.as_ptr()
+	}
+}
+
+impl Eq for ProgramHandle {}
+
+/// Reference to a [`Program`] obtained through a [`ProgramHandle`].
+pub struct ProgramRef {
+	program: Program,
+}
+
+impl Deref for ProgramRef {
+	type Target = Program;
+
+	fn deref(&self) -> &Self::Target {
+		&self.program
+	}
+}
+
+//====================================================================================================================//
+// Program methods
+//====================================================================================================================//
+
 impl Program {
 	pub fn new(compiler: &Compiler) -> Program {
-		Program::new_cyclic(|handle| {
+		let data = Arc::new_cyclic(|data| {
+			let handle = ProgramHandle { data: data.clone() };
 			let compiler = compiler.clone();
 			let scopes = ScopeList::new(handle);
 			let mut root_scope = scopes.get_root_writer();
@@ -31,7 +77,8 @@ impl Program {
 				runtime: Default::default(),
 				dump_code: Default::default(),
 			}
-		})
+		});
+		Program { data }
 	}
 
 	pub fn compiler(&self) -> &Compiler {
@@ -253,15 +300,3 @@ impl PartialEq for Program {
 }
 
 impl Eq for Program {}
-
-impl CanHandle for Program {
-	type Data = ProgramData;
-
-	fn inner_data(&self) -> &Arc<Self::Data> {
-		&self.data
-	}
-
-	fn from_inner_data(data: Arc<Self::Data>) -> Self {
-		Self { data }
-	}
-}

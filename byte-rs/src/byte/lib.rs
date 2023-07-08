@@ -4,7 +4,6 @@ pub use context::*;
 pub mod code;
 pub mod compiler;
 pub mod errors;
-pub mod handle;
 pub mod nodes;
 pub mod operators;
 pub mod program;
@@ -17,7 +16,6 @@ pub mod values;
 pub use code::*;
 pub use compiler::*;
 pub use errors::*;
-pub use handle::*;
 pub use nodes::*;
 pub use operators::*;
 pub use program::*;
@@ -65,7 +63,7 @@ use std::{
 	collections::VecDeque,
 	fmt::{Debug, Display, Formatter, Write},
 	hash::Hash,
-	ops::{Deref, DerefMut, Range, RangeBounds},
+	ops::{Deref, Range, RangeBounds},
 	path::{Path, PathBuf},
 	sync::{Arc, RwLock, Weak},
 };

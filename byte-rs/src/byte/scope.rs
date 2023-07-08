@@ -8,7 +8,7 @@ pub struct ScopeList {
 }
 
 impl ScopeList {
-	pub fn new(program: Handle<Program>) -> Self {
+	pub fn new(program: ProgramHandle) -> Self {
 		let id = id();
 		let root = ScopeData::new(id, program);
 		Self { id, root: root.into() }
@@ -68,7 +68,7 @@ impl ScopeHandle {
 /// Internal data for a scope.
 struct ScopeData {
 	list_id: Id,
-	program: Handle<Program>,
+	program: ProgramHandle,
 	parent: Option<ScopeHandle>,
 	children: RwLock<Vec<Arc<ScopeData>>>,
 	matcher: Arc<RwLock<Option<Matcher>>>,
@@ -77,7 +77,7 @@ struct ScopeData {
 }
 
 impl ScopeData {
-	pub fn new(list_id: Id, program: Handle<Program>) -> Self {
+	pub fn new(list_id: Id, program: ProgramHandle) -> Self {
 		Self {
 			list_id,
 			program,
@@ -95,7 +95,7 @@ impl ScopeData {
 //====================================================================================================================//
 
 impl Scope {
-	pub fn program(&self) -> HandleRef<Program> {
+	pub fn program(&self) -> ProgramRef {
 		self.data.program.get()
 	}
 
