@@ -140,10 +140,9 @@ impl Program {
 		let scope = self.root_scope().new_child();
 		let mut scope = self.data.scopes.get_writer(scope.get());
 		let nodes = scan(&mut scope, &span)?;
-		let list = NodeList::new(scope.handle(), nodes);
 		let mut segments = self.data.segments.write().unwrap();
-		segments.push(list.clone());
-		Ok(list)
+		segments.push(nodes.clone());
+		Ok(nodes)
 	}
 
 	fn run_resolved_nodes(&self, nodes: &NodeList) -> Result<Value> {
