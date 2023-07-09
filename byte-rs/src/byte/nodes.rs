@@ -42,6 +42,36 @@ impl Bit {
 		};
 		Some(symbol.clone())
 	}
+
+	pub fn get_dependencies<P: FnMut(&NodeList)>(&self, mut output: P) {
+		// TODO: use this to detect dependencies for new nodes.
+		match self {
+			Bit::Token(..) => (),
+			Bit::Null => (),
+			Bit::Boolean(..) => (),
+			Bit::Line(expr) => output(expr),
+			Bit::Sequence(list) => {
+				for expr in list.iter() {
+					output(expr)
+				}
+			}
+			Bit::RawText(..) => (),
+			Bit::Group(expr) => output(expr),
+			Bit::Let(.., expr) => output(expr),
+			Bit::UnaryOp(.., expr) => output(expr),
+			Bit::BinaryOp(.., lhs, rhs) => {
+				output(lhs);
+				output(rhs);
+			}
+			Bit::Variable(..) => (),
+			Bit::Print(expr, ..) => output(expr),
+			Bit::Conditional(a, b, c) => {
+				output(a);
+				output(b);
+				output(c);
+			}
+		}
+	}
 }
 
 impl Display for Bit {
