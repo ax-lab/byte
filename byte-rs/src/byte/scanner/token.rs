@@ -11,3 +11,13 @@ pub enum Token {
 	Literal(StringValue),
 	Integer(u128),
 }
+
+impl Node {
+	pub fn token(&self) -> Option<&Token> {
+		if let Bit::Token(token) = self.bit() {
+			Some(token)
+		} else {
+			None
+		}
+	}
+}

@@ -3,18 +3,14 @@ use super::*;
 pub struct BindOperator;
 
 impl IsOperator for BindOperator {
-	fn precedence(&self) -> Precedence {
-		Precedence::Bind
-	}
-
 	fn predicate(&self, node: &Node) -> bool {
 		matches!(node.bit(), Bit::Token(Token::Word(..)))
 	}
 
-	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
-		let mut nodes = context.nodes().clone();
-		let scope = nodes.scope();
-		nodes.replace(|node| {
+	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut OperatorContext) -> Result<bool> {
+		let _ = context;
+		let mut errors = Errors::new();
+		let changed = Nodes::replace(nodes, |node| {
 			if let Bit::Token(Token::Word(name)) = node.bit() {
 				let span = node.span().clone();
 				if let Some(index) = scope.lookup(name, Some(node.offset())) {
@@ -29,5 +25,10 @@ impl IsOperator for BindOperator {
 				None
 			}
 		});
+		if errors.len() > 0 {
+			Err(errors)
+		} else {
+			Ok(changed)
+		}
 	}
 }

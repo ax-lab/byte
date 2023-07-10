@@ -79,11 +79,11 @@ impl Compiler {
 		//--------------------------------------------------------------------------------------------------------//
 
 		//general parsing
-		scope.add_operator(Operator::SplitLines);
-		scope.add_operator(Operator::Let);
-		scope.add_operator(Operator::Bind);
-		scope.add_operator(Operator::Print);
-		scope.add_operator(Operator::Comma);
+		scope.add_operator(Operator::SplitLines(Precedence::SplitLines));
+		scope.add_operator(Operator::Let(Precedence::Let));
+		scope.add_operator(Operator::Bind(Precedence::Bind));
+		scope.add_operator(Operator::Print(Precedence::Print));
+		scope.add_operator(Operator::Comma(Precedence::Comma));
 
 		let ternary = TernaryOp(
 			Context::symbol("?"),
@@ -93,7 +93,7 @@ impl Compiler {
 				Bit::Conditional(a, b, c).at(span)
 			}),
 		);
-		scope.add_operator(Operator::Ternary(ternary));
+		scope.add_operator(Operator::Ternary(ternary, Precedence::Ternary));
 
 		// brackets
 		let mut brackets = BracketPairs::new();
@@ -103,7 +103,7 @@ impl Compiler {
 			Arc::new(|_, n, _| Bit::Group(n)),
 		);
 
-		scope.add_operator(Operator::Brackets(brackets));
+		scope.add_operator(Operator::Brackets(brackets, Precedence::Brackets));
 
 		// boolean
 		scope.add_operator(Operator::Replace(
@@ -128,49 +128,44 @@ impl Compiler {
 
 		let mut ops = OpMap::new();
 		ops.add(Context::symbol("="), BinaryOp::Assign);
-		scope.add_operator(Operator::Binary(ParseBinaryOp(
-			ops,
+		scope.add_operator(Operator::Binary(
+			ParseBinaryOp(ops, Grouping::Right),
 			Precedence::OpAssign,
-			Grouping::Right,
-		)));
+		));
 
 		// additive
 		let mut ops = OpMap::new();
 		ops.add(Context::symbol("+"), BinaryOp::Add);
 		ops.add(Context::symbol("-"), BinaryOp::Sub);
-		scope.add_operator(Operator::Binary(ParseBinaryOp(
-			ops,
+		scope.add_operator(Operator::Binary(
+			ParseBinaryOp(ops, Grouping::Left),
 			Precedence::OpAdditive,
-			Grouping::Left,
-		)));
+		));
 
 		// multiplicative
 		let mut ops = OpMap::new();
 		ops.add(Context::symbol("*"), BinaryOp::Mul);
 		ops.add(Context::symbol("/"), BinaryOp::Div);
 		ops.add(Context::symbol("%"), BinaryOp::Mod);
-		scope.add_operator(Operator::Binary(ParseBinaryOp(
-			ops,
+		scope.add_operator(Operator::Binary(
+			ParseBinaryOp(ops, Grouping::Left),
 			Precedence::OpMultiplicative,
-			Grouping::Left,
-		)));
+		));
 
 		// boolean
 		let mut ops = OpMap::new();
 		ops.add(Context::symbol("and"), BinaryOp::And);
-		scope.add_operator(Operator::Binary(ParseBinaryOp(
-			ops,
+		scope.add_operator(Operator::Binary(
+			ParseBinaryOp(ops, Grouping::Right),
 			Precedence::OpBooleanAnd,
-			Grouping::Right,
-		)));
+		));
 
 		let mut ops = OpMap::new();
 		ops.add(Context::symbol("or"), BinaryOp::Or);
-		scope.add_operator(Operator::Binary(ParseBinaryOp(
-			ops,
+		scope.add_operator(Operator::Binary(
+			ParseBinaryOp(ops, Grouping::Right),
 			Precedence::OpBooleanOr,
-			Grouping::Right,
-		)));
+		));
 
 		// unary
 
@@ -179,10 +174,10 @@ impl Compiler {
 		ops.add(Context::symbol("!"), UnaryOp::Neg);
 		ops.add(Context::symbol("+"), UnaryOp::Plus);
 		ops.add(Context::symbol("-"), UnaryOp::Minus);
-		scope.add_operator(Operator::UnaryPrefix(ParseUnaryPrefixOp(
-			ops,
+		scope.add_operator(Operator::UnaryPrefix(
+			ParseUnaryPrefixOp(ops),
 			Precedence::OpUnaryPrefix,
-		)));
+		));
 	}
 }
 

@@ -24,16 +24,16 @@ pub use ternary::*;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Operator {
-	Brackets(BracketPairs),
-	SplitLines,
-	Let,
-	Ternary(TernaryOp),
-	Print,
-	Comma,
+	Brackets(BracketPairs, Precedence),
+	SplitLines(Precedence),
+	Let(Precedence),
+	Ternary(TernaryOp, Precedence),
+	Print(Precedence),
+	Comma(Precedence),
 	Replace(Symbol, fn(Span) -> Node, Precedence),
-	Bind,
-	Binary(ParseBinaryOp),
-	UnaryPrefix(ParseUnaryPrefixOp),
+	Bind(Precedence),
+	Binary(ParseBinaryOp, Precedence),
+	UnaryPrefix(ParseUnaryPrefixOp, Precedence),
 }
 
 /// Global evaluation precedence for language nodes.
@@ -66,31 +66,29 @@ pub enum Grouping {
 
 impl Operator {
 	pub fn precedence(&self) -> Precedence {
-		self.get_impl().precedence()
+		self.get_impl().1
 	}
 
 	pub fn can_apply(&self, nodes: &NodeList) -> bool {
-		self.get_impl().can_apply(nodes)
+		self.get_impl().0.can_apply(nodes)
 	}
 
-	pub fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
-		self.get_impl().apply(context, errors)
+	pub fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut OperatorContext) -> Result<bool> {
+		self.get_impl().0.apply(scope, nodes, context)
 	}
 
-	fn get_impl(&self) -> Arc<dyn IsOperator> {
+	fn get_impl(&self) -> (Arc<dyn IsOperator>, Precedence) {
 		match self {
-			Operator::SplitLines => Arc::new(SplitLineOperator),
-			Operator::Let => Arc::new(LetOperator),
-			Operator::Bind => Arc::new(BindOperator),
-			Operator::Print => Arc::new(PrintOperator),
-			Operator::Replace(symbol, node, precedence) => {
-				Arc::new(ReplaceSymbol(symbol.clone(), node.clone(), *precedence))
-			}
-			Operator::Binary(op) => Arc::new(op.clone()),
-			Operator::UnaryPrefix(op) => Arc::new(op.clone()),
-			Operator::Comma => Arc::new(CommaOperator),
-			Operator::Brackets(pairs) => Arc::new(pairs.clone()),
-			Operator::Ternary(op) => Arc::new(op.clone()),
+			Operator::SplitLines(prec) => (Arc::new(SplitLineOperator), *prec),
+			Operator::Let(prec) => (Arc::new(LetOperator), *prec),
+			Operator::Bind(prec) => (Arc::new(BindOperator), *prec),
+			Operator::Print(prec) => (Arc::new(PrintOperator), *prec),
+			Operator::Replace(symbol, node, prec) => (Arc::new(ReplaceSymbol(symbol.clone(), node.clone())), *prec),
+			Operator::Binary(op, prec) => (Arc::new(op.clone()), *prec),
+			Operator::UnaryPrefix(op, prec) => (Arc::new(op.clone()), *prec),
+			Operator::Comma(prec) => (Arc::new(CommaOperator), *prec),
+			Operator::Brackets(pairs, prec) => (Arc::new(pairs.clone()), *prec),
+			Operator::Ternary(op, prec) => (Arc::new(op.clone()), *prec),
 		}
 	}
 }
@@ -122,9 +120,7 @@ impl Operator {
 */
 
 pub trait IsOperator {
-	fn precedence(&self) -> Precedence;
-
-	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors);
+	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut OperatorContext) -> Result<bool>;
 
 	fn can_apply(&self, nodes: &NodeList) -> bool {
 		nodes.contains(|x| self.predicate(x))
@@ -136,37 +132,23 @@ pub trait IsOperator {
 	}
 }
 
-pub struct OperatorContext<'a> {
-	nodes: &'a mut NodeList,
-	scope: Scope,
-	version: usize,
+pub struct OperatorContext {
+	span: Span,
 	new_segments: Vec<NodeList>,
 	declares: Vec<(Symbol, Option<usize>, BindingValue)>,
 }
 
-impl<'a> OperatorContext<'a> {
-	pub fn new(nodes: &'a mut NodeList) -> Self {
-		let scope = nodes.scope();
-		let version = nodes.version();
+impl OperatorContext {
+	pub fn new(span: Span) -> Self {
 		Self {
-			nodes,
-			scope,
-			version,
+			span,
 			new_segments: Default::default(),
 			declares: Default::default(),
 		}
 	}
 
-	pub fn has_node_changes(&self) -> bool {
-		self.nodes.version() > self.version
-	}
-
-	pub fn scope(&self) -> &Scope {
-		&self.scope
-	}
-
-	pub fn nodes(&mut self) -> &mut NodeList {
-		self.nodes
+	pub fn span(&self) -> Span {
+		self.span.clone()
 	}
 
 	pub fn resolve_nodes(&mut self, list: &NodeList) {

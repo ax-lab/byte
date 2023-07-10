@@ -3,10 +3,6 @@ use super::*;
 pub struct CommaOperator;
 
 impl IsOperator for CommaOperator {
-	fn precedence(&self) -> Precedence {
-		Precedence::Comma
-	}
-
 	fn predicate(&self, node: &Node) -> bool {
 		if let Bit::Token(Token::Symbol(symbol)) = node.bit() {
 			symbol == ","
@@ -15,18 +11,18 @@ impl IsOperator for CommaOperator {
 		}
 	}
 
-	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
-		let _ = errors;
+	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut OperatorContext) -> Result<bool> {
+		let items = Nodes::split_by_items(scope, nodes, |n| self.predicate(n));
+		if items.len() == 1 {
+			return Ok(false);
+		} else {
+			for it in items.iter() {
+				context.resolve_nodes(it);
+			}
 
-		let mut nodes = context.nodes().clone();
-		let span = nodes.span();
-		let items = nodes.split_by_items(|n| self.predicate(n));
-
-		for it in items.iter() {
-			context.resolve_nodes(it);
+			let node = Bit::Sequence(items).at(context.span());
+			*nodes = vec![node];
+			Ok(true)
 		}
-
-		let node = Bit::Sequence(items).at(span);
-		nodes.replace_all(vec![node]);
 	}
 }

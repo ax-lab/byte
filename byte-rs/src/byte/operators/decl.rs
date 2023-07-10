@@ -3,20 +3,17 @@ use super::*;
 pub struct LetOperator;
 
 impl IsOperator for LetOperator {
-	fn precedence(&self) -> Precedence {
-		Precedence::Let
-	}
-
 	fn can_apply(&self, nodes: &NodeList) -> bool {
 		// TODO: make a static list of symbols
 		nodes.is_keyword(0, &"let".into()) && nodes.is_identifier(1) && nodes.is_symbol(2, &"=".into())
 	}
 
-	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
-		let _ = errors;
+	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut OperatorContext) -> Result<bool> {
 		let mut declares = Vec::new();
 		let mut new_lists = Vec::new();
-		context.nodes().fold_first(
+		let changed = Nodes::fold_first(
+			scope,
+			nodes,
 			|node| node.is_symbol(&"=".into()),
 			|lhs, _, rhs| {
 				let name = lhs.get_symbol(lhs.len() - 1).unwrap();
@@ -35,5 +32,7 @@ impl IsOperator for LetOperator {
 		for it in new_lists {
 			context.resolve_nodes(&it);
 		}
+
+		Ok(changed)
 	}
 }

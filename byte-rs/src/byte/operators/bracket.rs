@@ -67,15 +67,14 @@ impl BracketPairs {
 		reverse.insert(right);
 	}
 
-	fn parse_nodes(&self, nodes: &NodeList, new_lists: &mut Vec<NodeList>) -> Result<Vec<Node>> {
-		let mut items = nodes.as_vec_deque();
-		self.parse_bracket(nodes.scope_handle(), &mut items, None, new_lists)
-			.map(|x| x.0)
+	fn parse_nodes(&self, scope: &Scope, nodes: &Vec<Node>, new_lists: &mut Vec<NodeList>) -> Result<Vec<Node>> {
+		let mut items = VecDeque::from_iter(nodes.iter().cloned());
+		self.parse_bracket(scope, &mut items, None, new_lists).map(|x| x.0)
 	}
 
 	fn parse_bracket(
 		&self,
-		scope: ScopeHandle,
+		scope: &Scope,
 		nodes: &mut VecDeque<Node>,
 		pair: Option<(Span, Symbol, Symbol)>,
 		new_lists: &mut Vec<NodeList>,
@@ -94,7 +93,7 @@ impl BracketPairs {
 						Some((pos.clone(), sta.clone(), end.clone())),
 						new_lists,
 					)?;
-					let list = NodeList::new(scope.clone(), list);
+					let list = NodeList::new(scope.handle(), list);
 					new_lists.push(list.clone());
 					let node = (bracket_fn)(sta, list, end);
 					output.push(node.at(pos.to(end_pos)));
@@ -129,10 +128,6 @@ impl BracketPairs {
 }
 
 impl IsOperator for BracketPairs {
-	fn precedence(&self) -> Precedence {
-		Precedence::Brackets
-	}
-
 	fn predicate(&self, node: &Node) -> bool {
 		match node.bit() {
 			Bit::Token(Token::Symbol(symbol)) => self.pairs.contains_key(symbol),
@@ -140,19 +135,21 @@ impl IsOperator for BracketPairs {
 		}
 	}
 
-	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
-		let nodes = context.nodes();
+	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut OperatorContext) -> Result<bool> {
 		let mut new_lists = Vec::new();
-		match self.parse_nodes(nodes, &mut new_lists) {
+		match self.parse_nodes(scope, nodes, &mut new_lists) {
 			Ok(new_nodes) => {
 				if new_lists.len() > 0 {
-					nodes.replace_all(new_nodes);
+					*nodes = new_nodes;
 					for it in new_lists {
 						context.resolve_nodes(&it);
 					}
+					Ok(true)
+				} else {
+					Ok(false)
 				}
 			}
-			Err(errs) => errors.append(&errs),
+			Err(errors) => Err(errors),
 		}
 	}
 }

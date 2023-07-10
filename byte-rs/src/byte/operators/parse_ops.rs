@@ -75,13 +75,9 @@ impl<T: Clone> Debug for OpMap<T> {
 //====================================================================================================================//
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ParseBinaryOp(pub OpMap<BinaryOp>, pub Precedence, pub Grouping);
+pub struct ParseBinaryOp(pub OpMap<BinaryOp>, pub Grouping);
 
 impl IsOperator for ParseBinaryOp {
-	fn precedence(&self) -> Precedence {
-		self.1
-	}
-
 	fn predicate(&self, node: &Node) -> bool {
 		match node.bit() {
 			Bit::Token(Token::Word(symbol) | Token::Symbol(symbol)) => self.0.contains(symbol),
@@ -89,8 +85,7 @@ impl IsOperator for ParseBinaryOp {
 		}
 	}
 
-	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
-		let _ = errors;
+	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut OperatorContext) -> Result<bool> {
 		let mut new_lists = Vec::new();
 
 		let is_op = |node: &Node| {
@@ -109,15 +104,17 @@ impl IsOperator for ParseBinaryOp {
 			Bit::BinaryOp(op, lhs, rhs).at(span)
 		};
 
-		if self.2 == Grouping::Left {
-			context.nodes().fold_last(is_op, fold);
+		let changed = if self.1 == Grouping::Left {
+			Nodes::fold_last(scope, nodes, is_op, fold)
 		} else {
-			context.nodes().fold_first(is_op, fold);
-		}
+			Nodes::fold_first(scope, nodes, is_op, fold)
+		};
 
 		for it in new_lists {
 			context.resolve_nodes(&it);
 		}
+
+		Ok(changed)
 	}
 }
 
@@ -126,13 +123,9 @@ impl IsOperator for ParseBinaryOp {
 //====================================================================================================================//
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ParseUnaryPrefixOp(pub OpMap<UnaryOp>, pub Precedence);
+pub struct ParseUnaryPrefixOp(pub OpMap<UnaryOp>);
 
 impl IsOperator for ParseUnaryPrefixOp {
-	fn precedence(&self) -> Precedence {
-		self.1
-	}
-
 	fn can_apply(&self, nodes: &NodeList) -> bool {
 		match nodes.get(0).as_ref().map(|x| x.bit()) {
 			Some(Bit::Token(Token::Word(symbol) | Token::Symbol(symbol))) => self.0.contains(symbol),
@@ -140,13 +133,13 @@ impl IsOperator for ParseUnaryPrefixOp {
 		}
 	}
 
-	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
-		let _ = errors;
-		let nodes = context.nodes();
+	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut OperatorContext) -> Result<bool> {
 		let op = self.0.op_for_node(&nodes.get(0).unwrap()).unwrap();
-		let arg = nodes.slice(1..);
-		let new = Bit::UnaryOp(op, arg.clone()).at(nodes.span());
-		nodes.replace_all(vec![new]);
+		let arg = nodes[1..].to_vec();
+		let arg = NodeList::new(scope.handle(), arg);
+		let new = Bit::UnaryOp(op, arg.clone()).at(context.span());
+		*nodes = vec![new];
 		context.resolve_nodes(&arg);
+		Ok(true)
 	}
 }

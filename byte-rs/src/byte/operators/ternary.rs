@@ -6,27 +6,22 @@ pub type TernaryNodeFn = Arc<dyn Fn(NodeList, NodeList, NodeList) -> Node>;
 pub struct TernaryOp(pub Symbol, pub Symbol, pub TernaryNodeFn);
 
 impl IsOperator for TernaryOp {
-	fn precedence(&self) -> Precedence {
-		Precedence::Ternary
-	}
-
 	fn can_apply(&self, nodes: &NodeList) -> bool {
 		nodes.contains_delimiter_pair(&self.0, &self.1)
 	}
 
-	fn apply(&self, context: &mut OperatorContext, errors: &mut Errors) {
-		let _ = errors;
-		let mut nodes = context.nodes().clone();
-		let (a, b, c) = nodes.split_ternary(&self.0, &self.1).unwrap();
+	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut OperatorContext) -> Result<bool> {
+		let (a, b, c) = Nodes::split_ternary(nodes, &self.0, &self.1).unwrap();
 
-		let a = NodeList::new(nodes.scope_handle(), a);
-		let b = NodeList::new(nodes.scope_handle(), b);
-		let c = NodeList::new(nodes.scope_handle(), c);
+		let a = NodeList::new(scope.handle(), a);
+		let b = NodeList::new(scope.handle(), b);
+		let c = NodeList::new(scope.handle(), c);
 		context.resolve_nodes(&a);
 		context.resolve_nodes(&b);
 		context.resolve_nodes(&c);
 		let node = (self.2)(a, b, c);
-		nodes.replace_all(vec![node]);
+		*nodes = vec![node];
+		Ok(true)
 	}
 }
 

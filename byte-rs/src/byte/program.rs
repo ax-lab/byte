@@ -204,12 +204,22 @@ impl Program {
 
 			let mut new_segments = Vec::new();
 			for (_, op, nodes) in to_process {
-				let mut context = OperatorContext::new(nodes);
-				op.apply(&mut context, &mut errors);
+				let mut context = OperatorContext::new(nodes.span());
+				let scope = nodes.scope();
+				let mut nodes_vec = nodes.as_vec();
+				let changed = match op.apply(&scope, &mut nodes_vec, &mut context) {
+					Ok(changed) => {
+						nodes.replace_by(nodes_vec);
+						changed
+					}
+					Err(errs) => {
+						errors.append(&errs);
+						false
+					}
+				};
+
 				context.get_new_segments(&mut new_segments);
-				if context.has_node_changes() {
-					has_changes = has_changes || true;
-				}
+				has_changes = has_changes || changed;
 
 				let declares = context.get_declares();
 				drop(context);
