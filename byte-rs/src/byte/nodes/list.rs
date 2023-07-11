@@ -1,12 +1,6 @@
 use super::*;
 
 pub mod helper;
-pub mod node_bracket_parser;
-pub mod node_fold;
-pub mod node_keyword;
-pub mod node_replace;
-pub mod node_split;
-pub mod node_ternary;
 pub mod op_bind;
 pub mod op_brackets;
 pub mod op_comma;
@@ -15,14 +9,14 @@ pub mod op_print;
 pub mod op_replace_symbol;
 pub mod op_split_line;
 pub mod op_ternary;
+pub mod parse_brackets;
+pub mod parse_fold;
+pub mod parse_keyword;
+pub mod parse_replace;
+pub mod parse_split;
+pub mod parse_ternary;
 
 pub use helper::*;
-pub use node_bracket_parser::*;
-pub use node_fold::*;
-pub use node_keyword::*;
-pub use node_replace::*;
-pub use node_split::*;
-pub use node_ternary::*;
 pub use op_bind::*;
 pub use op_brackets::*;
 pub use op_comma::*;
@@ -31,6 +25,12 @@ pub use op_print::*;
 pub use op_replace_symbol::*;
 pub use op_split_line::*;
 pub use op_ternary::*;
+pub use parse_brackets::*;
+pub use parse_fold::*;
+pub use parse_keyword::*;
+pub use parse_replace::*;
+pub use parse_split::*;
+pub use parse_ternary::*;
 
 #[derive(Clone)]
 pub struct NodeList {

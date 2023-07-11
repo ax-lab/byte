@@ -206,7 +206,7 @@ impl Program {
 			for (_, op, nodes) in to_process {
 				let mut context = EvalContext::new(nodes);
 				let version = nodes.version();
-				match op.apply(nodes, &mut context) {
+				match op.apply(&mut context, nodes) {
 					Ok(()) => (),
 					Err(errs) => {
 						errors.append(&errs);

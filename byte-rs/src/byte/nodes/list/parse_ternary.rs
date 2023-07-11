@@ -1,13 +1,13 @@
 use super::*;
 
-pub trait NodeTernary {
+pub trait ParseTernary {
 	fn delimiters(&self) -> (&Symbol, &Symbol);
 
 	fn new_node(&self, ctx: &mut EvalContext, a: NodeList, b: NodeList, c: NodeList, span: Span) -> Result<Node>;
 }
 
 impl NodeList {
-	pub fn has_ternary<T: NodeTernary>(&self, op: &T) -> bool {
+	pub fn has_ternary<T: ParseTernary>(&self, op: &T) -> bool {
 		let (sta, end) = op.delimiters();
 		let nodes = self.iter();
 		let mut nodes = nodes.skip_while(|x| x.symbol().as_ref() != Some(sta));
@@ -19,7 +19,7 @@ impl NodeList {
 		}
 	}
 
-	pub fn parse_ternary<T: NodeTernary>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
+	pub fn parse_ternary<T: ParseTernary>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
 		let (sta, end) = op.delimiters();
 		let mut nodes = self.data.nodes.write().unwrap();
 		for i in (0..nodes.len()).rev() {

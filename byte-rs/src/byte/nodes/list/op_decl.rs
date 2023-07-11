@@ -7,12 +7,12 @@ impl IsNodeOperator for OpDecl {
 		nodes.can_fold(self)
 	}
 
-	fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()> {
-		nodes.fold(self, ctx)
+	fn apply(&self, ctx: &mut EvalContext, nodes: &mut NodeList) -> Result<()> {
+		nodes.fold(ctx, self)
 	}
 }
 
-impl NodeFold for OpDecl {
+impl ParseFold for OpDecl {
 	fn fold_at(&self, nodes: &NodeList) -> Option<usize> {
 		if nodes.is_keyword(0, &self.0) && nodes.is_identifier(1) && nodes.is_symbol(2, &self.1) {
 			Some(2)

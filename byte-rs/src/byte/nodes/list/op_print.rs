@@ -7,17 +7,18 @@ impl IsNodeOperator for OpPrint {
 		nodes.has_keyword(self)
 	}
 
-	fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()> {
-		nodes.parse_keyword(self, ctx)
+	fn apply(&self, ctx: &mut EvalContext, nodes: &mut NodeList) -> Result<()> {
+		nodes.parse_keyword(ctx, self)
 	}
 }
 
-impl NodeKeyword for OpPrint {
+impl ParseKeyword for OpPrint {
 	fn symbol(&self) -> &Symbol {
 		&self.0
 	}
 
-	fn new_node(&self, args: NodeList, span: Span) -> Result<Node> {
+	fn new_node(&self, ctx: &mut EvalContext, args: NodeList, span: Span) -> Result<Node> {
+		let _ = ctx;
 		Ok(Bit::Print(args, "\n").at(span))
 	}
 }

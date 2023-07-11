@@ -11,7 +11,7 @@ pub struct BracketPairs {
 	reverse: Arc<HashSet<Symbol>>,
 }
 
-impl NodeBracketParser for BracketPairs {
+impl ParseBrackets for BracketPairs {
 	type Bracket = SymbolBracket;
 
 	fn is_bracket(&self, node: &Node) -> bool {
@@ -22,11 +22,11 @@ impl NodeBracketParser for BracketPairs {
 		}
 	}
 
-	fn get_bracket(&self, context: &EvalContext, node: &Node) -> Option<Self::Bracket> {
+	fn get_bracket(&self, ctx: &EvalContext, node: &Node) -> Option<Self::Bracket> {
 		if let Some(symbol) = node.symbol() {
 			let span = node.span();
 			if let Some((end, bracket_fn)) = self.pairs.get(&symbol).cloned() {
-				let scope = context.scope().handle();
+				let scope = ctx.scope().handle();
 				Some(SymbolBracket {
 					symbol,
 					scope_info: Some((scope, end, bracket_fn)),
@@ -46,7 +46,8 @@ impl NodeBracketParser for BracketPairs {
 		}
 	}
 
-	fn new_node(&self, sta: Self::Bracket, nodes: NodeList, end: Self::Bracket) -> Result<Node> {
+	fn new_node(&self, ctx: &mut EvalContext, sta: Self::Bracket, nodes: NodeList, end: Self::Bracket) -> Result<Node> {
+		let _ = ctx;
 		let span = sta.span().to(end.span());
 		let (.., bracket_fn) = sta.scope_info.as_ref().unwrap();
 		let node = (bracket_fn)(sta.symbol.clone(), nodes, end.symbol.clone());
@@ -72,8 +73,8 @@ impl IsNodeOperator for BracketPairs {
 		nodes.has_brackets(self)
 	}
 
-	fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()> {
-		nodes.parse_brackets(self, ctx)
+	fn apply(&self, ctx: &mut EvalContext, nodes: &mut NodeList) -> Result<()> {
+		nodes.parse_brackets(ctx, self)
 	}
 }
 

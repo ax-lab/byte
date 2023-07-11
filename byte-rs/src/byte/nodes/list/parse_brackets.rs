@@ -1,13 +1,13 @@
 use super::*;
 
-pub trait NodeBracketParser {
+pub trait ParseBrackets {
 	type Bracket: IsBracket;
 
 	fn is_bracket(&self, node: &Node) -> bool;
 
-	fn get_bracket(&self, context: &EvalContext, node: &Node) -> Option<Self::Bracket>;
+	fn get_bracket(&self, ctx: &EvalContext, node: &Node) -> Option<Self::Bracket>;
 
-	fn new_node(&self, sta: Self::Bracket, nodes: NodeList, end: Self::Bracket) -> Result<Node>;
+	fn new_node(&self, ctx: &mut EvalContext, sta: Self::Bracket, nodes: NodeList, end: Self::Bracket) -> Result<Node>;
 }
 
 pub trait IsBracket: Clone + Display {
@@ -19,11 +19,11 @@ pub trait IsBracket: Clone + Display {
 }
 
 impl NodeList {
-	pub fn has_brackets<T: NodeBracketParser>(&self, op: &T) -> bool {
+	pub fn has_brackets<T: ParseBrackets>(&self, op: &T) -> bool {
 		self.contains(|x| op.is_bracket(x))
 	}
 
-	pub fn parse_brackets<T: NodeBracketParser>(&mut self, op: &T, ctx: &mut EvalContext) -> Result<()> {
+	pub fn parse_brackets<T: ParseBrackets>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
 		self.write_res(|nodes| {
 			let mut has_brackets = false;
 			let mut segments = VecDeque::new();
@@ -39,7 +39,7 @@ impl NodeList {
 							let scope = scopes.pop_back().unwrap();
 							let nodes = segments.pop_back().unwrap();
 							let nodes = NodeList::new(scope, nodes);
-							let node = op.new_node(start, nodes, cur)?;
+							let node = op.new_node(ctx, start, nodes, cur)?;
 							node.get_dependencies(|list| ctx.resolve_nodes(list));
 							segments.back_mut().unwrap().push(node);
 							continue;

@@ -2,7 +2,7 @@ use super::*;
 
 pub struct ReplaceSymbol(pub Symbol, pub fn(Span) -> Node);
 
-impl NodeReplace for ReplaceSymbol {
+impl ParseReplace for ReplaceSymbol {
 	fn can_replace(&self, node: &Node) -> bool {
 		if let Some(symbol) = node.symbol() {
 			symbol == self.0
@@ -11,7 +11,7 @@ impl NodeReplace for ReplaceSymbol {
 		}
 	}
 
-	fn replace(&self, node: &Node, ctx: &mut EvalContext) -> Result<Option<Node>> {
+	fn replace(&self, ctx: &mut EvalContext, node: &Node) -> Result<Option<Node>> {
 		let _ = ctx;
 		let new_node = &self.1;
 		if let Some(symbol) = node.symbol() {
@@ -31,7 +31,7 @@ impl IsNodeOperator for ReplaceSymbol {
 		nodes.can_replace(self)
 	}
 
-	fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()> {
-		nodes.replace(self, ctx)
+	fn apply(&self, ctx: &mut EvalContext, nodes: &mut NodeList) -> Result<()> {
+		nodes.replace(ctx, self)
 	}
 }

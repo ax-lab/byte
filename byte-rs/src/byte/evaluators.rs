@@ -35,8 +35,8 @@ impl NodeOperator {
 		self.get_impl().0.can_apply(nodes)
 	}
 
-	pub fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()> {
-		self.get_impl().0.apply(nodes, ctx)
+	pub fn apply(&self, ctx: &mut EvalContext, nodes: &mut NodeList) -> Result<()> {
+		self.get_impl().0.apply(ctx, nodes)
 	}
 
 	fn get_impl(&self) -> (Arc<dyn IsNodeOperator>, NodePrecedence) {

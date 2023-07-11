@@ -10,12 +10,12 @@ impl IsNodeOperator for OpTernary {
 		nodes.has_ternary(self)
 	}
 
-	fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()> {
+	fn apply(&self, ctx: &mut EvalContext, nodes: &mut NodeList) -> Result<()> {
 		nodes.parse_ternary(ctx, self)
 	}
 }
 
-impl NodeTernary for OpTernary {
+impl ParseTernary for OpTernary {
 	fn delimiters(&self) -> (&Symbol, &Symbol) {
 		(&self.0, &self.1)
 	}

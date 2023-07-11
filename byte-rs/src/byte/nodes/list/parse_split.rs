@@ -1,27 +1,27 @@
 use super::*;
 
-pub trait NodeSplitBy {
+pub trait ParseSplitBy {
 	fn is_split(&self, node: &Node) -> bool;
 
-	fn new_node(&self, nodes: NodeList) -> Result<Node>;
+	fn new_node(&self, ctx: &mut EvalContext, nodes: NodeList) -> Result<Node>;
 }
 
-pub trait NodeSplitSequence {
+pub trait ParseSplitSequence {
 	fn is_split(&self, node: &Node) -> bool;
 
-	fn new_node(&self, nodes: Vec<NodeList>, span: Span) -> Result<Node>;
+	fn new_node(&self, ctx: &mut EvalContext, nodes: Vec<NodeList>, span: Span) -> Result<Node>;
 }
 
 impl NodeList {
-	pub fn can_split<T: NodeSplitBy>(&self, op: &T) -> bool {
+	pub fn can_split<T: ParseSplitBy>(&self, op: &T) -> bool {
 		self.contains(|x| op.is_split(x))
 	}
 
-	pub fn can_split_sequence<T: NodeSplitSequence>(&self, op: &T) -> bool {
+	pub fn can_split_sequence<T: ParseSplitSequence>(&self, op: &T) -> bool {
 		self.contains(|x| op.is_split(x))
 	}
 
-	pub fn split<T: NodeSplitBy>(&mut self, op: &T, ctx: &mut EvalContext) -> Result<()> {
+	pub fn split<T: ParseSplitBy>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
 		let scope = self.scope();
 		let mut new_nodes = Vec::new();
 		let mut line = Vec::new();
@@ -29,7 +29,7 @@ impl NodeList {
 		for it in self.iter() {
 			if op.is_split(&it) {
 				let nodes = NodeList::new(scope.handle(), std::mem::take(&mut line));
-				let node = op.new_node(nodes)?;
+				let node = op.new_node(ctx, nodes)?;
 				node.get_dependencies(|list| ctx.resolve_nodes(list));
 				new_nodes.push(node);
 			} else {
@@ -39,7 +39,7 @@ impl NodeList {
 
 		if line.len() > 0 {
 			let nodes = NodeList::new(scope.handle(), std::mem::take(&mut line));
-			let node = op.new_node(nodes)?;
+			let node = op.new_node(ctx, nodes)?;
 			node.get_dependencies(|list| ctx.resolve_nodes(list));
 			new_nodes.push(node);
 		}
@@ -50,7 +50,7 @@ impl NodeList {
 		Ok(())
 	}
 
-	pub fn split_sequence<T: NodeSplitSequence>(&mut self, op: &T, ctx: &mut EvalContext) -> Result<()> {
+	pub fn split_sequence<T: ParseSplitSequence>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
 		let scope = self.scope();
 		let mut new_nodes = Vec::new();
 		let mut line = Vec::new();
@@ -76,7 +76,7 @@ impl NodeList {
 				new_nodes.push(nodes);
 			}
 
-			let node = op.new_node(new_nodes, self.span())?;
+			let node = op.new_node(ctx, new_nodes, self.span())?;
 			self.replace_all(vec![node]);
 		}
 
