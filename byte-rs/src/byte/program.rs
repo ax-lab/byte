@@ -89,6 +89,10 @@ impl Program {
 		*self.data.dump_code.write().unwrap() = true;
 	}
 
+	pub fn dump_enabled(&self) -> bool {
+		*self.data.dump_code.read().unwrap()
+	}
+
 	pub fn configure_runtime<P: FnOnce(&mut RuntimeScope)>(&mut self, action: P) {
 		let mut runtime = self.data.runtime.write().unwrap();
 		(action)(&mut runtime);
@@ -147,7 +151,7 @@ impl Program {
 
 	fn run_resolved_nodes(&self, nodes: &NodeList) -> Result<Value> {
 		let mut context = CodeContext::new();
-		if *self.data.dump_code.read().unwrap() {
+		if self.dump_enabled() {
 			context.dump_code();
 		}
 
@@ -236,6 +240,14 @@ impl Program {
 			}
 
 			if errors.len() > 0 {
+				if self.dump_enabled() {
+					println!("\n===== NODE DUMP =====");
+					for (n, it) in segments.iter().enumerate() {
+						println!("\n>>> SEGMENT {n} <<<\n");
+						println!("{it}");
+					}
+					println!("\n=====================");
+				}
 				return Err(errors);
 			}
 

@@ -3,6 +3,10 @@ use super::*;
 pub struct OpSplitLine;
 
 impl ParseSplitBy for OpSplitLine {
+	fn skip_empty(&self) -> bool {
+		true
+	}
+
 	fn is_split(&self, node: &Node) -> bool {
 		matches!(node.token(), Some(Token::Break))
 	}

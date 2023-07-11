@@ -6,7 +6,10 @@ pub fn scan(scope: &mut ScopeWriter, input: &Span) -> Result<NodeList> {
 	let mut nodes = Vec::new();
 	let mut cursor = input.clone();
 	while let Some((token, span)) = matcher.scan(&mut cursor, &mut errors) {
-		nodes.push(Bit::Token(token).at(span));
+		// TODO: handle comments properly
+		if token != Token::Comment {
+			nodes.push(Bit::Token(token).at(span));
+		}
 		if !errors.empty() {
 			break;
 		}

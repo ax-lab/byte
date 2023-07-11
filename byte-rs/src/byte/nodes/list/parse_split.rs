@@ -1,6 +1,8 @@
 use super::*;
 
 pub trait ParseSplitBy {
+	fn skip_empty(&self) -> bool;
+
 	fn is_split(&self, node: &Node) -> bool;
 
 	fn new_node(&self, ctx: &mut EvalContext, nodes: NodeList) -> Result<Node>;
@@ -26,9 +28,14 @@ impl NodeList {
 		let mut new_nodes = Vec::new();
 		let mut line = Vec::new();
 
+		let mut has_separator = false;
 		for it in self.iter() {
 			if op.is_split(&it) {
+				has_separator = true;
 				let nodes = NodeList::new(scope.handle(), std::mem::take(&mut line));
+				if nodes.len() == 0 && op.skip_empty() {
+					continue;
+				}
 				let node = op.new_node(ctx, nodes)?;
 				node.get_dependencies(|list| ctx.resolve_nodes(list));
 				new_nodes.push(node);
@@ -44,7 +51,7 @@ impl NodeList {
 			new_nodes.push(node);
 		}
 
-		if new_nodes.len() > 0 {
+		if has_separator {
 			self.replace_all(new_nodes);
 		}
 		Ok(())

@@ -60,7 +60,9 @@ impl EvalContext {
 	}
 
 	pub fn resolve_nodes(&mut self, list: &NodeList) {
-		self.new_segments.push(list.clone())
+		if list.len() > 0 {
+			self.new_segments.push(list.clone());
+		}
 	}
 
 	pub fn declare_static(&mut self, symbol: Symbol, value: BindingValue) {
