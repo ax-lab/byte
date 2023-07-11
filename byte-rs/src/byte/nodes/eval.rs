@@ -1,7 +1,7 @@
 use super::*;
 
 /// An operation applicable to a [`NodeList`] and [`Scope`].
-pub trait Evaluator {
+pub trait IsEvaluator {
 	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()>;
 
 	fn can_apply(&self, nodes: &NodeList) -> bool {

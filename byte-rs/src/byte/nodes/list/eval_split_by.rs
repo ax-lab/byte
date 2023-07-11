@@ -6,7 +6,7 @@ pub trait EvalSplitBy {
 	fn new_node(&self, scope: &Scope, segment: Vec<Node>) -> Result<Node>;
 }
 
-impl<T: EvalSplitBy> Evaluator for T {
+impl<T: EvalSplitBy> IsEvaluator for T {
 	fn predicate(&self, node: &Node) -> bool {
 		self.is_split(node)
 	}

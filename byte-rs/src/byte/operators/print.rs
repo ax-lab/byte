@@ -2,7 +2,7 @@ use super::*;
 
 pub struct PrintOperator;
 
-impl Evaluator for PrintOperator {
+impl IsEvaluator for PrintOperator {
 	fn can_apply(&self, nodes: &NodeList) -> bool {
 		nodes.is_keyword(0, &"print".into())
 	}

@@ -79,11 +79,11 @@ impl Compiler {
 		//--------------------------------------------------------------------------------------------------------//
 
 		//general parsing
-		scope.add_operator(Operator::SplitLines(EvalPrecedence::SplitLines));
-		scope.add_operator(Operator::Let(EvalPrecedence::Let));
-		scope.add_operator(Operator::Bind(EvalPrecedence::Bind));
-		scope.add_operator(Operator::Print(EvalPrecedence::Print));
-		scope.add_operator(Operator::Comma(EvalPrecedence::Comma));
+		scope.add_evaluator(Evaluator::SplitLines(EvalPrecedence::SplitLines));
+		scope.add_evaluator(Evaluator::Let(EvalPrecedence::Let));
+		scope.add_evaluator(Evaluator::Bind(EvalPrecedence::Bind));
+		scope.add_evaluator(Evaluator::Print(EvalPrecedence::Print));
+		scope.add_evaluator(Evaluator::Comma(EvalPrecedence::Comma));
 
 		let ternary = TernaryOp(
 			Context::symbol("?"),
@@ -93,7 +93,7 @@ impl Compiler {
 				Bit::Conditional(a, b, c).at(span)
 			}),
 		);
-		scope.add_operator(Operator::Ternary(ternary, EvalPrecedence::Ternary));
+		scope.add_evaluator(Evaluator::Ternary(ternary, EvalPrecedence::Ternary));
 
 		// brackets
 		let mut brackets = BracketPairs::new();
@@ -103,22 +103,22 @@ impl Compiler {
 			Arc::new(|_, n, _| Bit::Group(n)),
 		);
 
-		scope.add_operator(Operator::Brackets(brackets, EvalPrecedence::Brackets));
+		scope.add_evaluator(Evaluator::Brackets(brackets, EvalPrecedence::Brackets));
 
 		// boolean
-		scope.add_operator(Operator::Replace(
+		scope.add_evaluator(Evaluator::Replace(
 			Context::symbol("true"),
 			|span| Bit::Boolean(true).at(span),
 			EvalPrecedence::Boolean(true),
 		));
-		scope.add_operator(Operator::Replace(
+		scope.add_evaluator(Evaluator::Replace(
 			Context::symbol("false"),
 			|span| Bit::Boolean(false).at(span),
 			EvalPrecedence::Boolean(false),
 		));
 
 		// null
-		scope.add_operator(Operator::Replace(
+		scope.add_evaluator(Evaluator::Replace(
 			Context::symbol("null"),
 			|span| Bit::Null.at(span),
 			EvalPrecedence::Null,
@@ -128,7 +128,7 @@ impl Compiler {
 
 		let mut ops = OpMap::new();
 		ops.add(Context::symbol("="), BinaryOp::Assign);
-		scope.add_operator(Operator::Binary(
+		scope.add_evaluator(Evaluator::Binary(
 			ParseBinaryOp(ops, Grouping::Right),
 			EvalPrecedence::OpAssign,
 		));
@@ -137,7 +137,7 @@ impl Compiler {
 		let mut ops = OpMap::new();
 		ops.add(Context::symbol("+"), BinaryOp::Add);
 		ops.add(Context::symbol("-"), BinaryOp::Sub);
-		scope.add_operator(Operator::Binary(
+		scope.add_evaluator(Evaluator::Binary(
 			ParseBinaryOp(ops, Grouping::Left),
 			EvalPrecedence::OpAdditive,
 		));
@@ -147,7 +147,7 @@ impl Compiler {
 		ops.add(Context::symbol("*"), BinaryOp::Mul);
 		ops.add(Context::symbol("/"), BinaryOp::Div);
 		ops.add(Context::symbol("%"), BinaryOp::Mod);
-		scope.add_operator(Operator::Binary(
+		scope.add_evaluator(Evaluator::Binary(
 			ParseBinaryOp(ops, Grouping::Left),
 			EvalPrecedence::OpMultiplicative,
 		));
@@ -155,14 +155,14 @@ impl Compiler {
 		// boolean
 		let mut ops = OpMap::new();
 		ops.add(Context::symbol("and"), BinaryOp::And);
-		scope.add_operator(Operator::Binary(
+		scope.add_evaluator(Evaluator::Binary(
 			ParseBinaryOp(ops, Grouping::Right),
 			EvalPrecedence::OpBooleanAnd,
 		));
 
 		let mut ops = OpMap::new();
 		ops.add(Context::symbol("or"), BinaryOp::Or);
-		scope.add_operator(Operator::Binary(
+		scope.add_evaluator(Evaluator::Binary(
 			ParseBinaryOp(ops, Grouping::Right),
 			EvalPrecedence::OpBooleanOr,
 		));
@@ -174,7 +174,7 @@ impl Compiler {
 		ops.add(Context::symbol("!"), UnaryOp::Neg);
 		ops.add(Context::symbol("+"), UnaryOp::Plus);
 		ops.add(Context::symbol("-"), UnaryOp::Minus);
-		scope.add_operator(Operator::UnaryPrefix(
+		scope.add_evaluator(Evaluator::UnaryPrefix(
 			ParseUnaryPrefixOp(ops),
 			EvalPrecedence::OpUnaryPrefix,
 		));

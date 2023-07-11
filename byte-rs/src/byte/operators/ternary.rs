@@ -5,7 +5,7 @@ pub type TernaryNodeFn = Arc<dyn Fn(NodeList, NodeList, NodeList) -> Node>;
 #[derive(Clone)]
 pub struct TernaryOp(pub Symbol, pub Symbol, pub TernaryNodeFn);
 
-impl Evaluator for TernaryOp {
+impl IsEvaluator for TernaryOp {
 	fn can_apply(&self, nodes: &NodeList) -> bool {
 		nodes.contains_delimiter_pair(&self.0, &self.1)
 	}

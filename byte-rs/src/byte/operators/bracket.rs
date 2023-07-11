@@ -128,7 +128,7 @@ impl BracketPairs {
 	}
 }
 
-impl Evaluator for BracketPairs {
+impl IsEvaluator for BracketPairs {
 	fn predicate(&self, node: &Node) -> bool {
 		match node.bit() {
 			Bit::Token(Token::Symbol(symbol)) => self.pairs.contains_key(symbol),

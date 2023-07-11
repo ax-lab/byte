@@ -2,7 +2,7 @@ use super::*;
 
 pub struct ReplaceSymbol(pub Symbol, pub fn(Span) -> Node);
 
-impl Evaluator for ReplaceSymbol {
+impl IsEvaluator for ReplaceSymbol {
 	fn predicate(&self, node: &Node) -> bool {
 		node.symbol().as_ref() == Some(&self.0)
 	}

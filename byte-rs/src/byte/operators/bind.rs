@@ -2,7 +2,7 @@ use super::*;
 
 pub struct BindOperator;
 
-impl Evaluator for BindOperator {
+impl IsEvaluator for BindOperator {
 	fn predicate(&self, node: &Node) -> bool {
 		matches!(node.bit(), Bit::Token(Token::Word(..)))
 	}

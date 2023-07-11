@@ -23,7 +23,7 @@ pub use replace_symbol::*;
 pub use ternary::*;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum Operator {
+pub enum Evaluator {
 	Brackets(BracketPairs, EvalPrecedence),
 	SplitLines(EvalPrecedence),
 	Let(EvalPrecedence),
@@ -42,7 +42,7 @@ pub enum Grouping {
 	Right,
 }
 
-impl Operator {
+impl Evaluator {
 	pub fn precedence(&self) -> EvalPrecedence {
 		self.get_impl().1
 	}
@@ -55,18 +55,18 @@ impl Operator {
 		self.get_impl().0.apply(nodes, context)
 	}
 
-	fn get_impl(&self) -> (Arc<dyn Evaluator>, EvalPrecedence) {
+	fn get_impl(&self) -> (Arc<dyn IsEvaluator>, EvalPrecedence) {
 		match self {
-			Operator::SplitLines(prec) => (Arc::new(SplitLineOperator), *prec),
-			Operator::Let(prec) => (Arc::new(LetOperator), *prec),
-			Operator::Bind(prec) => (Arc::new(BindOperator), *prec),
-			Operator::Print(prec) => (Arc::new(PrintOperator), *prec),
-			Operator::Replace(symbol, node, prec) => (Arc::new(ReplaceSymbol(symbol.clone(), node.clone())), *prec),
-			Operator::Binary(op, prec) => (Arc::new(op.clone()), *prec),
-			Operator::UnaryPrefix(op, prec) => (Arc::new(op.clone()), *prec),
-			Operator::Comma(prec) => (Arc::new(CommaOperator), *prec),
-			Operator::Brackets(pairs, prec) => (Arc::new(pairs.clone()), *prec),
-			Operator::Ternary(op, prec) => (Arc::new(op.clone()), *prec),
+			Evaluator::SplitLines(prec) => (Arc::new(SplitLineOperator), *prec),
+			Evaluator::Let(prec) => (Arc::new(LetOperator), *prec),
+			Evaluator::Bind(prec) => (Arc::new(BindOperator), *prec),
+			Evaluator::Print(prec) => (Arc::new(PrintOperator), *prec),
+			Evaluator::Replace(symbol, node, prec) => (Arc::new(ReplaceSymbol(symbol.clone(), node.clone())), *prec),
+			Evaluator::Binary(op, prec) => (Arc::new(op.clone()), *prec),
+			Evaluator::UnaryPrefix(op, prec) => (Arc::new(op.clone()), *prec),
+			Evaluator::Comma(prec) => (Arc::new(CommaOperator), *prec),
+			Evaluator::Brackets(pairs, prec) => (Arc::new(pairs.clone()), *prec),
+			Evaluator::Ternary(op, prec) => (Arc::new(op.clone()), *prec),
 		}
 	}
 }

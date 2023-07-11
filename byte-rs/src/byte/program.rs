@@ -173,7 +173,7 @@ impl Program {
 
 			// collect the applicable operator for all segments
 			for it in segments.iter_mut() {
-				match it.get_next_operator(precedence) {
+				match it.get_next_evaluator(precedence) {
 					Ok(Some(op)) => {
 						let op_precedence = op.precedence();
 						assert!(precedence.is_none() || Some(op_precedence) <= precedence);
