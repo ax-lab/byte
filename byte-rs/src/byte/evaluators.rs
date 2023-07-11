@@ -1,6 +1,5 @@
 use super::*;
 
-pub mod bracket;
 pub mod comma;
 pub mod decl;
 pub mod indent;
@@ -8,7 +7,6 @@ pub mod parse_ops;
 pub mod print;
 pub mod ternary;
 
-pub use bracket::*;
 pub use comma::*;
 pub use decl::*;
 pub use indent::*;
