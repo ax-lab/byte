@@ -2,12 +2,10 @@ use super::*;
 
 pub mod indent;
 pub mod parse_ops;
-pub mod print;
 pub mod ternary;
 
 pub use indent::*;
 pub use parse_ops::*;
-pub use print::*;
 pub use ternary::*;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -16,7 +14,7 @@ pub enum NodeOperator {
 	SplitLines(NodePrecedence),
 	Let(Symbol, Symbol, NodePrecedence),
 	Ternary(TernaryOp, NodePrecedence),
-	Print(NodePrecedence),
+	Print(Symbol, NodePrecedence),
 	Comma(Symbol, NodePrecedence),
 	Replace(Symbol, fn(Span) -> Node, NodePrecedence),
 	Bind(NodePrecedence),
@@ -48,7 +46,7 @@ impl NodeOperator {
 			NodeOperator::SplitLines(prec) => (Arc::new(OpSplitLine), *prec),
 			NodeOperator::Let(decl, eq, prec) => (Arc::new(OpDecl(decl.clone(), eq.clone())), *prec),
 			NodeOperator::Bind(prec) => (Arc::new(OpBind), *prec),
-			NodeOperator::Print(prec) => (Arc::new(PrintOperator), *prec),
+			NodeOperator::Print(symbol, prec) => (Arc::new(OpPrint(symbol.clone())), *prec),
 			NodeOperator::Replace(symbol, node, prec) => (Arc::new(ReplaceSymbol(symbol.clone(), node.clone())), *prec),
 			NodeOperator::Binary(op, prec) => (Arc::new(op.clone()), *prec),
 			NodeOperator::UnaryPrefix(op, prec) => (Arc::new(op.clone()), *prec),
