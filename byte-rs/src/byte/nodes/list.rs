@@ -2,9 +2,11 @@ use super::*;
 
 pub mod helper;
 pub mod node_split;
+pub mod op_line;
 
 pub use helper::*;
 pub use node_split::*;
+pub use op_line::*;
 
 #[derive(Clone)]
 pub struct NodeList {
