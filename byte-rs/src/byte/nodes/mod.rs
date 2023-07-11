@@ -1,7 +1,9 @@
 use super::*;
 
+pub mod eval;
 pub mod list;
 
+pub use eval::*;
 pub use list::*;
 
 /// Enumeration of all available language elements.

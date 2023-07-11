@@ -204,7 +204,7 @@ impl Program {
 
 			let mut new_segments = Vec::new();
 			for (_, op, nodes) in to_process {
-				let mut context = OperatorContext::new(nodes.span());
+				let mut context = EvalContext::new(nodes.span());
 				let scope = nodes.scope();
 				let mut nodes_vec = nodes.as_vec();
 				let changed = match op.apply(&scope, &mut nodes_vec, &mut context) {

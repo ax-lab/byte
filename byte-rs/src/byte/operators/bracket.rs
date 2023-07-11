@@ -127,7 +127,7 @@ impl BracketPairs {
 	}
 }
 
-impl IsOperator for BracketPairs {
+impl Evaluator for BracketPairs {
 	fn predicate(&self, node: &Node) -> bool {
 		match node.bit() {
 			Bit::Token(Token::Symbol(symbol)) => self.pairs.contains_key(symbol),
@@ -135,7 +135,7 @@ impl IsOperator for BracketPairs {
 		}
 	}
 
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut OperatorContext) -> Result<bool> {
+	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
 		let mut new_lists = Vec::new();
 		match self.parse_nodes(scope, nodes, &mut new_lists) {
 			Ok(new_nodes) => {

@@ -5,12 +5,12 @@ pub type TernaryNodeFn = Arc<dyn Fn(NodeList, NodeList, NodeList) -> Node>;
 #[derive(Clone)]
 pub struct TernaryOp(pub Symbol, pub Symbol, pub TernaryNodeFn);
 
-impl IsOperator for TernaryOp {
+impl Evaluator for TernaryOp {
 	fn can_apply(&self, nodes: &NodeList) -> bool {
 		nodes.contains_delimiter_pair(&self.0, &self.1)
 	}
 
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut OperatorContext) -> Result<bool> {
+	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
 		let (a, b, c) = Nodes::split_ternary(nodes, &self.0, &self.1).unwrap();
 
 		let a = NodeList::new(scope.handle(), a);

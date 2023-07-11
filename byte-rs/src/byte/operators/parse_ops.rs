@@ -77,7 +77,7 @@ impl<T: Clone> Debug for OpMap<T> {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParseBinaryOp(pub OpMap<BinaryOp>, pub Grouping);
 
-impl IsOperator for ParseBinaryOp {
+impl Evaluator for ParseBinaryOp {
 	fn predicate(&self, node: &Node) -> bool {
 		match node.bit() {
 			Bit::Token(Token::Word(symbol) | Token::Symbol(symbol)) => self.0.contains(symbol),
@@ -85,7 +85,7 @@ impl IsOperator for ParseBinaryOp {
 		}
 	}
 
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut OperatorContext) -> Result<bool> {
+	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
 		let mut new_lists = Vec::new();
 
 		let is_op = |node: &Node| {
@@ -125,7 +125,7 @@ impl IsOperator for ParseBinaryOp {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParseUnaryPrefixOp(pub OpMap<UnaryOp>);
 
-impl IsOperator for ParseUnaryPrefixOp {
+impl Evaluator for ParseUnaryPrefixOp {
 	fn can_apply(&self, nodes: &NodeList) -> bool {
 		match nodes.get(0).as_ref().map(|x| x.bit()) {
 			Some(Bit::Token(Token::Word(symbol) | Token::Symbol(symbol))) => self.0.contains(symbol),
@@ -133,7 +133,7 @@ impl IsOperator for ParseUnaryPrefixOp {
 		}
 	}
 
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut OperatorContext) -> Result<bool> {
+	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
 		let op = self.0.op_for_node(&nodes.get(0).unwrap()).unwrap();
 		let arg = nodes[1..].to_vec();
 		let arg = NodeList::new(scope.handle(), arg);

@@ -2,12 +2,12 @@ use super::*;
 
 pub struct BindOperator;
 
-impl IsOperator for BindOperator {
+impl Evaluator for BindOperator {
 	fn predicate(&self, node: &Node) -> bool {
 		matches!(node.bit(), Bit::Token(Token::Word(..)))
 	}
 
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut OperatorContext) -> Result<bool> {
+	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
 		let _ = context;
 		let mut errors = Errors::new();
 		let changed = Nodes::replace(nodes, |node| {

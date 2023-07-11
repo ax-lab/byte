@@ -75,7 +75,7 @@ impl NodeList {
 		nodes.get(index).cloned()
 	}
 
-	pub fn get_next_operator(&self, max_precedence: Option<Precedence>) -> Result<Option<Operator>> {
+	pub fn get_next_operator(&self, max_precedence: Option<EvalPrecedence>) -> Result<Option<Operator>> {
 		let operators = self.scope().get_operators().into_iter();
 		let operators = operators.take_while(|x| {
 			if let Some(max) = max_precedence {

@@ -2,13 +2,13 @@ use super::*;
 
 pub struct LetOperator;
 
-impl IsOperator for LetOperator {
+impl Evaluator for LetOperator {
 	fn can_apply(&self, nodes: &NodeList) -> bool {
 		// TODO: make a static list of symbols
 		nodes.is_keyword(0, &"let".into()) && nodes.is_identifier(1) && nodes.is_symbol(2, &"=".into())
 	}
 
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut OperatorContext) -> Result<bool> {
+	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
 		let mut declares = Vec::new();
 		let mut new_lists = Vec::new();
 		let changed = Nodes::fold_first(

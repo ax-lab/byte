@@ -18,12 +18,12 @@ pub trait SplitByNode {
 	fn new_node(&self, scope: &Scope, segment: Vec<Node>) -> Result<Node>;
 }
 
-impl<T: SplitByNode> IsOperator for T {
+impl<T: SplitByNode> Evaluator for T {
 	fn predicate(&self, node: &Node) -> bool {
 		self.is_split(node)
 	}
 
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut OperatorContext) -> Result<bool> {
+	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
 		let mut new_nodes = Vec::new();
 		let mut line = Vec::new();
 
