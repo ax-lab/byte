@@ -83,7 +83,7 @@ impl Compiler {
 		scope.add_node_operator(NodeOperator::Let(NodePrecedence::Let));
 		scope.add_node_operator(NodeOperator::Bind(NodePrecedence::Bind));
 		scope.add_node_operator(NodeOperator::Print(NodePrecedence::Print));
-		scope.add_node_operator(NodeOperator::Comma(NodePrecedence::Comma));
+		scope.add_node_operator(NodeOperator::Comma(Context::symbol(","), NodePrecedence::Comma));
 
 		let ternary = TernaryOp(
 			Context::symbol("?"),

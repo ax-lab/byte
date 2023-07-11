@@ -2,7 +2,7 @@ use super::*;
 
 pub struct OpSplitLine;
 
-impl NodeListSplit for OpSplitLine {
+impl NodeSplitBy for OpSplitLine {
 	fn is_split(&self, node: &Node) -> bool {
 		matches!(node.token(), Some(Token::Break))
 	}

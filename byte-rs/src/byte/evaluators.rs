@@ -1,13 +1,11 @@
 use super::*;
 
-pub mod comma;
 pub mod decl;
 pub mod indent;
 pub mod parse_ops;
 pub mod print;
 pub mod ternary;
 
-pub use comma::*;
 pub use decl::*;
 pub use indent::*;
 pub use parse_ops::*;
@@ -21,7 +19,7 @@ pub enum NodeOperator {
 	Let(NodePrecedence),
 	Ternary(TernaryOp, NodePrecedence),
 	Print(NodePrecedence),
-	Comma(NodePrecedence),
+	Comma(Symbol, NodePrecedence),
 	Replace(Symbol, fn(Span) -> Node, NodePrecedence),
 	Bind(NodePrecedence),
 	Binary(ParseBinaryOp, NodePrecedence),
@@ -56,7 +54,7 @@ impl NodeOperator {
 			NodeOperator::Replace(symbol, node, prec) => (Arc::new(ReplaceSymbol(symbol.clone(), node.clone())), *prec),
 			NodeOperator::Binary(op, prec) => (Arc::new(op.clone()), *prec),
 			NodeOperator::UnaryPrefix(op, prec) => (Arc::new(op.clone()), *prec),
-			NodeOperator::Comma(prec) => (Arc::new(CommaOperator), *prec),
+			NodeOperator::Comma(symbol, prec) => (Arc::new(CommaOperator(symbol.clone())), *prec),
 			NodeOperator::Brackets(pairs, prec) => (Arc::new(pairs.clone()), *prec),
 			NodeOperator::Ternary(op, prec) => (Arc::new(op.clone()), *prec),
 		}
