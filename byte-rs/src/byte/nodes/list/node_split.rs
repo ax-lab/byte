@@ -30,7 +30,7 @@ impl NodeList {
 			if op.is_split(&it) {
 				let nodes = NodeList::new(scope.handle(), std::mem::take(&mut line));
 				let node = op.new_node(nodes)?;
-				node.bit().get_dependencies(|list| context.resolve_nodes(list));
+				node.get_dependencies(|list| context.resolve_nodes(list));
 				new_nodes.push(node);
 			} else {
 				line.push(it.clone());
@@ -40,7 +40,7 @@ impl NodeList {
 		if line.len() > 0 {
 			let nodes = NodeList::new(scope.handle(), std::mem::take(&mut line));
 			let node = op.new_node(nodes)?;
-			node.bit().get_dependencies(|list| context.resolve_nodes(list));
+			node.get_dependencies(|list| context.resolve_nodes(list));
 			new_nodes.push(node);
 		}
 

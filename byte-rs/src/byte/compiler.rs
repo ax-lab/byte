@@ -80,7 +80,11 @@ impl Compiler {
 
 		//general parsing
 		scope.add_node_operator(NodeOperator::SplitLines(NodePrecedence::SplitLines));
-		scope.add_node_operator(NodeOperator::Let(NodePrecedence::Let));
+		scope.add_node_operator(NodeOperator::Let(
+			Context::symbol("let"),
+			Context::symbol("="),
+			NodePrecedence::Let,
+		));
 		scope.add_node_operator(NodeOperator::Bind(NodePrecedence::Bind));
 		scope.add_node_operator(NodeOperator::Print(NodePrecedence::Print));
 		scope.add_node_operator(NodeOperator::Comma(Context::symbol(","), NodePrecedence::Comma));

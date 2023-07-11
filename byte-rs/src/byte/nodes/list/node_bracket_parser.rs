@@ -40,7 +40,7 @@ impl NodeList {
 							let nodes = segments.pop_back().unwrap();
 							let nodes = NodeList::new(scope, nodes);
 							let node = op.new_node(start, nodes, cur)?;
-							node.bit().get_dependencies(|list| context.resolve_nodes(list));
+							node.get_dependencies(|list| context.resolve_nodes(list));
 							segments.back_mut().unwrap().push(node);
 							continue;
 						}

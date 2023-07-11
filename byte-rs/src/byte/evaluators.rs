@@ -1,12 +1,10 @@
 use super::*;
 
-pub mod decl;
 pub mod indent;
 pub mod parse_ops;
 pub mod print;
 pub mod ternary;
 
-pub use decl::*;
 pub use indent::*;
 pub use parse_ops::*;
 pub use print::*;
@@ -16,7 +14,7 @@ pub use ternary::*;
 pub enum NodeOperator {
 	Brackets(BracketPairs, NodePrecedence),
 	SplitLines(NodePrecedence),
-	Let(NodePrecedence),
+	Let(Symbol, Symbol, NodePrecedence),
 	Ternary(TernaryOp, NodePrecedence),
 	Print(NodePrecedence),
 	Comma(Symbol, NodePrecedence),
@@ -48,7 +46,7 @@ impl NodeOperator {
 	fn get_impl(&self) -> (Arc<dyn IsNodeOperator>, NodePrecedence) {
 		match self {
 			NodeOperator::SplitLines(prec) => (Arc::new(OpSplitLine), *prec),
-			NodeOperator::Let(prec) => (Arc::new(LetOperator), *prec),
+			NodeOperator::Let(decl, eq, prec) => (Arc::new(OpDecl(decl.clone(), eq.clone())), *prec),
 			NodeOperator::Bind(prec) => (Arc::new(OpBind), *prec),
 			NodeOperator::Print(prec) => (Arc::new(PrintOperator), *prec),
 			NodeOperator::Replace(symbol, node, prec) => (Arc::new(ReplaceSymbol(symbol.clone(), node.clone())), *prec),
