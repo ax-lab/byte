@@ -3,7 +3,7 @@ use super::*;
 pub trait EvalSplitBy {
 	fn is_split(&self, node: &Node) -> bool;
 
-	fn new_node(&self, scope: &Scope, segment: Vec<Node>) -> Result<Node>;
+	fn new_node(&self, nodes: NodeList) -> Result<Node>;
 }
 
 impl<T: EvalSplitBy> IsEvaluator for T {
@@ -18,7 +18,8 @@ impl<T: EvalSplitBy> IsEvaluator for T {
 
 		for it in nodes.iter() {
 			if self.is_split(&it) {
-				let node = self.new_node(&scope, std::mem::take(&mut line))?;
+				let nodes = NodeList::new(scope.handle(), std::mem::take(&mut line));
+				let node = self.new_node(nodes)?;
 				node.bit().get_dependencies(|list| context.resolve_nodes(list));
 				new_nodes.push(node);
 			} else {
@@ -27,7 +28,8 @@ impl<T: EvalSplitBy> IsEvaluator for T {
 		}
 
 		if line.len() > 0 {
-			let node = self.new_node(&scope, std::mem::take(&mut line))?;
+			let nodes = NodeList::new(scope.handle(), std::mem::take(&mut line));
+			let node = self.new_node(nodes)?;
 			node.bit().get_dependencies(|list| context.resolve_nodes(list));
 			new_nodes.push(node);
 		}

@@ -7,8 +7,7 @@ impl EvalSplitBy for SplitLineOperator {
 		matches!(node.token(), Some(Token::Break))
 	}
 
-	fn new_node(&self, scope: &Scope, nodes: Vec<Node>) -> Result<Node> {
-		let nodes = NodeList::new(scope.handle(), nodes);
+	fn new_node(&self, nodes: NodeList) -> Result<Node> {
 		let span = nodes.span();
 		Ok(Bit::Line(nodes).at(span))
 	}
