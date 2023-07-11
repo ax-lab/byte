@@ -55,7 +55,7 @@ impl NodeOperator {
 
 	fn get_impl(&self) -> (Arc<dyn IsNodeOperator>, NodePrecedence) {
 		match self {
-			NodeOperator::SplitLines(prec) => (Arc::new(SplitLineOperator), *prec),
+			NodeOperator::SplitLines(prec) => (Arc::new(OpSplitLine), *prec),
 			NodeOperator::Let(prec) => (Arc::new(LetOperator), *prec),
 			NodeOperator::Bind(prec) => (Arc::new(BindOperator), *prec),
 			NodeOperator::Print(prec) => (Arc::new(PrintOperator), *prec),

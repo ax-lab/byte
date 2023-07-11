@@ -1,8 +1,8 @@
 use super::*;
 
-pub struct SplitLineOperator;
+pub struct OpSplitLine;
 
-impl NodeListSplit for SplitLineOperator {
+impl NodeListSplit for OpSplitLine {
 	fn is_split(&self, node: &Node) -> bool {
 		matches!(node.token(), Some(Token::Break))
 	}
@@ -13,7 +13,7 @@ impl NodeListSplit for SplitLineOperator {
 	}
 }
 
-impl IsNodeOperator for SplitLineOperator {
+impl IsNodeOperator for OpSplitLine {
 	fn can_apply(&self, nodes: &NodeList) -> bool {
 		nodes.can_split(self)
 	}
