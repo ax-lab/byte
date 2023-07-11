@@ -1,12 +1,12 @@
 use super::*;
 
-pub trait SplitByNode {
+pub trait EvalSplitBy {
 	fn is_split(&self, node: &Node) -> bool;
 
 	fn new_node(&self, scope: &Scope, segment: Vec<Node>) -> Result<Node>;
 }
 
-impl<T: SplitByNode> Evaluator for T {
+impl<T: EvalSplitBy> Evaluator for T {
 	fn predicate(&self, node: &Node) -> bool {
 		self.is_split(node)
 	}

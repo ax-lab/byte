@@ -2,7 +2,7 @@ use super::*;
 
 pub struct SplitLineOperator;
 
-impl SplitByNode for SplitLineOperator {
+impl EvalSplitBy for SplitLineOperator {
 	fn is_split(&self, node: &Node) -> bool {
 		matches!(node.token(), Some(Token::Break))
 	}
