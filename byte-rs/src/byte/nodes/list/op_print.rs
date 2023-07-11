@@ -7,8 +7,8 @@ impl IsNodeOperator for OpPrint {
 		nodes.has_keyword(self)
 	}
 
-	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
-		nodes.parse_keyword(self, context)
+	fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()> {
+		nodes.parse_keyword(self, ctx)
 	}
 }
 

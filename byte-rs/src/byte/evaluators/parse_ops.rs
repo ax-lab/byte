@@ -85,7 +85,7 @@ impl IsNodeOperator for ParseBinaryOp {
 		})
 	}
 
-	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
+	fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()> {
 		let mut new_lists = Vec::new();
 
 		let is_op = |node: &Node| {
@@ -111,7 +111,7 @@ impl IsNodeOperator for ParseBinaryOp {
 		}
 
 		for it in new_lists {
-			context.resolve_nodes(&it);
+			ctx.resolve_nodes(&it);
 		}
 
 		Ok(())
@@ -133,12 +133,12 @@ impl IsNodeOperator for ParseUnaryPrefixOp {
 		}
 	}
 
-	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
+	fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()> {
 		let op = self.0.op_for_node(&nodes.get(0).unwrap()).unwrap();
 		let arg = nodes.slice(1..);
 		let new = Bit::UnaryOp(op, arg.clone()).at(nodes.span());
 		nodes.replace_all(vec![new]);
-		context.resolve_nodes(&arg);
+		ctx.resolve_nodes(&arg);
 		Ok(())
 	}
 }

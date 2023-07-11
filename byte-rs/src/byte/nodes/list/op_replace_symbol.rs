@@ -11,8 +11,8 @@ impl NodeReplace for ReplaceSymbol {
 		}
 	}
 
-	fn replace(&self, node: &Node, context: &mut EvalContext) -> Result<Option<Node>> {
-		let _ = context;
+	fn replace(&self, node: &Node, ctx: &mut EvalContext) -> Result<Option<Node>> {
+		let _ = ctx;
 		let new_node = &self.1;
 		if let Some(symbol) = node.symbol() {
 			if symbol == self.0 {
@@ -31,7 +31,7 @@ impl IsNodeOperator for ReplaceSymbol {
 		nodes.can_replace(self)
 	}
 
-	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
-		nodes.replace(self, context)
+	fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()> {
+		nodes.replace(self, ctx)
 	}
 }

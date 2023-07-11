@@ -7,8 +7,8 @@ impl IsNodeOperator for OpDecl {
 		nodes.can_fold(self)
 	}
 
-	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
-		nodes.fold(self, context)
+	fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()> {
+		nodes.fold(self, ctx)
 	}
 }
 
@@ -21,11 +21,11 @@ impl NodeFold for OpDecl {
 		}
 	}
 
-	fn new_node(&self, context: &mut EvalContext, lhs: NodeList, rhs: NodeList, span: Span) -> Result<Node> {
+	fn new_node(&self, ctx: &mut EvalContext, lhs: NodeList, rhs: NodeList, span: Span) -> Result<Node> {
 		let name = lhs.get_symbol(lhs.len() - 1).unwrap();
 		let offset = lhs.offset();
 		let value = BindingValue::NodeList(rhs.clone());
-		context.declare_at(name.clone(), offset, value);
+		ctx.declare_at(name.clone(), offset, value);
 		Ok(Bit::Let(name, offset, rhs).at(span))
 	}
 }

@@ -21,7 +21,7 @@ impl IsNodeOperator for CommaOperator {
 		nodes.can_split_sequence(self)
 	}
 
-	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
-		nodes.split_sequence(self, context)
+	fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()> {
+		nodes.split_sequence(self, ctx)
 	}
 }

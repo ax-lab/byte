@@ -18,7 +18,7 @@ impl IsNodeOperator for OpSplitLine {
 		nodes.can_split(self)
 	}
 
-	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
-		nodes.split(self, context)
+	fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()> {
+		nodes.split(self, ctx)
 	}
 }

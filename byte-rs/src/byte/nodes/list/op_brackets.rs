@@ -72,8 +72,8 @@ impl IsNodeOperator for BracketPairs {
 		nodes.has_brackets(self)
 	}
 
-	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
-		nodes.parse_brackets(self, context)
+	fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()> {
+		nodes.parse_brackets(self, ctx)
 	}
 }
 

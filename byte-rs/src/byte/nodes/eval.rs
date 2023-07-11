@@ -2,7 +2,7 @@ use super::*;
 
 /// An operation applicable to a [`NodeList`] and [`Scope`].
 pub trait IsNodeOperator {
-	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()>;
+	fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()>;
 
 	fn can_apply(&self, nodes: &NodeList) -> bool;
 }

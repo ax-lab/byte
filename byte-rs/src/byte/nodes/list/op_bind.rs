@@ -7,8 +7,8 @@ impl NodeReplace for OpBind {
 		matches!(node.bit(), Bit::Token(Token::Word(..)))
 	}
 
-	fn replace(&self, node: &Node, context: &mut EvalContext) -> Result<Option<Node>> {
-		let scope = context.scope();
+	fn replace(&self, node: &Node, ctx: &mut EvalContext) -> Result<Option<Node>> {
+		let scope = ctx.scope();
 		if let Bit::Token(Token::Word(name)) = node.bit() {
 			let span = node.span().clone();
 			if let Some(index) = scope.lookup(name, Some(node.offset())) {
@@ -28,7 +28,7 @@ impl IsNodeOperator for OpBind {
 		nodes.can_replace(self)
 	}
 
-	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
-		nodes.replace(self, context)
+	fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()> {
+		nodes.replace(self, ctx)
 	}
 }

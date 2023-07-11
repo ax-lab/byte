@@ -2,18 +2,16 @@ use super::*;
 
 pub mod indent;
 pub mod parse_ops;
-pub mod ternary;
 
 pub use indent::*;
 pub use parse_ops::*;
-pub use ternary::*;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum NodeOperator {
 	Brackets(BracketPairs, NodePrecedence),
 	SplitLines(NodePrecedence),
 	Let(Symbol, Symbol, NodePrecedence),
-	Ternary(TernaryOp, NodePrecedence),
+	Ternary(OpTernary, NodePrecedence),
 	Print(Symbol, NodePrecedence),
 	Comma(Symbol, NodePrecedence),
 	Replace(Symbol, fn(Span) -> Node, NodePrecedence),
@@ -37,8 +35,8 @@ impl NodeOperator {
 		self.get_impl().0.can_apply(nodes)
 	}
 
-	pub fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
-		self.get_impl().0.apply(nodes, context)
+	pub fn apply(&self, nodes: &mut NodeList, ctx: &mut EvalContext) -> Result<()> {
+		self.get_impl().0.apply(nodes, ctx)
 	}
 
 	fn get_impl(&self) -> (Arc<dyn IsNodeOperator>, NodePrecedence) {

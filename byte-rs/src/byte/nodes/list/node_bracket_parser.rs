@@ -23,7 +23,7 @@ impl NodeList {
 		self.contains(|x| op.is_bracket(x))
 	}
 
-	pub fn parse_brackets<T: NodeBracketParser>(&mut self, op: &T, context: &mut EvalContext) -> Result<()> {
+	pub fn parse_brackets<T: NodeBracketParser>(&mut self, op: &T, ctx: &mut EvalContext) -> Result<()> {
 		self.write_res(|nodes| {
 			let mut has_brackets = false;
 			let mut segments = VecDeque::new();
@@ -32,7 +32,7 @@ impl NodeList {
 			let mut scopes = VecDeque::new();
 			let mut stack = VecDeque::<T::Bracket>::new();
 			for node in nodes.iter() {
-				if let Some(cur) = op.get_bracket(context, node) {
+				if let Some(cur) = op.get_bracket(ctx, node) {
 					if let Some(start) = stack.back() {
 						if cur.closes(start) {
 							let start = stack.pop_back().unwrap();
@@ -40,7 +40,7 @@ impl NodeList {
 							let nodes = segments.pop_back().unwrap();
 							let nodes = NodeList::new(scope, nodes);
 							let node = op.new_node(start, nodes, cur)?;
-							node.get_dependencies(|list| context.resolve_nodes(list));
+							node.get_dependencies(|list| ctx.resolve_nodes(list));
 							segments.back_mut().unwrap().push(node);
 							continue;
 						}
