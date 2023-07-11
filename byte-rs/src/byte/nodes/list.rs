@@ -1,11 +1,10 @@
 use super::*;
 
 pub mod helper;
+pub mod node_split;
+
 pub use helper::*;
-
-pub mod eval_split_by;
-
-pub use eval_split_by::*;
+pub use node_split::*;
 
 #[derive(Clone)]
 pub struct NodeList {
@@ -115,13 +114,23 @@ impl NodeList {
 		}
 	}
 
-	fn write<P: FnOnce(&mut Vec<Node>) -> bool>(&mut self, writer: P) {
+	pub fn write<P: FnOnce(&mut Vec<Node>) -> bool>(&mut self, writer: P) {
 		let mut nodes = self.data.nodes.write().unwrap();
 		let nodes = Arc::make_mut(&mut nodes);
 		if writer(nodes) {
 			let mut version = self.data.version.write().unwrap();
 			*version = *version + 1;
 		}
+	}
+
+	pub fn write_res<P: FnOnce(&mut Vec<Node>) -> Result<bool>>(&mut self, writer: P) -> Result<()> {
+		let mut nodes = self.data.nodes.write().unwrap();
+		let nodes = Arc::make_mut(&mut nodes);
+		if writer(nodes)? {
+			let mut version = self.data.version.write().unwrap();
+			*version = *version + 1;
+		}
+		Ok(())
 	}
 }
 
