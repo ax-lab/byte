@@ -2,7 +2,7 @@ use super::*;
 
 /// An operation applicable to a [`NodeList`] and [`Scope`].
 pub trait Evaluator {
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool>;
+	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()>;
 
 	fn can_apply(&self, nodes: &NodeList) -> bool {
 		nodes.contains(|x| self.predicate(x))
@@ -42,22 +42,16 @@ pub enum EvalPrecedence {
 
 /// Context for an [`Evaluator`] application.
 pub struct EvalContext {
-	span: Span,
 	new_segments: Vec<NodeList>,
 	declares: Vec<(Symbol, Option<usize>, BindingValue)>,
 }
 
 impl EvalContext {
-	pub fn new(span: Span) -> Self {
+	pub fn new() -> Self {
 		Self {
-			span,
 			new_segments: Default::default(),
 			declares: Default::default(),
 		}
-	}
-
-	pub fn span(&self) -> Span {
-		self.span.clone()
 	}
 
 	pub fn resolve_nodes(&mut self, list: &NodeList) {

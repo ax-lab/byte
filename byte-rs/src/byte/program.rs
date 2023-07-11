@@ -204,19 +204,15 @@ impl Program {
 
 			let mut new_segments = Vec::new();
 			for (_, op, nodes) in to_process {
-				let mut context = EvalContext::new(nodes.span());
-				let scope = nodes.scope();
-				let mut nodes_vec = nodes.as_vec();
-				let changed = match op.apply(&scope, &mut nodes_vec, &mut context) {
-					Ok(changed) => {
-						nodes.replace_by(nodes_vec);
-						changed
-					}
+				let mut context = EvalContext::new();
+				let version = nodes.version();
+				match op.apply(nodes, &mut context) {
+					Ok(()) => (),
 					Err(errs) => {
 						errors.append(&errs);
-						false
 					}
 				};
+				let changed = nodes.version() > version;
 
 				context.get_new_segments(&mut new_segments);
 				has_changes = has_changes || changed;

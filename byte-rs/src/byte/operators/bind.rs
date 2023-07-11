@@ -7,10 +7,11 @@ impl Evaluator for BindOperator {
 		matches!(node.bit(), Bit::Token(Token::Word(..)))
 	}
 
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
+	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
 		let _ = context;
 		let mut errors = Errors::new();
-		let changed = Nodes::replace(nodes, |node| {
+		let scope = nodes.scope();
+		nodes.replace(|node| {
 			if let Bit::Token(Token::Word(name)) = node.bit() {
 				let span = node.span().clone();
 				if let Some(index) = scope.lookup(name, Some(node.offset())) {
@@ -28,7 +29,7 @@ impl Evaluator for BindOperator {
 		if errors.len() > 0 {
 			Err(errors)
 		} else {
-			Ok(changed)
+			Ok(())
 		}
 	}
 }

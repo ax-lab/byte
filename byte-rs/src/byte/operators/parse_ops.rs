@@ -85,7 +85,7 @@ impl Evaluator for ParseBinaryOp {
 		}
 	}
 
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
+	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
 		let mut new_lists = Vec::new();
 
 		let is_op = |node: &Node| {
@@ -104,17 +104,17 @@ impl Evaluator for ParseBinaryOp {
 			Bit::BinaryOp(op, lhs, rhs).at(span)
 		};
 
-		let changed = if self.1 == Grouping::Left {
-			Nodes::fold_last(scope, nodes, is_op, fold)
+		if self.1 == Grouping::Left {
+			nodes.fold_last(is_op, fold)
 		} else {
-			Nodes::fold_first(scope, nodes, is_op, fold)
-		};
+			nodes.fold_first(is_op, fold)
+		}
 
 		for it in new_lists {
 			context.resolve_nodes(&it);
 		}
 
-		Ok(changed)
+		Ok(())
 	}
 }
 
@@ -133,13 +133,12 @@ impl Evaluator for ParseUnaryPrefixOp {
 		}
 	}
 
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
+	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
 		let op = self.0.op_for_node(&nodes.get(0).unwrap()).unwrap();
-		let arg = nodes[1..].to_vec();
-		let arg = NodeList::new(scope.handle(), arg);
-		let new = Bit::UnaryOp(op, arg.clone()).at(context.span());
-		*nodes = vec![new];
+		let arg = nodes.slice(1..);
+		let new = Bit::UnaryOp(op, arg.clone()).at(nodes.span());
+		nodes.replace_all(vec![new]);
 		context.resolve_nodes(&arg);
-		Ok(true)
+		Ok(())
 	}
 }

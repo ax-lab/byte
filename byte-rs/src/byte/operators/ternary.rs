@@ -10,18 +10,18 @@ impl Evaluator for TernaryOp {
 		nodes.contains_delimiter_pair(&self.0, &self.1)
 	}
 
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
-		let (a, b, c) = Nodes::split_ternary(nodes, &self.0, &self.1).unwrap();
+	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
+		let (a, b, c) = nodes.split_ternary(&self.0, &self.1).unwrap();
 
-		let a = NodeList::new(scope.handle(), a);
-		let b = NodeList::new(scope.handle(), b);
-		let c = NodeList::new(scope.handle(), c);
+		let a = NodeList::new(nodes.scope_handle(), a);
+		let b = NodeList::new(nodes.scope_handle(), b);
+		let c = NodeList::new(nodes.scope_handle(), c);
 		context.resolve_nodes(&a);
 		context.resolve_nodes(&b);
 		context.resolve_nodes(&c);
 		let node = (self.2)(a, b, c);
-		*nodes = vec![node];
-		Ok(true)
+		nodes.replace_all(vec![node]);
+		Ok(())
 	}
 }
 

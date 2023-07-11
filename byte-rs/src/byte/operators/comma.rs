@@ -1,5 +1,7 @@
 use super::*;
 
+// TODO: use a symbol as parameter and unify splits
+
 pub struct CommaOperator;
 
 impl Evaluator for CommaOperator {
@@ -11,18 +13,17 @@ impl Evaluator for CommaOperator {
 		}
 	}
 
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
-		let items = Nodes::split_by_items(scope, nodes, |n| self.predicate(n));
-		if items.len() == 1 {
-			return Ok(false);
-		} else {
-			for it in items.iter() {
-				context.resolve_nodes(it);
-			}
+	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
+		let items = nodes.split_by_items(|n| self.predicate(n));
 
-			let node = Bit::Sequence(items).at(context.span());
-			*nodes = vec![node];
-			Ok(true)
+		// FIXME: properly handle dangling commas
+		for it in items.iter() {
+			context.resolve_nodes(it);
 		}
+
+		let node = Bit::Sequence(items).at(nodes.span());
+		nodes.replace_all(vec![node]);
+
+		Ok(())
 	}
 }

@@ -7,12 +7,11 @@ impl Evaluator for PrintOperator {
 		nodes.is_keyword(0, &"print".into())
 	}
 
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
-		let args = nodes[1..].to_vec();
-		let args = NodeList::new(scope.handle(), args);
-		let print = Bit::Print(args.clone(), "\n").at(context.span());
-		*nodes = vec![print];
+	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
+		let args = nodes.slice(1..);
+		let print = Bit::Print(args.clone(), "\n").at(nodes.span());
+		nodes.replace_all(vec![print]);
 		context.resolve_nodes(&args);
-		Ok(true)
+		Ok(())
 	}
 }

@@ -4,16 +4,14 @@ pub struct LetOperator;
 
 impl Evaluator for LetOperator {
 	fn can_apply(&self, nodes: &NodeList) -> bool {
-		// TODO: make a static list of symbols
+		// TODO: make the symbols as operator arguments
 		nodes.is_keyword(0, &"let".into()) && nodes.is_identifier(1) && nodes.is_symbol(2, &"=".into())
 	}
 
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
+	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
 		let mut declares = Vec::new();
 		let mut new_lists = Vec::new();
-		let changed = Nodes::fold_first(
-			scope,
-			nodes,
+		let changed = nodes.fold_first(
 			|node| node.is_symbol(&"=".into()),
 			|lhs, _, rhs| {
 				let name = lhs.get_symbol(lhs.len() - 1).unwrap();

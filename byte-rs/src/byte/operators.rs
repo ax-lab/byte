@@ -51,8 +51,8 @@ impl Operator {
 		self.get_impl().0.can_apply(nodes)
 	}
 
-	pub fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
-		self.get_impl().0.apply(scope, nodes, context)
+	pub fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
+		self.get_impl().0.apply(nodes, context)
 	}
 
 	fn get_impl(&self) -> (Arc<dyn Evaluator>, EvalPrecedence) {

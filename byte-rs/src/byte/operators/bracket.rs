@@ -67,9 +67,10 @@ impl BracketPairs {
 		reverse.insert(right);
 	}
 
-	fn parse_nodes(&self, scope: &Scope, nodes: &Vec<Node>, new_lists: &mut Vec<NodeList>) -> Result<Vec<Node>> {
-		let mut items = VecDeque::from_iter(nodes.iter().cloned());
-		self.parse_bracket(scope, &mut items, None, new_lists).map(|x| x.0)
+	fn parse_nodes(&self, nodes: &mut NodeList, new_lists: &mut Vec<NodeList>) -> Result<Vec<Node>> {
+		let scope = nodes.scope();
+		let mut items = nodes.as_vec_deque();
+		self.parse_bracket(&scope, &mut items, None, new_lists).map(|x| x.0)
 	}
 
 	fn parse_bracket(
@@ -135,19 +136,17 @@ impl Evaluator for BracketPairs {
 		}
 	}
 
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
+	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
 		let mut new_lists = Vec::new();
-		match self.parse_nodes(scope, nodes, &mut new_lists) {
+		match self.parse_nodes(nodes, &mut new_lists) {
 			Ok(new_nodes) => {
 				if new_lists.len() > 0 {
-					*nodes = new_nodes;
+					nodes.replace_all(new_nodes);
 					for it in new_lists {
 						context.resolve_nodes(&it);
 					}
-					Ok(true)
-				} else {
-					Ok(false)
 				}
+				Ok(())
 			}
 			Err(errors) => Err(errors),
 		}

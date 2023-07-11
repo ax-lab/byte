@@ -7,9 +7,9 @@ impl Evaluator for ReplaceSymbol {
 		node.symbol().as_ref() == Some(&self.0)
 	}
 
-	fn apply(&self, scope: &Scope, nodes: &mut Vec<Node>, context: &mut EvalContext) -> Result<bool> {
-		let _ = (scope, context);
-		let changed = Nodes::replace(nodes, |node| {
+	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
+		let _ = context;
+		nodes.replace(|node| {
 			if node.symbol().as_ref() == Some(&self.0) {
 				let span = node.span().clone();
 				let node = (self.1)(span);
@@ -18,6 +18,6 @@ impl Evaluator for ReplaceSymbol {
 				None
 			}
 		});
-		Ok(changed)
+		Ok(())
 	}
 }
