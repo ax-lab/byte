@@ -1,23 +1,19 @@
 use super::*;
 
-pub mod bind;
 pub mod bracket;
 pub mod comma;
 pub mod decl;
 pub mod indent;
 pub mod parse_ops;
 pub mod print;
-pub mod replace_symbol;
 pub mod ternary;
 
-pub use bind::*;
 pub use bracket::*;
 pub use comma::*;
 pub use decl::*;
 pub use indent::*;
 pub use parse_ops::*;
 pub use print::*;
-pub use replace_symbol::*;
 pub use ternary::*;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -57,7 +53,7 @@ impl NodeOperator {
 		match self {
 			NodeOperator::SplitLines(prec) => (Arc::new(OpSplitLine), *prec),
 			NodeOperator::Let(prec) => (Arc::new(LetOperator), *prec),
-			NodeOperator::Bind(prec) => (Arc::new(BindOperator), *prec),
+			NodeOperator::Bind(prec) => (Arc::new(OpBind), *prec),
 			NodeOperator::Print(prec) => (Arc::new(PrintOperator), *prec),
 			NodeOperator::Replace(symbol, node, prec) => (Arc::new(ReplaceSymbol(symbol.clone(), node.clone())), *prec),
 			NodeOperator::Binary(op, prec) => (Arc::new(op.clone()), *prec),

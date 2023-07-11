@@ -204,7 +204,7 @@ impl Program {
 
 			let mut new_segments = Vec::new();
 			for (_, op, nodes) in to_process {
-				let mut context = EvalContext::new();
+				let mut context = EvalContext::new(nodes);
 				let version = nodes.version();
 				match op.apply(nodes, &mut context) {
 					Ok(()) => (),

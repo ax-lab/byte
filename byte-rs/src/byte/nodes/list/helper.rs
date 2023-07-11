@@ -88,22 +88,6 @@ impl NodeList {
 		});
 	}
 
-	pub fn replace<P: FnMut(&Node) -> Option<Node>>(&mut self, mut replace: P) {
-		self.write(|nodes| {
-			let changed = {
-				let mut changed = false;
-				for it in nodes.iter_mut() {
-					if let Some(new_node) = replace(it) {
-						*it = new_node;
-						changed = true;
-					}
-				}
-				changed
-			};
-			changed
-		});
-	}
-
 	pub fn fold_first<P: FnMut(&Node) -> bool, S: FnMut(NodeList, Node, NodeList) -> Node>(
 		&mut self,
 		mut fold: P,
