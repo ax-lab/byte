@@ -89,13 +89,10 @@ impl Compiler {
 		scope.add_node_operator(NodeOperator::Print(Context::symbol("print"), NodePrecedence::Print));
 		scope.add_node_operator(NodeOperator::Comma(Context::symbol(","), NodePrecedence::Comma));
 
-		let ternary = TernaryOp(
+		let ternary = OpTernary(
 			Context::symbol("?"),
 			Context::symbol(":"),
-			Arc::new(|a, b, c| {
-				let span = a.span().to(c.span());
-				Bit::Conditional(a, b, c).at(span)
-			}),
+			Arc::new(|a, b, c, span| Bit::Conditional(a, b, c).at(span)),
 		);
 		scope.add_node_operator(NodeOperator::Ternary(ternary, NodePrecedence::Ternary));
 

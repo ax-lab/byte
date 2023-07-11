@@ -3,10 +3,6 @@ use super::*;
 // TODO: get rid of this
 
 impl NodeList {
-	//----------------------------------------------------------------------------------------------------------------//
-	// Parsing
-	//----------------------------------------------------------------------------------------------------------------//
-
 	pub fn contains_delimiter_pair(&self, sta: &Symbol, end: &Symbol) -> bool {
 		let nodes = self.iter();
 		let mut nodes = nodes.skip_while(|x| x.symbol().as_ref() != Some(sta));

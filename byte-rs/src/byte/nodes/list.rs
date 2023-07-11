@@ -6,6 +6,7 @@ pub mod node_fold;
 pub mod node_keyword;
 pub mod node_replace;
 pub mod node_split;
+pub mod node_ternary;
 pub mod op_bind;
 pub mod op_brackets;
 pub mod op_comma;
@@ -13,6 +14,7 @@ pub mod op_decl;
 pub mod op_print;
 pub mod op_replace_symbol;
 pub mod op_split_line;
+pub mod op_ternary;
 
 pub use helper::*;
 pub use node_bracket_parser::*;
@@ -20,6 +22,7 @@ pub use node_fold::*;
 pub use node_keyword::*;
 pub use node_replace::*;
 pub use node_split::*;
+pub use node_ternary::*;
 pub use op_bind::*;
 pub use op_brackets::*;
 pub use op_comma::*;
@@ -27,6 +30,7 @@ pub use op_decl::*;
 pub use op_print::*;
 pub use op_replace_symbol::*;
 pub use op_split_line::*;
+pub use op_ternary::*;
 
 #[derive(Clone)]
 pub struct NodeList {
@@ -39,7 +43,9 @@ impl NodeList {
 	}
 
 	pub fn new(scope: ScopeHandle, nodes: Vec<Node>) -> Self {
+		let span = Span::from_nodes(nodes.iter().cloned());
 		let data = NodeListData {
+			span,
 			version: RwLock::new(0),
 			scope,
 			nodes: RwLock::new(Arc::new(nodes)),
@@ -68,7 +74,7 @@ impl NodeList {
 	}
 
 	pub fn span(&self) -> Span {
-		Span::from_nodes(self.iter())
+		self.data.span.clone()
 	}
 
 	pub fn offset(&self) -> usize {
@@ -222,6 +228,7 @@ impl Hash for NodeList {
 //====================================================================================================================//
 
 struct NodeListData {
+	span: Span,
 	version: RwLock<usize>,
 	scope: ScopeHandle,
 	nodes: RwLock<Arc<Vec<Node>>>,
