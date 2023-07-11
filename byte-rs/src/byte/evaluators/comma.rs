@@ -4,17 +4,23 @@ use super::*;
 
 pub struct CommaOperator;
 
-impl IsNodeOperator for CommaOperator {
-	fn predicate(&self, node: &Node) -> bool {
+impl CommaOperator {
+	pub fn is_comma(&self, node: &Node) -> bool {
 		if let Bit::Token(Token::Symbol(symbol)) = node.bit() {
 			symbol == ","
 		} else {
 			false
 		}
 	}
+}
+
+impl IsNodeOperator for CommaOperator {
+	fn can_apply(&self, nodes: &NodeList) -> bool {
+		nodes.contains(|x| self.is_comma(x))
+	}
 
 	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
-		let items = nodes.split_by_items(|n| self.predicate(n));
+		let items = nodes.split_by_items(|n| self.is_comma(n));
 
 		// FIXME: properly handle dangling commas
 		for it in items.iter() {

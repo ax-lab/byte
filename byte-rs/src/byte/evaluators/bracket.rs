@@ -129,11 +129,11 @@ impl BracketPairs {
 }
 
 impl IsNodeOperator for BracketPairs {
-	fn predicate(&self, node: &Node) -> bool {
-		match node.bit() {
+	fn can_apply(&self, nodes: &NodeList) -> bool {
+		nodes.contains(|node| match node.bit() {
 			Bit::Token(Token::Symbol(symbol)) => self.pairs.contains_key(symbol),
 			_ => false,
-		}
+		})
 	}
 
 	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {

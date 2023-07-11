@@ -4,14 +4,7 @@ use super::*;
 pub trait IsNodeOperator {
 	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()>;
 
-	fn can_apply(&self, nodes: &NodeList) -> bool {
-		nodes.contains(|x| self.predicate(x))
-	}
-
-	fn predicate(&self, node: &Node) -> bool {
-		let _ = node;
-		false
-	}
+	fn can_apply(&self, nodes: &NodeList) -> bool;
 }
 
 /// Evaluation order precedence for [`NodeOperator`].

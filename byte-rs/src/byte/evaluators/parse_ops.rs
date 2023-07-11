@@ -78,11 +78,11 @@ impl<T: Clone> Debug for OpMap<T> {
 pub struct ParseBinaryOp(pub OpMap<BinaryOp>, pub Grouping);
 
 impl IsNodeOperator for ParseBinaryOp {
-	fn predicate(&self, node: &Node) -> bool {
-		match node.bit() {
+	fn can_apply(&self, nodes: &NodeList) -> bool {
+		nodes.contains(|node| match node.bit() {
 			Bit::Token(Token::Word(symbol) | Token::Symbol(symbol)) => self.0.contains(symbol),
 			_ => false,
-		}
+		})
 	}
 
 	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()> {
