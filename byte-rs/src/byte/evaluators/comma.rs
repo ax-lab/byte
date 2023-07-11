@@ -4,7 +4,7 @@ use super::*;
 
 pub struct CommaOperator;
 
-impl IsEvaluator for CommaOperator {
+impl IsNodeOperator for CommaOperator {
 	fn predicate(&self, node: &Node) -> bool {
 		if let Bit::Token(Token::Symbol(symbol)) = node.bit() {
 			symbol == ","

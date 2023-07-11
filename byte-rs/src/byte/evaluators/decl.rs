@@ -2,7 +2,7 @@ use super::*;
 
 pub struct LetOperator;
 
-impl IsEvaluator for LetOperator {
+impl IsNodeOperator for LetOperator {
 	fn can_apply(&self, nodes: &NodeList) -> bool {
 		// TODO: make the symbols as operator arguments
 		nodes.is_keyword(0, &"let".into()) && nodes.is_identifier(1) && nodes.is_symbol(2, &"=".into())

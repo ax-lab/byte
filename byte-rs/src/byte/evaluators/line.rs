@@ -13,7 +13,7 @@ impl NodeListSplit for SplitLineOperator {
 	}
 }
 
-impl IsEvaluator for SplitLineOperator {
+impl IsNodeOperator for SplitLineOperator {
 	fn can_apply(&self, nodes: &NodeList) -> bool {
 		nodes.can_split(self)
 	}

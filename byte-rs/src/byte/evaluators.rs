@@ -23,17 +23,17 @@ pub use replace_symbol::*;
 pub use ternary::*;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum Evaluator {
-	Brackets(BracketPairs, EvalPrecedence),
-	SplitLines(EvalPrecedence),
-	Let(EvalPrecedence),
-	Ternary(TernaryOp, EvalPrecedence),
-	Print(EvalPrecedence),
-	Comma(EvalPrecedence),
-	Replace(Symbol, fn(Span) -> Node, EvalPrecedence),
-	Bind(EvalPrecedence),
-	Binary(ParseBinaryOp, EvalPrecedence),
-	UnaryPrefix(ParseUnaryPrefixOp, EvalPrecedence),
+pub enum NodeOperator {
+	Brackets(BracketPairs, NodePrecedence),
+	SplitLines(NodePrecedence),
+	Let(NodePrecedence),
+	Ternary(TernaryOp, NodePrecedence),
+	Print(NodePrecedence),
+	Comma(NodePrecedence),
+	Replace(Symbol, fn(Span) -> Node, NodePrecedence),
+	Bind(NodePrecedence),
+	Binary(ParseBinaryOp, NodePrecedence),
+	UnaryPrefix(ParseUnaryPrefixOp, NodePrecedence),
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -42,8 +42,8 @@ pub enum Grouping {
 	Right,
 }
 
-impl Evaluator {
-	pub fn precedence(&self) -> EvalPrecedence {
+impl NodeOperator {
+	pub fn precedence(&self) -> NodePrecedence {
 		self.get_impl().1
 	}
 
@@ -55,18 +55,18 @@ impl Evaluator {
 		self.get_impl().0.apply(nodes, context)
 	}
 
-	fn get_impl(&self) -> (Arc<dyn IsEvaluator>, EvalPrecedence) {
+	fn get_impl(&self) -> (Arc<dyn IsNodeOperator>, NodePrecedence) {
 		match self {
-			Evaluator::SplitLines(prec) => (Arc::new(SplitLineOperator), *prec),
-			Evaluator::Let(prec) => (Arc::new(LetOperator), *prec),
-			Evaluator::Bind(prec) => (Arc::new(BindOperator), *prec),
-			Evaluator::Print(prec) => (Arc::new(PrintOperator), *prec),
-			Evaluator::Replace(symbol, node, prec) => (Arc::new(ReplaceSymbol(symbol.clone(), node.clone())), *prec),
-			Evaluator::Binary(op, prec) => (Arc::new(op.clone()), *prec),
-			Evaluator::UnaryPrefix(op, prec) => (Arc::new(op.clone()), *prec),
-			Evaluator::Comma(prec) => (Arc::new(CommaOperator), *prec),
-			Evaluator::Brackets(pairs, prec) => (Arc::new(pairs.clone()), *prec),
-			Evaluator::Ternary(op, prec) => (Arc::new(op.clone()), *prec),
+			NodeOperator::SplitLines(prec) => (Arc::new(SplitLineOperator), *prec),
+			NodeOperator::Let(prec) => (Arc::new(LetOperator), *prec),
+			NodeOperator::Bind(prec) => (Arc::new(BindOperator), *prec),
+			NodeOperator::Print(prec) => (Arc::new(PrintOperator), *prec),
+			NodeOperator::Replace(symbol, node, prec) => (Arc::new(ReplaceSymbol(symbol.clone(), node.clone())), *prec),
+			NodeOperator::Binary(op, prec) => (Arc::new(op.clone()), *prec),
+			NodeOperator::UnaryPrefix(op, prec) => (Arc::new(op.clone()), *prec),
+			NodeOperator::Comma(prec) => (Arc::new(CommaOperator), *prec),
+			NodeOperator::Brackets(pairs, prec) => (Arc::new(pairs.clone()), *prec),
+			NodeOperator::Ternary(op, prec) => (Arc::new(op.clone()), *prec),
 		}
 	}
 }

@@ -1,7 +1,7 @@
 use super::*;
 
 /// An operation applicable to a [`NodeList`] and [`Scope`].
-pub trait IsEvaluator {
+pub trait IsNodeOperator {
 	fn apply(&self, nodes: &mut NodeList, context: &mut EvalContext) -> Result<()>;
 
 	fn can_apply(&self, nodes: &NodeList) -> bool {
@@ -14,9 +14,9 @@ pub trait IsEvaluator {
 	}
 }
 
-/// Evaluation order precedence for [`Evaluator`].
+/// Evaluation order precedence for [`NodeOperator`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum EvalPrecedence {
+pub enum NodePrecedence {
 	Highest,
 	Brackets,
 	SplitLines,
@@ -40,7 +40,7 @@ pub enum EvalPrecedence {
 // Context
 //====================================================================================================================//
 
-/// Context for an [`Evaluator`] application.
+/// Context for an [`NodeOperator`] application.
 pub struct EvalContext {
 	new_segments: Vec<NodeList>,
 	declares: Vec<(Symbol, Option<usize>, BindingValue)>,

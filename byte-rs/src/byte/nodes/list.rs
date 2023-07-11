@@ -81,9 +81,9 @@ impl NodeList {
 		nodes.get(index).cloned()
 	}
 
-	pub fn get_next_evaluator(&self, max_precedence: Option<EvalPrecedence>) -> Result<Option<Evaluator>> {
-		let evaluators = self.scope().get_evaluators().into_iter();
-		let evaluators = evaluators.take_while(|x| {
+	pub fn get_next_node_operator(&self, max_precedence: Option<NodePrecedence>) -> Result<Option<NodeOperator>> {
+		let operators = self.scope().get_node_operators().into_iter();
+		let operators = operators.take_while(|x| {
 			if let Some(max) = max_precedence {
 				x.precedence() <= max
 			} else {
@@ -91,17 +91,17 @@ impl NodeList {
 			}
 		});
 
-		let evaluators = evaluators.skip_while(|x| !x.can_apply(self));
+		let operators = operators.skip_while(|x| !x.can_apply(self));
 
-		let mut evaluators = evaluators;
-		if let Some(op) = evaluators.next() {
+		let mut operators = operators;
+		if let Some(op) = operators.next() {
 			let prec = op.precedence();
-			let evaluators = evaluators.take_while(|x| x.precedence() == prec);
-			let evaluators = evaluators.collect::<Vec<_>>();
-			if evaluators.len() > 0 {
+			let operators = operators.take_while(|x| x.precedence() == prec);
+			let operators = operators.collect::<Vec<_>>();
+			if operators.len() > 0 {
 				let mut error =
-					format!("ambiguous node list can accept multiple evaluators at the same precedence\n-> {op:?}");
-				for eval in evaluators {
+					format!("ambiguous node list can accept multiple node operators at the same precedence\n-> {op:?}");
+				for eval in operators {
 					let _ = write!(error, ", {eval:?}");
 				}
 				let _ = write!(error.indented(), "\n-> {self:?}");

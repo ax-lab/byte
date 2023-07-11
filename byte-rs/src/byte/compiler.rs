@@ -79,11 +79,11 @@ impl Compiler {
 		//--------------------------------------------------------------------------------------------------------//
 
 		//general parsing
-		scope.add_evaluator(Evaluator::SplitLines(EvalPrecedence::SplitLines));
-		scope.add_evaluator(Evaluator::Let(EvalPrecedence::Let));
-		scope.add_evaluator(Evaluator::Bind(EvalPrecedence::Bind));
-		scope.add_evaluator(Evaluator::Print(EvalPrecedence::Print));
-		scope.add_evaluator(Evaluator::Comma(EvalPrecedence::Comma));
+		scope.add_node_operator(NodeOperator::SplitLines(NodePrecedence::SplitLines));
+		scope.add_node_operator(NodeOperator::Let(NodePrecedence::Let));
+		scope.add_node_operator(NodeOperator::Bind(NodePrecedence::Bind));
+		scope.add_node_operator(NodeOperator::Print(NodePrecedence::Print));
+		scope.add_node_operator(NodeOperator::Comma(NodePrecedence::Comma));
 
 		let ternary = TernaryOp(
 			Context::symbol("?"),
@@ -93,7 +93,7 @@ impl Compiler {
 				Bit::Conditional(a, b, c).at(span)
 			}),
 		);
-		scope.add_evaluator(Evaluator::Ternary(ternary, EvalPrecedence::Ternary));
+		scope.add_node_operator(NodeOperator::Ternary(ternary, NodePrecedence::Ternary));
 
 		// brackets
 		let mut brackets = BracketPairs::new();
@@ -103,43 +103,43 @@ impl Compiler {
 			Arc::new(|_, n, _| Bit::Group(n)),
 		);
 
-		scope.add_evaluator(Evaluator::Brackets(brackets, EvalPrecedence::Brackets));
+		scope.add_node_operator(NodeOperator::Brackets(brackets, NodePrecedence::Brackets));
 
 		// boolean
-		scope.add_evaluator(Evaluator::Replace(
+		scope.add_node_operator(NodeOperator::Replace(
 			Context::symbol("true"),
 			|span| Bit::Boolean(true).at(span),
-			EvalPrecedence::Boolean(true),
+			NodePrecedence::Boolean(true),
 		));
-		scope.add_evaluator(Evaluator::Replace(
+		scope.add_node_operator(NodeOperator::Replace(
 			Context::symbol("false"),
 			|span| Bit::Boolean(false).at(span),
-			EvalPrecedence::Boolean(false),
+			NodePrecedence::Boolean(false),
 		));
 
 		// null
-		scope.add_evaluator(Evaluator::Replace(
+		scope.add_node_operator(NodeOperator::Replace(
 			Context::symbol("null"),
 			|span| Bit::Null.at(span),
-			EvalPrecedence::Null,
+			NodePrecedence::Null,
 		));
 
 		// binary
 
 		let mut ops = OpMap::new();
 		ops.add(Context::symbol("="), BinaryOp::Assign);
-		scope.add_evaluator(Evaluator::Binary(
+		scope.add_node_operator(NodeOperator::Binary(
 			ParseBinaryOp(ops, Grouping::Right),
-			EvalPrecedence::OpAssign,
+			NodePrecedence::OpAssign,
 		));
 
 		// additive
 		let mut ops = OpMap::new();
 		ops.add(Context::symbol("+"), BinaryOp::Add);
 		ops.add(Context::symbol("-"), BinaryOp::Sub);
-		scope.add_evaluator(Evaluator::Binary(
+		scope.add_node_operator(NodeOperator::Binary(
 			ParseBinaryOp(ops, Grouping::Left),
-			EvalPrecedence::OpAdditive,
+			NodePrecedence::OpAdditive,
 		));
 
 		// multiplicative
@@ -147,24 +147,24 @@ impl Compiler {
 		ops.add(Context::symbol("*"), BinaryOp::Mul);
 		ops.add(Context::symbol("/"), BinaryOp::Div);
 		ops.add(Context::symbol("%"), BinaryOp::Mod);
-		scope.add_evaluator(Evaluator::Binary(
+		scope.add_node_operator(NodeOperator::Binary(
 			ParseBinaryOp(ops, Grouping::Left),
-			EvalPrecedence::OpMultiplicative,
+			NodePrecedence::OpMultiplicative,
 		));
 
 		// boolean
 		let mut ops = OpMap::new();
 		ops.add(Context::symbol("and"), BinaryOp::And);
-		scope.add_evaluator(Evaluator::Binary(
+		scope.add_node_operator(NodeOperator::Binary(
 			ParseBinaryOp(ops, Grouping::Right),
-			EvalPrecedence::OpBooleanAnd,
+			NodePrecedence::OpBooleanAnd,
 		));
 
 		let mut ops = OpMap::new();
 		ops.add(Context::symbol("or"), BinaryOp::Or);
-		scope.add_evaluator(Evaluator::Binary(
+		scope.add_node_operator(NodeOperator::Binary(
 			ParseBinaryOp(ops, Grouping::Right),
-			EvalPrecedence::OpBooleanOr,
+			NodePrecedence::OpBooleanOr,
 		));
 
 		// unary
@@ -174,9 +174,9 @@ impl Compiler {
 		ops.add(Context::symbol("!"), UnaryOp::Neg);
 		ops.add(Context::symbol("+"), UnaryOp::Plus);
 		ops.add(Context::symbol("-"), UnaryOp::Minus);
-		scope.add_evaluator(Evaluator::UnaryPrefix(
+		scope.add_node_operator(NodeOperator::UnaryPrefix(
 			ParseUnaryPrefixOp(ops),
-			EvalPrecedence::OpUnaryPrefix,
+			NodePrecedence::OpUnaryPrefix,
 		));
 	}
 }

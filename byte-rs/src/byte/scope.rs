@@ -72,7 +72,7 @@ struct ScopeData {
 	parent: Option<ScopeHandle>,
 	children: RwLock<Vec<Arc<ScopeData>>>,
 	matcher: Arc<RwLock<Option<Matcher>>>,
-	evaluators: Arc<RwLock<HashSet<Evaluator>>>,
+	node_operators: Arc<RwLock<HashSet<NodeOperator>>>,
 	bindings: RwLock<HashMap<Symbol, BindingList>>,
 }
 
@@ -84,7 +84,7 @@ impl ScopeData {
 			parent: Default::default(),
 			children: Default::default(),
 			matcher: Default::default(),
-			evaluators: Default::default(),
+			node_operators: Default::default(),
 			bindings: Default::default(),
 		}
 	}
@@ -135,24 +135,24 @@ impl Scope {
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
-	// Evaluators
+	// Node operators
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub fn get_evaluators(&self) -> Vec<Evaluator> {
+	pub fn get_node_operators(&self) -> Vec<NodeOperator> {
 		let mut set = HashSet::new();
 		if let Some(parent) = self.parent() {
-			parent.get_evaluator_set(&mut set);
+			parent.get_node_operator_set(&mut set);
 		}
-		self.get_evaluator_set(&mut set);
+		self.get_node_operator_set(&mut set);
 
 		let mut output = set.into_iter().collect::<Vec<_>>();
 		output.sort_by_key(|x| x.precedence());
 		output
 	}
 
-	fn get_evaluator_set(&self, set: &mut HashSet<Evaluator>) {
-		let evaluators = self.data.evaluators.read().unwrap();
-		for it in evaluators.iter() {
+	fn get_node_operator_set(&self, set: &mut HashSet<NodeOperator>) {
+		let operators = self.data.node_operators.read().unwrap();
+		for it in operators.iter() {
 			set.insert(it.clone());
 		}
 	}
@@ -221,9 +221,9 @@ impl ScopeWriter {
 		*matcher = Some(new_matcher);
 	}
 
-	pub fn add_evaluator(&mut self, op: Evaluator) {
-		let mut evaluators = self.data().evaluators.write().unwrap();
-		evaluators.insert(op);
+	pub fn add_node_operator(&mut self, op: NodeOperator) {
+		let mut operators = self.data().node_operators.write().unwrap();
+		operators.insert(op);
 	}
 
 	pub fn set_static(&mut self, name: Symbol, value: BindingValue) -> Result<()> {

@@ -77,7 +77,7 @@ impl<T: Clone> Debug for OpMap<T> {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParseBinaryOp(pub OpMap<BinaryOp>, pub Grouping);
 
-impl IsEvaluator for ParseBinaryOp {
+impl IsNodeOperator for ParseBinaryOp {
 	fn predicate(&self, node: &Node) -> bool {
 		match node.bit() {
 			Bit::Token(Token::Word(symbol) | Token::Symbol(symbol)) => self.0.contains(symbol),
@@ -125,7 +125,7 @@ impl IsEvaluator for ParseBinaryOp {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParseUnaryPrefixOp(pub OpMap<UnaryOp>);
 
-impl IsEvaluator for ParseUnaryPrefixOp {
+impl IsNodeOperator for ParseUnaryPrefixOp {
 	fn can_apply(&self, nodes: &NodeList) -> bool {
 		match nodes.get(0).as_ref().map(|x| x.bit()) {
 			Some(Bit::Token(Token::Word(symbol) | Token::Symbol(symbol))) => self.0.contains(symbol),
