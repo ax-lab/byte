@@ -1,9 +1,11 @@
 use super::*;
 
+pub mod float;
 pub mod int;
 pub mod string;
 pub mod types;
 
+pub use float::*;
 pub use int::*;
 pub use string::*;
 pub use types::*;
@@ -15,6 +17,7 @@ pub enum Value {
 	Null,
 	Bool(bool),
 	Int(IntValue),
+	Float(FloatValue),
 	String(Arc<String>),
 }
 
@@ -34,6 +37,7 @@ impl Value {
 			Value::Null => "(null)".into(),
 			Value::Bool(value) => (if *value { "true" } else { "false " }).into(),
 			Value::Int(value) => value.to_string().into(),
+			Value::Float(value) => value.to_string().into(),
 			Value::String(value) => StringValue::new_from_arc(value.clone()),
 		};
 		Ok(value)
@@ -48,17 +52,49 @@ impl Value {
 			Value::Unit => None,
 			Value::Never => None,
 			Value::Null => None,
-			Value::Bool(value) if conversion >= NumericConversion::BoolToInt => {
+			Value::Bool(value) if conversion >= NumericConversion::FromBool => {
 				let output = IntValue::new(if *value { 1 } else { 0 }, kind.clone())?;
 				Some(output)
 			}
-			Value::Int(int) => Some(int.cast_to(kind)?),
+			Value::Int(value) => Some(value.cast_to(kind)?),
+			Value::Float(value) => Some(IntValue::new_signed(value.as_f64() as i128, kind.clone())?),
 			Value::String(value) if conversion >= NumericConversion::Parse => {
 				let value: DefaultInt = match value.as_str().parse() {
 					Ok(value) => value,
 					Err(err) => return err!("cannot parse string as {kind}: {err}"),
 				};
-				Some(IntValue::new(value as u128, DEFAULT_INT)?)
+				Some(IntValue::new_signed(value as i128, kind.clone())?)
+			}
+			_ => None,
+		};
+		if let Some(output) = output {
+			Ok(output)
+		} else {
+			err!("cannot convert {} to {kind}", self.get_type())
+		}
+	}
+
+	pub fn float_value(&self, kind: &FloatType, conversion: NumericConversion) -> Result<FloatValue> {
+		let output = match self {
+			Value::Unit => None,
+			Value::Never => None,
+			Value::Null => None,
+			Value::Bool(value) if conversion >= NumericConversion::FromBool => {
+				let output = FloatValue::new(if *value { 1.0 } else { 0.0 }, kind.clone());
+				Some(output)
+			}
+			Value::Float(value) => Some(value.clone()),
+			Value::Int(value) => Some(if value.get_type().signed() {
+				FloatValue::new(value.signed() as f64, kind.clone())
+			} else {
+				FloatValue::new(value.unsigned() as f64, kind.clone())
+			}),
+			Value::String(value) if conversion >= NumericConversion::Parse => {
+				let value: f64 = match value.as_str().parse() {
+					Ok(value) => value,
+					Err(err) => return err!("cannot parse string as {kind}: {err}"),
+				};
+				Some(FloatValue::new(value as f64, kind.clone()))
 			}
 			_ => None,
 		};
@@ -76,6 +112,7 @@ impl Value {
 			Value::Null => Type::Null,
 			Value::Bool(..) => Type::Bool,
 			Value::Int(int) => Type::Int(int.get_type()),
+			Value::Float(float) => Type::Float(float.get_type()),
 			Value::String(..) => Type::String,
 		}
 	}
@@ -89,6 +126,7 @@ impl Display for Value {
 			Value::Null => write!(f, "null"),
 			Value::Bool(v) => write!(f, "{}", if *v { "true" } else { "false" }),
 			Value::Int(v) => write!(f, "{v}"),
+			Value::Float(v) => write!(f, "{v}"),
 			Value::String(v) => write!(f, "{v}"),
 		}
 	}
@@ -115,6 +153,24 @@ impl<T: IsIntType> From<T> for Value {
 impl From<IntValue> for Value {
 	fn from(value: IntValue) -> Self {
 		Value::Int(value)
+	}
+}
+
+impl From<f32> for Value {
+	fn from(value: f32) -> Self {
+		Value::Float(FloatValue::new32(value))
+	}
+}
+
+impl From<f64> for Value {
+	fn from(value: f64) -> Self {
+		Value::Float(FloatValue::new(value, FloatType::F64))
+	}
+}
+
+impl From<FloatValue> for Value {
+	fn from(value: FloatValue) -> Self {
+		Value::Float(value)
 	}
 }
 

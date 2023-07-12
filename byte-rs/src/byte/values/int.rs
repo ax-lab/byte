@@ -3,17 +3,28 @@ use super::*;
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum NumericConversion {
 	None,
-	BoolToInt,
+	FromBool,
 	Parse,
 }
 
 pub const ARITHMETIC_CONVERSION: NumericConversion = NumericConversion::None;
 
 pub fn arithmetic_output(lhs: &Type, rhs: &Type) -> Option<Type> {
-	if let Some(lt) = lhs.get_int_type(ARITHMETIC_CONVERSION) {
-		if let Some(rt) = rhs.get_int_type(ARITHMETIC_CONVERSION) {
-			let output = IntType::merge_for_upcast(lt, rt);
-			let output = Type::Int(output);
+	if let Some(lt) = lhs.get_numeric_type(ARITHMETIC_CONVERSION) {
+		if let Some(rt) = rhs.get_numeric_type(ARITHMETIC_CONVERSION) {
+			let output = match lt {
+				Type::Int(lt) => match rt {
+					Type::Int(rt) => Type::Int(IntType::merge_for_upcast(lt, rt)),
+					Type::Float(rt) => Type::Float(rt),
+					_ => return None,
+				},
+				Type::Float(lt) => match rt {
+					Type::Int(..) => Type::Float(lt),
+					Type::Float(rt) => Type::Float(FloatType::merge_for_upcast(lt, rt)),
+					_ => return None,
+				},
+				_ => return None,
+			};
 			Some(output)
 		} else {
 			None
@@ -24,8 +35,13 @@ pub fn arithmetic_output(lhs: &Type, rhs: &Type) -> Option<Type> {
 }
 
 pub fn numeric_output(arg: &Type, convert: NumericConversion) -> Option<(Type, bool)> {
-	if let Some(int) = arg.get_int_type(convert) {
-		Some((Type::Int(int), int.signed()))
+	if let Some(typ) = arg.get_numeric_type(convert) {
+		let signed = match typ {
+			Type::Int(int) => int.signed(),
+			Type::Float(..) => true,
+			_ => unreachable!(),
+		};
+		Some((typ, signed))
 	} else {
 		None
 	}
@@ -137,6 +153,23 @@ impl IntValue {
 
 	pub fn get_as<T: IsIntType>(&self) -> T::Type {
 		T::from_int(self)
+	}
+
+	pub fn sign(&self) -> i8 {
+		if self.get_type().signed() {
+			let value = self.signed();
+			if value < 0 {
+				-1
+			} else if value == 0 {
+				0
+			} else {
+				1
+			}
+		} else if self.unsigned() == 0 {
+			0
+		} else {
+			1
+		}
 	}
 
 	pub fn is_zero(&self) -> bool {

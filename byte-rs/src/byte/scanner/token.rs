@@ -9,6 +9,7 @@ pub enum Token {
 	Symbol(Symbol),
 	Literal(StringValue),
 	Integer(u128),
+	Float(StringValue),
 }
 
 impl Node {

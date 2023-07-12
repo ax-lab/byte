@@ -26,6 +26,14 @@ impl IsUnaryOp for OpNeg {
 		let (arg, bool) = Type::to_bool_output(&arg)?;
 		if self.output == Type::Bool {
 			Ok(Value::Bool(!bool).into())
+		} else if let Type::Float(float) = self.output {
+			let value = arg.float_value(&float, NumericConversion::None)?;
+			let value = if value.as_bool() {
+				FloatValue::new(0.0, float)
+			} else {
+				FloatValue::new(1.0, float)
+			};
+			Ok(Value::Float(value).into())
 		} else {
 			let int_type = self
 				.output

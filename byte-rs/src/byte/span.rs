@@ -189,6 +189,10 @@ impl Span {
 		}
 	}
 
+	pub fn peek(&self) -> Option<char> {
+		self.next_char().map(|x| x.0)
+	}
+
 	/// Return the next character in the input without advancing the cursor.
 	pub fn next_char(&self) -> Option<(char, usize)> {
 		let data = self.data();

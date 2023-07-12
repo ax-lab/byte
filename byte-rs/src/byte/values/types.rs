@@ -9,6 +9,7 @@ pub enum Type {
 	Bool,
 	String,
 	Int(IntType),
+	Float(FloatType),
 	Or(Arc<Type>, Arc<Type>),
 	Ref(Arc<Type>),
 }
@@ -35,13 +36,22 @@ impl Type {
 				}
 				Type::String => a,
 				Type::Int(a) => {
-					let a = if let Some(b) = b.get_int_type(NumericConversion::BoolToInt) {
+					let a = if let Some(b) = b.get_int_type(NumericConversion::FromBool) {
 						let merged = IntType::merge_for_upcast(a, b);
 						return Type::Int(merged);
 					} else {
 						a
 					};
 					Type::Int(a)
+				}
+				Type::Float(a) => {
+					let a = if let Some(b) = b.get_float_type(NumericConversion::FromBool) {
+						let merged = FloatType::merge_for_upcast(a, b);
+						return Type::Float(merged);
+					} else {
+						a
+					};
+					Type::Float(a)
 				}
 				Type::Or(..) => a,
 				Type::Ref(..) => a,
@@ -58,6 +68,7 @@ impl Type {
 			Type::Bool => "bool".into(),
 			Type::String => "string".into(),
 			Type::Int(typ) => typ.name(),
+			Type::Float(typ) => typ.name(),
 			Type::Or(a, b) => format!("{} | {}", a.name(), b.name()).into(),
 			Type::Ref(a) => format!("&({})", a.name()).into(),
 		}
@@ -75,6 +86,10 @@ impl Type {
 		matches!(self.value(), Type::String)
 	}
 
+	pub fn is_float(&self) -> bool {
+		matches!(self.value(), Type::Float(..))
+	}
+
 	pub fn is_bool(&self) -> bool {
 		matches!(self.value(), Type::Bool)
 	}
@@ -83,11 +98,30 @@ impl Type {
 		matches!(self.value(), Type::Int(..))
 	}
 
+	pub fn get_numeric_type(&self, convert: NumericConversion) -> Option<Type> {
+		match self.value() {
+			Type::Int(..) => Some(self.clone()),
+			Type::Float(..) => Some(self.clone()),
+			Type::Bool if convert >= NumericConversion::FromBool => Some(Type::Int(IntType::U8)),
+			Type::String if convert >= NumericConversion::Parse => Some(Type::Float(FloatType::F64)),
+			_ => None,
+		}
+	}
+
 	pub fn get_int_type(&self, convert: NumericConversion) -> Option<IntType> {
 		match self.value() {
 			Type::Int(int) => Some(int.clone()),
-			Type::Bool if convert >= NumericConversion::BoolToInt => Some(IntType::U8),
+			Type::Bool if convert >= NumericConversion::FromBool => Some(IntType::U8),
 			Type::String if convert >= NumericConversion::Parse => Some(DEFAULT_INT),
+			_ => None,
+		}
+	}
+
+	pub fn get_float_type(&self, convert: NumericConversion) -> Option<FloatType> {
+		match self.value() {
+			Type::Float(float) => Some(float.clone()),
+			Type::Bool if convert >= NumericConversion::FromBool => Some(FloatType::F64),
+			Type::String if convert >= NumericConversion::Parse => Some(FloatType::F64),
 			_ => None,
 		}
 	}
@@ -109,6 +143,7 @@ impl Type {
 			Value::Null => (Value::Null, false),
 			value @ Value::Bool(v) => (value.clone(), *v),
 			value @ Value::Int(v) => (value.clone(), !v.is_zero()),
+			value @ Value::Float(v) => (value.clone(), v.as_bool()),
 			value @ Value::String(v) => (value.clone(), v.len() > 0),
 		};
 		Ok(value)
@@ -122,6 +157,7 @@ impl Type {
 			Type::Bool => Some(Type::Bool),
 			Type::String => Some(Type::String),
 			Type::Int(value) => Some(Type::Int(value.clone())),
+			Type::Float(value) => Some(Type::Float(value.clone())),
 			Type::Or(a, b) => {
 				let a = Self::bool_output(a);
 				let b = Self::bool_output(b);

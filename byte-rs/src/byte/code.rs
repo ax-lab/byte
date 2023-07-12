@@ -99,6 +99,17 @@ impl NodeList {
 				let value = IntValue::new(*value, DEFAULT_INT).at_pos(node.span())?;
 				Expr::Int(value)
 			}
+			Bit::Token(Token::Float(value)) => {
+				let value: f64 = match value.as_str().parse() {
+					Ok(value) => value,
+					Err(err) => {
+						let error = Errors::from(format!("not a valid float: {err}"), node.span());
+						return Err(error);
+					}
+				};
+				let value = FloatValue::new(value, FloatType::F64);
+				Expr::Float(value)
+			}
 			Bit::Null => Expr::Null,
 			Bit::Token(Token::Literal(value)) => Expr::Str(value.clone()),
 			Bit::Line(list) => list.generate_expr(context)?,
@@ -204,6 +215,7 @@ pub enum Expr {
 	Bool(bool),
 	Str(StringValue),
 	Int(IntValue),
+	Float(FloatValue),
 	Variable(Symbol, Option<usize>, Type),
 	Print(Arc<Expr>, &'static str),
 	Unary(UnaryOpImpl, Arc<Expr>),
@@ -221,6 +233,7 @@ impl Expr {
 			Expr::Bool(..) => Type::Bool,
 			Expr::Str(..) => Type::String,
 			Expr::Int(int) => Type::Int(int.get_type()),
+			Expr::Float(float) => Type::Float(float.get_type()),
 			Expr::Variable(.., kind) => Type::Ref(kind.clone().into()),
 			Expr::Print(..) => Type::Unit,
 			Expr::Unary(op, ..) => op.get().get_type(),
@@ -254,6 +267,7 @@ impl Expr {
 			Expr::Bool(value) => Ok(Value::from(*value).into()),
 			Expr::Str(value) => Ok(Value::from(value.to_string()).into()),
 			Expr::Int(value) => Ok(Value::from(value.clone()).into()),
+			Expr::Float(value) => Ok(Value::from(value.clone()).into()),
 			Expr::Variable(name, index, ..) => match scope.get(name, *index).cloned() {
 				Some(value) => Ok(ExprValue::Variable(name.clone(), index.clone(), value)),
 				None => Err(Errors::from(format!("variable {name} not set"), Span::default())),

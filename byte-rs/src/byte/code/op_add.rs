@@ -28,6 +28,12 @@ impl IsBinaryOp for OpAdd {
 			let lhs = lhs.string()?;
 			let rhs = rhs.string()?;
 			Ok(Value::from(format!("{lhs}{rhs}")).into())
+		} else if let Type::Float(float_type) = self.output {
+			let lhs = lhs.float_value(&float_type, CONVERSION)?;
+			let rhs = rhs.float_value(&float_type, CONVERSION)?;
+			let value = lhs.as_f64() + rhs.as_f64();
+			let value = FloatValue::new(value, float_type);
+			Ok(Value::Float(value).into())
 		} else {
 			let int_type = self
 				.output
