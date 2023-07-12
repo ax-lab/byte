@@ -198,7 +198,7 @@ impl<T> ResultChain for Result<T> {
 pub trait ResultChainDefault {
 	type Result;
 
-	fn handle(self, error: &mut Errors) -> Self::Result;
+	fn handle(self, errors: &mut Errors) -> Self::Result;
 }
 
 impl<T: Default> ResultChainDefault for Result<T> {

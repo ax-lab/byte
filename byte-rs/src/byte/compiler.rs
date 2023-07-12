@@ -74,8 +74,76 @@ impl CompilerData {
 
 impl Compiler {
 	pub(crate) fn configure_root_scope(&self, scope: &mut ScopeWriter) {
-		//--------------------------------------------------------------------------------------------------------//
+		//----------------------------------------------------------------------------------------------------------------//
 		// Operators
+		//----------------------------------------------------------------------------------------------------------------//
+
+		let mut ops = OperatorSet::new();
+
+		ops.add(Operator::new_binary(
+			"=".into(),
+			BinaryOp::Assign,
+			OpPrecedence::Assign,
+			Grouping::Right,
+		));
+
+		ops.add(
+			Operator::new_binary("+".into(), BinaryOp::Add, OpPrecedence::Additive, Grouping::Left)
+				.and_prefix(UnaryOp::Plus, OpPrecedence::Unary),
+		);
+
+		ops.add(
+			Operator::new_binary("-".into(), BinaryOp::Sub, OpPrecedence::Additive, Grouping::Left)
+				.and_prefix(UnaryOp::Minus, OpPrecedence::Unary),
+		);
+
+		ops.add(Operator::new_binary(
+			"*".into(),
+			BinaryOp::Mul,
+			OpPrecedence::Multiplicative,
+			Grouping::Left,
+		));
+
+		ops.add(Operator::new_binary(
+			"/".into(),
+			BinaryOp::Div,
+			OpPrecedence::Multiplicative,
+			Grouping::Left,
+		));
+
+		ops.add(Operator::new_binary(
+			"%".into(),
+			BinaryOp::Mod,
+			OpPrecedence::Multiplicative,
+			Grouping::Left,
+		));
+
+		ops.add(Operator::new_binary(
+			"and".into(),
+			BinaryOp::And,
+			OpPrecedence::BooleanAnd,
+			Grouping::Right,
+		));
+
+		ops.add(Operator::new_binary(
+			"or".into(),
+			BinaryOp::Or,
+			OpPrecedence::BooleanOr,
+			Grouping::Right,
+		));
+
+		ops.add(Operator::new_prefix(
+			"not".into(),
+			UnaryOp::Not,
+			OpPrecedence::BooleanNot,
+		));
+
+		ops.add(Operator::new_prefix("!".into(), UnaryOp::Neg, OpPrecedence::Unary));
+
+		scope.add_node_operator(NodeOperator::ParseExpression(ops, NodePrecedence::Expression));
+
+		//--------------------------------------------------------------------------------------------------------//
+		// Node Operators
 		//--------------------------------------------------------------------------------------------------------//
 
 		//general parsing
@@ -123,61 +191,6 @@ impl Compiler {
 			Context::symbol("null"),
 			|span| Bit::Null.at(span),
 			NodePrecedence::Null,
-		));
-
-		// binary
-
-		let mut ops = OpMap::new();
-		ops.add(Context::symbol("="), BinaryOp::Assign);
-		scope.add_node_operator(NodeOperator::Binary(
-			ParseBinaryOp(ops, Grouping::Right),
-			NodePrecedence::OpAssign,
-		));
-
-		// additive
-		let mut ops = OpMap::new();
-		ops.add(Context::symbol("+"), BinaryOp::Add);
-		ops.add(Context::symbol("-"), BinaryOp::Sub);
-		scope.add_node_operator(NodeOperator::Binary(
-			ParseBinaryOp(ops, Grouping::Left),
-			NodePrecedence::OpAdditive,
-		));
-
-		// multiplicative
-		let mut ops = OpMap::new();
-		ops.add(Context::symbol("*"), BinaryOp::Mul);
-		ops.add(Context::symbol("/"), BinaryOp::Div);
-		ops.add(Context::symbol("%"), BinaryOp::Mod);
-		scope.add_node_operator(NodeOperator::Binary(
-			ParseBinaryOp(ops, Grouping::Left),
-			NodePrecedence::OpMultiplicative,
-		));
-
-		// boolean
-		let mut ops = OpMap::new();
-		ops.add(Context::symbol("and"), BinaryOp::And);
-		scope.add_node_operator(NodeOperator::Binary(
-			ParseBinaryOp(ops, Grouping::Right),
-			NodePrecedence::OpBooleanAnd,
-		));
-
-		let mut ops = OpMap::new();
-		ops.add(Context::symbol("or"), BinaryOp::Or);
-		scope.add_node_operator(NodeOperator::Binary(
-			ParseBinaryOp(ops, Grouping::Right),
-			NodePrecedence::OpBooleanOr,
-		));
-
-		// unary
-
-		let mut ops = OpMap::new();
-		ops.add(Context::symbol("not"), UnaryOp::Not);
-		ops.add(Context::symbol("!"), UnaryOp::Neg);
-		ops.add(Context::symbol("+"), UnaryOp::Plus);
-		ops.add(Context::symbol("-"), UnaryOp::Minus);
-		scope.add_node_operator(NodeOperator::UnaryPrefix(
-			ParseUnaryPrefixOp(ops),
-			NodePrecedence::OpUnaryPrefix,
 		));
 	}
 }

@@ -2,9 +2,11 @@ use super::*;
 
 pub mod eval;
 pub mod list;
+pub mod operators;
 
 pub use eval::*;
 pub use list::*;
+pub use operators::*;
 
 /// Enumeration of all available language elements.
 ///
@@ -39,7 +41,6 @@ impl Bit {
 		let symbol = match self {
 			Bit::Token(Token::Word(symbol)) => symbol,
 			Bit::Token(Token::Symbol(symbol)) => symbol,
-			Bit::Let(symbol, ..) => symbol,
 			_ => return None,
 		};
 		Some(symbol.clone())

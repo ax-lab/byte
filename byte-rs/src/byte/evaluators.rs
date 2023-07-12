@@ -1,9 +1,5 @@
 use super::*;
 
-pub mod parse_ops;
-
-pub use parse_ops::*;
-
 // TODO: move this
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -16,14 +12,7 @@ pub enum NodeOperator {
 	Comma(Symbol, NodePrecedence),
 	Replace(Symbol, fn(Span) -> Node, NodePrecedence),
 	Bind(NodePrecedence),
-	Binary(ParseBinaryOp, NodePrecedence),
-	UnaryPrefix(ParseUnaryPrefixOp, NodePrecedence),
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub enum Grouping {
-	Left,
-	Right,
+	ParseExpression(OperatorSet, NodePrecedence),
 }
 
 impl NodeOperator {
@@ -46,8 +35,7 @@ impl NodeOperator {
 			NodeOperator::Bind(prec) => (Arc::new(OpBind), *prec),
 			NodeOperator::Print(symbol, prec) => (Arc::new(OpPrint(symbol.clone())), *prec),
 			NodeOperator::Replace(symbol, node, prec) => (Arc::new(ReplaceSymbol(symbol.clone(), node.clone())), *prec),
-			NodeOperator::Binary(op, prec) => (Arc::new(op.clone()), *prec),
-			NodeOperator::UnaryPrefix(op, prec) => (Arc::new(op.clone()), *prec),
+			NodeOperator::ParseExpression(ops, prec) => (Arc::new(ops.clone()), *prec),
 			NodeOperator::Comma(symbol, prec) => (Arc::new(CommaOperator(symbol.clone())), *prec),
 			NodeOperator::Brackets(pairs, prec) => (Arc::new(pairs.clone()), *prec),
 			NodeOperator::Ternary(op, prec) => (Arc::new(op.clone()), *prec),

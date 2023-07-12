@@ -5,11 +5,13 @@ pub mod op_bind;
 pub mod op_brackets;
 pub mod op_comma;
 pub mod op_decl;
+pub mod op_expr;
 pub mod op_print;
 pub mod op_replace_symbol;
 pub mod op_split_line;
 pub mod op_ternary;
 pub mod parse_brackets;
+pub mod parse_expr;
 pub mod parse_fold;
 pub mod parse_keyword;
 pub mod parse_replace;
@@ -21,11 +23,13 @@ pub use op_bind::*;
 pub use op_brackets::*;
 pub use op_comma::*;
 pub use op_decl::*;
+pub use op_expr::*;
 pub use op_print::*;
 pub use op_replace_symbol::*;
 pub use op_split_line::*;
 pub use op_ternary::*;
 pub use parse_brackets::*;
+pub use parse_expr::*;
 pub use parse_fold::*;
 pub use parse_keyword::*;
 pub use parse_replace::*;
@@ -45,7 +49,7 @@ impl NodeList {
 	pub fn new(scope: ScopeHandle, nodes: Vec<Node>) -> Self {
 		let span = Span::from_nodes(nodes.iter().cloned());
 		let data = NodeListData {
-			span,
+			span: RwLock::new(span),
 			version: RwLock::new(0),
 			scope,
 			nodes: RwLock::new(Arc::new(nodes)),
@@ -74,7 +78,7 @@ impl NodeList {
 	}
 
 	pub fn span(&self) -> Span {
-		self.data.span.clone()
+		self.data.span.read().unwrap().clone()
 	}
 
 	pub fn offset(&self) -> usize {
@@ -148,6 +152,9 @@ impl NodeList {
 		if writer(nodes) {
 			let mut version = self.data.version.write().unwrap();
 			*version = *version + 1;
+
+			let mut span = self.data.span.write().unwrap();
+			*span = Span::from_nodes(nodes.iter().cloned());
 		}
 	}
 
@@ -228,7 +235,7 @@ impl Hash for NodeList {
 //====================================================================================================================//
 
 struct NodeListData {
-	span: Span,
+	span: RwLock<Span>,
 	version: RwLock<usize>,
 	scope: ScopeHandle,
 	nodes: RwLock<Arc<Vec<Node>>>,

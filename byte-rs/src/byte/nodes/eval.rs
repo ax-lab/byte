@@ -17,12 +17,7 @@ pub enum NodePrecedence {
 	Print,
 	Ternary,
 	Comma,
-	OpAssign,
-	OpUnaryPrefix, // FIXME: this needs to be parsed properly
-	OpBooleanOr,
-	OpBooleanAnd,
-	OpAdditive,
-	OpMultiplicative,
+	Expression,
 	Boolean(bool),
 	Null,
 	Bind,
