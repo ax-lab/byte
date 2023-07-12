@@ -69,7 +69,7 @@ fn main() {
 			}
 
 			if let Err(errors) = execute(&mut program, files, eval_list) {
-				println!("\n{errors}");
+				eprintln!("\n{errors}");
 				std::process::exit(1);
 			}
 		});
