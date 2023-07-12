@@ -1,5 +1,29 @@
 use super::*;
 
+pub mod op_bind;
+pub mod op_brackets;
+pub mod op_comma;
+pub mod op_decl;
+pub mod op_expr;
+pub mod op_parse_blocks;
+pub mod op_print;
+pub mod op_replace_symbol;
+pub mod op_split_line;
+pub mod op_strip_comments;
+pub mod op_ternary;
+
+pub use op_bind::*;
+pub use op_brackets::*;
+pub use op_comma::*;
+pub use op_decl::*;
+pub use op_expr::*;
+pub use op_parse_blocks::*;
+pub use op_print::*;
+pub use op_replace_symbol::*;
+pub use op_split_line::*;
+pub use op_strip_comments::*;
+pub use op_ternary::*;
+
 //====================================================================================================================//
 // Node operators
 //====================================================================================================================//
