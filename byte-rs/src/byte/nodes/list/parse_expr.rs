@@ -179,8 +179,9 @@ impl<'a, T: IsOperator> ExprStack<'a, T> {
 		if mode != OperatorMode::Prefix {
 			// pop any operation with a higher precedence
 			while let Some((op_b, mode_b, ..)) = self.ops.back() {
+				// lower precedence value have higher priority
 				let (prec_b, grp_b) = Self::precedence(&op_b, mode_b);
-				let pop = prec_b > prec || (prec_b == prec && grp_b == Grouping::Left);
+				let pop = prec_b < prec || (prec_b == prec && grp_b == Grouping::Left);
 				if pop {
 					self.pop_operator()?;
 				} else {

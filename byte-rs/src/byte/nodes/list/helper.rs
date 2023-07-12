@@ -1,7 +1,5 @@
 use super::*;
 
-// TODO: get rid of unused or hyper-specific methods
-
 impl NodeList {
 	pub fn get_symbol(&self, index: usize) -> Option<Symbol> {
 		let nodes = self.data.nodes.read().unwrap();
@@ -30,62 +28,6 @@ impl NodeList {
 		self.write(|nodes| {
 			*nodes = vec;
 			true
-		});
-	}
-
-	pub fn fold_first<P: FnMut(&Node) -> bool, S: FnMut(NodeList, Node, NodeList) -> Node>(
-		&mut self,
-		mut fold: P,
-		mut make_node: S,
-	) {
-		let scope = self.scope();
-		self.write(|nodes| {
-			let mut changed = false;
-			{
-				for i in 0..nodes.len() {
-					if fold(&nodes[i]) {
-						let lhs = nodes[0..i].to_vec();
-						let cur = nodes[i].clone();
-						let rhs = nodes[i + 1..].to_vec();
-						let lhs = NodeList::new(scope.handle(), lhs);
-						let rhs = NodeList::new(scope.handle(), rhs);
-						let node = make_node(lhs, cur, rhs);
-						*nodes = vec![node];
-						changed = true;
-						break;
-					}
-				}
-			}
-
-			changed
-		});
-	}
-
-	pub fn fold_last<P: FnMut(&Node) -> bool, S: FnMut(NodeList, Node, NodeList) -> Node>(
-		&mut self,
-		mut fold: P,
-		mut make_node: S,
-	) {
-		let scope = self.scope();
-		self.write(|nodes| {
-			let mut changed = false;
-			{
-				for i in (0..nodes.len()).rev() {
-					if fold(&nodes[i]) {
-						let lhs = nodes[0..i].to_vec();
-						let cur = nodes[i].clone();
-						let rhs = nodes[i + 1..].to_vec();
-						let lhs = NodeList::new(scope.handle(), lhs);
-						let rhs = NodeList::new(scope.handle(), rhs);
-						let node = make_node(lhs, cur, rhs);
-						*nodes = vec![node];
-						changed = true;
-						break;
-					}
-				}
-			}
-
-			changed
 		});
 	}
 }

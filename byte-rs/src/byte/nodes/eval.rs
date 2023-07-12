@@ -7,23 +7,6 @@ pub trait IsNodeOperator {
 	fn can_apply(&self, nodes: &NodeList) -> bool;
 }
 
-/// Evaluation order precedence for [`NodeOperator`].
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum NodePrecedence {
-	Highest,
-	Brackets,
-	SplitLines,
-	Let,
-	Print,
-	Ternary,
-	Comma,
-	Expression,
-	Boolean(bool),
-	Null,
-	Bind,
-	Least,
-}
-
 //====================================================================================================================//
 // Context
 //====================================================================================================================//
