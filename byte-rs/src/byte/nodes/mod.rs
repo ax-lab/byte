@@ -8,6 +8,8 @@ pub use eval::*;
 pub use list::*;
 pub use operators::*;
 
+const SHOW_INDENT: bool = false;
+
 /// Enumeration of all available language elements.
 ///
 /// Nodes relate to the source code, representing language constructs of all
@@ -23,6 +25,7 @@ pub enum Bit {
 	Sequence(Vec<NodeList>),
 	RawText(Span),
 	Group(NodeList),
+	Block(NodeList, NodeList),
 	//----[ AST ]-------------------------------------------------------------//
 	Let(Symbol, usize, NodeList),
 	UnaryOp(UnaryOp, NodeList),
@@ -47,7 +50,6 @@ impl Bit {
 	}
 
 	pub fn get_dependencies<P: FnMut(&NodeList)>(&self, mut output: P) {
-		// TODO: use this to detect dependencies for new nodes.
 		match self {
 			Bit::Token(..) => (),
 			Bit::Null => (),
@@ -60,6 +62,10 @@ impl Bit {
 			}
 			Bit::RawText(..) => (),
 			Bit::Group(expr) => output(expr),
+			Bit::Block(head, body) => {
+				output(head);
+				output(body);
+			}
 			Bit::Let(.., expr) => output(expr),
 			Bit::UnaryOp(.., expr) => output(expr),
 			Bit::BinaryOp(.., lhs, rhs) => {
@@ -152,7 +158,11 @@ impl Debug for Node {
 
 		let ctx = Context::get();
 		let format = ctx.format().with_mode(Mode::Minimal).with_separator(" @");
-		ctx.with_format(format, || write!(f, "{}", self.span()))
+		ctx.with_format(format, || write!(f, "{}", self.span()))?;
+		if SHOW_INDENT {
+			write!(f, "~{}", self.indent())?;
+		}
+		Ok(())
 	}
 }
 
@@ -162,6 +172,10 @@ impl Display for Node {
 
 		let ctx = Context::get();
 		let format = ctx.format().with_mode(Mode::Minimal).with_separator(" @");
-		ctx.with_format(format, || write!(f, "{:#}", self.span()))
+		ctx.with_format(format, || write!(f, "{:#}", self.span()))?;
+		if SHOW_INDENT {
+			write!(f, "~{}", self.indent())?;
+		}
+		Ok(())
 	}
 }

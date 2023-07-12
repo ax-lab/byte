@@ -9,6 +9,7 @@ use super::*;
 pub enum NodePrecedence {
 	Highest,
 	Brackets,
+	Blocks,
 	SplitLines,
 	Let,
 	Print,
@@ -24,6 +25,7 @@ pub enum NodePrecedence {
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum NodeOperator {
 	Brackets(BracketPairs),
+	Block(Symbol),
 	SplitLines,
 	Let(Symbol, Symbol),
 	Ternary(OpTernary),
@@ -45,6 +47,8 @@ impl NodeOperator {
 
 	fn get_impl(&self) -> Arc<dyn IsNodeOperator> {
 		match self {
+			NodeOperator::Brackets(pairs) => Arc::new(pairs.clone()),
+			NodeOperator::Block(symbol) => Arc::new(OpParseBlocks(symbol.clone())),
 			NodeOperator::SplitLines => Arc::new(OpSplitLine),
 			NodeOperator::Let(decl, eq) => Arc::new(OpDecl(decl.clone(), eq.clone())),
 			NodeOperator::Bind => Arc::new(OpBind),
@@ -52,7 +56,6 @@ impl NodeOperator {
 			NodeOperator::Replace(symbol, node) => Arc::new(ReplaceSymbol(symbol.clone(), node.clone())),
 			NodeOperator::ParseExpression(ops) => Arc::new(ops.clone()),
 			NodeOperator::Comma(symbol) => Arc::new(CommaOperator(symbol.clone())),
-			NodeOperator::Brackets(pairs) => Arc::new(pairs.clone()),
 			NodeOperator::Ternary(op) => Arc::new(op.clone()),
 		}
 	}
