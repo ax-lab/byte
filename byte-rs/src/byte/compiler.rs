@@ -84,6 +84,7 @@ impl Compiler {
 		//general parsing
 		scope.add_node_operator(NodeOperator::Block(Context::symbol(":")), NodePrecedence::Blocks);
 		scope.add_node_operator(NodeOperator::SplitLines, NodePrecedence::SplitLines);
+		scope.add_node_operator(NodeOperator::StripComments, NodePrecedence::Comments);
 		scope.add_node_operator(
 			NodeOperator::Let(Context::symbol("let"), Context::symbol("=")),
 			NodePrecedence::Let,
