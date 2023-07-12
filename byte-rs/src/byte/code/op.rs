@@ -75,6 +75,7 @@ pub enum BinaryOp {
 	And,
 	Or,
 	Assign,
+	CompareEqual,
 }
 
 impl BinaryOp {
@@ -96,6 +97,7 @@ impl BinaryOp {
 			BinaryOp::Mod => OpMod::for_types(lhs, rhs).map(|op| BinaryOpImpl::from(op)),
 			BinaryOp::And => OpAnd::for_types(lhs, rhs).map(|op| BinaryOpImpl::from(op)),
 			BinaryOp::Or => OpOr::for_types(lhs, rhs).map(|op| BinaryOpImpl::from(op)),
+			BinaryOp::CompareEqual => OpCompareEqual::for_types(lhs, rhs).map(|op| BinaryOpImpl::from(op)),
 			BinaryOp::Assign => {
 				if lhs != rhs {
 					let error = format!("cannot assign `{rhs:?}` to `{lhs:?}`");

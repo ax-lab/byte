@@ -74,77 +74,14 @@ impl CompilerData {
 
 impl Compiler {
 	pub(crate) fn configure_root_scope(&self, scope: &mut ScopeWriter) {
-		//----------------------------------------------------------------------------------------------------------------//
-		// Operators
-		//----------------------------------------------------------------------------------------------------------------//
+		// expression parsing
+		let ops = default_operators();
 
-		let mut ops = OperatorSet::new();
-
-		ops.add(Operator::new_binary(
-			"=".into(),
-			BinaryOp::Assign,
-			OpPrecedence::Assign,
-			Grouping::Right,
-		));
-
-		ops.add(
-			Operator::new_binary("+".into(), BinaryOp::Add, OpPrecedence::Additive, Grouping::Left)
-				.and_prefix(UnaryOp::Plus, OpPrecedence::Unary),
-		);
-
-		ops.add(
-			Operator::new_binary("-".into(), BinaryOp::Sub, OpPrecedence::Additive, Grouping::Left)
-				.and_prefix(UnaryOp::Minus, OpPrecedence::Unary),
-		);
-
-		ops.add(Operator::new_binary(
-			"*".into(),
-			BinaryOp::Mul,
-			OpPrecedence::Multiplicative,
-			Grouping::Left,
-		));
-
-		ops.add(Operator::new_binary(
-			"/".into(),
-			BinaryOp::Div,
-			OpPrecedence::Multiplicative,
-			Grouping::Left,
-		));
-
-		ops.add(Operator::new_binary(
-			"%".into(),
-			BinaryOp::Mod,
-			OpPrecedence::Multiplicative,
-			Grouping::Left,
-		));
-
-		ops.add(Operator::new_binary(
-			"and".into(),
-			BinaryOp::And,
-			OpPrecedence::BooleanAnd,
-			Grouping::Right,
-		));
-
-		ops.add(Operator::new_binary(
-			"or".into(),
-			BinaryOp::Or,
-			OpPrecedence::BooleanOr,
-			Grouping::Right,
-		));
-
-		ops.add(Operator::new_prefix(
-			"not".into(),
-			UnaryOp::Not,
-			OpPrecedence::BooleanNot,
-		));
-
-		ops.add(Operator::new_prefix("!".into(), UnaryOp::Neg, OpPrecedence::Unary));
+		let mut matcher = scope.matcher();
+		ops.register_symbols(&mut matcher);
+		scope.set_matcher(matcher);
 
 		scope.add_node_operator(NodeOperator::ParseExpression(ops), NodePrecedence::Expression);
-
-		//--------------------------------------------------------------------------------------------------------//
-		// Node Operators
-		//--------------------------------------------------------------------------------------------------------//
 
 		//general parsing
 		scope.add_node_operator(NodeOperator::SplitLines, NodePrecedence::SplitLines);

@@ -16,6 +16,10 @@ impl OperatorSet {
 		assert!(!self.set.contains(op.symbol()));
 		self.set.add(op.symbol().clone(), op)
 	}
+
+	pub fn register_symbols(&self, matcher: &mut Matcher) {
+		self.set.register_symbols(matcher)
+	}
 }
 
 impl ParseExpr for OperatorSet {
@@ -164,6 +168,12 @@ impl<T: Clone> OpMap<T> {
 
 	pub fn op_for_node(&self, node: &Node) -> Option<T> {
 		node.symbol().and_then(|symbol| self.map.get(&symbol)).cloned()
+	}
+
+	pub fn register_symbols(&self, matcher: &mut Matcher) {
+		for symbol in self.map.keys() {
+			matcher.add_symbol(symbol.as_str())
+		}
 	}
 }
 

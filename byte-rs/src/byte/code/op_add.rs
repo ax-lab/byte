@@ -22,8 +22,8 @@ impl OpAdd {
 impl IsBinaryOp for OpAdd {
 	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue> {
 		const CONVERSION: NumericConversion = ARITHMETIC_CONVERSION;
-		let lhs = lhs.execute(scope)?.value();
-		let rhs = rhs.execute(scope)?.value();
+		let lhs = lhs.execute(scope)?.into_value();
+		let rhs = rhs.execute(scope)?.into_value();
 		if self.output.is_string() {
 			let lhs = lhs.string()?;
 			let rhs = rhs.string()?;

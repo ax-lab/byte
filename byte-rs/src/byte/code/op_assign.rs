@@ -6,7 +6,7 @@ pub struct OpAssign(pub Type);
 impl IsBinaryOp for OpAssign {
 	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue> {
 		let typ = rhs.get_type();
-		let rhs = rhs.execute(scope)?.value();
+		let rhs = rhs.execute(scope)?;
 		let lhs = lhs.execute(scope)?;
 		match lhs {
 			ExprValue::Value(..) => {
@@ -16,8 +16,8 @@ impl IsBinaryOp for OpAssign {
 				Err(error)
 			}
 			ExprValue::Variable(name, index, ..) => {
-				scope.set(name.clone(), index, rhs.clone());
-				Ok(ExprValue::Variable(name, index, rhs))
+				scope.set(name.clone(), index, rhs.value().clone());
+				Ok(ExprValue::Variable(name, index, rhs.into_value()))
 			}
 		}
 	}

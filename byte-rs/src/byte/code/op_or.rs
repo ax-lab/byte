@@ -31,12 +31,12 @@ impl OpOr {
 
 impl IsBinaryOp for OpOr {
 	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue> {
-		let lhs = lhs.execute(scope)?.value();
+		let lhs = lhs.execute(scope)?.into_value();
 		let (lhs, bool) = Type::to_bool_output(&lhs)?;
 		if bool {
 			Ok(lhs.into())
 		} else {
-			let rhs = rhs.execute(scope)?.value();
+			let rhs = rhs.execute(scope)?.into_value();
 			let (rhs, _) = Type::to_bool_output(&rhs)?;
 			Ok(rhs.into())
 		}

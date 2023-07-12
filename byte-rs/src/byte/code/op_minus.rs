@@ -16,7 +16,7 @@ impl OpMinus {
 
 impl IsUnaryOp for OpMinus {
 	fn execute(&self, scope: &mut RuntimeScope, arg: &Expr) -> Result<ExprValue> {
-		let arg = arg.execute(scope)?.value();
+		let arg = arg.execute(scope)?.into_value();
 		if let Type::Float(float_type) = self.output {
 			let arg = arg.float_value(&float_type, MINUS_CONVERSION)?;
 			let value = -arg.as_f64();

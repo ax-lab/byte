@@ -22,7 +22,7 @@ impl OpNeg {
 
 impl IsUnaryOp for OpNeg {
 	fn execute(&self, scope: &mut RuntimeScope, arg: &Expr) -> Result<ExprValue> {
-		let arg = arg.execute(scope)?.value();
+		let arg = arg.execute(scope)?.into_value();
 		let (arg, bool) = Type::to_bool_output(&arg)?;
 		if self.output == Type::Bool {
 			Ok(Value::Bool(!bool).into())

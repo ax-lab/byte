@@ -17,6 +17,7 @@ pub mod op;
 pub mod op_add;
 pub mod op_and;
 pub mod op_assign;
+pub mod op_compare_equal;
 pub mod op_div;
 pub mod op_minus;
 pub mod op_mod;
@@ -32,6 +33,7 @@ pub use op::*;
 pub use op_add::*;
 pub use op_and::*;
 pub use op_assign::*;
+pub use op_compare_equal::*;
 pub use op_div::*;
 pub use op_minus::*;
 pub use op_mod::*;
@@ -276,7 +278,7 @@ impl Expr {
 				let list = expr.as_sequence();
 				let mut values = Vec::new();
 				for expr in list.iter() {
-					let value = expr.execute(scope)?.value();
+					let value = expr.execute(scope)?.into_value();
 					if !value.is_unit() {
 						values.push(value)
 					}
@@ -330,7 +332,14 @@ pub enum ExprValue {
 }
 
 impl ExprValue {
-	pub fn value(self) -> Value {
+	pub fn value(&self) -> &Value {
+		match self {
+			ExprValue::Value(ref value) => value,
+			ExprValue::Variable(.., ref value) => value,
+		}
+	}
+
+	pub fn into_value(self) -> Value {
 		match self {
 			ExprValue::Value(value) => value,
 			ExprValue::Variable(.., value) => value,
@@ -340,7 +349,7 @@ impl ExprValue {
 
 impl From<ExprValue> for Value {
 	fn from(expr_value: ExprValue) -> Self {
-		expr_value.value()
+		expr_value.value().clone()
 	}
 }
 
@@ -368,7 +377,7 @@ mod tests {
 		let expr = Expr::Binary(op, a.into(), b.into());
 
 		let mut scope = RuntimeScope::new();
-		let result = expr.execute(&mut scope)?.value();
+		let result = expr.execute(&mut scope)?.into_value();
 		assert_eq!(result, Value::from(5));
 
 		Ok(())

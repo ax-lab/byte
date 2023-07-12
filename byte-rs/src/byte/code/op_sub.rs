@@ -18,8 +18,8 @@ impl OpSub {
 impl IsBinaryOp for OpSub {
 	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue> {
 		const CONVERSION: NumericConversion = ARITHMETIC_CONVERSION;
-		let lhs = lhs.execute(scope)?.value();
-		let rhs = rhs.execute(scope)?.value();
+		let lhs = lhs.execute(scope)?.into_value();
+		let rhs = rhs.execute(scope)?.into_value();
 		if let Type::Float(float_type) = self.output {
 			let lhs = lhs.float_value(&float_type, CONVERSION)?;
 			let rhs = rhs.float_value(&float_type, CONVERSION)?;

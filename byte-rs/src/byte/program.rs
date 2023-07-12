@@ -67,8 +67,6 @@ impl Program {
 			let handle = ProgramHandle { data: data.clone() };
 			let compiler = compiler.clone();
 			let scopes = ScopeList::new(handle);
-			let mut root_scope = scopes.get_root_writer();
-			compiler.configure_root_scope(&mut root_scope);
 			ProgramData {
 				compiler,
 				scopes,
@@ -78,6 +76,10 @@ impl Program {
 				dump_code: Default::default(),
 			}
 		});
+
+		let mut root_scope = data.scopes.get_root_writer();
+		compiler.configure_root_scope(&mut root_scope);
+
 		Program { data }
 	}
 
@@ -162,7 +164,7 @@ impl Program {
 		};
 		let mut value = Value::from(());
 		for expr in nodes.generate_code(&mut context)? {
-			value = expr.execute(&mut scope)?.value();
+			value = expr.execute(&mut scope)?.into_value();
 		}
 		Ok(value)
 	}

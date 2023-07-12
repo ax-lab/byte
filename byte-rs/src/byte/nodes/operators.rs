@@ -76,3 +76,80 @@ pub enum OpPrecedence {
 	Assign,
 	Lowest,
 }
+
+//====================================================================================================================//
+// Standard operators
+//====================================================================================================================//
+
+pub fn default_operators() -> OperatorSet {
+	let mut ops = OperatorSet::new();
+
+	ops.add(Operator::new_binary(
+		"==".into(),
+		BinaryOp::CompareEqual,
+		OpPrecedence::Comparison,
+		Grouping::Left,
+	));
+
+	ops.add(Operator::new_binary(
+		"=".into(),
+		BinaryOp::Assign,
+		OpPrecedence::Assign,
+		Grouping::Right,
+	));
+
+	ops.add(
+		Operator::new_binary("+".into(), BinaryOp::Add, OpPrecedence::Additive, Grouping::Left)
+			.and_prefix(UnaryOp::Plus, OpPrecedence::Unary),
+	);
+
+	ops.add(
+		Operator::new_binary("-".into(), BinaryOp::Sub, OpPrecedence::Additive, Grouping::Left)
+			.and_prefix(UnaryOp::Minus, OpPrecedence::Unary),
+	);
+
+	ops.add(Operator::new_binary(
+		"*".into(),
+		BinaryOp::Mul,
+		OpPrecedence::Multiplicative,
+		Grouping::Left,
+	));
+
+	ops.add(Operator::new_binary(
+		"/".into(),
+		BinaryOp::Div,
+		OpPrecedence::Multiplicative,
+		Grouping::Left,
+	));
+
+	ops.add(Operator::new_binary(
+		"%".into(),
+		BinaryOp::Mod,
+		OpPrecedence::Multiplicative,
+		Grouping::Left,
+	));
+
+	ops.add(Operator::new_binary(
+		"and".into(),
+		BinaryOp::And,
+		OpPrecedence::BooleanAnd,
+		Grouping::Right,
+	));
+
+	ops.add(Operator::new_binary(
+		"or".into(),
+		BinaryOp::Or,
+		OpPrecedence::BooleanOr,
+		Grouping::Right,
+	));
+
+	ops.add(Operator::new_prefix(
+		"not".into(),
+		UnaryOp::Not,
+		OpPrecedence::BooleanNot,
+	));
+
+	ops.add(Operator::new_prefix("!".into(), UnaryOp::Neg, OpPrecedence::Unary));
+
+	ops
+}
