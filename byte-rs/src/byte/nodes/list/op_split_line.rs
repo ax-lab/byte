@@ -25,25 +25,26 @@ impl IsNodeOperator for OpSplitLine {
 		let mut lines = Vec::<Vec<Node>>::new();
 		let mut empty = true;
 		let mut base_level = None;
+		let mut line_indent = 0;
+
 		for node in nodes.iter() {
 			let is_comment = matches!(node.token(), Some(Token::Comment));
-			if let Some(Token::Break(..)) = node.token() {
-				// start a new line, skipping blank lines
-				if !empty {
-					empty = true;
-				}
+			if let Some(Token::Break(indent)) = node.token() {
+				// start a new line
+				empty = true;
+				line_indent = *indent;
 			} else if empty {
 				// process the indentation level for a new line
-				let new_level = node.indent();
 				let base_level = match base_level {
 					None => {
 						// establish a base level for the entire block
-						base_level = Some(new_level);
+						base_level = Some(node.indent());
+						line_indent = node.indent();
 						// push the first line
 						lines.push(Vec::new());
-						new_level
+						line_indent
 					}
-					Some(level) if new_level < level => {
+					Some(level) if line_indent < level => {
 						errors.add(format!("invalid indentation"), node.span());
 						level
 					}
@@ -52,7 +53,7 @@ impl IsNodeOperator for OpSplitLine {
 
 				// indenting a line beyond base level will continue the
 				// previous one, otherwise we start a new line
-				if new_level == base_level {
+				if line_indent == base_level {
 					lines.push(Vec::new());
 				}
 
