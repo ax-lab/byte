@@ -4,7 +4,6 @@ pub use super::*;
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Token {
 	Break,
-	Indent(usize),
 	Comment,
 	Word(Symbol),
 	Symbol(Symbol),

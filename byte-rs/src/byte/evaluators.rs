@@ -4,6 +4,8 @@ pub mod parse_ops;
 
 pub use parse_ops::*;
 
+// TODO: move this
+
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum NodeOperator {
 	Brackets(BracketPairs, NodePrecedence),

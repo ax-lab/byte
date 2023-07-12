@@ -86,7 +86,6 @@ mod tests {
 		check!(get(), Token::Word(s)   if s == "b");
 		check!(get(), Token::Symbol(s) if s == "(");
 		check!(get(), Token::Break);
-		check!(get(), Token::Indent(4));
 		check!(get(), Token::Word(s)   if s == "some_name123");
 		check!(get(), Token::Break);
 		check!(get(), Token::Symbol(s) if s == ")");

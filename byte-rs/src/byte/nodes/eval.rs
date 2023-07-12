@@ -59,6 +59,10 @@ impl EvalContext {
 		&self.scope
 	}
 
+	pub fn scope_handle(&self) -> ScopeHandle {
+		self.scope.handle()
+	}
+
 	pub fn resolve_nodes(&mut self, list: &NodeList) {
 		if list.len() > 0 {
 			self.new_segments.push(list.clone());

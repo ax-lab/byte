@@ -20,8 +20,7 @@ print sum
 
 #:(
 
+let ANSWER = 10 * 4 + 2
 print 'The answer to life, the universe, and everything is', ANSWER
-
-# const ANSWER = 10 * 4 + 2
 
 #)

@@ -107,6 +107,10 @@ impl Node {
 		self.span().offset()
 	}
 
+	pub fn indent(&self) -> usize {
+		self.span().indent()
+	}
+
 	pub fn get_dependencies<P: FnMut(&NodeList)>(&self, output: P) {
 		self.bit().get_dependencies(output)
 	}

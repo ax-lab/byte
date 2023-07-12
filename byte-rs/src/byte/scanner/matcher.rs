@@ -45,11 +45,9 @@ impl Matcher {
 		loop {
 			// skip spaces
 			let line_start = cursor.is_indent();
-			let mut has_indent = false;
 			while let Some((.., skip_len)) = check_space(cursor.data()) {
 				assert!(skip_len > 0);
 				cursor.advance(skip_len);
-				has_indent = line_start;
 			}
 
 			// check for a line break
@@ -69,18 +67,14 @@ impl Matcher {
 				return None;
 			}
 
-			// generate a meaningful indent token
-			if has_indent {
-				/*
-					TODO: validate bad indentation scenarios
+			/*
+				TODO: validate bad indentation scenarios
 
-					- spaces followed by tabs
-					- for any consecutive non-empty lines, one of the lines
-					  indentation MUST be a prefix of the other
-					  - indentation must be consistent between consecutive lines
-				*/
-				return Some((Token::Indent(cursor.indent()), cursor.clone()));
-			}
+				- spaces followed by tabs
+				- for any consecutive non-empty lines, one of the lines
+				  indentation MUST be a prefix of the other
+				  - indentation must be consistent between consecutive lines
+			*/
 
 			// apply registered matchers, those have higher priority
 			let start = cursor.clone();
