@@ -26,6 +26,7 @@ impl IsNodeOperator for OpSplitLine {
 		let mut empty = true;
 		let mut base_level = None;
 		for node in nodes.iter() {
+			let is_comment = matches!(node.token(), Some(Token::Comment));
 			if let Some(Token::Break) = node.token() {
 				// start a new line, skipping blank lines
 				if !empty {
@@ -55,9 +56,11 @@ impl IsNodeOperator for OpSplitLine {
 					lines.push(Vec::new());
 				}
 
-				lines.last_mut().unwrap().push(node);
+				if !is_comment {
+					lines.last_mut().unwrap().push(node);
+				}
 				empty = false;
-			} else {
+			} else if !is_comment {
 				lines.last_mut().unwrap().push(node);
 			}
 		}
