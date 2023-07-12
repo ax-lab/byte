@@ -90,7 +90,11 @@ impl Span {
 	/// the width up to the span's position. E.g., this will always be zero at
 	/// the start of the line.
 	pub fn indent(&self) -> usize {
-		self.indent
+		if self.at_end() {
+			0
+		} else {
+			self.indent
+		}
 	}
 
 	/// Column width for the span's starting position.

@@ -85,9 +85,9 @@ mod tests {
 		check!(get(), Token::Symbol(s) if s == ",");
 		check!(get(), Token::Word(s)   if s == "b");
 		check!(get(), Token::Symbol(s) if s == "(");
-		check!(get(), Token::Break);
+		check!(get(), Token::Break(4));
 		check!(get(), Token::Word(s)   if s == "some_name123");
-		check!(get(), Token::Break);
+		check!(get(), Token::Break(0));
 		check!(get(), Token::Symbol(s) if s == ")");
 		assert!(actual.next().is_none());
 	}
@@ -110,12 +110,12 @@ mod tests {
 		let mut get = || actual.next().unwrap().clone();
 
 		check!(get(), Token::Comment);
-		check!(get(), Token::Break);
+		check!(get(), Token::Break(0));
 		check!(get(), Token::Word(s)   if s == "print");
 		check!(get(), Token::Literal(s) if s.as_str() == "hello world!");
-		check!(get(), Token::Break);
+		check!(get(), Token::Break(0));
 		check!(get(), Token::Comment);
-		check!(get(), Token::Break);
+		check!(get(), Token::Break(0));
 		check!(get(), Token::Word(s)   if s == "print");
 		check!(get(), Token::Integer(1));
 		check!(get(), Token::Symbol(s) if s == ",");
@@ -124,6 +124,68 @@ mod tests {
 		check!(get(), Token::Integer(3));
 
 		assert!(actual.next().is_none());
+	}
+
+	#[test]
+	fn line_and_comments() {
+		let input = vec![
+			"",
+			"",
+			"# comment 1",
+			"",
+			"    ",
+			"a",
+			"",
+			"    ",
+			"#(",
+			"    comment 2",
+			")b",
+			"",
+			"\t",
+			"c",
+			"",
+			"# comment 3",
+		];
+
+		let actual = tokenize(input.join("\n").as_str());
+		let mut actual = actual.into_iter();
+		let mut get = || actual.next().unwrap().clone();
+
+		check!(get(), Token::Comment);
+		check!(get(), Token::Break(0));
+		check!(get(), Token::Word(..));
+		check!(get(), Token::Break(0));
+		check!(get(), Token::Comment);
+		check!(get(), Token::Word(..));
+		check!(get(), Token::Break(0));
+		check!(get(), Token::Word(..));
+		check!(get(), Token::Break(0));
+		check!(get(), Token::Comment);
+	}
+
+	#[test]
+	fn line_indent() {
+		let input = vec![
+			"a", "b", "", "  #", "  c", "", "    d", "", "    ", "    e", "", " f", "    ",
+		];
+		let actual = tokenize(input.join("\n").as_str());
+		let mut actual = actual.into_iter();
+		let mut get = || actual.next().unwrap().clone();
+
+		check!(get(), Token::Word(w) if w == "a");
+		check!(get(), Token::Break(0));
+		check!(get(), Token::Word(w) if w == "b");
+		check!(get(), Token::Break(2));
+		check!(get(), Token::Comment);
+		check!(get(), Token::Break(2));
+		check!(get(), Token::Word(w) if w == "c");
+		check!(get(), Token::Break(4));
+		check!(get(), Token::Word(w) if w == "d");
+		check!(get(), Token::Break(4));
+		check!(get(), Token::Word(w) if w == "e");
+		check!(get(), Token::Break(1));
+		check!(get(), Token::Word(w) if w == "f");
+		check!(get(), Token::Break(0));
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
@@ -142,7 +204,7 @@ mod tests {
 			($x:expr, $y:pat) => {
 				let x = $x;
 				let e = format!("{x:?}");
-				assert!(matches!(x, $y), "match failed: {e}");
+				assert!(matches!(x, $y), "match failed: it was `{e}`");
 			};
 		}
 	}

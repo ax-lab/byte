@@ -30,7 +30,7 @@ impl OpParseBlocks {
 					}
 				}
 				State::Symbol { indent, pivot } => {
-					if it.token() == Some(&Token::Break) {
+					if matches!(it.token(), Some(Token::Break(..))) {
 						State::Break { indent, pivot }
 					} else if self.is_symbol(&it) {
 						State::Symbol {
@@ -42,7 +42,7 @@ impl OpParseBlocks {
 					}
 				}
 				State::Break { indent, pivot } => {
-					if it.token() == Some(&Token::Break) {
+					if matches!(it.token(), Some(Token::Break(..))) {
 						State::Break { indent, pivot } // ignore empty lines
 					} else if it.indent() > indent {
 						State::Body { indent, pivot }
@@ -66,7 +66,7 @@ impl OpParseBlocks {
 				}
 			};
 
-			was_break = matches!(it.token(), Some(Token::Break));
+			was_break = matches!(it.token(), Some(Token::Break(..)));
 		}
 
 		if let State::Body { pivot, .. } = state {

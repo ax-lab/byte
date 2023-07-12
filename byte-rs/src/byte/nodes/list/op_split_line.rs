@@ -4,7 +4,7 @@ pub struct OpSplitLine;
 
 impl IsNodeOperator for OpSplitLine {
 	fn can_apply(&self, nodes: &NodeList) -> bool {
-		nodes.contains(|node| matches!(node.token(), Some(Token::Break)))
+		nodes.contains(|node| matches!(node.token(), Some(Token::Break(..))))
 	}
 
 	fn apply(&self, ctx: &mut EvalContext, nodes: &mut NodeList) -> Result<()> {
@@ -27,7 +27,7 @@ impl IsNodeOperator for OpSplitLine {
 		let mut base_level = None;
 		for node in nodes.iter() {
 			let is_comment = matches!(node.token(), Some(Token::Comment));
-			if let Some(Token::Break) = node.token() {
+			if let Some(Token::Break(..)) = node.token() {
 				// start a new line, skipping blank lines
 				if !empty {
 					empty = true;

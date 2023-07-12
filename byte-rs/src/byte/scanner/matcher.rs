@@ -45,10 +45,7 @@ impl Matcher {
 		loop {
 			// skip spaces
 			let line_start = cursor.is_indent();
-			while let Some((.., skip_len)) = check_space(cursor.data()) {
-				assert!(skip_len > 0);
-				cursor.advance(skip_len);
-			}
+			self.skip_blank(cursor, false);
 
 			// check for a line break
 			if let Some(size) = check_line_break(cursor.data()) {
@@ -56,7 +53,10 @@ impl Matcher {
 				// ignore empty or space-only lines
 				let span = cursor.advance_span(size);
 				if !line_start {
-					return Some((Token::Break, span));
+					// get the next line indentation
+					self.skip_blank(cursor, true);
+					let indent = cursor.indent();
+					return Some((Token::Break(indent), span));
 				} else {
 					continue;
 				}
@@ -125,6 +125,29 @@ impl Matcher {
 				// predefined symbol
 				ScanAction::Symbol(symbol) => Some((Token::Symbol(Context::symbol(symbol)), span)),
 			};
+		}
+	}
+
+	fn skip_blank(&self, cursor: &mut Span, skip_breaks: bool) {
+		let mut skipping = true;
+		while skipping {
+			skipping = false;
+
+			// skip spaces
+			while let Some((.., size)) = check_space(cursor.data()) {
+				assert!(size > 0);
+				cursor.advance(size);
+				skipping = true;
+			}
+
+			// check for a line break
+			if skip_breaks {
+				if let Some(size) = check_line_break(cursor.data()) {
+					assert!(size > 0);
+					cursor.advance_span(size);
+					skipping = true;
+				}
+			}
 		}
 	}
 }
