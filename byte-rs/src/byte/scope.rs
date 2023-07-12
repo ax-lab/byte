@@ -72,7 +72,7 @@ struct ScopeData {
 	parent: Option<ScopeHandle>,
 	children: RwLock<Vec<Arc<ScopeData>>>,
 	matcher: Arc<RwLock<Option<Matcher>>>,
-	node_operators: Arc<RwLock<HashSet<NodeOperator>>>,
+	node_operators: Arc<RwLock<HashMap<NodeOperator, NodePrecedence>>>,
 	bindings: RwLock<HashMap<Symbol, BindingList>>,
 }
 
@@ -138,22 +138,22 @@ impl Scope {
 	// Node operators
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub fn get_node_operators(&self) -> Vec<NodeOperator> {
-		let mut set = HashSet::new();
+	pub fn get_node_operators(&self) -> Vec<(NodeOperator, NodePrecedence)> {
+		let mut map = HashMap::new();
 		if let Some(parent) = self.parent() {
-			parent.get_node_operator_set(&mut set);
+			parent.get_node_operator_map(&mut map);
 		}
-		self.get_node_operator_set(&mut set);
+		self.get_node_operator_map(&mut map);
 
-		let mut output = set.into_iter().collect::<Vec<_>>();
-		output.sort_by_key(|x| x.precedence());
+		let mut output = map.into_iter().collect::<Vec<_>>();
+		output.sort_by_key(|x| x.1);
 		output
 	}
 
-	fn get_node_operator_set(&self, set: &mut HashSet<NodeOperator>) {
+	fn get_node_operator_map(&self, map: &mut HashMap<NodeOperator, NodePrecedence>) {
 		let operators = self.data.node_operators.read().unwrap();
-		for it in operators.iter() {
-			set.insert(it.clone());
+		for (key, val) in operators.iter() {
+			map.insert(key.clone(), val.clone());
 		}
 	}
 
@@ -221,9 +221,9 @@ impl ScopeWriter {
 		*matcher = Some(new_matcher);
 	}
 
-	pub fn add_node_operator(&mut self, op: NodeOperator) {
+	pub fn add_node_operator(&mut self, op: NodeOperator, prec: NodePrecedence) {
 		let mut operators = self.data().node_operators.write().unwrap();
-		operators.insert(op);
+		operators.insert(op, prec);
 	}
 
 	pub fn set_static(&mut self, name: Symbol, value: BindingValue) -> Result<()> {

@@ -140,29 +140,28 @@ impl Compiler {
 
 		ops.add(Operator::new_prefix("!".into(), UnaryOp::Neg, OpPrecedence::Unary));
 
-		scope.add_node_operator(NodeOperator::ParseExpression(ops, NodePrecedence::Expression));
+		scope.add_node_operator(NodeOperator::ParseExpression(ops), NodePrecedence::Expression);
 
 		//--------------------------------------------------------------------------------------------------------//
 		// Node Operators
 		//--------------------------------------------------------------------------------------------------------//
 
 		//general parsing
-		scope.add_node_operator(NodeOperator::SplitLines(NodePrecedence::SplitLines));
-		scope.add_node_operator(NodeOperator::Let(
-			Context::symbol("let"),
-			Context::symbol("="),
+		scope.add_node_operator(NodeOperator::SplitLines, NodePrecedence::SplitLines);
+		scope.add_node_operator(
+			NodeOperator::Let(Context::symbol("let"), Context::symbol("=")),
 			NodePrecedence::Let,
-		));
-		scope.add_node_operator(NodeOperator::Bind(NodePrecedence::Bind));
-		scope.add_node_operator(NodeOperator::Print(Context::symbol("print"), NodePrecedence::Print));
-		scope.add_node_operator(NodeOperator::Comma(Context::symbol(","), NodePrecedence::Comma));
+		);
+		scope.add_node_operator(NodeOperator::Bind, NodePrecedence::Bind);
+		scope.add_node_operator(NodeOperator::Print(Context::symbol("print")), NodePrecedence::Print);
+		scope.add_node_operator(NodeOperator::Comma(Context::symbol(",")), NodePrecedence::Comma);
 
 		let ternary = OpTernary(
 			Context::symbol("?"),
 			Context::symbol(":"),
 			Arc::new(|a, b, c, span| Bit::Conditional(a, b, c).at(span)),
 		);
-		scope.add_node_operator(NodeOperator::Ternary(ternary, NodePrecedence::Ternary));
+		scope.add_node_operator(NodeOperator::Ternary(ternary), NodePrecedence::Ternary);
 
 		// brackets
 		let mut brackets = BracketPairs::new();
@@ -172,26 +171,25 @@ impl Compiler {
 			Arc::new(|_, n, _| Bit::Group(n)),
 		);
 
-		scope.add_node_operator(NodeOperator::Brackets(brackets, NodePrecedence::Brackets));
+		scope.add_node_operator(NodeOperator::Brackets(brackets), NodePrecedence::Brackets);
+
+		// TODO: handle literal values properly as to not need different precedences
 
 		// boolean
-		scope.add_node_operator(NodeOperator::Replace(
-			Context::symbol("true"),
-			|span| Bit::Boolean(true).at(span),
+		scope.add_node_operator(
+			NodeOperator::Replace(Context::symbol("true"), |span| Bit::Boolean(true).at(span)),
 			NodePrecedence::Boolean(true),
-		));
-		scope.add_node_operator(NodeOperator::Replace(
-			Context::symbol("false"),
-			|span| Bit::Boolean(false).at(span),
+		);
+		scope.add_node_operator(
+			NodeOperator::Replace(Context::symbol("false"), |span| Bit::Boolean(false).at(span)),
 			NodePrecedence::Boolean(false),
-		));
+		);
 
 		// null
-		scope.add_node_operator(NodeOperator::Replace(
-			Context::symbol("null"),
-			|span| Bit::Null.at(span),
+		scope.add_node_operator(
+			NodeOperator::Replace(Context::symbol("null"), |span| Bit::Null.at(span)),
 			NodePrecedence::Null,
-		));
+		);
 	}
 }
 
