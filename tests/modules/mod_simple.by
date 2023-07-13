@@ -1,0 +1,4 @@
+print 'simple module'
+
+let VALUE = 42
+pub VALUE
