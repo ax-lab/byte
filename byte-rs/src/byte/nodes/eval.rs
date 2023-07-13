@@ -16,6 +16,7 @@ pub struct EvalContext {
 	nodes: NodeList,
 	scope: Scope,
 	new_segments: Vec<NodeList>,
+	del_segments: Vec<NodeList>,
 	declares: Vec<(Symbol, Option<usize>, BindingValue)>,
 }
 
@@ -25,6 +26,7 @@ impl EvalContext {
 			nodes: nodes.clone(),
 			scope: nodes.scope(),
 			new_segments: Default::default(),
+			del_segments: Default::default(),
 			declares: Default::default(),
 		}
 	}
@@ -41,10 +43,14 @@ impl EvalContext {
 		self.scope.handle()
 	}
 
-	pub fn resolve_nodes(&mut self, list: &NodeList) {
+	pub fn add_segment(&mut self, list: &NodeList) {
 		if list.len() > 0 {
 			self.new_segments.push(list.clone());
 		}
+	}
+
+	pub fn del_segment(&mut self, list: &NodeList) {
+		self.del_segments.push(list.clone());
 	}
 
 	pub fn declare_static(&mut self, symbol: Symbol, value: BindingValue) {
@@ -57,6 +63,10 @@ impl EvalContext {
 
 	pub(crate) fn get_new_segments(&mut self, output: &mut Vec<NodeList>) {
 		output.append(&mut self.new_segments)
+	}
+
+	pub(crate) fn get_del_segments(&mut self, output: &mut Vec<NodeList>) {
+		output.append(&mut self.del_segments)
 	}
 
 	pub(crate) fn get_declares(&mut self) -> Vec<(Symbol, Option<usize>, BindingValue)> {

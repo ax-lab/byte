@@ -15,7 +15,7 @@ impl NodeList {
 		let args = self.slice(1..);
 		let span = self.span();
 		let node = op.new_node(ctx, args, span)?;
-		node.get_dependencies(|list| ctx.resolve_nodes(list));
+		node.get_dependencies(|list| ctx.add_segment(list));
 		self.replace_all(vec![node]);
 		Ok(())
 	}

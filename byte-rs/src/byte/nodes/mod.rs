@@ -26,6 +26,12 @@ pub enum Bit {
 	RawText(Span),
 	Group(NodeList),
 	Block(NodeList, NodeList),
+	//----[ Logic ]-----------------------------------------------------------//
+	If {
+		condition: NodeList,
+		when_true: NodeList,
+		when_false: Option<NodeList>,
+	},
 	//----[ AST ]-------------------------------------------------------------//
 	Let(Symbol, usize, NodeList),
 	UnaryOp(UnaryOp, NodeList),
@@ -79,6 +85,17 @@ impl Bit {
 				output(b);
 				output(c);
 			}
+			Bit::If {
+				condition,
+				when_true,
+				when_false,
+			} => {
+				output(condition);
+				output(when_true);
+				if let Some(when_false) = when_false {
+					output(when_false);
+				}
+			}
 		}
 	}
 }
@@ -128,12 +145,12 @@ impl Node {
 
 	pub fn is_symbol(&self, expected: &Symbol) -> bool {
 		match self.bit() {
-			Bit::Token(Token::Symbol(symbol)) => symbol == expected,
+			Bit::Token(Token::Symbol(symbol) | Token::Word(symbol)) => symbol == expected,
 			_ => false,
 		}
 	}
 
-	pub fn is_word(&self, expected: &Symbol) -> bool {
+	pub fn is_keyword(&self, expected: &Symbol) -> bool {
 		match self.bit() {
 			Bit::Token(Token::Word(symbol)) => symbol == expected,
 			_ => false,

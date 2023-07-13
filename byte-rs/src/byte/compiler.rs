@@ -72,61 +72,7 @@ impl CompilerData {
 
 impl Compiler {
 	pub(crate) fn configure_root_scope(&self, scope: &mut ScopeWriter) {
-		// expression parsing
-		let ops = default_operators();
-
-		let mut matcher = scope.matcher();
-		ops.register_symbols(&mut matcher);
-		scope.set_matcher(matcher);
-
-		scope.add_node_operator(NodeOperator::ParseExpression(ops), NodePrecedence::Expression);
-
-		//general parsing
-		scope.add_node_operator(NodeOperator::Block(Context::symbol(":")), NodePrecedence::Blocks);
-		scope.add_node_operator(NodeOperator::SplitLines, NodePrecedence::SplitLines);
-		scope.add_node_operator(NodeOperator::StripComments, NodePrecedence::Comments);
-		scope.add_node_operator(
-			NodeOperator::Let(Context::symbol("let"), Context::symbol("=")),
-			NodePrecedence::Let,
-		);
-		scope.add_node_operator(NodeOperator::Bind, NodePrecedence::Bind);
-		scope.add_node_operator(NodeOperator::Print(Context::symbol("print")), NodePrecedence::Print);
-		scope.add_node_operator(NodeOperator::Comma(Context::symbol(",")), NodePrecedence::Comma);
-
-		let ternary = OpTernary(
-			Context::symbol("?"),
-			Context::symbol(":"),
-			Arc::new(|a, b, c, span| Bit::Conditional(a, b, c).at(span)),
-		);
-		scope.add_node_operator(NodeOperator::Ternary(ternary), NodePrecedence::Ternary);
-
-		// brackets
-		let mut brackets = BracketPairs::new();
-		brackets.add(
-			Context::symbol("("),
-			Context::symbol(")"),
-			Arc::new(|_, n, _| Bit::Group(n)),
-		);
-
-		scope.add_node_operator(NodeOperator::Brackets(brackets), NodePrecedence::Brackets);
-
-		// TODO: handle literal values properly as to not need different precedences
-
-		// boolean
-		scope.add_node_operator(
-			NodeOperator::Replace(Context::symbol("true"), |span| Bit::Boolean(true).at(span)),
-			NodePrecedence::Boolean(true),
-		);
-		scope.add_node_operator(
-			NodeOperator::Replace(Context::symbol("false"), |span| Bit::Boolean(false).at(span)),
-			NodePrecedence::Boolean(false),
-		);
-
-		// null
-		scope.add_node_operator(
-			NodeOperator::Replace(Context::symbol("null"), |span| Bit::Null.at(span)),
-			NodePrecedence::Null,
-		);
+		configure_default_node_operators(scope);
 	}
 }
 

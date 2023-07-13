@@ -50,6 +50,10 @@ impl NodeList {
 		Vec::from_iter(self.iter())
 	}
 
+	pub fn is_same(&self, other: &NodeList) -> bool {
+		Arc::as_ptr(&self.data) == Arc::as_ptr(&other.data)
+	}
+
 	pub fn version(&self) -> usize {
 		*self.data.version.read().unwrap()
 	}

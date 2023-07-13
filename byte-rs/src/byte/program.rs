@@ -208,6 +208,7 @@ impl Program {
 			let mut has_changes = false;
 
 			let mut new_segments = Vec::new();
+			let mut del_segments = Vec::new();
 			for (_, op, nodes) in to_process {
 				let mut context = EvalContext::new(nodes);
 				let version = nodes.version();
@@ -220,6 +221,7 @@ impl Program {
 				let changed = nodes.version() > version;
 
 				context.get_new_segments(&mut new_segments);
+				context.get_del_segments(&mut del_segments);
 				has_changes = has_changes || changed;
 
 				let declares = context.get_declares();
@@ -257,6 +259,14 @@ impl Program {
 					has_changes = true;
 					segments.push(it);
 				}
+			}
+
+			// TODO: optimize segment handling
+			for it in del_segments {
+				*segments = std::mem::take(&mut *segments)
+					.into_iter()
+					.filter(|x| !x.is_same(&it))
+					.collect();
 			}
 
 			if !has_changes {

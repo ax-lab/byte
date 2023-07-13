@@ -16,7 +16,7 @@ impl NodeList {
 	}
 
 	pub fn is_keyword(&self, index: usize, word: &Symbol) -> bool {
-		self.test_at(index, |x| x.is_word(word))
+		self.test_at(index, |x| x.is_keyword(word))
 	}
 
 	pub fn is_symbol(&self, index: usize, symbol: &Symbol) -> bool {

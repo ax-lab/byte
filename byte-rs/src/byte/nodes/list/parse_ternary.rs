@@ -33,7 +33,7 @@ impl NodeList {
 						let b = NodeList::new(self.scope_handle(), b);
 						let c = NodeList::new(self.scope_handle(), c);
 						let node = op.new_node(ctx, a, b, c, self.span())?;
-						node.get_dependencies(|list| ctx.resolve_nodes(list));
+						node.get_dependencies(|list| ctx.add_segment(list));
 
 						let nodes = Arc::make_mut(&mut nodes);
 						*nodes = vec![node];

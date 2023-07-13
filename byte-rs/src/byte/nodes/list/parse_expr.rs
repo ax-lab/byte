@@ -245,7 +245,7 @@ impl<'a, T: IsOperator> ExprStack<'a, T> {
 	fn pop_value(&mut self) -> NodeList {
 		let nodes = self.values.pop_back().unwrap();
 		let nodes = NodeList::new(self.ctx.scope_handle(), nodes);
-		self.ctx.resolve_nodes(&nodes);
+		self.ctx.add_segment(&nodes);
 		nodes
 	}
 

@@ -17,7 +17,7 @@ impl NodeList {
 			let lhs = self.slice(..index);
 			let rhs = self.slice(index + 1..);
 			let node = op.new_node(ctx, lhs, rhs, span)?;
-			node.get_dependencies(|list| ctx.resolve_nodes(list));
+			node.get_dependencies(|list| ctx.add_segment(list));
 			self.write_res(|nodes| {
 				*nodes = vec![node];
 				Ok(true)

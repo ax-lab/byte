@@ -69,7 +69,7 @@ impl IsNodeOperator for OpSplitLine {
 		let new_nodes = lines.into_iter().filter(|nodes| nodes.len() > 0).map(|nodes| {
 			let nodes = NodeList::new(ctx.scope_handle(), nodes);
 			let span = nodes.span();
-			ctx.resolve_nodes(&nodes);
+			ctx.add_segment(&nodes);
 			Bit::Line(nodes).at(span)
 		});
 

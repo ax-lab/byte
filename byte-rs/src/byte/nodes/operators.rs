@@ -5,6 +5,7 @@ pub mod op_brackets;
 pub mod op_comma;
 pub mod op_decl;
 pub mod op_expr;
+pub mod op_if;
 pub mod op_parse_blocks;
 pub mod op_print;
 pub mod op_replace_symbol;
@@ -17,6 +18,7 @@ pub use op_brackets::*;
 pub use op_comma::*;
 pub use op_decl::*;
 pub use op_expr::*;
+pub use op_if::*;
 pub use op_parse_blocks::*;
 pub use op_print::*;
 pub use op_replace_symbol::*;
@@ -37,6 +39,7 @@ pub enum NodePrecedence {
 	Comments,
 	SplitLines,
 	Let,
+	If,
 	Print,
 	Ternary,
 	Comma,
@@ -54,6 +57,7 @@ pub enum NodeOperator {
 	SplitLines,
 	StripComments,
 	Let(Symbol, Symbol),
+	If(Symbol),
 	Ternary(OpTernary),
 	Print(Symbol),
 	Comma(Symbol),
@@ -78,6 +82,7 @@ impl NodeOperator {
 			NodeOperator::SplitLines => Arc::new(OpSplitLine),
 			NodeOperator::StripComments => Arc::new(OpStripComments),
 			NodeOperator::Let(decl, eq) => Arc::new(OpDecl(decl.clone(), eq.clone())),
+			NodeOperator::If(symbol) => Arc::new(OpIf::new(symbol.clone())),
 			NodeOperator::Bind => Arc::new(OpBind),
 			NodeOperator::Print(symbol) => Arc::new(OpPrint(symbol.clone())),
 			NodeOperator::Replace(symbol, node) => Arc::new(ReplaceSymbol(symbol.clone(), node.clone())),
@@ -110,6 +115,65 @@ pub enum OpPrecedence {
 //====================================================================================================================//
 // Standard operators
 //====================================================================================================================//
+
+pub fn configure_default_node_operators(scope: &mut ScopeWriter) {
+	// expression parsing
+	let ops = default_operators();
+
+	let mut matcher = scope.matcher();
+	ops.register_symbols(&mut matcher);
+	scope.set_matcher(matcher);
+
+	scope.add_node_operator(NodeOperator::ParseExpression(ops), NodePrecedence::Expression);
+
+	//general parsing
+	scope.add_node_operator(NodeOperator::Block(Context::symbol(":")), NodePrecedence::Blocks);
+	scope.add_node_operator(NodeOperator::SplitLines, NodePrecedence::SplitLines);
+	scope.add_node_operator(NodeOperator::StripComments, NodePrecedence::Comments);
+	scope.add_node_operator(
+		NodeOperator::Let(Context::symbol("let"), Context::symbol("=")),
+		NodePrecedence::Let,
+	);
+	scope.add_node_operator(NodeOperator::If(Context::symbol("if")), NodePrecedence::If);
+	scope.add_node_operator(NodeOperator::Bind, NodePrecedence::Bind);
+	scope.add_node_operator(NodeOperator::Print(Context::symbol("print")), NodePrecedence::Print);
+	scope.add_node_operator(NodeOperator::Comma(Context::symbol(",")), NodePrecedence::Comma);
+
+	let ternary = OpTernary(
+		Context::symbol("?"),
+		Context::symbol(":"),
+		Arc::new(|a, b, c, span| Bit::Conditional(a, b, c).at(span)),
+	);
+	scope.add_node_operator(NodeOperator::Ternary(ternary), NodePrecedence::Ternary);
+
+	// brackets
+	let mut brackets = BracketPairs::new();
+	brackets.add(
+		Context::symbol("("),
+		Context::symbol(")"),
+		Arc::new(|_, n, _| Bit::Group(n)),
+	);
+
+	scope.add_node_operator(NodeOperator::Brackets(brackets), NodePrecedence::Brackets);
+
+	// TODO: handle literal values properly as to not need different precedences
+
+	// boolean
+	scope.add_node_operator(
+		NodeOperator::Replace(Context::symbol("true"), |span| Bit::Boolean(true).at(span)),
+		NodePrecedence::Boolean(true),
+	);
+	scope.add_node_operator(
+		NodeOperator::Replace(Context::symbol("false"), |span| Bit::Boolean(false).at(span)),
+		NodePrecedence::Boolean(false),
+	);
+
+	// null
+	scope.add_node_operator(
+		NodeOperator::Replace(Context::symbol("null"), |span| Bit::Null.at(span)),
+		NodePrecedence::Null,
+	);
+}
 
 pub fn default_operators() -> OperatorSet {
 	let mut ops = OperatorSet::new();

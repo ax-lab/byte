@@ -93,8 +93,8 @@ impl IsNodeOperator for OpParseBlocks {
 		assert!(head.len() > 0);
 		assert!(body.len() > 0);
 
-		ctx.resolve_nodes(&head);
-		ctx.resolve_nodes(&body);
+		ctx.add_segment(&head);
+		ctx.add_segment(&body);
 
 		let mut new_nodes = Vec::new();
 		let span = Span::merge(head.span(), body.span());
