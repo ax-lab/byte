@@ -143,6 +143,7 @@ impl NodeList {
 				to,
 				body,
 			} => {
+				// TODO: `for` should validate types on code generation
 				let from = from.generate_expr(context)?;
 				let to = to.generate_expr(context)?;
 				context.declares.insert((var.clone(), Some(*offset)), from.get_type());
@@ -342,9 +343,9 @@ impl Expr {
 				}
 			}
 			Expr::For(var, offset, from, to, body) => {
-				// TODO: uncut `for` corners
 				let from_value = from.execute(scope)?;
 				let from_value = from_value.value();
+				let from_type = from_value.get_type();
 				let from_value = from_value.int_value(&IntType::I128, NumericConversion::None)?;
 				let from_value = from_value.signed();
 
@@ -358,7 +359,7 @@ impl Expr {
 				let var_offset = Some(*offset);
 				let mut cur = from_value;
 				loop {
-					let value = Value::from(cur);
+					let value = Value::from(cur).cast_to(&from_type, NumericConversion::None)?;
 					scope.set(var.clone(), var_offset, value);
 					body.execute(scope)?;
 					if cur == to_value {

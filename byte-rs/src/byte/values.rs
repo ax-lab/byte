@@ -47,6 +47,54 @@ impl Value {
 		Type::to_bool(self)
 	}
 
+	pub fn cast_to(&self, to: &Type, conversion: NumericConversion) -> Result<Value> {
+		if to == &self.get_type() {
+			Ok(self.clone())
+		} else {
+			let output = match to {
+				Type::Unit => None,
+				Type::Null => None,
+				Type::Never => None,
+				Type::Bool => {
+					let value = self.bool()?;
+					Some(Value::Bool(value))
+				}
+				Type::String => {
+					let value = self.to_string();
+					Some(Value::String(value.into()))
+				}
+				Type::Int(kind) => {
+					let value = self.int_value(kind, conversion)?;
+					Some(Value::Int(value))
+				}
+				Type::Float(kind) => {
+					let value = self.float_value(kind, conversion)?;
+					Some(Value::Float(value))
+				}
+				Type::Or(a, b) => {
+					return self
+						.cast_to(a, conversion)
+						.or_else(|mut err| match self.cast_to(b, conversion) {
+							Ok(value) => Ok(value),
+							Err(errors) => {
+								err.append(&errors);
+								Err(err)
+							}
+						});
+				}
+				Type::Ref(inner) => return self.cast_to(inner, conversion),
+			};
+			if let Some(output) = output {
+				Ok(output)
+			} else {
+				Err(Errors::from(
+					format!("conversion from {} to {to} is not supported", self.get_type()),
+					Span::default(),
+				))
+			}
+		}
+	}
+
 	pub fn int_value(&self, kind: &IntType, conversion: NumericConversion) -> Result<IntValue> {
 		let output = match self {
 			Value::Unit => None,
