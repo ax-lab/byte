@@ -122,6 +122,20 @@ impl NodeList {
 				context.declares.insert((name.clone(), Some(*offset)), kind);
 				Expr::Declare(name.clone(), Some(*offset), Arc::new(expr))
 			}
+			Bit::If {
+				condition,
+				when_true,
+				when_false,
+			} => {
+				let condition = condition.generate_expr(context)?;
+				let when_true = when_true.generate_expr(context)?;
+				let when_false = if let Some(when_false) = when_false {
+					when_false.generate_expr(context)?
+				} else {
+					Expr::Unit
+				};
+				Expr::Conditional(condition.into(), when_true.into(), when_false.into())
+			}
 			Bit::Variable(name, index) => {
 				if let Some(kind) = context.declares.get(&(name.clone(), *index)) {
 					Expr::Variable(name.clone(), *index, kind.clone())
