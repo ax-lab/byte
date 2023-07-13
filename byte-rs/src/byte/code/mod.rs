@@ -136,6 +136,19 @@ impl NodeList {
 				};
 				Expr::Conditional(condition.into(), when_true.into(), when_false.into())
 			}
+			Bit::For {
+				var,
+				offset,
+				from,
+				to,
+				body,
+			} => {
+				let from = from.generate_expr(context)?;
+				let to = to.generate_expr(context)?;
+				context.declares.insert((var.clone(), Some(*offset)), from.get_type());
+				let body = body.generate_expr(context)?;
+				Expr::For(var.clone(), *offset, from.into(), to.into(), body.into())
+			}
 			Bit::Variable(name, index) => {
 				if let Some(kind) = context.declares.get(&(name.clone(), *index)) {
 					Expr::Variable(name.clone(), *index, kind.clone())
@@ -228,6 +241,7 @@ pub enum Expr {
 	Null,
 	Declare(Symbol, Option<usize>, Arc<Expr>),
 	Conditional(Arc<Expr>, Arc<Expr>, Arc<Expr>),
+	For(Symbol, usize, Arc<Expr>, Arc<Expr>, Arc<Expr>),
 	Bool(bool),
 	Str(StringValue),
 	Int(IntValue),
@@ -249,6 +263,7 @@ impl Expr {
 			Expr::Bool(..) => Type::Bool,
 			Expr::Str(..) => Type::String,
 			Expr::Int(int) => Type::Int(int.get_type()),
+			Expr::For(..) => Type::Unit,
 			Expr::Float(float) => Type::Float(float.get_type()),
 			Expr::Variable(.., kind) => Type::Ref(kind.clone().into()),
 			Expr::Print(..) => Type::Unit,
@@ -325,6 +340,30 @@ impl Expr {
 				} else {
 					b.execute(scope)
 				}
+			}
+			Expr::For(var, offset, from, to, body) => {
+				// TODO: uncut `for` corners
+				let from_value = from.execute(scope)?;
+				let from_value = from_value.value();
+				let from_value = from_value.int_value(&IntType::I128, NumericConversion::None)?;
+				let from_value = from_value.signed();
+
+				let to_value = to.execute(scope)?;
+				let to_value = to_value.value();
+				let to_value = to_value.int_value(&IntType::I128, NumericConversion::None)?;
+				let to_value = to_value.signed();
+
+				let step = if from_value <= to_value { 1 } else { -1 };
+
+				let var_offset = Some(*offset);
+				let mut cur = from_value;
+				while cur != to_value {
+					let value = Value::from(cur);
+					scope.set(var.clone(), var_offset, value);
+					body.execute(scope)?;
+					cur += step;
+				}
+				Ok(Value::Unit.into())
 			}
 		}
 	}

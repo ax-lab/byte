@@ -5,6 +5,7 @@ pub mod op_brackets;
 pub mod op_comma;
 pub mod op_decl;
 pub mod op_expr;
+pub mod op_for;
 pub mod op_if;
 pub mod op_parse_blocks;
 pub mod op_print;
@@ -18,6 +19,7 @@ pub use op_brackets::*;
 pub use op_comma::*;
 pub use op_decl::*;
 pub use op_expr::*;
+pub use op_for::*;
 pub use op_if::*;
 pub use op_parse_blocks::*;
 pub use op_print::*;
@@ -38,6 +40,7 @@ pub enum NodePrecedence {
 	Blocks,
 	Comments,
 	If, // before `SplitLines` because of if..else
+	For,
 	SplitLines,
 	Let,
 	Print,
@@ -65,6 +68,7 @@ pub enum NodeOperator {
 	StripComments,
 	Let(Symbol, Symbol),
 	If(Symbol, Symbol),
+	For(Symbol, Symbol, Symbol),
 	Ternary(OpTernary),
 	Print(Symbol),
 	Comma(Symbol),
@@ -90,6 +94,7 @@ impl NodeOperator {
 			NodeOperator::StripComments => Arc::new(OpStripComments),
 			NodeOperator::Let(decl, eq) => Arc::new(OpDecl(decl.clone(), eq.clone())),
 			NodeOperator::If(s_if, s_else) => Arc::new(OpIf::new(s_if.clone(), s_else.clone())),
+			NodeOperator::For(a, b, c) => Arc::new(OpFor(a.clone(), b.clone(), c.clone())),
 			NodeOperator::Bind => Arc::new(OpBind),
 			NodeOperator::Print(symbol) => Arc::new(OpPrint(symbol.clone())),
 			NodeOperator::Replace(symbol, node) => Arc::new(ReplaceSymbol(symbol.clone(), node.clone())),
@@ -144,6 +149,10 @@ pub fn configure_default_node_operators(scope: &mut ScopeWriter) {
 	scope.add_node_operator(
 		NodeOperator::If(Context::symbol("if"), Context::symbol("else")),
 		NodePrecedence::If,
+	);
+	scope.add_node_operator(
+		NodeOperator::For(Context::symbol("for"), Context::symbol("in"), Context::symbol("..")),
+		NodePrecedence::For,
 	);
 	scope.add_node_operator(NodeOperator::Bind, NodePrecedence::Bind);
 	scope.add_node_operator(NodeOperator::Print(Context::symbol("print")), NodePrecedence::Print);

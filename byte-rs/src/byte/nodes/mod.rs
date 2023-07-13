@@ -32,6 +32,13 @@ pub enum Bit {
 		when_true: NodeList,
 		when_false: Option<NodeList>,
 	},
+	For {
+		var: Symbol,
+		offset: usize,
+		from: NodeList,
+		to: NodeList,
+		body: NodeList,
+	},
 	//----[ AST ]-------------------------------------------------------------//
 	Let(Symbol, usize, NodeList),
 	UnaryOp(UnaryOp, NodeList),
@@ -95,6 +102,11 @@ impl Bit {
 				if let Some(when_false) = when_false {
 					output(when_false);
 				}
+			}
+			Bit::For { from, to, body, .. } => {
+				output(from);
+				output(to);
+				output(body);
 			}
 		}
 	}
