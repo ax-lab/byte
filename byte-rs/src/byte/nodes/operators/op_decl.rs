@@ -1,6 +1,18 @@
 use super::*;
 
-pub struct OpDecl(pub Symbol, pub Symbol);
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub enum Decl {
+	Let,
+	Const,
+}
+
+pub struct OpDecl(pub Symbol, pub Symbol, pub Decl);
+
+impl OpDecl {
+	pub fn mode(&self) -> Decl {
+		self.2
+	}
+}
 
 impl IsNodeOperator for OpDecl {
 	fn can_apply(&self, nodes: &NodeList) -> bool {
@@ -23,9 +35,15 @@ impl ParseFold for OpDecl {
 
 	fn new_node(&self, ctx: &mut EvalContext, lhs: NodeList, rhs: NodeList, span: Span) -> Result<Node> {
 		let name = lhs.get_symbol(lhs.len() - 1).unwrap();
-		let offset = lhs.offset();
 		let value = BindingValue::NodeList(rhs.clone());
-		ctx.declare_at(name.clone(), offset, value);
+		let offset = if self.mode() == Decl::Const {
+			ctx.declare_static(name.clone(), value);
+			None
+		} else {
+			let offset = lhs.offset();
+			ctx.declare_at(name.clone(), offset, value);
+			Some(offset)
+		};
 		Ok(Bit::Let(name, offset, rhs).at(span))
 	}
 }

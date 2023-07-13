@@ -42,6 +42,7 @@ pub enum NodePrecedence {
 	If, // before `SplitLines` because of if..else
 	For,
 	SplitLines,
+	Const,
 	Let,
 	Print,
 	Ternary,
@@ -66,7 +67,7 @@ pub enum NodeOperator {
 	Block(Symbol),
 	SplitLines,
 	StripComments,
-	Let(Symbol, Symbol),
+	Let(Symbol, Symbol, Decl),
 	If(Symbol, Symbol),
 	For(Symbol, Symbol, Symbol),
 	Ternary(OpTernary),
@@ -92,7 +93,7 @@ impl NodeOperator {
 			NodeOperator::Block(symbol) => Arc::new(OpParseBlocks(symbol.clone())),
 			NodeOperator::SplitLines => Arc::new(OpSplitLine),
 			NodeOperator::StripComments => Arc::new(OpStripComments),
-			NodeOperator::Let(decl, eq) => Arc::new(OpDecl(decl.clone(), eq.clone())),
+			NodeOperator::Let(decl, eq, mode) => Arc::new(OpDecl(decl.clone(), eq.clone(), *mode)),
 			NodeOperator::If(s_if, s_else) => Arc::new(OpIf::new(s_if.clone(), s_else.clone())),
 			NodeOperator::For(a, b, c) => Arc::new(OpFor(a.clone(), b.clone(), c.clone())),
 			NodeOperator::Bind => Arc::new(OpBind),
@@ -143,8 +144,12 @@ pub fn configure_default_node_operators(scope: &mut ScopeWriter) {
 	scope.add_node_operator(NodeOperator::SplitLines, NodePrecedence::SplitLines);
 	scope.add_node_operator(NodeOperator::StripComments, NodePrecedence::Comments);
 	scope.add_node_operator(
-		NodeOperator::Let(Context::symbol("let"), Context::symbol("=")),
+		NodeOperator::Let(Context::symbol("let"), Context::symbol("="), Decl::Let),
 		NodePrecedence::Let,
+	);
+	scope.add_node_operator(
+		NodeOperator::Let(Context::symbol("const"), Context::symbol("="), Decl::Const),
+		NodePrecedence::Const,
 	);
 	scope.add_node_operator(
 		NodeOperator::If(Context::symbol("if"), Context::symbol("else")),

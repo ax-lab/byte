@@ -40,7 +40,7 @@ pub enum Bit {
 		body: NodeList,
 	},
 	//----[ AST ]-------------------------------------------------------------//
-	Let(Symbol, usize, NodeList),
+	Let(Symbol, Option<usize>, NodeList),
 	UnaryOp(UnaryOp, NodeList),
 	BinaryOp(BinaryOp, NodeList, NodeList),
 	Variable(Symbol, Option<usize>),

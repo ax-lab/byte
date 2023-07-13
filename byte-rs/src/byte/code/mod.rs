@@ -119,8 +119,9 @@ impl NodeList {
 			Bit::Let(name, offset, list) => {
 				let expr = list.generate_expr(context)?;
 				let kind = expr.get_type();
-				context.declares.insert((name.clone(), Some(*offset)), kind);
-				Expr::Declare(name.clone(), Some(*offset), Arc::new(expr))
+				let offset = *offset;
+				context.declares.insert((name.clone(), offset), kind);
+				Expr::Declare(name.clone(), offset, Arc::new(expr))
 			}
 			Bit::If {
 				condition,
