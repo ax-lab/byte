@@ -357,10 +357,13 @@ impl Expr {
 
 				let var_offset = Some(*offset);
 				let mut cur = from_value;
-				while cur != to_value {
+				loop {
 					let value = Value::from(cur);
 					scope.set(var.clone(), var_offset, value);
 					body.execute(scope)?;
+					if cur == to_value {
+						break;
+					}
 					cur += step;
 				}
 				Ok(Value::Unit.into())
