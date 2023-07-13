@@ -23,6 +23,39 @@ pub use span::*;
 pub use util::*;
 pub use values::*;
 
+/*
+	Laundry list (TODO)
+	===================
+
+	## Clean up
+
+	- [ ] have proper scoping
+	- [ ] tidy up the code module
+
+	## Major systems
+
+	- [ ] import / export
+	- [ ] native compilation (C / LLVM)
+	- [ ] JS transpilation
+
+	## Language features
+
+	- [ ] types
+	- [ ] pattern matching
+	- [ ] macros
+	- [ ] lifetime and ownership (a.k.a. borrows)
+	- [ ] lexical / syntax extensions from code
+
+	## General code improvements
+
+	- [ ] stricter type-checking in codegen (e.g. strongly-typed generic code nodes?)
+	- [ ] generalize framework for type conversion
+	- [ ] isomorphic code gen and eval
+	- [ ] improve segment handling and resolving (e.g. if-else problem -- defer to code gen?)
+		- [ ] e.g., add a formal code analysis step
+
+*/
+
 /// Default initial tab-width for the compiler.
 ///
 /// This can be overridden at the [`Context`] or [`Source`] level.
@@ -141,19 +174,3 @@ mod tests {
 		Ok(())
 	}
 }
-
-/*
-	Operator rules
-	==============
-
-	1) All operators are tied to particular nodes in the list. If the given
-	   node is not present, then the operator will not be applied.
-
-	2) Operators will remove all instances of their respective nodes from the
-	   list.
-
-	3) Operators may result in a new list containing their respective nodes,
-	   but should only process those recursively if the precedence of all
-	   other operators can be ensured.
-
-*/

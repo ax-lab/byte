@@ -1,26 +1,17 @@
-#(
-const MAX = 1000
-
 let sum = 0
-for i in 1..MAX-1:
-	if i % 3 == 0 or i % 5 == 0:
-		sum = sum + i
+for i in 1..9:
+	sum = sum + i
+	print 'i =', i
+	if i == 1:
+		print '...is 1'
+	else if i == 2:
+		print '...is 2'
+	else if i == 3:
+		print '...is 3'
+	else:
+		if i % 2 == 0:
+			print '...is even'
+		else:
+			print '...is odd'
 
-print sum
-#)
-
-#(
-
-2 * 3 / (2 + 1) + (
-	a + b
-	b + c
-)
-
-#)
-
-#:(
-
-let ANSWER = 10 * 4 + 2
-print 'The answer to life, the universe, and everything is', ANSWER
-
-#)
+print 'sum is', sum

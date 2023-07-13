@@ -1,5 +1,7 @@
 # Parser scopes
 
+TODO: update to reflect the actual scope implementation
+
 On a basic level, a Byte file is parsed as follows:
 
 A configurable lexer reads the input text and incrementally generates a stream

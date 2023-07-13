@@ -1,5 +1,7 @@
 # Blocks
 
+TODO: a bunch of this has changed since the original idea, update
+
 Blocks make for the fundamental structure of a Byte file. They provide a
 well-defined structure for the language and provide the building blocks
 for the language extensible and dynamic syntax.
