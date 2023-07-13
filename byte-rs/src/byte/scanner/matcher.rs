@@ -4,6 +4,7 @@ use super::*;
 pub struct Matcher {
 	matchers: Arc<Vec<Arc<dyn IsMatcher>>>,
 	table: Arc<SymbolTable<ScanAction>>,
+	word_chars: Arc<HashSet<char>>,
 }
 
 impl Matcher {
@@ -11,6 +12,7 @@ impl Matcher {
 		Self {
 			matchers: Default::default(),
 			table: Default::default(),
+			word_chars: Default::default(),
 		}
 	}
 
@@ -20,11 +22,17 @@ impl Matcher {
 	}
 
 	pub fn add_symbol(&mut self, symbol: &str) {
+		assert!(symbol.len() > 0);
 		let table = Arc::make_mut(&mut self.table);
-		table.add(symbol, ScanAction::Symbol(symbol.to_string()));
+		let is_word = self.word_chars.contains(&symbol.chars().next().unwrap());
+		table.add(symbol, ScanAction::Symbol(symbol.to_string(), is_word));
 	}
 
 	pub fn add_word_chars(&mut self, chars: &str) {
+		let word_chars = Arc::make_mut(&mut self.word_chars);
+		for char in chars.chars() {
+			word_chars.insert(char);
+		}
 		self.add_action_chars(chars, ScanAction::Word);
 	}
 
@@ -109,23 +117,34 @@ impl Matcher {
 
 				// first character in an identifier
 				ScanAction::Word => {
-					// continue matching the entire identifier
-					while let (size, Some(ScanAction::Word | ScanAction::WordNext)) =
-						self.table.recognize(cursor.data())
-					{
-						cursor.advance(size);
-					}
-
-					// generate a Word token
+					self.match_word_continuation(cursor);
 					let span = cursor.span_from(&start);
-					let symbol = span.text().to_string();
-					Some((Token::Word(Context::symbol(symbol)), span))
+					Some((Token::Word(Context::symbol(span.text())), span))
 				}
 
 				// predefined symbol
-				ScanAction::Symbol(symbol) => Some((Token::Symbol(Context::symbol(symbol)), span)),
+				ScanAction::Symbol(symbol, is_word) => {
+					let span = cursor.span_from(&start);
+					let token = if is_word && self.match_word_continuation(cursor) {
+						Token::Word(Context::symbol(span.text()))
+					} else {
+						Token::Symbol(Context::symbol(symbol))
+					};
+					Some((token, span))
+				}
 			};
 		}
+	}
+
+	fn match_word_continuation(&self, cursor: &mut Span) -> bool {
+		let mut matched = false;
+		while let (size, Some(ScanAction::Word | ScanAction::WordNext | ScanAction::Symbol(_, true))) =
+			self.table.recognize(cursor.data())
+		{
+			matched = true;
+			cursor.advance(size);
+		}
+		matched
 	}
 
 	fn skip_blank(&self, cursor: &mut Span, skip_breaks: bool) {
@@ -157,5 +176,5 @@ pub enum ScanAction {
 	None,
 	Word,
 	WordNext,
-	Symbol(String),
+	Symbol(String, bool),
 }
