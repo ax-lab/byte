@@ -7,11 +7,8 @@ pub struct OpCompareEqual {
 
 impl OpCompareEqual {
 	pub fn for_types(lhs: &Type, rhs: &Type) -> Option<Self> {
-		let output = if lhs != rhs {
-			Type::Bool
-		} else {
-			Type::Or(Type::Bool.into(), lhs.clone().into())
-		};
+		let _ = (lhs, rhs);
+		let output = Type::Bool;
 		Some(Self { output })
 	}
 }
@@ -21,11 +18,7 @@ impl IsBinaryOp for OpCompareEqual {
 		let lhs = lhs.execute(scope)?;
 		let rhs = rhs.execute(scope)?;
 		let equal = lhs.value() == rhs.value();
-		if equal {
-			Ok(lhs)
-		} else {
-			Ok(Value::from(false).into())
-		}
+		Ok(Value::from(equal).into())
 	}
 
 	fn get_type(&self) -> Type {
