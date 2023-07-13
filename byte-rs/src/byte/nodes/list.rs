@@ -109,7 +109,7 @@ impl NodeList {
 		let operators = self.scope().get_node_operators().into_iter();
 		let operators = operators.take_while(|(.., prec)| {
 			if let Some(max) = max_precedence {
-				prec <= &max
+				prec <= &max && prec != &NodePrecedence::Never
 			} else {
 				true
 			}
@@ -119,7 +119,7 @@ impl NodeList {
 
 		let mut operators = operators;
 		if let Some((op, prec)) = operators.next() {
-			let operators = operators.take_while(|(.., op_prec)| op_prec == &prec);
+			let operators = operators.take_while(|(.., op_prec)| op_prec == &prec && prec != NodePrecedence::Never);
 			let operators = operators.collect::<Vec<_>>();
 			if operators.len() > 0 {
 				let mut error =
