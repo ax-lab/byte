@@ -78,6 +78,8 @@ func GlobRegex(pattern string) string {
 			output = append(output, `[^/\\]`)
 		case '*':
 			output = append(output, `[^/\\]*`)
+		case '(', ')', '|':
+			output = append(output, string(next))
 		default:
 			output = append(output, regexp.QuoteMeta(string(next)))
 		}
@@ -86,13 +88,13 @@ func GlobRegex(pattern string) string {
 }
 
 func Relative(base, path string) string {
-	fullbase, err := filepath.Abs(base)
+	fullBase, err := filepath.Abs(base)
 	NoError(err, "getting absolute base path for relative")
 
-	fullpath, err := filepath.Abs(path)
+	fullPath, err := filepath.Abs(path)
 	NoError(err, "getting absolute path for relative")
 
-	rel, err := filepath.Rel(fullbase, fullpath)
+	rel, err := filepath.Rel(fullBase, fullPath)
 	NoError(err, "getting relative path")
 	return rel
 }

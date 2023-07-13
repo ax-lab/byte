@@ -84,19 +84,34 @@ func main() {
 				}
 			}
 
-			fmt.Printf("\n=== [ SUMMARY - Tests: %d", len(all))
-			if failure > 0 {
-				fmt.Printf(" / Failed: %d", failure)
-			} else {
-				fmt.Printf(" / Passed: %d", success)
+			summary := func() {
+				fmt.Printf("\n=== [ SUMMARY - Tests: %d", len(all))
+				if failure > 0 {
+					fmt.Printf(" / Failed: %d", failure)
+				} else {
+					fmt.Printf(" / Passed: %d", success)
+				}
+				if skipped > 0 {
+					fmt.Printf(" / Skipped: %d", skipped)
+				}
+				fmt.Printf(" ]\n\n")
 			}
-			if skipped > 0 {
-				fmt.Printf(" / Skipped: %d", skipped)
-			}
-			fmt.Printf(" ]\n\n")
 
 			for _, test := range all {
 				test.OutputDetails()
+			}
+
+			summary()
+
+			if failure > 0 {
+				fmt.Printf("    ## Failed tests ##\n\n")
+				for _, test := range all {
+					if !test.Skipped && !test.Success {
+						fmt.Printf("    - %s\n", test.Name)
+					}
+				}
+				fmt.Printf("\n")
+				os.Exit(1)
 			}
 
 		default:

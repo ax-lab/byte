@@ -126,21 +126,27 @@ func (test ScriptTest) OutputDetails() {
 	test.output("%s", test.Name)
 	test.output("\n==============================================\n\n")
 
-	diff := Compare(test.ActualOutput, test.ExpectOutput)
-	test.output("  - Expected output differences:\n\n")
-	for _, it := range diff.Blocks() {
-		sign, text, pos := " ", test.ExpectOutput, it.Dst
-		if it.Kind > 0 {
-			sign = "+"
-		} else if it.Kind < 0 {
-			sign, text, pos = "-", test.ActualOutput, it.Src
-		}
-		for i := 0; i < it.Len; i++ {
-			line := text[i+pos]
-			if line == "" {
-				line = "⏎"
+	if test.StdErr != "" && len(test.ActualOutput) == 0 {
+		fmt.Println("  - No output")
+	} else {
+		diff := Compare(test.ActualOutput, test.ExpectOutput)
+		test.output("  - Expected output differences:\n\n")
+		for _, it := range diff.Blocks() {
+			num := it.Dst
+			sign, text, pos := " ", test.ExpectOutput, it.Dst
+			if it.Kind > 0 {
+				sign = "+"
+			} else if it.Kind < 0 {
+				num = it.Src
+				sign, text, pos = "-", test.ActualOutput, it.Src
 			}
-			test.output("      %s %s\n", sign, line)
+			for i := 0; i < it.Len; i++ {
+				line := text[i+pos]
+				if line == "" {
+					line = "⏎"
+				}
+				test.output("      %03d %s %s\n", num+i+1, sign, line)
+			}
 		}
 	}
 

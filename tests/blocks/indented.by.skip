@@ -1,0 +1,31 @@
+let expr_1 =
+	1 +
+	2 +
+	3
+
+let expr_2
+	= 4
+	+ 5
+	+ 6
+
+let expr_3 = 7 + 8
+	+ 9 + 10
+
+print expr_1
+print expr_2
+print expr_3
+
+print
+	1 +
+	2 +
+	3 +
+		2 +
+		2 +
+	3 +
+		2 +
+			6 +
+				7 +
+		7 +
+	1 +
+	9
+print 45

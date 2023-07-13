@@ -1,0 +1,48 @@
+enum Result(
+	Real(n)
+	Imag(n)
+)
+
+const MAX_E = 0.0001
+
+fn sqrt_p(n):
+	where n > 0
+
+	let a, b = 0, n
+	return
+		while a < b and (m := (a + b) / 2):
+			let square = m * m
+			let error = (square - n)
+			when e := error (
+				e * e <= MAX_E:
+					break m
+				e > 0:
+					b = m
+				else:
+					a = m
+			)
+		else: m
+	
+fn sqrt(n):
+	return
+		if n < 0:
+			Result.Imag(sqrt_p(-n))
+		else if n == 0:
+			Result.Real(0)
+		else:
+			Result.Real(sqrt_p(n))
+
+fn print_sqrt(n):
+	let result = sqrt(n)
+	let result = when result (
+		Result.Real(n) => `{n}`
+		Result.Imag(n) => `{n}i`
+	)
+	print 'root of', n, '≈', result
+
+print_sqrt(2)
+print_sqrt(3)
+print_sqrt(5)
+print_sqrt(25)
+print_sqrt(64)
+print_sqrt(-100)
