@@ -4,8 +4,8 @@ pub struct CommaOperator(pub Symbol);
 
 impl ParseSplitSequence for CommaOperator {
 	fn is_split(&self, node: &Node) -> bool {
-		if let Bit::Token(Token::Symbol(symbol)) = node.bit() {
-			symbol == &self.0
+		if let NodeValue::Token(Token::Symbol(symbol)) = node.val() {
+			symbol == self.0
 		} else {
 			false
 		}
@@ -13,7 +13,7 @@ impl ParseSplitSequence for CommaOperator {
 
 	fn new_node(&self, ctx: &mut EvalContext, nodes: Vec<NodeList>, span: Span) -> Result<Node> {
 		let _ = ctx;
-		Ok(Bit::Sequence(nodes).at(span))
+		Ok(NodeValue::Sequence(nodes).at(ctx.scope_handle(), span))
 	}
 }
 

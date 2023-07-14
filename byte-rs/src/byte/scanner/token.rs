@@ -13,8 +13,8 @@ pub enum Token {
 }
 
 impl Node {
-	pub fn token(&self) -> Option<&Token> {
-		if let Bit::Token(token) = self.bit() {
+	pub fn token(&self) -> Option<Token> {
+		if let NodeValue::Token(token) = self.val() {
 			Some(token)
 		} else {
 			None

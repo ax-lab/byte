@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use super::*;
 
-pub type BracketFn = Arc<dyn Fn(Symbol, NodeList, Symbol) -> Bit>;
+pub type BracketFn = Arc<dyn Fn(Symbol, NodeList, Symbol) -> NodeValue>;
 
 /// Configures a set of bracket pairs and provides parsing for [`NodeList`].
 #[derive(Clone, Default)]
@@ -51,7 +51,7 @@ impl ParseBrackets for BracketPairs {
 		let span = sta.span().to(end.span());
 		let (.., bracket_fn) = sta.scope_info.as_ref().unwrap();
 		let node = (bracket_fn)(sta.symbol.clone(), nodes, end.symbol.clone());
-		Ok(node.at(span))
+		Ok(node.at(ctx.scope_handle(), span))
 	}
 }
 

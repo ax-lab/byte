@@ -19,6 +19,6 @@ impl ParseKeyword for OpPrint {
 
 	fn new_node(&self, ctx: &mut EvalContext, args: NodeList, span: Span) -> Result<Node> {
 		let _ = ctx;
-		Ok(Bit::Print(args, "\n").at(span))
+		Ok(NodeValue::Print(args, "\n").at(ctx.scope_handle(), span))
 	}
 }

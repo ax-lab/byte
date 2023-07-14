@@ -1,6 +1,6 @@
 use super::*;
 
-pub type TernaryNodeFn = Arc<dyn Fn(NodeList, NodeList, NodeList, Span) -> Node>;
+pub type TernaryNodeFn = Arc<dyn Fn(NodeList, NodeList, NodeList, ScopeHandle, Span) -> Node>;
 
 #[derive(Clone)]
 pub struct OpTernary(pub Symbol, pub Symbol, pub TernaryNodeFn);
@@ -22,7 +22,7 @@ impl ParseTernary for OpTernary {
 
 	fn new_node(&self, ctx: &mut EvalContext, a: NodeList, b: NodeList, c: NodeList, span: Span) -> Result<Node> {
 		let _ = ctx;
-		let node = (self.2)(a, b, c, span);
+		let node = (self.2)(a, b, c, ctx.scope_handle(), span);
 		Ok(node)
 	}
 }

@@ -73,7 +73,7 @@ pub enum NodeOperator {
 	Ternary(OpTernary),
 	Print(Symbol),
 	Comma(Symbol),
-	Replace(Symbol, fn(Span) -> Node),
+	Replace(Symbol, fn(ScopeHandle, Span) -> Node),
 	Bind,
 	ParseExpression(OperatorSet),
 }
@@ -166,7 +166,7 @@ pub fn configure_default_node_operators(scope: &mut ScopeWriter) {
 	let ternary = OpTernary(
 		Context::symbol("?"),
 		Context::symbol(":"),
-		Arc::new(|a, b, c, span| Bit::Conditional(a, b, c).at(span)),
+		Arc::new(|a, b, c, scope, span| NodeValue::Conditional(a, b, c).at(scope, span)),
 	);
 	scope.add_node_operator(NodeOperator::Ternary(ternary), NodePrecedence::Ternary);
 
@@ -175,7 +175,7 @@ pub fn configure_default_node_operators(scope: &mut ScopeWriter) {
 	brackets.add(
 		Context::symbol("("),
 		Context::symbol(")"),
-		Arc::new(|_, n, _| Bit::Group(n)),
+		Arc::new(|_, n, _| NodeValue::Group(n)),
 	);
 
 	scope.add_node_operator(NodeOperator::Brackets(brackets), NodePrecedence::Brackets);
@@ -184,17 +184,21 @@ pub fn configure_default_node_operators(scope: &mut ScopeWriter) {
 
 	// boolean
 	scope.add_node_operator(
-		NodeOperator::Replace(Context::symbol("true"), |span| Bit::Boolean(true).at(span)),
+		NodeOperator::Replace(Context::symbol("true"), |scope, span| {
+			NodeValue::Boolean(true).at(scope, span)
+		}),
 		NodePrecedence::Boolean(true),
 	);
 	scope.add_node_operator(
-		NodeOperator::Replace(Context::symbol("false"), |span| Bit::Boolean(false).at(span)),
+		NodeOperator::Replace(Context::symbol("false"), |scope, span| {
+			NodeValue::Boolean(false).at(scope, span)
+		}),
 		NodePrecedence::Boolean(false),
 	);
 
 	// null
 	scope.add_node_operator(
-		NodeOperator::Replace(Context::symbol("null"), |span| Bit::Null.at(span)),
+		NodeOperator::Replace(Context::symbol("null"), |scope, span| NodeValue::Null.at(scope, span)),
 		NodePrecedence::Null,
 	);
 }

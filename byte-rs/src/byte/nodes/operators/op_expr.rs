@@ -112,20 +112,20 @@ impl IsOperator for Operator {
 	}
 
 	fn node_prefix(&self, ctx: &mut EvalContext, op: Node, arg: NodeList, span: Span) -> Result<Node> {
-		let _ = (ctx, op);
-		let node = Bit::UnaryOp(self.prefix.unwrap().0, arg).at(span);
+		let _ = op;
+		let node = NodeValue::UnaryOp(self.prefix.unwrap().0, arg).at(ctx.scope_handle(), span);
 		Ok(node)
 	}
 
 	fn node_posfix(&self, ctx: &mut EvalContext, op: Node, arg: NodeList, span: Span) -> Result<Node> {
-		let _ = (ctx, op);
-		let node = Bit::UnaryOp(self.posfix.unwrap().0, arg).at(span);
+		let _ = op;
+		let node = NodeValue::UnaryOp(self.posfix.unwrap().0, arg).at(ctx.scope_handle(), span);
 		Ok(node)
 	}
 
 	fn node_binary(&self, ctx: &mut EvalContext, op: Node, lhs: NodeList, rhs: NodeList, span: Span) -> Result<Node> {
-		let _ = (ctx, op);
-		let node = Bit::BinaryOp(self.binary.unwrap().0, lhs, rhs).at(span);
+		let _ = op;
+		let node = NodeValue::BinaryOp(self.binary.unwrap().0, lhs, rhs).at(ctx.scope_handle(), span);
 		Ok(node)
 	}
 }

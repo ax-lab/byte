@@ -16,7 +16,7 @@ const SHOW_INDENT: bool = false;
 /// levels, from files, raw text, and tokens, all the way to fully fledged
 /// definitions.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum Bit {
+pub enum NodeValue {
 	Token(Token),
 	Null,
 	Boolean(bool),
@@ -28,9 +28,9 @@ pub enum Bit {
 	Block(NodeList, NodeList),
 	//----[ Logic ]-----------------------------------------------------------//
 	If {
-		condition: NodeList,
-		when_true: NodeList,
-		when_false: Option<NodeList>,
+		expr: NodeList,
+		if_true: NodeList,
+		if_false: Option<NodeList>,
 	},
 	For {
 		var: Symbol,
@@ -48,74 +48,62 @@ pub enum Bit {
 	Conditional(NodeList, NodeList, NodeList),
 }
 
-impl Bit {
-	pub fn at(self, span: Span) -> Node {
-		Node(self, at(span))
+impl NodeValue {
+	pub fn at(self, scope: ScopeHandle, span: Span) -> Node {
+		Node::new(self, scope, at(span))
 	}
 
 	pub fn symbol(&self) -> Option<Symbol> {
 		let symbol = match self {
-			Bit::Token(Token::Word(symbol)) => symbol,
-			Bit::Token(Token::Symbol(symbol)) => symbol,
+			NodeValue::Token(Token::Word(symbol)) => symbol,
+			NodeValue::Token(Token::Symbol(symbol)) => symbol,
 			_ => return None,
 		};
 		Some(symbol.clone())
 	}
 
-	pub fn get_dependencies<P: FnMut(&NodeList)>(&self, mut output: P) {
+	pub fn children(&self) -> Vec<&NodeList> {
 		match self {
-			Bit::Token(..) => (),
-			Bit::Null => (),
-			Bit::Boolean(..) => (),
-			Bit::Line(expr) => output(expr),
-			Bit::Sequence(list) => {
-				for expr in list.iter() {
-					output(expr)
-				}
-			}
-			Bit::RawText(..) => (),
-			Bit::Group(expr) => output(expr),
-			Bit::Block(head, body) => {
-				output(head);
-				output(body);
-			}
-			Bit::Let(.., expr) => output(expr),
-			Bit::UnaryOp(.., expr) => output(expr),
-			Bit::BinaryOp(.., lhs, rhs) => {
-				output(lhs);
-				output(rhs);
-			}
-			Bit::Variable(..) => (),
-			Bit::Print(expr, ..) => output(expr),
-			Bit::Conditional(a, b, c) => {
-				output(a);
-				output(b);
-				output(c);
-			}
-			Bit::If {
-				condition,
-				when_true,
-				when_false,
+			NodeValue::Token(_) => vec![],
+			NodeValue::Null => vec![],
+			NodeValue::Boolean(_) => vec![],
+			NodeValue::Line(expr) => vec![expr],
+			NodeValue::Sequence(ls) => ls.iter().map(|x| x).collect(),
+			NodeValue::RawText(_) => vec![],
+			NodeValue::Group(it) => vec![it],
+			NodeValue::Block(head, body) => vec![head, body],
+			NodeValue::If {
+				expr,
+				if_true,
+				if_false,
 			} => {
-				output(condition);
-				output(when_true);
-				if let Some(when_false) = when_false {
-					output(when_false);
+				let mut out = vec![expr, if_true];
+				if let Some(ref if_false) = if_false {
+					out.push(if_false);
 				}
+				out
 			}
-			Bit::For { from, to, body, .. } => {
-				output(from);
-				output(to);
-				output(body);
-			}
+			NodeValue::For { from, to, body, .. } => vec![from, to, body],
+			NodeValue::Let(.., expr) => vec![expr],
+			NodeValue::UnaryOp(_, expr) => vec![expr],
+			NodeValue::BinaryOp(_, lhs, rhs) => vec![lhs, rhs],
+			NodeValue::Variable(..) => vec![],
+			NodeValue::Print(expr, _) => vec![expr],
+			NodeValue::Conditional(cond, t, f) => vec![cond, t, f],
+		}
+	}
+
+	pub fn get_dependencies<P: FnMut(&NodeList)>(&self, mut output: P) {
+		for it in self.children() {
+			output(it);
 		}
 	}
 }
 
-impl Display for Bit {
+impl Display for NodeValue {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		match self {
-			Bit::Line(nodes) => {
+			NodeValue::Line(nodes) => {
 				write!(f, "Line::{nodes:?}")
 			}
 			_ => write!(f, "{self:?}"),
@@ -124,19 +112,48 @@ impl Display for Bit {
 }
 
 #[derive(Clone)]
-pub struct Node(Bit, Id);
+pub struct Node {
+	data: Arc<NodeData>,
+}
+
+struct NodeData {
+	id: Id,
+	span: Span,
+	value: RwLock<NodeValue>,
+	version: RwLock<usize>,
+	scope: ScopeHandle,
+}
 
 impl Node {
-	pub fn id(&self) -> Id {
-		self.1.clone()
+	pub fn new(value: NodeValue, scope: ScopeHandle, (id, span): (Id, Span)) -> Self {
+		let value = value.into();
+		let version = 0.into();
+		Self {
+			data: NodeData {
+				id,
+				span,
+				value,
+				version,
+				scope,
+			}
+			.into(),
+		}
 	}
 
-	pub fn bit(&self) -> &Bit {
-		&self.0
+	pub fn id(&self) -> Id {
+		self.data.id.clone()
+	}
+
+	pub fn version(&self) -> usize {
+		*self.data.version.read().unwrap()
+	}
+
+	pub fn val(&self) -> NodeValue {
+		self.data.value.read().unwrap().clone()
 	}
 
 	pub fn span(&self) -> Span {
-		self.id().span()
+		self.data.span.clone()
 	}
 
 	pub fn offset(&self) -> usize {
@@ -147,8 +164,16 @@ impl Node {
 		self.span().indent()
 	}
 
+	pub fn scope(&self) -> Scope {
+		self.data.scope.get()
+	}
+
+	pub fn scope_handle(&self) -> ScopeHandle {
+		self.data.scope.clone()
+	}
+
 	pub fn get_dependencies<P: FnMut(&NodeList)>(&self, output: P) {
-		self.bit().get_dependencies(output)
+		self.val().get_dependencies(output)
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
@@ -156,34 +181,34 @@ impl Node {
 	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn is_symbol(&self, expected: &Symbol) -> bool {
-		match self.bit() {
-			Bit::Token(Token::Symbol(symbol) | Token::Word(symbol)) => symbol == expected,
+		match self.val() {
+			NodeValue::Token(Token::Symbol(symbol) | Token::Word(symbol)) => &symbol == expected,
 			_ => false,
 		}
 	}
 
 	pub fn is_keyword(&self, expected: &Symbol) -> bool {
-		match self.bit() {
-			Bit::Token(Token::Word(symbol)) => symbol == expected,
+		match self.val() {
+			NodeValue::Token(Token::Word(symbol)) => &symbol == expected,
 			_ => false,
 		}
 	}
 
 	pub fn has_symbol(&self, symbol: &Symbol) -> bool {
-		match self.bit() {
-			Bit::Token(Token::Symbol(s) | Token::Word(s)) => s == symbol,
+		match self.val() {
+			NodeValue::Token(Token::Symbol(s) | Token::Word(s)) => &s == symbol,
 			_ => false,
 		}
 	}
 
 	pub fn symbol(&self) -> Option<Symbol> {
-		self.bit().symbol()
+		self.val().symbol()
 	}
 }
 
 impl Debug for Node {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "{:?}", self.bit())?;
+		write!(f, "{:?}", self.val())?;
 
 		let ctx = Context::get();
 		let format = ctx.format().with_mode(Mode::Minimal).with_separator(" @");
@@ -197,7 +222,7 @@ impl Debug for Node {
 
 impl Display for Node {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "{}", self.bit())?;
+		write!(f, "{}", self.val())?;
 
 		let ctx = Context::get();
 		let format = ctx.format().with_mode(Mode::Minimal).with_separator(" @");

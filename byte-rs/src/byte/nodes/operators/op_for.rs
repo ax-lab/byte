@@ -3,8 +3,8 @@ use super::*;
 pub struct OpFor(pub Symbol, pub Symbol, pub Symbol);
 
 impl OpFor {
-	fn get_for<'a>(&self, node: &'a Node) -> Option<(&'a NodeList, &'a NodeList)> {
-		if let Bit::Block(head, body) = node.bit() {
+	fn get_for(&self, node: &Node) -> Option<(NodeList, NodeList)> {
+		if let NodeValue::Block(head, body) = node.val() {
 			if head.is_symbol(0, &self.0) {
 				Some((head, body))
 			} else {
@@ -53,14 +53,14 @@ impl ParseReplace for OpFor {
 						ctx.add_segment(&from);
 						ctx.add_segment(&to);
 						let body = body.clone();
-						let node = Bit::For {
+						let node = NodeValue::For {
 							var,
 							offset,
 							from,
 							to,
 							body,
 						}
-						.at(span);
+						.at(ctx.scope_handle(), span);
 						Some(node)
 					} else {
 						None

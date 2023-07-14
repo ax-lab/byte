@@ -32,7 +32,7 @@ impl IsNodeOperator for OpSplitLine {
 			if let Some(Token::Break(indent)) = node.token() {
 				// start a new line
 				empty = true;
-				line_indent = *indent;
+				line_indent = indent;
 			} else if empty {
 				// process the indentation level for a new line
 				let base_level = match base_level {
@@ -70,7 +70,7 @@ impl IsNodeOperator for OpSplitLine {
 			let nodes = NodeList::new(ctx.scope_handle(), nodes);
 			let span = nodes.span();
 			ctx.add_segment(&nodes);
-			Bit::Line(nodes).at(span)
+			NodeValue::Line(nodes).at(ctx.scope_handle(), span)
 		});
 
 		nodes.replace_all(new_nodes.collect());

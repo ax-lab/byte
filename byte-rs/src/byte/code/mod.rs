@@ -95,13 +95,13 @@ impl NodeList {
 	}
 
 	fn do_generate_node(&self, context: &mut CodeContext, node: &Node) -> Result<Expr> {
-		let value = match node.bit() {
-			Bit::Boolean(value) => Expr::Bool(*value),
-			Bit::Token(Token::Integer(value)) => {
-				let value = IntValue::new(*value, DEFAULT_INT).at_pos(node.span())?;
+		let value = match node.val() {
+			NodeValue::Boolean(value) => Expr::Bool(value),
+			NodeValue::Token(Token::Integer(value)) => {
+				let value = IntValue::new(value, DEFAULT_INT).at_pos(node.span())?;
 				Expr::Int(value)
 			}
-			Bit::Token(Token::Float(value)) => {
+			NodeValue::Token(Token::Float(value)) => {
 				let value: f64 = match value.as_str().parse() {
 					Ok(value) => value,
 					Err(err) => {
@@ -112,32 +112,32 @@ impl NodeList {
 				let value = FloatValue::new(value, FloatType::F64);
 				Expr::Float(value)
 			}
-			Bit::Null => Expr::Null,
-			Bit::Token(Token::Literal(value)) => Expr::Str(value.clone()),
-			Bit::Line(list) => list.generate_expr(context)?,
-			Bit::Group(list) => list.generate_expr(context)?,
-			Bit::Let(name, offset, list) => {
+			NodeValue::Null => Expr::Null,
+			NodeValue::Token(Token::Literal(value)) => Expr::Str(value.clone()),
+			NodeValue::Line(list) => list.generate_expr(context)?,
+			NodeValue::Group(list) => list.generate_expr(context)?,
+			NodeValue::Let(name, offset, list) => {
 				let expr = list.generate_expr(context)?;
 				let kind = expr.get_type();
-				let offset = *offset;
+				let offset = offset;
 				context.declares.insert((name.clone(), offset), kind);
 				Expr::Declare(name.clone(), offset, Arc::new(expr))
 			}
-			Bit::If {
-				condition,
-				when_true,
-				when_false,
+			NodeValue::If {
+				expr: condition,
+				if_true,
+				if_false,
 			} => {
 				let condition = condition.generate_expr(context)?;
-				let when_true = when_true.generate_expr(context)?;
-				let when_false = if let Some(when_false) = when_false {
-					when_false.generate_expr(context)?
+				let if_true = if_true.generate_expr(context)?;
+				let if_false = if let Some(if_false) = if_false {
+					if_false.generate_expr(context)?
 				} else {
 					Expr::Unit
 				};
-				Expr::Conditional(condition.into(), when_true.into(), when_false.into())
+				Expr::Conditional(condition.into(), if_true.into(), if_false.into())
 			}
-			Bit::For {
+			NodeValue::For {
 				var,
 				offset,
 				from,
@@ -147,35 +147,35 @@ impl NodeList {
 				// TODO: `for` should validate types on code generation
 				let from = from.generate_expr(context)?;
 				let to = to.generate_expr(context)?;
-				context.declares.insert((var.clone(), Some(*offset)), from.get_type());
+				context.declares.insert((var.clone(), Some(offset)), from.get_type());
 				let body = body.generate_expr(context)?;
-				Expr::For(var.clone(), *offset, from.into(), to.into(), body.into())
+				Expr::For(var.clone(), offset, from.into(), to.into(), body.into())
 			}
-			Bit::Variable(name, index) => {
-				if let Some(kind) = context.declares.get(&(name.clone(), *index)) {
-					Expr::Variable(name.clone(), *index, kind.clone())
+			NodeValue::Variable(name, index) => {
+				if let Some(kind) = context.declares.get(&(name.clone(), index)) {
+					Expr::Variable(name.clone(), index, kind.clone())
 				} else {
 					let error = format!("variable `{name}` ({index:?}) does not match any declaration");
 					let error = Errors::from(error, node.span().clone());
 					return Err(error);
 				}
 			}
-			Bit::Print(expr, tail) => {
+			NodeValue::Print(expr, tail) => {
 				let expr = expr.generate_expr(context)?;
 				Expr::Print(expr.into(), tail)
 			}
-			Bit::UnaryOp(op, arg) => {
+			NodeValue::UnaryOp(op, arg) => {
 				let arg = arg.generate_expr(context)?;
 				let op = op.for_type(&arg.get_type())?;
 				Expr::Unary(op, arg.into())
 			}
-			Bit::BinaryOp(op, lhs, rhs) => {
+			NodeValue::BinaryOp(op, lhs, rhs) => {
 				let lhs = lhs.generate_expr(context)?;
 				let rhs = rhs.generate_expr(context)?;
 				let op = op.for_types(&lhs.get_type(), &rhs.get_type())?;
 				Expr::Binary(op, lhs.into(), rhs.into())
 			}
-			Bit::Sequence(list) => {
+			NodeValue::Sequence(list) => {
 				let mut errors = Errors::new();
 				let mut sequence = Vec::new();
 				for it in list.iter() {
@@ -190,7 +190,7 @@ impl NodeList {
 				}
 				Expr::Sequence(sequence)
 			}
-			Bit::Conditional(a, b, c) => {
+			NodeValue::Conditional(a, b, c) => {
 				let a = a.generate_expr(context)?;
 				let b = b.generate_expr(context)?;
 				let c = c.generate_expr(context)?;

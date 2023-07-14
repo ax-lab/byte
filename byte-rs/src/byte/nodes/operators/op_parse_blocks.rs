@@ -103,7 +103,7 @@ impl IsNodeOperator for OpParseBlocks {
 			ctx.add_segment(&body);
 
 			let span = Span::merge(head.span(), body.span());
-			new_nodes.push(Bit::Block(head, body).at(span));
+			new_nodes.push(NodeValue::Block(head, body).at(ctx.scope_handle(), span));
 		}
 		new_nodes.extend(nodes.slice(offset..).iter());
 		nodes.replace_all(new_nodes);

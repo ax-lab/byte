@@ -34,7 +34,6 @@ pub struct Context {
 
 #[derive(Default, Clone)]
 struct ContextData {
-	ids: ContextIds,
 	sources: ContextSources,
 	format: ContextFormat,
 	symbols: ContextSymbols,

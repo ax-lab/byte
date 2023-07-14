@@ -10,8 +10,8 @@ impl OpIf {
 		Self { symbol_if, symbol_else }
 	}
 
-	fn get_if<'a>(&self, node: &'a Node) -> Option<(&'a NodeList, &'a NodeList)> {
-		if let Bit::Block(head, body) = node.bit() {
+	fn get_if(&self, node: &Node) -> Option<(NodeList, NodeList)> {
+		if let NodeValue::Block(head, body) = node.val() {
 			if head.is_symbol(0, &self.symbol_if) {
 				Some((head, body))
 			} else {
@@ -22,9 +22,9 @@ impl OpIf {
 		}
 	}
 
-	fn get_else<'a>(&self, node: &Node) -> Option<(NodeList, NodeList, bool)> {
-		match node.bit() {
-			Bit::Block(head, body) => {
+	fn get_else(&self, node: &Node) -> Option<(NodeList, NodeList, bool)> {
+		match node.val() {
+			NodeValue::Block(head, body) => {
 				if head.is_symbol(0, &self.symbol_else) {
 					let is_if = head.is_symbol(1, &self.symbol_if);
 					Some((head.clone(), body.clone(), is_if))
@@ -39,7 +39,6 @@ impl OpIf {
 
 impl IsNodeOperator for OpIf {
 	fn apply(&self, ctx: &mut EvalContext, nodes: &mut NodeList) -> Result<()> {
-		let _ = ctx;
 		let mut new_nodes = Vec::new();
 
 		let mut errors = Errors::new();
@@ -55,12 +54,12 @@ impl IsNodeOperator for OpIf {
 				ctx.add_segment(&cond);
 
 				let mut else_ifs = VecDeque::new();
-				let mut when_false = None;
+				let mut if_false = None;
 
-				while when_false.is_none() {
+				while if_false.is_none() {
 					// skip line breaks because the line operator hasn't run yet
 					let mut m = n + 1;
-					while let Some(Token::Break(..)) = nodes.get(m).and_then(|x| x.token().cloned()) {
+					while let Some(Token::Break(..)) = nodes.get(m).and_then(|x| x.token()) {
 						m += 1;
 					}
 
@@ -76,15 +75,15 @@ impl IsNodeOperator for OpIf {
 								ctx.add_segment(&head);
 								else_ifs.push_back((head, body));
 							} else if head.len() == 1 {
-								when_false = Some(body);
+								if_false = Some(body);
 							} else {
 								let head = head.slice(1..);
 								ctx.add_segment(&head);
 								let span = Span::merge(head.span(), body.span());
-								let node = Bit::Block(head, body.clone()).at(span);
+								let node = NodeValue::Block(head, body.clone()).at(ctx.scope_handle(), span);
 								let nodes = NodeList::new(ctx.scope_handle(), vec![node]);
 								ctx.add_segment(&nodes);
-								when_false = Some(nodes);
+								if_false = Some(nodes);
 							}
 						} else {
 							break;
@@ -96,24 +95,24 @@ impl IsNodeOperator for OpIf {
 
 				while let Some((if_cond, if_body)) = else_ifs.pop_back() {
 					let span = Span::merge(if_cond.span(), if_body.span());
-					let node = Bit::If {
-						condition: if_cond,
-						when_true: if_body,
-						when_false,
+					let node = NodeValue::If {
+						expr: if_cond,
+						if_true: if_body,
+						if_false,
 					};
-					let node = node.at(span);
+					let node = node.at(ctx.scope_handle(), span);
 					let nodes = NodeList::new(ctx.scope_handle(), vec![node]);
 					ctx.add_segment(&nodes);
-					when_false = Some(nodes);
+					if_false = Some(nodes);
 				}
 
-				let node = Bit::If {
-					condition: cond,
-					when_true: body.clone(),
-					when_false,
+				let node = NodeValue::If {
+					expr: cond,
+					if_true: body.clone(),
+					if_false,
 				};
 
-				let node = node.at(span);
+				let node = node.at(ctx.scope_handle(), span);
 				new_nodes.push(node);
 			} else {
 				new_nodes.push(node);

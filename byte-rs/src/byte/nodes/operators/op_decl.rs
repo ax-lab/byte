@@ -44,6 +44,6 @@ impl ParseFold for OpDecl {
 			ctx.declare_at(name.clone(), offset, value);
 			Some(offset)
 		};
-		Ok(Bit::Let(name, offset, rhs).at(span))
+		Ok(NodeValue::Let(name, offset, rhs).at(ctx.scope_handle(), span))
 	}
 }
