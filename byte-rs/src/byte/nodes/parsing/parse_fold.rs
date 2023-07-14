@@ -1,7 +1,7 @@
 use super::*;
 
 pub trait ParseFold {
-	fn fold_at(&self, nodes: &Node) -> Option<usize>;
+	fn fold_at(&self, node: &Node) -> Option<usize>;
 
 	fn new_node(&self, ctx: &mut EvalContext, lhs: Node, rhs: Node, span: Span) -> Result<Node>;
 }

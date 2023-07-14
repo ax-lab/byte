@@ -7,7 +7,7 @@ pub trait ParseBrackets {
 
 	fn get_bracket(&self, ctx: &EvalContext, node: &Node) -> Option<Self::Bracket>;
 
-	fn new_node(&self, ctx: &mut EvalContext, sta: Self::Bracket, nodes: Node, end: Self::Bracket) -> Result<Node>;
+	fn new_node(&self, ctx: &mut EvalContext, sta: Self::Bracket, node: Node, end: Self::Bracket) -> Result<Node>;
 }
 
 pub trait IsBracket: Clone + Display {
@@ -37,9 +37,9 @@ impl Node {
 						if cur.closes(start) {
 							let start = stack.pop_back().unwrap();
 							let scope = scopes.pop_back().unwrap();
-							let nodes = segments.pop_back().unwrap();
-							let nodes = Node::raw(nodes, scope);
-							let node = op.new_node(ctx, start, nodes, cur)?;
+							let node = segments.pop_back().unwrap();
+							let node = Node::raw(node, scope);
+							let node = op.new_node(ctx, start, node, cur)?;
 							node.get_dependencies(|list| ctx.add_new_node(list));
 							segments.back_mut().unwrap().push(node);
 							continue;

@@ -3,8 +3,8 @@ use super::*;
 pub struct OpSplitLine;
 
 impl IsNodeOperator for OpSplitLine {
-	fn can_apply(&self, nodes: &Node) -> bool {
-		nodes.contains(|node| matches!(node.token(), Some(Token::Break(..))))
+	fn can_apply(&self, node: &Node) -> bool {
+		node.contains(|node| matches!(node.token(), Some(Token::Break(..))))
 	}
 
 	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {

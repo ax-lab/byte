@@ -3,7 +3,7 @@ use super::*;
 pub struct OpParseBlocks(pub Symbol);
 
 impl OpParseBlocks {
-	fn find_block(&self, nodes: &Node, offset: usize) -> Option<(usize, usize, usize, usize)> {
+	fn find_block(&self, node: &Node, offset: usize) -> Option<(usize, usize, usize, usize)> {
 		enum State {
 			Start,
 			Symbol { indent: usize, pivot: usize },
@@ -14,7 +14,7 @@ impl OpParseBlocks {
 		let mut state = State::Start;
 		let mut line_start = offset;
 		let mut was_break = false;
-		for (n, it) in nodes.iter().enumerate().skip(offset) {
+		for (n, it) in node.iter().enumerate().skip(offset) {
 			state = match state {
 				State::Start => {
 					if was_break {
@@ -71,7 +71,7 @@ impl OpParseBlocks {
 		}
 
 		if let State::Body { pivot, .. } = state {
-			Some((line_start, pivot, pivot + 2, nodes.len()))
+			Some((line_start, pivot, pivot + 2, node.len()))
 		} else {
 			None
 		}

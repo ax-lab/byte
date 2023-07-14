@@ -115,9 +115,9 @@ impl Program {
 	}
 
 	pub fn eval<T1: Into<String>, T2: AsRef<str>>(&mut self, name: T1, text: T2) -> Result<Value> {
-		let nodes = self.load_string(name, text)?;
+		let node = self.load_string(name, text)?;
 		self.resolve()?;
-		self.run_resolved(&nodes)
+		self.run_resolved(&node)
 	}
 
 	pub fn load_string<T1: Into<String>, T2: AsRef<str>>(&mut self, name: T1, data: T2) -> Result<Node> {
@@ -137,18 +137,18 @@ impl Program {
 		Ok(list)
 	}
 
-	pub fn run_nodes(&mut self, nodes: &Node) -> Result<Value> {
+	pub fn run_node(&mut self, node: &Node) -> Result<Value> {
 		self.resolve()?;
-		self.run_resolved(nodes)
+		self.run_resolved(node)
 	}
 
 	fn load_span(&mut self, span: Span) -> Result<Node> {
 		let scope = self.root_scope().new_child();
 		let mut scope = self.data.scopes.get_writer(scope.get());
-		let nodes = scan(&mut scope, &span)?;
+		let node = scan(&mut scope, &span)?;
 		let mut segments = self.data.to_process.write().unwrap();
-		segments.push(nodes.clone());
-		Ok(nodes)
+		segments.push(node.clone());
+		Ok(node)
 	}
 
 	fn run_resolved(&self, node: &Node) -> Result<Value> {

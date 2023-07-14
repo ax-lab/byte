@@ -108,9 +108,9 @@ impl IsNodeOperator for OpIf {
 						if_false,
 					};
 					let node = node.at(ctx.scope_handle(), span);
-					let nodes = Node::raw(vec![node], ctx.scope_handle());
-					ctx.add_new_node(&nodes);
-					if_false = Some(nodes);
+					let node = Node::raw(vec![node], ctx.scope_handle());
+					ctx.add_new_node(&node);
+					if_false = Some(node);
 				}
 
 				let node = NodeValue::If {

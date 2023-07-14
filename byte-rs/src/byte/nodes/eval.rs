@@ -6,7 +6,6 @@ use super::*;
 
 /// Context for an [`NodeOperator`] application.
 pub struct EvalContext {
-	nodes: Node,
 	scope: Scope,
 	new_nodes: Vec<Node>,
 	del_nodes: Vec<Node>,
@@ -14,18 +13,13 @@ pub struct EvalContext {
 }
 
 impl EvalContext {
-	pub fn new(nodes: &Node) -> Self {
+	pub fn new(node: &Node) -> Self {
 		Self {
-			nodes: nodes.clone(),
-			scope: nodes.scope(),
+			scope: node.scope(),
 			new_nodes: Default::default(),
 			del_nodes: Default::default(),
 			declares: Default::default(),
 		}
-	}
-
-	pub fn nodes(&self) -> &Node {
-		&self.nodes
 	}
 
 	pub fn scope(&self) -> &Scope {
