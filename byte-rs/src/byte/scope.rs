@@ -65,6 +65,12 @@ impl ScopeHandle {
 	}
 }
 
+impl PartialEq for ScopeHandle {
+	fn eq(&self, other: &Self) -> bool {
+		self.data.as_ptr() == other.data.as_ptr()
+	}
+}
+
 /// Internal data for a scope.
 struct ScopeData {
 	list_id: Id,
@@ -275,16 +281,15 @@ struct BindingList {
 	value_from: Vec<(usize, BindingValue)>,
 }
 
+// TODO: replace by the node itself
 #[derive(Clone)]
 pub enum BindingValue {
-	NodeList(NodeList),
 	Node(Node),
 }
 
 impl BindingValue {
 	pub fn span(&self) -> Span {
 		match self {
-			BindingValue::NodeList(list) => list.span(),
 			BindingValue::Node(node) => node.span().clone(),
 		}
 	}

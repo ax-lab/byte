@@ -1,12 +1,12 @@
 use super::*;
 
 pub mod eval;
-pub mod list;
 pub mod operators;
+pub mod parsing;
 
 pub use eval::*;
-pub use list::*;
 pub use operators::*;
+pub use parsing::*;
 
 const SHOW_INDENT: bool = false;
 
@@ -16,127 +16,246 @@ const SHOW_INDENT: bool = false;
 /// levels, from files, raw text, and tokens, all the way to fully fledged
 /// definitions.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum Bit {
+pub enum NodeValue {
 	Token(Token),
 	Null,
 	Boolean(bool),
 	//----[ Structural ]------------------------------------------------------//
-	Line(NodeList),
-	Sequence(Vec<NodeList>),
-	RawText(Span),
-	Group(NodeList),
-	Block(NodeList, NodeList),
+	Raw(Vec<Node>),
+	Line(Node),
+	Sequence(Vec<Node>),
+	Group(Node),
+	Block(Node, Node),
 	//----[ Logic ]-----------------------------------------------------------//
 	If {
-		condition: NodeList,
-		when_true: NodeList,
-		when_false: Option<NodeList>,
+		expr: Node,
+		if_true: Node,
+		if_false: Option<Node>,
 	},
 	For {
 		var: Symbol,
 		offset: usize,
-		from: NodeList,
-		to: NodeList,
-		body: NodeList,
+		from: Node,
+		to: Node,
+		body: Node,
 	},
 	//----[ AST ]-------------------------------------------------------------//
-	Let(Symbol, Option<usize>, NodeList),
-	UnaryOp(UnaryOp, NodeList),
-	BinaryOp(BinaryOp, NodeList, NodeList),
+	Let(Symbol, Option<usize>, Node),
+	UnaryOp(UnaryOp, Node),
+	BinaryOp(BinaryOp, Node, Node),
 	Variable(Symbol, Option<usize>),
-	Print(NodeList, &'static str),
-	Conditional(NodeList, NodeList, NodeList),
+	Print(Node, &'static str),
+	Conditional(Node, Node, Node),
 }
 
-impl Bit {
-	pub fn at(self, span: Span) -> Node {
-		Node(self, at(span))
+impl NodeValue {
+	pub fn at(self, scope: ScopeHandle, span: Span) -> Node {
+		Node::new(self, scope, at(span))
 	}
 
 	pub fn symbol(&self) -> Option<Symbol> {
 		let symbol = match self {
-			Bit::Token(Token::Word(symbol)) => symbol,
-			Bit::Token(Token::Symbol(symbol)) => symbol,
+			NodeValue::Token(Token::Word(symbol)) => symbol,
+			NodeValue::Token(Token::Symbol(symbol)) => symbol,
 			_ => return None,
 		};
 		Some(symbol.clone())
 	}
 
-	pub fn get_dependencies<P: FnMut(&NodeList)>(&self, mut output: P) {
+	pub fn len(&self) -> usize {
+		self.children().len()
+	}
+
+	pub fn iter(&self) -> impl Iterator<Item = &Node> {
+		self.children().into_iter()
+	}
+
+	pub fn get(&self, index: usize) -> Option<&Node> {
+		self.children().get(index).cloned()
+	}
+
+	pub fn children(&self) -> Vec<&Node> {
 		match self {
-			Bit::Token(..) => (),
-			Bit::Null => (),
-			Bit::Boolean(..) => (),
-			Bit::Line(expr) => output(expr),
-			Bit::Sequence(list) => {
-				for expr in list.iter() {
-					output(expr)
-				}
-			}
-			Bit::RawText(..) => (),
-			Bit::Group(expr) => output(expr),
-			Bit::Block(head, body) => {
-				output(head);
-				output(body);
-			}
-			Bit::Let(.., expr) => output(expr),
-			Bit::UnaryOp(.., expr) => output(expr),
-			Bit::BinaryOp(.., lhs, rhs) => {
-				output(lhs);
-				output(rhs);
-			}
-			Bit::Variable(..) => (),
-			Bit::Print(expr, ..) => output(expr),
-			Bit::Conditional(a, b, c) => {
-				output(a);
-				output(b);
-				output(c);
-			}
-			Bit::If {
-				condition,
-				when_true,
-				when_false,
+			NodeValue::Token(_) => vec![],
+			NodeValue::Null => vec![],
+			NodeValue::Boolean(_) => vec![],
+			NodeValue::Raw(ls) => ls.iter().map(|x| x).collect(),
+			NodeValue::Line(expr) => vec![expr],
+			NodeValue::Sequence(ls) => ls.iter().map(|x| x).collect(),
+			NodeValue::Group(it) => vec![it],
+			NodeValue::Block(head, body) => vec![head, body],
+			NodeValue::If {
+				expr,
+				if_true,
+				if_false,
 			} => {
-				output(condition);
-				output(when_true);
-				if let Some(when_false) = when_false {
-					output(when_false);
+				let mut out = vec![expr, if_true];
+				if let Some(ref if_false) = if_false {
+					out.push(if_false);
 				}
+				out
 			}
-			Bit::For { from, to, body, .. } => {
-				output(from);
-				output(to);
-				output(body);
-			}
+			NodeValue::For { from, to, body, .. } => vec![from, to, body],
+			NodeValue::Let(.., expr) => vec![expr],
+			NodeValue::UnaryOp(_, expr) => vec![expr],
+			NodeValue::BinaryOp(_, lhs, rhs) => vec![lhs, rhs],
+			NodeValue::Variable(..) => vec![],
+			NodeValue::Print(expr, _) => vec![expr],
+			NodeValue::Conditional(cond, t, f) => vec![cond, t, f],
+		}
+	}
+
+	pub fn get_dependencies<P: FnMut(&Node)>(&self, mut output: P) {
+		for it in self.children() {
+			output(it);
 		}
 	}
 }
 
-impl Display for Bit {
+impl Display for NodeValue {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		let ctx = Context::get().format_without_span();
+		ctx.is_used();
+
 		match self {
-			Bit::Line(nodes) => {
-				write!(f, "Line::{nodes:?}")
+			NodeValue::Token(token) => write!(f, "{token}"),
+			NodeValue::Null => write!(f, "(null)"),
+			NodeValue::Boolean(value) => write!(f, "({value})"),
+			NodeValue::Raw(nodes) => match nodes.len() {
+				0 => write!(f, "<>"),
+				1 => {
+					let output = format!("{}", nodes[0]);
+					if output.contains('\n') || output.len() > 50 {
+						write!(f.indented(), "<\n{output}")?;
+						write!(f, "\n>")
+					} else {
+						write!(f, "<{output}>")
+					}
+				}
+				_ => {
+					let ctx = ctx.format_with_span();
+					ctx.is_used();
+					write!(f, "<# Raw:")?;
+					let mut out = f.indented();
+					for (n, it) in nodes.iter().enumerate() {
+						write!(out, "\n# {n}:")?;
+						write!(out.indented(), "\n{it}")?;
+					}
+					write!(f, "\n>")
+				}
+			},
+			NodeValue::Line(value) => {
+				let ctx = ctx.format_with_span();
+				ctx.is_used();
+				write!(f.indented(), "# Line:\n{value}")
 			}
-			_ => write!(f, "{self:?}"),
+			NodeValue::Sequence(nodes) => {
+				let ctx = ctx.format_with_span();
+				ctx.is_used();
+				write!(f, "# Sequence:")?;
+				let mut out = f.indented();
+				for (n, it) in nodes.iter().enumerate() {
+					write!(out, "\n# {n}:")?;
+					write!(out.indented(), "\n{it}")?;
+				}
+				Ok(())
+			}
+			NodeValue::Group(value) => write!(f, "Group({value})"),
+			NodeValue::Block(head, body) => {
+				write!(f, "Block({head}:")?;
+				write!(f.indented(), "\n{body}")?;
+				write!(f, "\n)")
+			}
+			NodeValue::If {
+				expr,
+				if_true,
+				if_false,
+			} => {
+				write!(f, "if ({expr}) {{")?;
+				write!(f.indented(), "\n{if_true}")?;
+				if let Some(if_false) = if_false {
+					write!(f, "\n}} else {{")?;
+					write!(f.indented(), "\n{if_false}")?;
+				}
+				write!(f, "\n}}")
+			}
+			NodeValue::For {
+				var,
+				offset,
+				from,
+				to,
+				body,
+			} => {
+				write!(f, "for {var}#{offset} in {from}..{to} {{")?;
+				write!(f.indented(), "\n{body}")?;
+				write!(f, "\n}}")
+			}
+			NodeValue::Let(name, offset, expr) => {
+				let offset = offset.unwrap_or(0);
+				write!(f, "let {name}_{offset} = {expr}")
+			}
+			NodeValue::UnaryOp(op, arg) => write!(f, "{op} {arg}"),
+			NodeValue::BinaryOp(op, lhs, rhs) => write!(f, "({lhs} {op} {rhs})"),
+			NodeValue::Variable(var, offset) => {
+				let offset = offset.unwrap_or(0);
+				write!(f, "{var}_{offset}")
+			}
+			NodeValue::Print(expr, _) => write!(f, "Print({expr})"),
+			NodeValue::Conditional(cond, a, b) => write!(f, "{cond} ? {a} : {b}"),
 		}
 	}
 }
 
 #[derive(Clone)]
-pub struct Node(Bit, Id);
+pub struct Node {
+	data: Arc<NodeData>,
+}
+
+struct NodeData {
+	id: Id,
+	span: RwLock<Span>,
+	value: RwLock<NodeValue>,
+	version: RwLock<usize>,
+	scope: ScopeHandle,
+}
 
 impl Node {
-	pub fn id(&self) -> Id {
-		self.1.clone()
+	pub fn new(value: NodeValue, scope: ScopeHandle, span: Span) -> Self {
+		let value = value.into();
+		let version = 0.into();
+		let id = id();
+		let span = span.into();
+		Self {
+			data: NodeData {
+				id,
+				span,
+				value,
+				version,
+				scope,
+			}
+			.into(),
+		}
 	}
 
-	pub fn bit(&self) -> &Bit {
-		&self.0
+	pub fn raw(nodes: Vec<Node>, scope: ScopeHandle) -> Self {
+		let span = Span::from_node_vec(&nodes);
+		NodeValue::Raw(nodes).at(scope, span)
+	}
+
+	pub fn id(&self) -> Id {
+		self.data.id.clone()
+	}
+
+	pub fn version(&self) -> usize {
+		*self.data.version.read().unwrap()
+	}
+
+	pub fn val(&self) -> NodeValue {
+		self.data.value.read().unwrap().clone()
 	}
 
 	pub fn span(&self) -> Span {
-		self.id().span()
+		self.data.span.read().unwrap().clone()
 	}
 
 	pub fn offset(&self) -> usize {
@@ -147,43 +266,124 @@ impl Node {
 		self.span().indent()
 	}
 
-	pub fn get_dependencies<P: FnMut(&NodeList)>(&self, output: P) {
-		self.bit().get_dependencies(output)
+	pub fn scope(&self) -> Scope {
+		self.data.scope.get()
+	}
+
+	pub fn scope_handle(&self) -> ScopeHandle {
+		self.data.scope.clone()
+	}
+
+	pub fn get_dependencies<P: FnMut(&Node)>(&self, output: P) {
+		self.val().get_dependencies(output)
+	}
+
+	pub fn set_value(&mut self, new_value: NodeValue, new_span: Span) {
+		let mut value = self.data.value.write().unwrap();
+		let mut span = self.data.span.write().unwrap();
+		let mut version = self.data.version.write().unwrap();
+		*value = new_value;
+		*span = new_span;
+		*version = *version + 1;
+	}
+
+	//----------------------------------------------------------------------------------------------------------------//
+	// Node value helpers
+	//----------------------------------------------------------------------------------------------------------------//
+
+	/// Number of child nodes.
+	pub fn len(&self) -> usize {
+		self.val().len()
+	}
+
+	/// Get a node children by its index.
+	pub fn get(&self, index: usize) -> Option<Node> {
+		self.val().get(index).cloned()
+	}
+
+	/// Return a new [`NodeValue::Raw`] from a slice of this node's children.
+	pub fn slice<T: RangeBounds<usize>>(&self, range: T) -> Node {
+		let scope = self.scope_handle();
+		let node = self.val();
+
+		// TODO: maybe have a `can_slice` property
+		assert!(matches!(node, NodeValue::Raw(..))); // we don't want slice to be used with any node
+		let list = node.children();
+		let range = compute_range(range, list.len());
+		let index = range.start;
+		let slice = &list[range];
+		let span = Span::from_nodes(slice);
+		let span = span.or_with(|| list.get(index).map(|x| x.span().pos()).unwrap_or_default());
+		NodeValue::Raw(slice.iter().map(|x| (*x).clone()).collect()).at(scope, span)
+	}
+
+	/// Iterator over this node's children.
+	pub fn iter(&self) -> impl Iterator<Item = Node> {
+		let node = self.val();
+		let list = node.iter().cloned().collect::<Vec<_>>();
+		list.into_iter()
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
 	// Parsing helpers
 	//----------------------------------------------------------------------------------------------------------------//
 
+	pub fn to_raw(self) -> Node {
+		let span = self.span();
+		let scope = self.scope_handle();
+		NodeValue::Raw(vec![self]).at(scope, span)
+	}
+
 	pub fn is_symbol(&self, expected: &Symbol) -> bool {
-		match self.bit() {
-			Bit::Token(Token::Symbol(symbol) | Token::Word(symbol)) => symbol == expected,
+		match self.val() {
+			NodeValue::Token(Token::Symbol(symbol) | Token::Word(symbol)) => &symbol == expected,
 			_ => false,
 		}
 	}
 
 	pub fn is_keyword(&self, expected: &Symbol) -> bool {
-		match self.bit() {
-			Bit::Token(Token::Word(symbol)) => symbol == expected,
+		match self.val() {
+			NodeValue::Token(Token::Word(symbol)) => &symbol == expected,
 			_ => false,
 		}
 	}
 
 	pub fn has_symbol(&self, symbol: &Symbol) -> bool {
-		match self.bit() {
-			Bit::Token(Token::Symbol(s) | Token::Word(s)) => s == symbol,
+		match self.val() {
+			NodeValue::Token(Token::Symbol(s) | Token::Word(s)) => &s == symbol,
 			_ => false,
 		}
 	}
 
 	pub fn symbol(&self) -> Option<Symbol> {
-		self.bit().symbol()
+		self.val().symbol()
 	}
 }
 
+impl Hash for Node {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		let value = self.data.value.read().unwrap();
+		value.hash(state)
+	}
+}
+
+impl PartialEq for Node {
+	fn eq(&self, other: &Self) -> bool {
+		if Arc::as_ptr(&self.data) == Arc::as_ptr(&other.data) {
+			true
+		} else {
+			let va = self.data.value.read().unwrap();
+			let vb = other.data.value.read().unwrap();
+			*va == *vb && self.data.scope == other.data.scope
+		}
+	}
+}
+
+impl Eq for Node {}
+
 impl Debug for Node {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "{:?}", self.bit())?;
+		write!(f, "{}", self.val())?;
 
 		let ctx = Context::get();
 		let format = ctx.format().with_mode(Mode::Minimal).with_separator(" @");
@@ -197,7 +397,7 @@ impl Debug for Node {
 
 impl Display for Node {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "{}", self.bit())?;
+		write!(f, "{}", self.val())?;
 
 		let ctx = Context::get();
 		let format = ctx.format().with_mode(Mode::Minimal).with_separator(" @");

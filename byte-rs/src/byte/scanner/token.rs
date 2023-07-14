@@ -13,11 +13,25 @@ pub enum Token {
 }
 
 impl Node {
-	pub fn token(&self) -> Option<&Token> {
-		if let Bit::Token(token) = self.bit() {
+	pub fn token(&self) -> Option<Token> {
+		if let NodeValue::Token(token) = self.val() {
 			Some(token)
 		} else {
 			None
+		}
+	}
+}
+
+impl Display for Token {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		match self {
+			Token::Break(..) => write!(f, "line break"),
+			Token::Comment => write!(f, "comment"),
+			Token::Word(s) => write!(f, "{s}"),
+			Token::Symbol(s) => write!(f, "{s}"),
+			Token::Literal(v) => write!(f, "{v:?}"),
+			Token::Integer(v) => write!(f, "{v}"),
+			Token::Float(v) => write!(f, "{v}"),
 		}
 	}
 }

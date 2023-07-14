@@ -16,6 +16,7 @@ pub struct Format {
 	line_width: usize,
 	separator: String,
 	nested: bool,
+	disable_span: bool,
 }
 
 impl Format {
@@ -49,6 +50,10 @@ impl Format {
 		self.separator.as_str()
 	}
 
+	pub fn show_span(&self) -> bool {
+		!self.disable_span
+	}
+
 	pub fn with_separator<T: Into<String>>(&self, separator: T) -> Self {
 		let mut output = self.clone();
 		output.separator = separator.into();
@@ -60,14 +65,41 @@ impl Format {
 		output.line_width = line_width;
 		output
 	}
+
+	pub fn with_span(&self) -> Self {
+		let mut output = self.clone();
+		output.disable_span = false;
+		output
+	}
+
+	pub fn without_span(&self) -> Self {
+		let mut output = self.clone();
+		output.disable_span = true;
+		output
+	}
 }
 
 impl Context {
 	pub fn format(&self) -> Format {
 		self.read(|ctx| ctx.format.config.clone())
 	}
+
 	pub fn with_format<T, P: FnOnce() -> T>(&self, format: Format, run: P) -> T {
 		self.clone().write(|ctx| ctx.set_format(format)).with(|_| run())
+	}
+
+	pub fn and_format(self, format: Format) -> Self {
+		self.write(|ctx| ctx.set_format(format))
+	}
+
+	pub fn format_without_span(self) -> Self {
+		let fmt = self.format();
+		self.and_format(fmt.without_span())
+	}
+
+	pub fn format_with_span(self) -> Self {
+		let fmt = self.format();
+		self.and_format(fmt.with_span())
 	}
 }
 

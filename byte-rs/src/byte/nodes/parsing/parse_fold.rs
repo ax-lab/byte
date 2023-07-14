@@ -1,12 +1,12 @@
 use super::*;
 
 pub trait ParseFold {
-	fn fold_at(&self, nodes: &NodeList) -> Option<usize>;
+	fn fold_at(&self, node: &Node) -> Option<usize>;
 
-	fn new_node(&self, ctx: &mut EvalContext, lhs: NodeList, rhs: NodeList, span: Span) -> Result<Node>;
+	fn new_node(&self, ctx: &mut EvalContext, lhs: Node, rhs: Node, span: Span) -> Result<Node>;
 }
 
-impl NodeList {
+impl Node {
 	pub fn can_fold<T: ParseFold>(&self, op: &T) -> bool {
 		op.fold_at(self).is_some()
 	}
@@ -17,7 +17,7 @@ impl NodeList {
 			let lhs = self.slice(..index);
 			let rhs = self.slice(index + 1..);
 			let node = op.new_node(ctx, lhs, rhs, span)?;
-			node.get_dependencies(|list| ctx.add_segment(list));
+			node.get_dependencies(|list| ctx.add_new_node(list));
 			self.write_res(|nodes| {
 				*nodes = vec![node];
 				Ok(true)

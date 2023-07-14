@@ -33,6 +33,18 @@ impl UnaryOp {
 	}
 }
 
+impl Display for UnaryOp {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		let str = match self {
+			UnaryOp::Not => "not",
+			UnaryOp::Neg => "!",
+			UnaryOp::Plus => "+",
+			UnaryOp::Minus => "-",
+		};
+		write!(f, "{str}")
+	}
+}
+
 pub trait IsUnaryOp: Debug + 'static {
 	fn execute(&self, scope: &mut RuntimeScope, arg: &Expr) -> Result<ExprValue>;
 	fn get_type(&self) -> Type;
@@ -150,5 +162,22 @@ impl BinaryOpImpl {
 impl Debug for BinaryOpImpl {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		self.get().fmt(f)
+	}
+}
+
+impl Display for BinaryOp {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		let str = match self {
+			BinaryOp::Add => "+",
+			BinaryOp::Sub => "-",
+			BinaryOp::Mul => "*",
+			BinaryOp::Div => "/",
+			BinaryOp::Mod => "%",
+			BinaryOp::And => "and",
+			BinaryOp::Or => "or",
+			BinaryOp::Assign => "=",
+			BinaryOp::CompareEqual => "==",
+		};
+		write!(f, "{str}")
 	}
 }

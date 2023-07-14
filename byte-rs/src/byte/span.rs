@@ -44,13 +44,30 @@ impl Span {
 	}
 
 	/// Returns a [`Span`] combining the entire range of the given nodes.
-	pub fn from_nodes<T: IntoIterator<Item = Node>>(nodes: T) -> Self {
-		let mut nodes = nodes.into_iter();
-		let sta = nodes.next().map(|x| x.span());
+	pub fn from_nodes(nodes: &[&Node]) -> Self {
+		let sta = nodes.first().map(|x| x.span());
 		let end = nodes.last().map(|x| x.span());
 		let sta = sta.unwrap_or_default();
 		let end = end.unwrap_or_default();
 		Self::merge(sta, end)
+	}
+
+	pub fn from_node_vec(nodes: &[Node]) -> Self {
+		let sta = nodes.first().map(|x| x.span());
+		let end = nodes.last().map(|x| x.span());
+		let sta = sta.unwrap_or_default();
+		let end = end.unwrap_or_default();
+		Self::merge(sta, end)
+	}
+
+	/// Return the current [`Span`] if it's not the default empty one, or use
+	/// the given function to get a fallback span.
+	pub fn or_with<P: FnOnce() -> Span>(self, predicate: P) -> Self {
+		if self == Self::default() {
+			predicate()
+		} else {
+			self
+		}
 	}
 
 	/// Return a new span with the range from the current to the given span.
@@ -332,11 +349,11 @@ impl Debug for Span {
 impl Display for Span {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		let name = self.source.name();
-		if name.len() > 0 {
+		let ctx = Context::get();
+		let fmt = ctx.format();
+		if name.len() > 0 && fmt.show_span() {
 			let (line, column) = self.line_column();
 			let (line, column) = (line + 1, column + 1);
-			let ctx = Context::get();
-			let fmt = ctx.format();
 
 			let (line_end, column_end) = {
 				let mut end = self.clone();
@@ -349,6 +366,9 @@ impl Display for Span {
 			match fmt.mode() {
 				Mode::Minimal => {
 					write!(f, "L{line}:{column}")?;
+					if self.len() > 0 {
+						write!(f, "…{line_end}:{column_end}")?;
+					}
 				}
 				Mode::Normal => {
 					write!(f, "{name}:{line}:{column}")?;
@@ -407,7 +427,7 @@ mod tests {
 
 		ctx.with_format(minimal.with_separator("at "), || {
 			let text = format!("{s}");
-			assert_eq!(text, "at L4:17");
+			assert_eq!(text, "at L4:17…4:23");
 		});
 
 		ctx.with_format(minimal, || {
@@ -415,7 +435,7 @@ mod tests {
 			assert_eq!(text, "<L4:17+6>");
 
 			let text = format!("{s}");
-			assert_eq!(text, "L4:17");
+			assert_eq!(text, "L4:17…4:23");
 
 			let s = s.truncate(0);
 			let text = format!("{s:?}");

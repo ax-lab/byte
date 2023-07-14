@@ -3,9 +3,9 @@ use super::*;
 pub struct OpFor(pub Symbol, pub Symbol, pub Symbol);
 
 impl OpFor {
-	fn get_for<'a>(&self, node: &'a Node) -> Option<(&'a NodeList, &'a NodeList)> {
-		if let Bit::Block(head, body) = node.bit() {
-			if head.is_symbol(0, &self.0) {
+	fn get_for(&self, node: &Node) -> Option<(Node, Node)> {
+		if let NodeValue::Block(head, body) = node.val() {
+			if head.is_symbol_at(0, &self.0) {
 				Some((head, body))
 			} else {
 				None
@@ -25,10 +25,10 @@ impl ParseReplace for OpFor {
 		if let Some((head, body)) = self.get_for(node) {
 			let span = Span::merge(head.span(), body.span());
 			let mut errors = Errors::new();
-			ctx.del_segment(&head);
-			let node = if let Some(var) = head.get_symbol(1) {
+			ctx.forget_node(&head);
+			let node = if let Some(var) = head.get_symbol_at(1) {
 				let var_node = head.get(1).unwrap();
-				if head.is_keyword(2, &self.1) {
+				if head.is_keyword_at(2, &self.1) {
 					let mut split = None;
 					for (n, it) in head.slice(3..).iter().enumerate() {
 						if it.is_symbol(&self.2) {
@@ -48,19 +48,19 @@ impl ParseReplace for OpFor {
 
 						// TODO: this for binding is completely bogus, figure out a better way
 						let offset = var_node.offset();
-						ctx.declare_at(var.clone(), offset, BindingValue::NodeList(from.clone()));
+						ctx.declare_at(var.clone(), offset, BindingValue::Node(from.clone()));
 
-						ctx.add_segment(&from);
-						ctx.add_segment(&to);
+						ctx.add_new_node(&from);
+						ctx.add_new_node(&to);
 						let body = body.clone();
-						let node = Bit::For {
+						let node = NodeValue::For {
 							var,
 							offset,
 							from,
 							to,
 							body,
 						}
-						.at(span);
+						.at(ctx.scope_handle(), span);
 						Some(node)
 					} else {
 						None
@@ -86,11 +86,11 @@ impl ParseReplace for OpFor {
 }
 
 impl IsNodeOperator for OpFor {
-	fn apply(&self, ctx: &mut EvalContext, nodes: &mut NodeList) -> Result<()> {
-		nodes.replace(ctx, self)
+	fn can_apply(&self, node: &Node) -> bool {
+		node.can_replace(self)
 	}
 
-	fn can_apply(&self, nodes: &NodeList) -> bool {
-		nodes.can_replace(self)
+	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+		node.replace(ctx, self)
 	}
 }

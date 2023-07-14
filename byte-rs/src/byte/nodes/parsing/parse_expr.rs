@@ -19,9 +19,9 @@ pub trait IsOperator: Clone + Display {
 	/// True if the [`Node`] for this operator is also a valid value.
 	fn can_be_value(&self) -> bool;
 
-	fn node_prefix(&self, ctx: &mut EvalContext, op: Node, arg: NodeList, span: Span) -> Result<Node>;
-	fn node_posfix(&self, ctx: &mut EvalContext, op: Node, arg: NodeList, span: Span) -> Result<Node>;
-	fn node_binary(&self, ctx: &mut EvalContext, op: Node, lhs: NodeList, rhs: NodeList, span: Span) -> Result<Node>;
+	fn node_prefix(&self, ctx: &mut EvalContext, op: Node, arg: Node, span: Span) -> Result<Node>;
+	fn node_posfix(&self, ctx: &mut EvalContext, op: Node, arg: Node, span: Span) -> Result<Node>;
+	fn node_binary(&self, ctx: &mut EvalContext, op: Node, lhs: Node, rhs: Node, span: Span) -> Result<Node>;
 }
 
 /// Grouping for binary operators with [`IsOperator`].
@@ -41,7 +41,7 @@ pub trait ParseExpr {
 	fn get_operator(&self, node: &Node) -> Option<Self::Op>;
 }
 
-impl NodeList {
+impl Node {
 	pub fn has_expr<T: ParseExpr>(&self, op: &T) -> bool {
 		self.contains(|x| op.is_operator(x))
 	}
@@ -242,11 +242,11 @@ impl<'a, T: IsOperator> ExprStack<'a, T> {
 		Ok(())
 	}
 
-	fn pop_value(&mut self) -> NodeList {
-		let nodes = self.values.pop_back().unwrap();
-		let nodes = NodeList::new(self.ctx.scope_handle(), nodes);
-		self.ctx.add_segment(&nodes);
-		nodes
+	fn pop_value(&mut self) -> Node {
+		let list = self.values.pop_back().unwrap();
+		let node = Node::raw(list, self.ctx.scope_handle());
+		self.ctx.add_new_node(&node);
+		node
 	}
 
 	fn precedence(op: &T, mode: &OperatorMode) -> (T::Precedence, Grouping) {

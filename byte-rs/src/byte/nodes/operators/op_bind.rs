@@ -4,15 +4,15 @@ pub struct OpBind;
 
 impl ParseReplace for OpBind {
 	fn can_replace(&self, node: &Node) -> bool {
-		matches!(node.bit(), Bit::Token(Token::Word(..)))
+		matches!(node.val(), NodeValue::Token(Token::Word(..)))
 	}
 
 	fn replace(&self, ctx: &mut EvalContext, node: &Node) -> Result<Option<Node>> {
 		let scope = ctx.scope();
-		if let Bit::Token(Token::Word(name)) = node.bit() {
+		if let NodeValue::Token(Token::Word(name)) = node.val() {
 			let span = node.span().clone();
-			if let Some(index) = scope.lookup(name, Some(node.offset())) {
-				let value = Bit::Variable(name.clone(), index).at(span);
+			if let Some(index) = scope.lookup(&name, Some(node.offset())) {
+				let value = NodeValue::Variable(name.clone(), index).at(scope.handle(), span);
 				Ok(Some(value))
 			} else {
 				Err(Errors::from(format!("undefined symbol `{name}`"), span))
@@ -24,11 +24,11 @@ impl ParseReplace for OpBind {
 }
 
 impl IsNodeOperator for OpBind {
-	fn can_apply(&self, nodes: &NodeList) -> bool {
-		nodes.can_replace(self)
+	fn can_apply(&self, node: &Node) -> bool {
+		node.can_replace(self)
 	}
 
-	fn apply(&self, ctx: &mut EvalContext, nodes: &mut NodeList) -> Result<()> {
-		nodes.replace(ctx, self)
+	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+		node.replace(ctx, self)
 	}
 }

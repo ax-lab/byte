@@ -6,7 +6,7 @@ pub trait ParseReplace {
 	fn replace(&self, ctx: &mut EvalContext, node: &Node) -> Result<Option<Node>>;
 }
 
-impl NodeList {
+impl Node {
 	pub fn can_replace<T: ParseReplace>(&self, op: &T) -> bool {
 		self.contains(|x| op.can_replace(x))
 	}

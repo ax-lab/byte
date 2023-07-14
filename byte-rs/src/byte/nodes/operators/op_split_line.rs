@@ -3,11 +3,11 @@ use super::*;
 pub struct OpSplitLine;
 
 impl IsNodeOperator for OpSplitLine {
-	fn can_apply(&self, nodes: &NodeList) -> bool {
-		nodes.contains(|node| matches!(node.token(), Some(Token::Break(..))))
+	fn can_apply(&self, node: &Node) -> bool {
+		node.contains(|node| matches!(node.token(), Some(Token::Break(..))))
 	}
 
-	fn apply(&self, ctx: &mut EvalContext, nodes: &mut NodeList) -> Result<()> {
+	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
 		/*
 			Split nodes by line while grouping by indentation.
 
@@ -27,25 +27,25 @@ impl IsNodeOperator for OpSplitLine {
 		let mut base_level = None;
 		let mut line_indent = 0;
 
-		for node in nodes.iter() {
-			let is_comment = matches!(node.token(), Some(Token::Comment));
-			if let Some(Token::Break(indent)) = node.token() {
+		for child in node.iter() {
+			let is_comment = matches!(child.token(), Some(Token::Comment));
+			if let Some(Token::Break(indent)) = child.token() {
 				// start a new line
 				empty = true;
-				line_indent = *indent;
+				line_indent = indent;
 			} else if empty {
 				// process the indentation level for a new line
 				let base_level = match base_level {
 					None => {
 						// establish a base level for the entire block
-						base_level = Some(node.indent());
-						line_indent = node.indent();
+						base_level = Some(child.indent());
+						line_indent = child.indent();
 						// push the first line
 						lines.push(Vec::new());
 						line_indent
 					}
 					Some(level) if line_indent < level => {
-						errors.add(format!("invalid indentation"), node.span());
+						errors.add(format!("invalid indentation"), child.span());
 						level
 					}
 					Some(level) => level,
@@ -58,22 +58,23 @@ impl IsNodeOperator for OpSplitLine {
 				}
 
 				if !is_comment {
-					lines.last_mut().unwrap().push(node);
+					lines.last_mut().unwrap().push(child);
 				}
 				empty = false;
 			} else if !is_comment {
-				lines.last_mut().unwrap().push(node);
+				lines.last_mut().unwrap().push(child);
 			}
 		}
 
 		let new_nodes = lines.into_iter().filter(|nodes| nodes.len() > 0).map(|nodes| {
-			let nodes = NodeList::new(ctx.scope_handle(), nodes);
-			let span = nodes.span();
-			ctx.add_segment(&nodes);
-			Bit::Line(nodes).at(span)
+			let node = Node::raw(nodes, ctx.scope_handle());
+			let span = node.span();
+			ctx.add_new_node(&node);
+			// TODO: this indirection can probably be removed
+			NodeValue::Line(node).at(ctx.scope_handle(), span)
 		});
 
-		nodes.replace_all(new_nodes.collect());
+		node.replace_all(new_nodes.collect());
 		if errors.len() > 0 {
 			Err(errors)
 		} else {

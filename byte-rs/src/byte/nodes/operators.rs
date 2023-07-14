@@ -13,6 +13,7 @@ pub mod op_replace_symbol;
 pub mod op_split_line;
 pub mod op_strip_comments;
 pub mod op_ternary;
+pub mod op_unraw;
 
 pub use op_bind::*;
 pub use op_brackets::*;
@@ -27,10 +28,18 @@ pub use op_replace_symbol::*;
 pub use op_split_line::*;
 pub use op_strip_comments::*;
 pub use op_ternary::*;
+pub use op_unraw::*;
 
 //====================================================================================================================//
 // Node operators
 //====================================================================================================================//
+
+/// An operation applicable to a [`Node`] and [`Scope`].
+pub trait IsNodeOperator {
+	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()>;
+
+	fn can_apply(&self, node: &Node) -> bool;
+}
 
 /// Evaluation order precedence for [`NodeOperator`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -45,8 +54,8 @@ pub enum NodePrecedence {
 	Const,
 	Let,
 	Print,
-	Ternary,
 	Comma,
+	Ternary,
 	Expression,
 	Boolean(bool),
 	Null,
@@ -73,18 +82,19 @@ pub enum NodeOperator {
 	Ternary(OpTernary),
 	Print(Symbol),
 	Comma(Symbol),
-	Replace(Symbol, fn(Span) -> Node),
+	Replace(Symbol, fn(ScopeHandle, Span) -> Node),
 	Bind,
 	ParseExpression(OperatorSet),
+	Unraw,
 }
 
 impl NodeOperator {
-	pub fn can_apply(&self, nodes: &NodeList) -> bool {
-		self.get_impl().can_apply(nodes)
-	}
-
-	pub fn apply(&self, ctx: &mut EvalContext, nodes: &mut NodeList) -> Result<()> {
-		self.get_impl().apply(ctx, nodes)
+	pub fn get_for_node(&self, node: &Node) -> Option<Arc<dyn IsNodeOperator>> {
+		if let NodeValue::Raw(..) = node.val() {
+			Some(self.get_impl())
+		} else {
+			None
+		}
 	}
 
 	fn get_impl(&self) -> Arc<dyn IsNodeOperator> {
@@ -102,6 +112,7 @@ impl NodeOperator {
 			NodeOperator::ParseExpression(ops) => Arc::new(ops.clone()),
 			NodeOperator::Comma(symbol) => Arc::new(CommaOperator(symbol.clone())),
 			NodeOperator::Ternary(op) => Arc::new(op.clone()),
+			NodeOperator::Unraw => Arc::new(OpUnraw),
 		}
 	}
 }
@@ -138,6 +149,7 @@ pub fn configure_default_node_operators(scope: &mut ScopeWriter) {
 	scope.set_matcher(matcher);
 
 	scope.add_node_operator(NodeOperator::ParseExpression(ops), NodePrecedence::Expression);
+	scope.add_node_operator(NodeOperator::Unraw, NodePrecedence::Least);
 
 	//general parsing
 	scope.add_node_operator(NodeOperator::Block(Context::symbol(":")), NodePrecedence::Blocks);
@@ -166,7 +178,7 @@ pub fn configure_default_node_operators(scope: &mut ScopeWriter) {
 	let ternary = OpTernary(
 		Context::symbol("?"),
 		Context::symbol(":"),
-		Arc::new(|a, b, c, span| Bit::Conditional(a, b, c).at(span)),
+		Arc::new(|a, b, c, scope, span| NodeValue::Conditional(a, b, c).at(scope, span)),
 	);
 	scope.add_node_operator(NodeOperator::Ternary(ternary), NodePrecedence::Ternary);
 
@@ -175,7 +187,7 @@ pub fn configure_default_node_operators(scope: &mut ScopeWriter) {
 	brackets.add(
 		Context::symbol("("),
 		Context::symbol(")"),
-		Arc::new(|_, n, _| Bit::Group(n)),
+		Arc::new(|_, n, _| NodeValue::Group(n)),
 	);
 
 	scope.add_node_operator(NodeOperator::Brackets(brackets), NodePrecedence::Brackets);
@@ -184,17 +196,21 @@ pub fn configure_default_node_operators(scope: &mut ScopeWriter) {
 
 	// boolean
 	scope.add_node_operator(
-		NodeOperator::Replace(Context::symbol("true"), |span| Bit::Boolean(true).at(span)),
+		NodeOperator::Replace(Context::symbol("true"), |scope, span| {
+			NodeValue::Boolean(true).at(scope, span)
+		}),
 		NodePrecedence::Boolean(true),
 	);
 	scope.add_node_operator(
-		NodeOperator::Replace(Context::symbol("false"), |span| Bit::Boolean(false).at(span)),
+		NodeOperator::Replace(Context::symbol("false"), |scope, span| {
+			NodeValue::Boolean(false).at(scope, span)
+		}),
 		NodePrecedence::Boolean(false),
 	);
 
 	// null
 	scope.add_node_operator(
-		NodeOperator::Replace(Context::symbol("null"), |span| Bit::Null.at(span)),
+		NodeOperator::Replace(Context::symbol("null"), |scope, span| NodeValue::Null.at(scope, span)),
 		NodePrecedence::Null,
 	);
 }
@@ -270,4 +286,46 @@ pub fn default_operators() -> OperatorSet {
 	ops.add(Operator::new_prefix("!".into(), UnaryOp::Neg, OpPrecedence::Unary));
 
 	ops
+}
+
+//====================================================================================================================//
+// Operator binding logic
+//====================================================================================================================//
+
+impl Node {
+	pub fn get_next_node_operator(
+		&self,
+		max_precedence: Option<NodePrecedence>,
+	) -> Result<Option<(NodeOperator, Arc<dyn IsNodeOperator>, NodePrecedence)>> {
+		let operators = self.scope().get_node_operators().into_iter().filter_map(|(op, prec)| {
+			op.get_for_node(self)
+				.and_then(|node_op| if node_op.can_apply(self) { Some(node_op) } else { None })
+				.map(|node_op| (op, node_op, prec))
+		});
+		let mut operators = operators.take_while(|(.., prec)| {
+			if let Some(max) = max_precedence {
+				prec <= &max && prec != &NodePrecedence::Never
+			} else {
+				true
+			}
+		});
+
+		if let Some((op, node_op, prec)) = operators.next() {
+			let operators = operators.take_while(|(.., op_prec)| op_prec == &prec && prec != NodePrecedence::Never);
+			let operators = operators.collect::<Vec<_>>();
+			if operators.len() > 0 {
+				let mut error =
+					format!("ambiguous node list can accept multiple node operators at the same precedence\n-> {op:?}");
+				for (op, ..) in operators {
+					let _ = write!(error, ", {op:?}");
+				}
+				let _ = write!(error.indented(), "\n-> {self:?}");
+				Err(Errors::from(error, self.span()))
+			} else {
+				Ok(Some((op, node_op, prec)))
+			}
+		} else {
+			Ok(None)
+		}
+	}
 }

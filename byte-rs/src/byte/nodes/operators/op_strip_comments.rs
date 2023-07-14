@@ -9,13 +9,13 @@ impl ParseFilter for OpStripComments {
 }
 
 impl IsNodeOperator for OpStripComments {
-	fn apply(&self, ctx: &mut EvalContext, nodes: &mut NodeList) -> Result<()> {
-		let _ = ctx;
-		nodes.filter(self);
-		Ok(())
+	fn can_apply(&self, node: &Node) -> bool {
+		node.can_filter(self)
 	}
 
-	fn can_apply(&self, nodes: &NodeList) -> bool {
-		nodes.can_filter(self)
+	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+		let _ = ctx;
+		node.filter(self);
+		Ok(())
 	}
 }

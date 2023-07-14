@@ -78,14 +78,17 @@ const MAX_ERRORS: usize = 10;
 
 const DUMP_CODE: bool = false;
 
+const DEBUG_PROCESSING: bool = false;
+
 pub type Result<T> = std::result::Result<T, Errors>;
 
 pub fn id() -> Id {
 	Context::id()
 }
 
-pub fn at(span: Span) -> Id {
-	Context::id().at(span)
+// TODO: remove `at(span)`
+pub fn at(span: Span) -> Span {
+	span
 }
 
 use std::{
@@ -132,8 +135,8 @@ mod tests {
 			rt.redirect_stdout(output);
 		});
 
-		let nodes = program.load_string("hello", "print 'hello world!!!'")?;
-		program.run_nodes(&nodes)?;
+		let node = program.load_string("hello", "print 'hello world!!!'")?;
+		program.run_node(&node)?;
 
 		let output = output.read().unwrap().clone();
 		let output = String::from_utf8(output)?;

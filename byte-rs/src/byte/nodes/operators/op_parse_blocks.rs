@@ -3,7 +3,7 @@ use super::*;
 pub struct OpParseBlocks(pub Symbol);
 
 impl OpParseBlocks {
-	fn find_block(&self, nodes: &NodeList, offset: usize) -> Option<(usize, usize, usize, usize)> {
+	fn find_block(&self, node: &Node, offset: usize) -> Option<(usize, usize, usize, usize)> {
 		enum State {
 			Start,
 			Symbol { indent: usize, pivot: usize },
@@ -14,7 +14,7 @@ impl OpParseBlocks {
 		let mut state = State::Start;
 		let mut line_start = offset;
 		let mut was_break = false;
-		for (n, it) in nodes.iter().enumerate().skip(offset) {
+		for (n, it) in node.iter().enumerate().skip(offset) {
 			state = match state {
 				State::Start => {
 					if was_break {
@@ -71,7 +71,7 @@ impl OpParseBlocks {
 		}
 
 		if let State::Body { pivot, .. } = state {
-			Some((line_start, pivot, pivot + 2, nodes.len()))
+			Some((line_start, pivot, pivot + 2, node.len()))
 		} else {
 			None
 		}
@@ -83,30 +83,30 @@ impl OpParseBlocks {
 }
 
 impl IsNodeOperator for OpParseBlocks {
-	fn can_apply(&self, nodes: &NodeList) -> bool {
-		self.find_block(nodes, 0).is_some()
+	fn can_apply(&self, node: &Node) -> bool {
+		self.find_block(node, 0).is_some()
 	}
 
-	fn apply(&self, ctx: &mut EvalContext, nodes: &mut NodeList) -> Result<()> {
+	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
 		let mut offset = 0;
 		let mut new_nodes = Vec::new();
-		while let Some((start, pivot, body, end)) = self.find_block(nodes, offset) {
-			let head = nodes.slice(start..pivot);
-			let body = nodes.slice(body..end);
+		while let Some((start, pivot, body, end)) = self.find_block(node, offset) {
+			let head = node.slice(start..pivot);
+			let body = node.slice(body..end);
 			assert!(head.len() > 0);
 			assert!(body.len() > 0);
 
-			new_nodes.extend(nodes.slice(offset..start).iter());
+			new_nodes.extend(node.slice(offset..start).iter());
 			offset = end;
 
-			ctx.add_segment(&head);
-			ctx.add_segment(&body);
+			ctx.add_new_node(&head);
+			ctx.add_new_node(&body);
 
 			let span = Span::merge(head.span(), body.span());
-			new_nodes.push(Bit::Block(head, body).at(span));
+			new_nodes.push(NodeValue::Block(head, body).at(ctx.scope_handle(), span));
 		}
-		new_nodes.extend(nodes.slice(offset..).iter());
-		nodes.replace_all(new_nodes);
+		new_nodes.extend(node.slice(offset..).iter());
+		node.replace_all(new_nodes);
 		Ok(())
 	}
 }

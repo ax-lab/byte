@@ -34,13 +34,14 @@ pub struct Context {
 
 #[derive(Default, Clone)]
 struct ContextData {
-	ids: ContextIds,
 	sources: ContextSources,
 	format: ContextFormat,
 	symbols: ContextSymbols,
 }
 
 impl Context {
+	pub fn is_used(&self) {}
+
 	/// Return the context for the current thread.
 	pub fn get() -> Self {
 		Self {

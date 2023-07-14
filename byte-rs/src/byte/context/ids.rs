@@ -23,27 +23,6 @@ impl Id {
 	pub fn value(&self) -> usize {
 		self.0
 	}
-
-	/// Associate a source [`Span`] with this id.
-	pub fn at(self, span: Span) -> Self {
-		self.set_span(span);
-		self
-	}
-
-	/// Source [`Span`] for this id.
-	pub fn span(&self) -> Span {
-		Context::get().read(|data| {
-			let span_map = data.ids.span_map.read().unwrap();
-			span_map.get(self).cloned().unwrap_or_default()
-		})
-	}
-
-	pub fn set_span(&self, span: Span) {
-		Context::get().read(|data| {
-			let mut span_map = data.ids.span_map.write().unwrap();
-			span_map.insert(self.clone(), span);
-		});
-	}
 }
 
 impl Debug for Id {
@@ -56,13 +35,4 @@ impl Display for Id {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		write!(f, "#{}", self.value())
 	}
-}
-
-//====================================================================================================================//
-// Internals
-//====================================================================================================================//
-
-#[derive(Default, Clone)]
-pub(super) struct ContextIds {
-	span_map: Arc<RwLock<HashMap<Id, Span>>>,
 }
