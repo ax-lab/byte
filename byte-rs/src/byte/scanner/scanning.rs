@@ -21,7 +21,7 @@ pub fn scan(scope: &mut ScopeWriter, input: &Span) -> Result<Node> {
 	if errors.len() > 0 {
 		Err(errors)
 	} else {
-		let nodes = NodeValue::Raw(nodes).at(scope.handle(), input.clone());
+		let nodes = NodeValue::Raw(nodes.into()).at(scope.handle(), input.clone());
 		Ok(nodes)
 	}
 }

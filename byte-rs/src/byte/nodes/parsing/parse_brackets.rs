@@ -24,7 +24,7 @@ impl Node {
 	}
 
 	pub fn parse_brackets<T: ParseBrackets>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
-		self.write_res(|nodes| {
+		self.rewrite_res(|nodes| {
 			let mut has_brackets = false;
 			let mut segments = VecDeque::new();
 			segments.push_back(Vec::new());

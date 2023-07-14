@@ -18,7 +18,7 @@ impl Node {
 			let rhs = self.slice(index + 1..);
 			let node = op.new_node(ctx, lhs, rhs, span)?;
 			node.get_dependencies(|list| ctx.add_new_node(list));
-			self.write_res(|nodes| {
+			self.rewrite_res(|nodes| {
 				*nodes = vec![node];
 				Ok(true)
 			})?;

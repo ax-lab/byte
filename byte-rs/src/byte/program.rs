@@ -152,6 +152,8 @@ impl Program {
 	}
 
 	fn run_resolved(&self, node: &Node) -> Result<Value> {
+		node.sanity_check();
+
 		let mut context = CodeContext::new();
 		if self.dump_enabled() {
 			context.dump_code();

@@ -33,18 +33,18 @@ impl Node {
 	/// Replace the entire list by the vector contents.
 	pub fn replace_all(&mut self, nodes: Vec<Node>) {
 		let span = Span::from_node_vec(&nodes);
-		let value = NodeValue::Raw(nodes);
+		let value = NodeValue::Raw(nodes.into());
 		self.set_value(value, span);
 	}
 
-	pub fn write<P: FnOnce(&mut Vec<Node>) -> bool>(&mut self, writer: P) {
+	pub fn rewrite<P: FnOnce(&mut Vec<Node>) -> bool>(&mut self, writer: P) {
 		let mut nodes = self.to_vec();
 		if writer(&mut nodes) {
 			self.replace_all(nodes);
 		}
 	}
 
-	pub fn write_res<P: FnOnce(&mut Vec<Node>) -> Result<bool>>(&mut self, writer: P) -> Result<()> {
+	pub fn rewrite_res<P: FnOnce(&mut Vec<Node>) -> Result<bool>>(&mut self, writer: P) -> Result<()> {
 		let mut nodes = self.to_vec();
 		if writer(&mut nodes)? {
 			self.replace_all(nodes);

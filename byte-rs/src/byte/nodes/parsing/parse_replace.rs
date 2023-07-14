@@ -12,7 +12,7 @@ impl Node {
 	}
 
 	pub fn replace<T: ParseReplace>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
-		self.write_res(|nodes| {
+		self.rewrite_res(|nodes| {
 			let changed = {
 				let mut changed = false;
 				for it in nodes.iter_mut() {
