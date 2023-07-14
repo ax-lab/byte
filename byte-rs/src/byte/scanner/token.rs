@@ -21,3 +21,17 @@ impl Node {
 		}
 	}
 }
+
+impl Display for Token {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		match self {
+			Token::Break(..) => write!(f, "line break"),
+			Token::Comment => write!(f, "comment"),
+			Token::Word(s) => write!(f, "{s}"),
+			Token::Symbol(s) => write!(f, "{s}"),
+			Token::Literal(v) => write!(f, "{v:?}"),
+			Token::Integer(v) => write!(f, "{v}"),
+			Token::Float(v) => write!(f, "{v}"),
+		}
+	}
+}

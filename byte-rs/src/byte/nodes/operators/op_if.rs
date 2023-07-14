@@ -11,19 +11,22 @@ impl OpIf {
 	}
 
 	fn get_if(&self, node: &Node) -> Option<(Node, Node)> {
-		if let NodeValue::Block(head, body) = node.val() {
-			if head.is_symbol_at(0, &self.symbol_if) {
-				Some((head, body))
-			} else {
-				None
+		match node.val() {
+			NodeValue::Raw(list) if list.len() == 1 => self.get_if(&list[0]),
+			NodeValue::Block(head, body) => {
+				if head.is_symbol_at(0, &self.symbol_if) {
+					Some((head, body))
+				} else {
+					None
+				}
 			}
-		} else {
-			None
+			_ => None,
 		}
 	}
 
 	fn get_else(&self, node: &Node) -> Option<(Node, Node, bool)> {
 		match node.val() {
+			NodeValue::Raw(list) if list.len() == 1 => self.get_else(&list[0]),
 			NodeValue::Block(head, body) => {
 				if head.is_symbol_at(0, &self.symbol_else) {
 					let is_if = head.is_symbol_at(1, &self.symbol_if);
@@ -49,8 +52,8 @@ impl IsNodeOperator for OpIf {
 
 		let mut n = 0;
 		while n < node.len() {
-			let node = node.get(n).unwrap();
-			if let Some((head, body)) = self.get_if(&node) {
+			let child = node.get(n).unwrap();
+			if let Some((head, body)) = self.get_if(&child) {
 				let span = Span::merge(head.span(), body.span());
 				let cond = head.slice(1..);
 
@@ -119,7 +122,7 @@ impl IsNodeOperator for OpIf {
 				let node = node.at(ctx.scope_handle(), span);
 				new_nodes.push(node);
 			} else {
-				new_nodes.push(node);
+				new_nodes.push(child);
 			}
 
 			n += 1;

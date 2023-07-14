@@ -349,11 +349,11 @@ impl Debug for Span {
 impl Display for Span {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		let name = self.source.name();
-		if name.len() > 0 {
+		let ctx = Context::get();
+		let fmt = ctx.format();
+		if name.len() > 0 && fmt.show_span() {
 			let (line, column) = self.line_column();
 			let (line, column) = (line + 1, column + 1);
-			let ctx = Context::get();
-			let fmt = ctx.format();
 
 			let (line_end, column_end) = {
 				let mut end = self.clone();
@@ -366,6 +366,9 @@ impl Display for Span {
 			match fmt.mode() {
 				Mode::Minimal => {
 					write!(f, "L{line}:{column}")?;
+					if self.len() > 0 {
+						write!(f, "…{line_end}:{column_end}")?;
+					}
 				}
 				Mode::Normal => {
 					write!(f, "{name}:{line}:{column}")?;
@@ -424,7 +427,7 @@ mod tests {
 
 		ctx.with_format(minimal.with_separator("at "), || {
 			let text = format!("{s}");
-			assert_eq!(text, "at L4:17");
+			assert_eq!(text, "at L4:17…4:23");
 		});
 
 		ctx.with_format(minimal, || {
@@ -432,7 +435,7 @@ mod tests {
 			assert_eq!(text, "<L4:17+6>");
 
 			let text = format!("{s}");
-			assert_eq!(text, "L4:17");
+			assert_eq!(text, "L4:17…4:23");
 
 			let s = s.truncate(0);
 			let text = format!("{s:?}");

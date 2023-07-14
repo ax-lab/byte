@@ -68,44 +68,49 @@ impl CodeContext {
 }
 
 impl Node {
-	pub fn generate_code(&self, context: &mut CodeContext) -> Result<Vec<Expr>> {
-		let mut output = Vec::new();
+	pub fn generate_code(&self, context: &mut CodeContext) -> Result<Expr> {
 		let mut errors = Errors::new();
-		for it in self.iter() {
-			let node = self.generate_node(context, &it).handle(&mut errors);
-			output.push(node);
-			if errors.len() >= MAX_ERRORS {
-				break;
-			}
-		}
 
+		let output = self.generate_node(context).handle(&mut errors);
 		if (errors.len() > 0 && DEBUG_NODES) || DUMP_CODE || context.dump_code {
-			println!("\n----- CODE DUMP -----\n");
-			let mut output = String::new();
-			let _ = write!(output, "{self:?}");
-			println!("{output}");
-			println!("\n---------------------");
+			println!("\n------ SOURCE ------\n");
+			println!("{self}");
+			println!("\n--------------------");
+
+			println!("\n------ OUTPUT ------\n");
+			println!("{output:#?}");
+			println!("\n--------------------");
 		}
 
-		Ok(output).unless(errors)
+		Ok(output).unless(errors).at_pos(self.span())
 	}
 
-	fn generate_node(&self, context: &mut CodeContext, node: &Node) -> Result<Expr> {
-		self.do_generate_node(context, node).at_pos(node.span())
-	}
-
-	fn do_generate_node(&self, context: &mut CodeContext, node: &Node) -> Result<Expr> {
-		let value = match node.val() {
+	fn generate_node(&self, context: &mut CodeContext) -> Result<Expr> {
+		let span = self.span();
+		let value = match self.val() {
+			NodeValue::Raw(list) => match list.len() {
+				0 => Expr::Unit,
+				1 => list[0].generate_node(context)?,
+				_ => {
+					let mut errors = Errors::new();
+					let mut sequence = Vec::new();
+					for node in list.iter() {
+						let expr = node.generate_node(context).handle(&mut errors);
+						sequence.push(expr);
+					}
+					Expr::Sequence(sequence)
+				}
+			},
 			NodeValue::Boolean(value) => Expr::Bool(value),
 			NodeValue::Token(Token::Integer(value)) => {
-				let value = IntValue::new(value, DEFAULT_INT).at_pos(node.span())?;
+				let value = IntValue::new(value, DEFAULT_INT).at_pos(span)?;
 				Expr::Int(value)
 			}
 			NodeValue::Token(Token::Float(value)) => {
 				let value: f64 = match value.as_str().parse() {
 					Ok(value) => value,
 					Err(err) => {
-						let error = Errors::from(format!("not a valid float: {err}"), node.span());
+						let error = Errors::from(format!("not a valid float: {err}"), span);
 						return Err(error);
 					}
 				};
@@ -114,10 +119,10 @@ impl Node {
 			}
 			NodeValue::Null => Expr::Null,
 			NodeValue::Token(Token::Literal(value)) => Expr::Str(value.clone()),
-			NodeValue::Line(list) => list.generate_expr(context)?,
-			NodeValue::Group(list) => list.generate_expr(context)?,
+			NodeValue::Line(list) => list.generate_node(context)?,
+			NodeValue::Group(list) => list.generate_node(context)?,
 			NodeValue::Let(name, offset, list) => {
-				let expr = list.generate_expr(context)?;
+				let expr = list.generate_node(context)?;
 				let kind = expr.get_type();
 				let offset = offset;
 				context.declares.insert((name.clone(), offset), kind);
@@ -128,10 +133,10 @@ impl Node {
 				if_true,
 				if_false,
 			} => {
-				let condition = condition.generate_expr(context)?;
-				let if_true = if_true.generate_expr(context)?;
+				let condition = condition.generate_node(context)?;
+				let if_true = if_true.generate_node(context)?;
 				let if_false = if let Some(if_false) = if_false {
-					if_false.generate_expr(context)?
+					if_false.generate_node(context)?
 				} else {
 					Expr::Unit
 				};
@@ -145,10 +150,10 @@ impl Node {
 				body,
 			} => {
 				// TODO: `for` should validate types on code generation
-				let from = from.generate_expr(context)?;
-				let to = to.generate_expr(context)?;
+				let from = from.generate_node(context)?;
+				let to = to.generate_node(context)?;
 				context.declares.insert((var.clone(), Some(offset)), from.get_type());
-				let body = body.generate_expr(context)?;
+				let body = body.generate_node(context)?;
 				Expr::For(var.clone(), offset, from.into(), to.into(), body.into())
 			}
 			NodeValue::Variable(name, index) => {
@@ -156,22 +161,22 @@ impl Node {
 					Expr::Variable(name.clone(), index, kind.clone())
 				} else {
 					let error = format!("variable `{name}` ({index:?}) does not match any declaration");
-					let error = Errors::from(error, node.span().clone());
+					let error = Errors::from(error, span);
 					return Err(error);
 				}
 			}
 			NodeValue::Print(expr, tail) => {
-				let expr = expr.generate_expr(context)?;
+				let expr = expr.generate_node(context)?;
 				Expr::Print(expr.into(), tail)
 			}
 			NodeValue::UnaryOp(op, arg) => {
-				let arg = arg.generate_expr(context)?;
+				let arg = arg.generate_node(context)?;
 				let op = op.for_type(&arg.get_type())?;
 				Expr::Unary(op, arg.into())
 			}
 			NodeValue::BinaryOp(op, lhs, rhs) => {
-				let lhs = lhs.generate_expr(context)?;
-				let rhs = rhs.generate_expr(context)?;
+				let lhs = lhs.generate_node(context)?;
+				let rhs = rhs.generate_node(context)?;
 				let op = op.for_types(&lhs.get_type(), &rhs.get_type())?;
 				Expr::Binary(op, lhs.into(), rhs.into())
 			}
@@ -179,7 +184,7 @@ impl Node {
 				let mut errors = Errors::new();
 				let mut sequence = Vec::new();
 				for it in list.iter() {
-					let it = it.generate_expr(context).handle(&mut errors);
+					let it = it.generate_node(context).handle(&mut errors);
 					sequence.push(it);
 					if errors.len() >= MAX_ERRORS {
 						break;
@@ -191,9 +196,9 @@ impl Node {
 				Expr::Sequence(sequence)
 			}
 			NodeValue::Conditional(a, b, c) => {
-				let a = a.generate_expr(context)?;
-				let b = b.generate_expr(context)?;
-				let c = c.generate_expr(context)?;
+				let a = a.generate_node(context)?;
+				let b = b.generate_node(context)?;
+				let c = c.generate_node(context)?;
 				Expr::Conditional(a.into(), b.into(), c.into())
 			}
 			value => {
@@ -203,30 +208,11 @@ impl Node {
 					let _ = write!(output, "\n\n");
 					let _ = write!(output, "{self:?}");
 				}
-				let error = Errors::from(error, node.span().clone());
+				let error = Errors::from(error, span);
 				return Err(error);
 			}
 		};
 		Ok(value)
-	}
-
-	fn generate_expr(&self, context: &mut CodeContext) -> Result<Expr> {
-		let expr = match self.len() {
-			0 => Expr::Unit,
-			_ => {
-				let mut output = Vec::new();
-				for it in self.iter() {
-					let node = self.generate_node(context, &it)?;
-					output.push(node);
-				}
-				if output.len() == 1 {
-					output.into_iter().next().unwrap()
-				} else {
-					Expr::Sequence(output)
-				}
-			}
-		};
-		Ok(expr)
 	}
 }
 

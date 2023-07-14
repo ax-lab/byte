@@ -13,6 +13,7 @@ pub mod op_replace_symbol;
 pub mod op_split_line;
 pub mod op_strip_comments;
 pub mod op_ternary;
+pub mod op_unraw;
 
 pub use op_bind::*;
 pub use op_brackets::*;
@@ -27,6 +28,7 @@ pub use op_replace_symbol::*;
 pub use op_split_line::*;
 pub use op_strip_comments::*;
 pub use op_ternary::*;
+pub use op_unraw::*;
 
 //====================================================================================================================//
 // Node operators
@@ -52,8 +54,8 @@ pub enum NodePrecedence {
 	Const,
 	Let,
 	Print,
-	Ternary,
 	Comma,
+	Ternary,
 	Expression,
 	Boolean(bool),
 	Null,
@@ -83,6 +85,7 @@ pub enum NodeOperator {
 	Replace(Symbol, fn(ScopeHandle, Span) -> Node),
 	Bind,
 	ParseExpression(OperatorSet),
+	Unraw,
 }
 
 impl NodeOperator {
@@ -109,6 +112,7 @@ impl NodeOperator {
 			NodeOperator::ParseExpression(ops) => Arc::new(ops.clone()),
 			NodeOperator::Comma(symbol) => Arc::new(CommaOperator(symbol.clone())),
 			NodeOperator::Ternary(op) => Arc::new(op.clone()),
+			NodeOperator::Unraw => Arc::new(OpUnraw),
 		}
 	}
 }
@@ -145,6 +149,7 @@ pub fn configure_default_node_operators(scope: &mut ScopeWriter) {
 	scope.set_matcher(matcher);
 
 	scope.add_node_operator(NodeOperator::ParseExpression(ops), NodePrecedence::Expression);
+	scope.add_node_operator(NodeOperator::Unraw, NodePrecedence::Least);
 
 	//general parsing
 	scope.add_node_operator(NodeOperator::Block(Context::symbol(":")), NodePrecedence::Blocks);
@@ -291,7 +296,7 @@ impl Node {
 	pub fn get_next_node_operator(
 		&self,
 		max_precedence: Option<NodePrecedence>,
-	) -> Result<Option<(Arc<dyn IsNodeOperator>, NodePrecedence)>> {
+	) -> Result<Option<(NodeOperator, Arc<dyn IsNodeOperator>, NodePrecedence)>> {
 		let operators = self.scope().get_node_operators().into_iter().filter_map(|(op, prec)| {
 			op.get_for_node(self)
 				.and_then(|node_op| if node_op.can_apply(self) { Some(node_op) } else { None })
@@ -317,7 +322,7 @@ impl Node {
 				let _ = write!(error.indented(), "\n-> {self:?}");
 				Err(Errors::from(error, self.span()))
 			} else {
-				Ok(Some((node_op, prec)))
+				Ok(Some((op, node_op, prec)))
 			}
 		} else {
 			Ok(None)

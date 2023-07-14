@@ -78,6 +78,8 @@ const MAX_ERRORS: usize = 10;
 
 const DUMP_CODE: bool = false;
 
+const DEBUG_PROCESSING: bool = false;
+
 pub type Result<T> = std::result::Result<T, Errors>;
 
 pub fn id() -> Id {

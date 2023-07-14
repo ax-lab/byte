@@ -40,6 +40,8 @@ struct ContextData {
 }
 
 impl Context {
+	pub fn is_used(&self) {}
+
 	/// Return the context for the current thread.
 	pub fn get() -> Self {
 		Self {

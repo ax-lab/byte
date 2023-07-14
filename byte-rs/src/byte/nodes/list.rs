@@ -102,41 +102,6 @@ impl NodeList {
 		nodes.get(index).cloned()
 	}
 
-	pub fn get_next_node_operator(
-		&self,
-		max_precedence: Option<NodePrecedence>,
-	) -> Result<Option<(NodeOperator, NodePrecedence)>> {
-		let operators = self.scope().get_node_operators().into_iter();
-		let operators = operators.take_while(|(.., prec)| {
-			if let Some(max) = max_precedence {
-				prec <= &max && prec != &NodePrecedence::Never
-			} else {
-				true
-			}
-		});
-
-		let operators = operators.skip_while(|(op, ..)| !op.can_apply(self));
-
-		let mut operators = operators;
-		if let Some((op, prec)) = operators.next() {
-			let operators = operators.take_while(|(.., op_prec)| op_prec == &prec && prec != NodePrecedence::Never);
-			let operators = operators.collect::<Vec<_>>();
-			if operators.len() > 0 {
-				let mut error =
-					format!("ambiguous node list can accept multiple node operators at the same precedence\n-> {op:?}");
-				for eval in operators {
-					let _ = write!(error, ", {eval:?}");
-				}
-				let _ = write!(error.indented(), "\n-> {self:?}");
-				Err(Errors::from(error, self.span()))
-			} else {
-				Ok(Some((op, prec)))
-			}
-		} else {
-			Ok(None)
-		}
-	}
-
 	pub fn write<P: FnOnce(&mut Vec<Node>) -> bool>(&mut self, writer: P) {
 		let mut nodes = self.data.nodes.write().unwrap();
 		let nodes = Arc::make_mut(&mut nodes);

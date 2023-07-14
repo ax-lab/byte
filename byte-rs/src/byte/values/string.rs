@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct StringValue(Arc<String>);
 
 impl StringValue {
@@ -23,8 +23,14 @@ impl StringValue {
 }
 
 impl Display for StringValue {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		write!(f, "{}", self.as_str())
+	}
+}
+
+impl Debug for StringValue {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		write!(f, "{:?}", self.0)
 	}
 }
 
