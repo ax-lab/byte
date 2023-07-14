@@ -5,16 +5,16 @@ pub trait ParseSplitBy {
 
 	fn is_split(&self, node: &Node) -> bool;
 
-	fn new_node(&self, ctx: &mut EvalContext, nodes: NodeList) -> Result<Node>;
+	fn new_node(&self, ctx: &mut EvalContext, node: Node) -> Result<Node>;
 }
 
 pub trait ParseSplitSequence {
 	fn is_split(&self, node: &Node) -> bool;
 
-	fn new_node(&self, ctx: &mut EvalContext, nodes: Vec<NodeList>, span: Span) -> Result<Node>;
+	fn new_node(&self, ctx: &mut EvalContext, node: Vec<Node>, span: Span) -> Result<Node>;
 }
 
-impl NodeList {
+impl Node {
 	pub fn can_split<T: ParseSplitBy>(&self, op: &T) -> bool {
 		self.contains(|x| op.is_split(x))
 	}
@@ -32,12 +32,12 @@ impl NodeList {
 		for it in self.iter() {
 			if op.is_split(&it) {
 				has_separator = true;
-				let nodes = NodeList::new(scope.handle(), std::mem::take(&mut line));
-				if nodes.len() == 0 && op.skip_empty() {
+				let node = Node::raw(std::mem::take(&mut line), scope.handle());
+				if node.len() == 0 && op.skip_empty() {
 					continue;
 				}
-				let node = op.new_node(ctx, nodes)?;
-				node.get_dependencies(|list| ctx.add_segment(list));
+				let node = op.new_node(ctx, node)?;
+				node.get_dependencies(|list| ctx.add_new_node(list));
 				new_nodes.push(node);
 			} else {
 				line.push(it.clone());
@@ -45,9 +45,9 @@ impl NodeList {
 		}
 
 		if line.len() > 0 {
-			let nodes = NodeList::new(scope.handle(), std::mem::take(&mut line));
-			let node = op.new_node(ctx, nodes)?;
-			node.get_dependencies(|list| ctx.add_segment(list));
+			let node = Node::raw(std::mem::take(&mut line), scope.handle());
+			let node = op.new_node(ctx, node)?;
+			node.get_dependencies(|list| ctx.add_new_node(list));
 			new_nodes.push(node);
 		}
 
@@ -65,10 +65,10 @@ impl NodeList {
 		let mut has_splits = false;
 		for it in self.iter() {
 			if op.is_split(&it) {
-				let nodes = std::mem::take(&mut line);
-				let nodes = NodeList::new(scope.handle(), nodes);
-				ctx.add_segment(&nodes);
-				new_nodes.push(nodes);
+				let node = std::mem::take(&mut line);
+				let node = Node::raw(node, scope.handle());
+				ctx.add_new_node(&node);
+				new_nodes.push(node);
 				has_splits = true;
 			} else {
 				line.push(it.clone());
@@ -77,10 +77,10 @@ impl NodeList {
 
 		if has_splits {
 			if line.len() > 0 {
-				let nodes = std::mem::take(&mut line);
-				let nodes = NodeList::new(scope.handle(), nodes);
-				ctx.add_segment(&nodes);
-				new_nodes.push(nodes);
+				let node = std::mem::take(&mut line);
+				let node = Node::raw(node, scope.handle());
+				ctx.add_new_node(&node);
+				new_nodes.push(node);
 			}
 
 			let node = op.new_node(ctx, new_nodes, self.span())?;

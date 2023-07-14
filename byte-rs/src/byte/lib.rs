@@ -84,8 +84,9 @@ pub fn id() -> Id {
 	Context::id()
 }
 
-pub fn at(span: Span) -> (Id, Span) {
-	(id(), span)
+// TODO: remove `at(span)`
+pub fn at(span: Span) -> Span {
+	span
 }
 
 use std::{

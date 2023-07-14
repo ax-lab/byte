@@ -9,8 +9,8 @@ pub struct Program {
 struct ProgramData {
 	compiler: Compiler,
 	scopes: ScopeList,
-	segments: RwLock<Vec<NodeList>>,
-	run_list: RwLock<Vec<NodeList>>,
+	to_process: RwLock<Vec<Node>>,
+	run_list: RwLock<Vec<Node>>,
 	runtime: RwLock<RuntimeScope>,
 	dump_code: RwLock<bool>,
 }
@@ -70,7 +70,7 @@ impl Program {
 			ProgramData {
 				compiler,
 				scopes,
-				segments: Default::default(),
+				to_process: Default::default(),
 				run_list: Default::default(),
 				runtime: Default::default(),
 				dump_code: Default::default(),
@@ -120,13 +120,13 @@ impl Program {
 		self.run_resolved_nodes(&nodes)
 	}
 
-	pub fn load_string<T1: Into<String>, T2: AsRef<str>>(&mut self, name: T1, data: T2) -> Result<NodeList> {
+	pub fn load_string<T1: Into<String>, T2: AsRef<str>>(&mut self, name: T1, data: T2) -> Result<Node> {
 		let context = Context::get();
 		let source = context.load_source_text(name, data.as_ref());
 		self.load_span(source.span())
 	}
 
-	pub fn load_file<T: AsRef<Path>>(&mut self, path: T) -> Result<NodeList> {
+	pub fn load_file<T: AsRef<Path>>(&mut self, path: T) -> Result<Node> {
 		let context = Context::get();
 		let source = context.load_source_file(path)?;
 		let list = self.load_span(source.span())?;
@@ -137,21 +137,21 @@ impl Program {
 		Ok(list)
 	}
 
-	pub fn run_nodes(&mut self, nodes: &NodeList) -> Result<Value> {
+	pub fn run_nodes(&mut self, nodes: &Node) -> Result<Value> {
 		self.resolve()?;
 		self.run_resolved_nodes(nodes)
 	}
 
-	fn load_span(&mut self, span: Span) -> Result<NodeList> {
+	fn load_span(&mut self, span: Span) -> Result<Node> {
 		let scope = self.root_scope().new_child();
 		let mut scope = self.data.scopes.get_writer(scope.get());
 		let nodes = scan(&mut scope, &span)?;
-		let mut segments = self.data.segments.write().unwrap();
+		let mut segments = self.data.to_process.write().unwrap();
 		segments.push(nodes.clone());
 		Ok(nodes)
 	}
 
-	fn run_resolved_nodes(&self, nodes: &NodeList) -> Result<Value> {
+	fn run_resolved_nodes(&self, nodes: &Node) -> Result<Value> {
 		let mut context = CodeContext::new();
 		if self.dump_enabled() {
 			context.dump_code();
@@ -170,7 +170,7 @@ impl Program {
 	}
 
 	pub fn resolve(&self) -> Result<()> {
-		let mut segments = self.data.segments.write().unwrap();
+		let mut nodes_to_process = self.data.to_process.write().unwrap();
 
 		let mut errors = Errors::new();
 		loop {
@@ -178,7 +178,7 @@ impl Program {
 			let mut precedence = None;
 
 			// collect the applicable operator for all segments
-			for it in segments.iter_mut() {
+			for it in nodes_to_process.iter_mut() {
 				match it.get_next_node_operator(precedence) {
 					Ok(Some((op, op_prec))) => {
 						assert!(precedence.is_none() || Some(op_prec) <= precedence);
@@ -207,27 +207,27 @@ impl Program {
 
 			let mut has_changes = false;
 
-			let mut new_segments = Vec::new();
-			let mut del_segments = Vec::new();
-			for (_, op, nodes) in to_process {
-				let mut context = EvalContext::new(nodes);
-				let version = nodes.version();
-				match op.apply(&mut context, nodes) {
+			let mut new_nodes = Vec::new();
+			let mut del_nodes = Vec::new();
+			for (_, op, node) in to_process {
+				let mut context = EvalContext::new(node);
+				let version = node.version();
+				match op.eval(&mut context, node) {
 					Ok(()) => (),
 					Err(errs) => {
 						errors.append(&errs);
 					}
 				};
-				let changed = nodes.version() > version;
+				let changed = node.version() > version;
 
-				context.get_new_segments(&mut new_segments);
-				context.get_del_segments(&mut del_segments);
+				context.get_nodes_to_add(&mut new_nodes);
+				context.get_nodes_to_del(&mut del_nodes);
 				has_changes = has_changes || changed;
 
 				let declares = context.get_declares();
 				drop(context);
 
-				let scope = nodes.scope_handle().get();
+				let scope = node.scope_handle().get();
 				let mut writer = self.data.scopes.get_writer(scope);
 				for (name, offset, value) in declares {
 					let result = if let Some(offset) = offset {
@@ -245,7 +245,7 @@ impl Program {
 			if errors.len() > 0 {
 				if self.dump_enabled() {
 					println!("\n===== NODE DUMP =====");
-					for (n, it) in segments.iter().enumerate() {
+					for (n, it) in nodes_to_process.iter().enumerate() {
 						println!("\n>>> SEGMENT {n} <<<\n");
 						println!("{it}");
 					}
@@ -254,18 +254,18 @@ impl Program {
 				return Err(errors);
 			}
 
-			for it in new_segments {
-				if !segments.contains(&it) {
+			for it in new_nodes {
+				if !nodes_to_process.contains(&it) {
 					has_changes = true;
-					segments.push(it);
+					nodes_to_process.push(it);
 				}
 			}
 
 			// TODO: optimize segment handling
-			for it in del_segments {
-				*segments = std::mem::take(&mut *segments)
+			for it in del_nodes {
+				*nodes_to_process = std::mem::take(&mut *nodes_to_process)
 					.into_iter()
-					.filter(|x| !x.is_same(&it))
+					.filter(|x| x.id() != it.id())
 					.collect();
 			}
 
@@ -279,7 +279,7 @@ impl Program {
 		}
 
 		/*
-			for all NodeList segments, determine the next set of operators to
+			for all Node segments, determine the next set of operators to
 			apply
 
 				in each set, evaluate operators in groups of precedence and

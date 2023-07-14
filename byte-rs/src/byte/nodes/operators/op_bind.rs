@@ -24,11 +24,11 @@ impl ParseReplace for OpBind {
 }
 
 impl IsNodeOperator for OpBind {
-	fn can_apply(&self, nodes: &NodeList) -> bool {
-		nodes.can_replace(self)
+	fn can_apply(&self, node: &Node) -> bool {
+		node.can_replace(self)
 	}
 
-	fn apply(&self, ctx: &mut EvalContext, nodes: &mut NodeList) -> Result<()> {
-		nodes.replace(ctx, self)
+	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+		node.replace(ctx, self)
 	}
 }

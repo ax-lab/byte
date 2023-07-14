@@ -4,7 +4,7 @@ pub trait ParseFilter {
 	fn filter(&self, node: &Node) -> bool;
 }
 
-impl NodeList {
+impl Node {
 	pub fn can_filter<T: ParseFilter>(&self, op: &T) -> bool {
 		self.contains(|x| !op.filter(x))
 	}

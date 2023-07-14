@@ -1,6 +1,6 @@
 use super::*;
 
-pub fn scan(scope: &mut ScopeWriter, input: &Span) -> Result<NodeList> {
+pub fn scan(scope: &mut ScopeWriter, input: &Span) -> Result<Node> {
 	let mut matcher = scope.matcher();
 	let mut errors = Errors::new();
 	let mut nodes = Vec::new();
@@ -21,7 +21,7 @@ pub fn scan(scope: &mut ScopeWriter, input: &Span) -> Result<NodeList> {
 	if errors.len() > 0 {
 		Err(errors)
 	} else {
-		let nodes = NodeList::new(scope.handle(), nodes);
+		let nodes = NodeValue::Raw(nodes).at(scope.handle(), input.clone());
 		Ok(nodes)
 	}
 }

@@ -1,17 +1,17 @@
 use super::*;
 
-pub type TernaryNodeFn = Arc<dyn Fn(NodeList, NodeList, NodeList, ScopeHandle, Span) -> Node>;
+pub type TernaryNodeFn = Arc<dyn Fn(Node, Node, Node, ScopeHandle, Span) -> Node>;
 
 #[derive(Clone)]
 pub struct OpTernary(pub Symbol, pub Symbol, pub TernaryNodeFn);
 
 impl IsNodeOperator for OpTernary {
-	fn can_apply(&self, nodes: &NodeList) -> bool {
-		nodes.has_ternary(self)
+	fn can_apply(&self, node: &Node) -> bool {
+		node.has_ternary(self)
 	}
 
-	fn apply(&self, ctx: &mut EvalContext, nodes: &mut NodeList) -> Result<()> {
-		nodes.parse_ternary(ctx, self)
+	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+		node.parse_ternary(ctx, self)
 	}
 }
 
@@ -20,7 +20,7 @@ impl ParseTernary for OpTernary {
 		(&self.0, &self.1)
 	}
 
-	fn new_node(&self, ctx: &mut EvalContext, a: NodeList, b: NodeList, c: NodeList, span: Span) -> Result<Node> {
+	fn new_node(&self, ctx: &mut EvalContext, a: Node, b: Node, c: Node, span: Span) -> Result<Node> {
 		let _ = ctx;
 		let node = (self.2)(a, b, c, ctx.scope_handle(), span);
 		Ok(node)

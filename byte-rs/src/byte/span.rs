@@ -44,13 +44,30 @@ impl Span {
 	}
 
 	/// Returns a [`Span`] combining the entire range of the given nodes.
-	pub fn from_nodes<T: IntoIterator<Item = Node>>(nodes: T) -> Self {
-		let mut nodes = nodes.into_iter();
-		let sta = nodes.next().map(|x| x.span());
+	pub fn from_nodes(nodes: &[&Node]) -> Self {
+		let sta = nodes.first().map(|x| x.span());
 		let end = nodes.last().map(|x| x.span());
 		let sta = sta.unwrap_or_default();
 		let end = end.unwrap_or_default();
 		Self::merge(sta, end)
+	}
+
+	pub fn from_node_vec(nodes: &[Node]) -> Self {
+		let sta = nodes.first().map(|x| x.span());
+		let end = nodes.last().map(|x| x.span());
+		let sta = sta.unwrap_or_default();
+		let end = end.unwrap_or_default();
+		Self::merge(sta, end)
+	}
+
+	/// Return the current [`Span`] if it's not the default empty one, or use
+	/// the given function to get a fallback span.
+	pub fn or_with<P: FnOnce() -> Span>(self, predicate: P) -> Self {
+		if self == Self::default() {
+			predicate()
+		} else {
+			self
+		}
 	}
 
 	/// Return a new span with the range from the current to the given span.

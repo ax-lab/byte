@@ -67,7 +67,7 @@ impl CodeContext {
 	}
 }
 
-impl NodeList {
+impl Node {
 	pub fn generate_code(&self, context: &mut CodeContext) -> Result<Vec<Expr>> {
 		let mut output = Vec::new();
 		let mut errors = Errors::new();

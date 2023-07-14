@@ -1,12 +1,12 @@
 use super::*;
 
 pub mod eval;
-pub mod list;
 pub mod operators;
+pub mod parsing;
 
 pub use eval::*;
-pub use list::*;
 pub use operators::*;
+pub use parsing::*;
 
 const SHOW_INDENT: bool = false;
 
@@ -21,31 +21,32 @@ pub enum NodeValue {
 	Null,
 	Boolean(bool),
 	//----[ Structural ]------------------------------------------------------//
-	Line(NodeList),
-	Sequence(Vec<NodeList>),
+	Raw(Vec<Node>),
+	Line(Node),
+	Sequence(Vec<Node>),
 	RawText(Span),
-	Group(NodeList),
-	Block(NodeList, NodeList),
+	Group(Node),
+	Block(Node, Node),
 	//----[ Logic ]-----------------------------------------------------------//
 	If {
-		expr: NodeList,
-		if_true: NodeList,
-		if_false: Option<NodeList>,
+		expr: Node,
+		if_true: Node,
+		if_false: Option<Node>,
 	},
 	For {
 		var: Symbol,
 		offset: usize,
-		from: NodeList,
-		to: NodeList,
-		body: NodeList,
+		from: Node,
+		to: Node,
+		body: Node,
 	},
 	//----[ AST ]-------------------------------------------------------------//
-	Let(Symbol, Option<usize>, NodeList),
-	UnaryOp(UnaryOp, NodeList),
-	BinaryOp(BinaryOp, NodeList, NodeList),
+	Let(Symbol, Option<usize>, Node),
+	UnaryOp(UnaryOp, Node),
+	BinaryOp(BinaryOp, Node, Node),
 	Variable(Symbol, Option<usize>),
-	Print(NodeList, &'static str),
-	Conditional(NodeList, NodeList, NodeList),
+	Print(Node, &'static str),
+	Conditional(Node, Node, Node),
 }
 
 impl NodeValue {
@@ -62,11 +63,24 @@ impl NodeValue {
 		Some(symbol.clone())
 	}
 
-	pub fn children(&self) -> Vec<&NodeList> {
+	pub fn len(&self) -> usize {
+		self.children().len()
+	}
+
+	pub fn iter(&self) -> impl Iterator<Item = &Node> {
+		self.children().into_iter()
+	}
+
+	pub fn get(&self, index: usize) -> Option<&Node> {
+		self.children().get(index).cloned()
+	}
+
+	pub fn children(&self) -> Vec<&Node> {
 		match self {
 			NodeValue::Token(_) => vec![],
 			NodeValue::Null => vec![],
 			NodeValue::Boolean(_) => vec![],
+			NodeValue::Raw(ls) => ls.iter().map(|x| x).collect(),
 			NodeValue::Line(expr) => vec![expr],
 			NodeValue::Sequence(ls) => ls.iter().map(|x| x).collect(),
 			NodeValue::RawText(_) => vec![],
@@ -93,7 +107,7 @@ impl NodeValue {
 		}
 	}
 
-	pub fn get_dependencies<P: FnMut(&NodeList)>(&self, mut output: P) {
+	pub fn get_dependencies<P: FnMut(&Node)>(&self, mut output: P) {
 		for it in self.children() {
 			output(it);
 		}
@@ -118,16 +132,18 @@ pub struct Node {
 
 struct NodeData {
 	id: Id,
-	span: Span,
+	span: RwLock<Span>,
 	value: RwLock<NodeValue>,
 	version: RwLock<usize>,
 	scope: ScopeHandle,
 }
 
 impl Node {
-	pub fn new(value: NodeValue, scope: ScopeHandle, (id, span): (Id, Span)) -> Self {
+	pub fn new(value: NodeValue, scope: ScopeHandle, span: Span) -> Self {
 		let value = value.into();
 		let version = 0.into();
+		let id = id();
+		let span = span.into();
 		Self {
 			data: NodeData {
 				id,
@@ -138,6 +154,11 @@ impl Node {
 			}
 			.into(),
 		}
+	}
+
+	pub fn raw(nodes: Vec<Node>, scope: ScopeHandle) -> Self {
+		let span = Span::from_node_vec(&nodes);
+		NodeValue::Raw(nodes).at(scope, span)
 	}
 
 	pub fn id(&self) -> Id {
@@ -153,7 +174,7 @@ impl Node {
 	}
 
 	pub fn span(&self) -> Span {
-		self.data.span.clone()
+		self.data.span.read().unwrap().clone()
 	}
 
 	pub fn offset(&self) -> usize {
@@ -172,13 +193,65 @@ impl Node {
 		self.data.scope.clone()
 	}
 
-	pub fn get_dependencies<P: FnMut(&NodeList)>(&self, output: P) {
+	pub fn get_dependencies<P: FnMut(&Node)>(&self, output: P) {
 		self.val().get_dependencies(output)
+	}
+
+	pub fn set_value(&mut self, new_value: NodeValue, new_span: Span) {
+		let mut value = self.data.value.write().unwrap();
+		let mut span = self.data.span.write().unwrap();
+		let mut version = self.data.version.write().unwrap();
+		*value = new_value;
+		*span = new_span;
+		*version = *version + 1;
+	}
+
+	//----------------------------------------------------------------------------------------------------------------//
+	// Node value helpers
+	//----------------------------------------------------------------------------------------------------------------//
+
+	/// Number of child nodes.
+	pub fn len(&self) -> usize {
+		self.val().len()
+	}
+
+	/// Get a node children by its index.
+	pub fn get(&self, index: usize) -> Option<Node> {
+		self.val().get(index).cloned()
+	}
+
+	/// Return a new [`NodeValue::Raw`] from a slice of this node's children.
+	pub fn slice<T: RangeBounds<usize>>(&self, range: T) -> Node {
+		let scope = self.scope_handle();
+		let node = self.val();
+
+		// TODO: maybe have a `can_slice` property
+		assert!(matches!(node, NodeValue::Raw(..))); // we don't want slice to be used with any node
+		let list = node.children();
+		let range = compute_range(range, list.len());
+		let index = range.start;
+		let slice = &list[range];
+		let span = Span::from_nodes(slice);
+		let span = span.or_with(|| list.get(index).map(|x| x.span().pos()).unwrap_or_default());
+		NodeValue::Raw(slice.iter().map(|x| (*x).clone()).collect()).at(scope, span)
+	}
+
+	/// Iterator over this node's children.
+	pub fn iter(&self) -> impl Iterator<Item = Node> {
+		let node = self.val();
+		let list = node.iter().cloned().collect::<Vec<_>>();
+		list.into_iter()
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
 	// Parsing helpers
 	//----------------------------------------------------------------------------------------------------------------//
+
+	pub fn to_raw(self) -> Node {
+		let span = self.span();
+		let scope = self.scope_handle();
+		NodeValue::Raw(vec![self]).at(scope, span)
+	}
 
 	pub fn is_symbol(&self, expected: &Symbol) -> bool {
 		match self.val() {
@@ -206,9 +279,30 @@ impl Node {
 	}
 }
 
+impl Hash for Node {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		let value = self.data.value.read().unwrap();
+		value.hash(state)
+	}
+}
+
+impl PartialEq for Node {
+	fn eq(&self, other: &Self) -> bool {
+		if Arc::as_ptr(&self.data) == Arc::as_ptr(&other.data) {
+			true
+		} else {
+			let va = self.data.value.read().unwrap();
+			let vb = other.data.value.read().unwrap();
+			*va == *vb && self.data.scope == other.data.scope
+		}
+	}
+}
+
+impl Eq for Node {}
+
 impl Debug for Node {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "{:?}", self.val())?;
+		write!(f, "{:#?}", self.val())?;
 
 		let ctx = Context::get();
 		let format = ctx.format().with_mode(Mode::Minimal).with_separator(" @");
