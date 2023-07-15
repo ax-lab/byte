@@ -119,7 +119,6 @@ impl Node {
 			}
 			NodeValue::Null => Expr::Null,
 			NodeValue::Token(Token::Literal(value)) => Expr::Str(value.clone()),
-			NodeValue::Line(list) => list.generate_node(context)?,
 			NodeValue::Group(list) => list.generate_node(context)?,
 			NodeValue::Let(name, offset, list) => {
 				let expr = list.generate_node(context)?;

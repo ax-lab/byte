@@ -12,7 +12,6 @@ pub enum NodeValue {
 	Boolean(bool),
 	//----[ Structural ]------------------------------------------------------//
 	Raw(Arc<Vec<Node>>),
-	Line(Node),
 	Sequence(Arc<Vec<Node>>),
 	Group(Node),
 	Block(Node, Node),
@@ -70,7 +69,6 @@ impl NodeValue {
 			NodeValue::Null => vec![],
 			NodeValue::Boolean(_) => vec![],
 			NodeValue::Raw(ls) => ls.iter().map(|x| x).collect(),
-			NodeValue::Line(expr) => vec![expr],
 			NodeValue::Sequence(ls) => ls.iter().map(|x| x).collect(),
 			NodeValue::Group(it) => vec![it],
 			NodeValue::Block(head, body) => vec![head, body],
@@ -134,11 +132,6 @@ impl Display for NodeValue {
 					write!(f, "\n>")
 				}
 			},
-			NodeValue::Line(value) => {
-				let ctx = ctx.format_with_span();
-				ctx.is_used();
-				write!(f.indented(), "# Line:\n{value}")
-			}
 			NodeValue::Sequence(nodes) => {
 				let ctx = ctx.format_with_span();
 				ctx.is_used();
