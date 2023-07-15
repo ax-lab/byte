@@ -3,7 +3,7 @@ use super::*;
 pub trait ParseReplace {
 	fn can_replace(&self, node: &Node) -> bool;
 
-	fn replace(&self, ctx: &mut EvalContext, node: &Node) -> Result<Option<Node>>;
+	fn replace(&self, ctx: &mut OperatorContext, node: &Node) -> Result<Option<Node>>;
 }
 
 impl Node {
@@ -11,7 +11,7 @@ impl Node {
 		self.contains(|x| op.can_replace(x))
 	}
 
-	pub fn replace<T: ParseReplace>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
+	pub fn replace<T: ParseReplace>(&mut self, ctx: &mut OperatorContext, op: &T) -> Result<()> {
 		self.rewrite_res(|nodes| {
 			let changed = {
 				let mut changed = false;

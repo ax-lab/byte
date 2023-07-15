@@ -87,7 +87,7 @@ impl IsNodeOperator for OpParseBlocks {
 		self.find_block(node, 0).is_some()
 	}
 
-	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+	fn eval(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
 		let mut offset = 0;
 		let mut new_nodes = Vec::new();
 		while let Some((start, pivot, body, end)) = self.find_block(node, offset) {

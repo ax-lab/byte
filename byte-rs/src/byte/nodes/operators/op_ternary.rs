@@ -10,7 +10,7 @@ impl IsNodeOperator for OpTernary {
 		node.has_ternary(self)
 	}
 
-	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+	fn eval(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
 		node.parse_ternary(ctx, self)
 	}
 }
@@ -20,7 +20,7 @@ impl ParseTernary for OpTernary {
 		(&self.0, &self.1)
 	}
 
-	fn new_node(&self, ctx: &mut EvalContext, a: Node, b: Node, c: Node, span: Span) -> Result<Node> {
+	fn new_node(&self, ctx: &mut OperatorContext, a: Node, b: Node, c: Node, span: Span) -> Result<Node> {
 		let _ = ctx;
 		let node = (self.2)(a, b, c, ctx.scope_handle(), span);
 		Ok(node)

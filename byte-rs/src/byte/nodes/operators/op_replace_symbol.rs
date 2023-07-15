@@ -11,7 +11,7 @@ impl ParseReplace for ReplaceSymbol {
 		}
 	}
 
-	fn replace(&self, ctx: &mut EvalContext, node: &Node) -> Result<Option<Node>> {
+	fn replace(&self, ctx: &mut OperatorContext, node: &Node) -> Result<Option<Node>> {
 		let _ = ctx;
 		let new_node = &self.1;
 		if let Some(symbol) = node.symbol() {
@@ -31,7 +31,7 @@ impl IsNodeOperator for ReplaceSymbol {
 		node.can_replace(self)
 	}
 
-	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+	fn eval(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
 		node.replace(ctx, self)
 	}
 }

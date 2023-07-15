@@ -13,7 +13,7 @@ impl IsNodeOperator for OpStripComments {
 		node.can_filter(self)
 	}
 
-	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+	fn eval(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
 		let _ = ctx;
 		node.filter(self);
 		Ok(())

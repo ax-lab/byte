@@ -219,7 +219,7 @@ impl Program {
 					pc += 1;
 				}
 
-				let mut context = EvalContext::new(node);
+				let mut context = OperatorContext::new(node);
 				let version = node.version();
 				match node_op.eval(&mut context, node) {
 					Ok(()) => (),

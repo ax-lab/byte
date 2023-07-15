@@ -5,13 +5,13 @@ pub trait ParseSplitBy {
 
 	fn is_split(&self, node: &Node) -> bool;
 
-	fn new_node(&self, ctx: &mut EvalContext, node: Node) -> Result<Node>;
+	fn new_node(&self, ctx: &mut OperatorContext, node: Node) -> Result<Node>;
 }
 
 pub trait ParseSplitSequence {
 	fn is_split(&self, node: &Node) -> bool;
 
-	fn new_node(&self, ctx: &mut EvalContext, node: Vec<Node>, span: Span) -> Result<Node>;
+	fn new_node(&self, ctx: &mut OperatorContext, node: Vec<Node>, span: Span) -> Result<Node>;
 }
 
 impl Node {
@@ -23,7 +23,7 @@ impl Node {
 		self.contains(|x| op.is_split(x))
 	}
 
-	pub fn split<T: ParseSplitBy>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
+	pub fn split<T: ParseSplitBy>(&mut self, ctx: &mut OperatorContext, op: &T) -> Result<()> {
 		let scope = self.scope();
 		let mut new_nodes = Vec::new();
 		let mut line = Vec::new();
@@ -57,7 +57,7 @@ impl Node {
 		Ok(())
 	}
 
-	pub fn split_sequence<T: ParseSplitSequence>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
+	pub fn split_sequence<T: ParseSplitSequence>(&mut self, ctx: &mut OperatorContext, op: &T) -> Result<()> {
 		let scope = self.scope();
 		let mut new_nodes = Vec::new();
 		let mut line = Vec::new();

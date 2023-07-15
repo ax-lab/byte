@@ -21,7 +21,7 @@ impl ParseReplace for OpFor {
 		self.get_for(node).is_some()
 	}
 
-	fn replace(&self, ctx: &mut EvalContext, node: &Node) -> Result<Option<Node>> {
+	fn replace(&self, ctx: &mut OperatorContext, node: &Node) -> Result<Option<Node>> {
 		if let Some((head, body)) = self.get_for(node) {
 			let span = Span::merge(head.span(), body.span());
 			let mut errors = Errors::new();
@@ -90,7 +90,7 @@ impl IsNodeOperator for OpFor {
 		node.can_replace(self)
 	}
 
-	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+	fn eval(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
 		node.replace(ctx, self)
 	}
 }

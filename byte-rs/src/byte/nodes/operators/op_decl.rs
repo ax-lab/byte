@@ -19,7 +19,7 @@ impl IsNodeOperator for OpDecl {
 		node.can_fold(self)
 	}
 
-	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+	fn eval(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
 		node.fold(ctx, self)
 	}
 }
@@ -33,7 +33,7 @@ impl ParseFold for OpDecl {
 		}
 	}
 
-	fn new_node(&self, ctx: &mut EvalContext, lhs: Node, rhs: Node, span: Span) -> Result<Node> {
+	fn new_node(&self, ctx: &mut OperatorContext, lhs: Node, rhs: Node, span: Span) -> Result<Node> {
 		let name = lhs.get_symbol_at(lhs.len() - 1).unwrap();
 		let value = BindingValue::Node(rhs.clone());
 		let offset = if self.mode() == Decl::Const {

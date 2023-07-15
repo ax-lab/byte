@@ -11,7 +11,7 @@ impl ParseSplitSequence for CommaOperator {
 		}
 	}
 
-	fn new_node(&self, ctx: &mut EvalContext, node: Vec<Node>, span: Span) -> Result<Node> {
+	fn new_node(&self, ctx: &mut OperatorContext, node: Vec<Node>, span: Span) -> Result<Node> {
 		let _ = ctx;
 		Ok(NodeValue::Sequence(node.into()).at(ctx.scope_handle(), span))
 	}
@@ -22,7 +22,7 @@ impl IsNodeOperator for CommaOperator {
 		node.can_split_sequence(self)
 	}
 
-	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+	fn eval(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
 		node.split_sequence(ctx, self)
 	}
 }

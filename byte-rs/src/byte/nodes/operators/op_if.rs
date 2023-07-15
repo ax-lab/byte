@@ -45,7 +45,7 @@ impl IsNodeOperator for OpIf {
 		node.contains(|node| self.get_if(node).is_some())
 	}
 
-	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+	fn eval(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
 		let mut new_nodes = Vec::new();
 
 		let mut errors = Errors::new();

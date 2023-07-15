@@ -7,7 +7,7 @@ impl IsNodeOperator for OpSplitLine {
 		node.contains(|node| matches!(node.token(), Some(Token::Break(..))))
 	}
 
-	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+	fn eval(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
 		/*
 			Split nodes by line while grouping by indentation.
 

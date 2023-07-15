@@ -5,9 +5,9 @@ pub trait ParseBrackets {
 
 	fn is_bracket(&self, node: &Node) -> bool;
 
-	fn get_bracket(&self, ctx: &EvalContext, node: &Node) -> Option<Self::Bracket>;
+	fn get_bracket(&self, ctx: &OperatorContext, node: &Node) -> Option<Self::Bracket>;
 
-	fn new_node(&self, ctx: &mut EvalContext, sta: Self::Bracket, node: Node, end: Self::Bracket) -> Result<Node>;
+	fn new_node(&self, ctx: &mut OperatorContext, sta: Self::Bracket, node: Node, end: Self::Bracket) -> Result<Node>;
 }
 
 pub trait IsBracket: Clone + Display {
@@ -23,7 +23,7 @@ impl Node {
 		self.contains(|x| op.is_bracket(x))
 	}
 
-	pub fn parse_brackets<T: ParseBrackets>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
+	pub fn parse_brackets<T: ParseBrackets>(&mut self, ctx: &mut OperatorContext, op: &T) -> Result<()> {
 		self.rewrite_res(|nodes| {
 			let mut has_brackets = false;
 			let mut segments = VecDeque::new();

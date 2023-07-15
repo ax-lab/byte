@@ -3,7 +3,7 @@ use super::*;
 pub trait ParseTernary {
 	fn delimiters(&self) -> (&Symbol, &Symbol);
 
-	fn new_node(&self, ctx: &mut EvalContext, a: Node, b: Node, c: Node, span: Span) -> Result<Node>;
+	fn new_node(&self, ctx: &mut OperatorContext, a: Node, b: Node, c: Node, span: Span) -> Result<Node>;
 }
 
 impl Node {
@@ -19,7 +19,7 @@ impl Node {
 		}
 	}
 
-	pub fn parse_ternary<T: ParseTernary>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
+	pub fn parse_ternary<T: ParseTernary>(&mut self, ctx: &mut OperatorContext, op: &T) -> Result<()> {
 		let (sta, end) = op.delimiters();
 		for i in (0..self.len()).rev() {
 			if self.is_symbol_at(i, sta) {

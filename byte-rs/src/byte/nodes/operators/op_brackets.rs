@@ -22,7 +22,7 @@ impl ParseBrackets for BracketPairs {
 		}
 	}
 
-	fn get_bracket(&self, ctx: &EvalContext, node: &Node) -> Option<Self::Bracket> {
+	fn get_bracket(&self, ctx: &OperatorContext, node: &Node) -> Option<Self::Bracket> {
 		if let Some(symbol) = node.symbol() {
 			let span = node.span();
 			if let Some((end, bracket_fn)) = self.pairs.get(&symbol).cloned() {
@@ -46,7 +46,7 @@ impl ParseBrackets for BracketPairs {
 		}
 	}
 
-	fn new_node(&self, ctx: &mut EvalContext, sta: Self::Bracket, node: Node, end: Self::Bracket) -> Result<Node> {
+	fn new_node(&self, ctx: &mut OperatorContext, sta: Self::Bracket, node: Node, end: Self::Bracket) -> Result<Node> {
 		let _ = ctx;
 		let span = sta.span().to(end.span());
 		let (.., bracket_fn) = sta.scope_info.as_ref().unwrap();
@@ -73,7 +73,7 @@ impl IsNodeOperator for BracketPairs {
 		node.has_brackets(self)
 	}
 
-	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+	fn eval(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
 		node.parse_brackets(ctx, self)
 	}
 }
