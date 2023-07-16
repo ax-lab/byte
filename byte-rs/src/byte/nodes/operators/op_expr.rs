@@ -31,11 +31,11 @@ impl ParseExpr for OperatorSet {
 }
 
 impl IsNodeOperator for OperatorSet {
-	fn can_apply(&self, node: &Node) -> bool {
+	fn applies(&self, node: &Node) -> bool {
 		node.has_expr(self)
 	}
 
-	fn eval(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
+	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
 		node.parse_expr(ctx, self)
 	}
 }

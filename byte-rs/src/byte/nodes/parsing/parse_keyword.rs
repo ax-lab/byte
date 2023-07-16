@@ -15,7 +15,6 @@ impl Node {
 		let args = self.slice(1..);
 		let span = self.span();
 		let node = op.new_node(ctx, args, span)?;
-		node.get_dependencies(|list| ctx.add_new_node(list));
 		self.replace_all(vec![node]);
 		Ok(())
 	}

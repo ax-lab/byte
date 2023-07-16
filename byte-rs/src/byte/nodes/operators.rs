@@ -37,8 +37,6 @@ pub use op_unraw::*;
 /// Context for an [`NodeOperator`] application.
 pub struct OperatorContext {
 	scope: Scope,
-	new_nodes: Vec<Node>,
-	del_nodes: Vec<Node>,
 	declares: Vec<(Symbol, Option<usize>, BindingValue)>,
 }
 
@@ -46,8 +44,6 @@ impl OperatorContext {
 	pub fn new(node: &Node) -> Self {
 		Self {
 			scope: node.scope(),
-			new_nodes: Default::default(),
-			del_nodes: Default::default(),
 			declares: Default::default(),
 		}
 	}
@@ -60,28 +56,12 @@ impl OperatorContext {
 		self.scope.handle()
 	}
 
-	pub fn add_new_node(&mut self, list: &Node) {
-		self.new_nodes.push(list.clone());
-	}
-
-	pub fn forget_node(&mut self, list: &Node) {
-		self.del_nodes.push(list.clone());
-	}
-
 	pub fn declare_static(&mut self, symbol: Symbol, value: BindingValue) {
 		self.declares.push((symbol, None, value));
 	}
 
 	pub fn declare_at(&mut self, symbol: Symbol, offset: usize, value: BindingValue) {
 		self.declares.push((symbol, Some(offset), value));
-	}
-
-	pub(crate) fn get_nodes_to_add(&mut self, output: &mut Vec<Node>) {
-		output.append(&mut self.new_nodes)
-	}
-
-	pub(crate) fn get_nodes_to_del(&mut self, output: &mut Vec<Node>) {
-		output.append(&mut self.del_nodes)
 	}
 
 	pub(crate) fn get_declares(&mut self) -> Vec<(Symbol, Option<usize>, BindingValue)> {
@@ -95,9 +75,9 @@ impl OperatorContext {
 
 /// An operation applicable to a [`Node`] and [`Scope`].
 pub trait IsNodeOperator {
-	fn eval(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()>;
+	fn applies(&self, node: &Node) -> bool;
 
-	fn can_apply(&self, node: &Node) -> bool;
+	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()>;
 }
 
 /// Evaluation order precedence for [`NodeOperator`].
@@ -148,15 +128,7 @@ pub enum NodeOperator {
 }
 
 impl NodeOperator {
-	pub fn get_for_node(&self, node: &Node) -> Option<Arc<dyn IsNodeOperator>> {
-		if let NodeValue::Raw(..) = node.val() {
-			Some(self.get_impl())
-		} else {
-			None
-		}
-	}
-
-	fn get_impl(&self) -> Arc<dyn IsNodeOperator> {
+	pub fn get_impl(&self) -> Arc<dyn IsNodeOperator> {
 		match self {
 			NodeOperator::Brackets(pairs) => Arc::new(pairs.clone()),
 			NodeOperator::Block(symbol) => Arc::new(OpParseBlocks(symbol.clone())),
@@ -351,38 +323,203 @@ pub fn default_operators() -> OperatorSet {
 // Operator binding logic
 //====================================================================================================================//
 
+/*
+	NOTE ON PERFORMANCE
+	===================
+
+	The algorithm below is absolutely abhorrent and is the core algorithm that
+	runs for parsing the input source. Having this be the fastest it can is
+	crucial for the compilation performance.
+
+	Ideas to improve performance:
+
+	- Each operator should keep an index of applicable nodes. Finding the next
+	  applicable operator and its set of nodes would be O(1).
+
+		- We need to keep a set of active (non-empty) operators sorted by index.
+		- The index does not need to be perfect, as that would be very hard to
+		  keep. Even with false positives, it should allow quickly culling the
+		  set of nodes for an operator and quickly identifying no-ops.
+		- Nodes that have been applied an operator, should be saved so that they
+		  are out of consideration for that operator.
+			- This could be as simple as saving the last processed node ID
+			  for each operator (assuming Node IDs are strictly incremental).
+
+	- As nodes are created, we need a fast lookup function to identify which
+	  operators could apply to a node. In some cases, it might make more sense
+	  to keep an index of specific node types instead.
+
+	- The index above would not be perfect, so operators still need to check
+	  their apply condition to nodes. That should be done only for the highest
+	  precedence operator globally.
+
+	- We might need a quick way of removing nodes from all indexes (e.g. once
+	  they have been absorbed into another node). This could be a culling step
+	  in the apply condition.
+
+	- Consider having the tree of nodes as a flattened list of segments. A lot
+	  of the nodes would consist of those (e.g. tokens, lines, groups, block
+	  segments).
+
+	- Quickly looking up parent info for some of the nodes can be crucial for
+	  some of the parsing operators.
+
+	- A lot of the operator can apply locally by simply replacing a node value.
+	  This should be a very fast operation.
+
+	Minor:
+
+	- Most scopes won't change the set of operators applicable, so there should
+	  be a fast path for that.
+
+*/
+
+pub struct NodeOperation {
+	node: Node,
+	location: NodeLocation,
+	operator: NodeOperator,
+	operator_impl: Arc<dyn IsNodeOperator>,
+}
+
+impl NodeOperation {
+	pub fn node(&self) -> &Node {
+		&self.node
+	}
+
+	pub fn operator(&self) -> &NodeOperator {
+		&self.operator
+	}
+
+	pub fn operator_impl(&self) -> &dyn IsNodeOperator {
+		&*self.operator_impl
+	}
+
+	pub fn parent(&self) -> Option<(&Node, usize)> {
+		self.location.parent.as_ref().map(|(node, index)| (node, *index))
+	}
+}
+
+#[derive(Clone, Default)]
+struct NodeLocation {
+	parent: Option<(Node, usize)>,
+	path: Arc<Vec<(Node, usize)>>,
+}
+
+impl NodeLocation {
+	pub fn push(&self, parent: Node) -> NodeLocation {
+		let mut output = self.clone();
+		if let Some((cur_parent, cur_index)) = std::mem::take(&mut output.parent) {
+			let path = Arc::make_mut(&mut output.path);
+			path.push((cur_parent, cur_index));
+		}
+		output.parent = Some((parent, 0));
+		output
+	}
+
+	pub fn set_index(&mut self, index: usize) {
+		self.parent = std::mem::take(&mut self.parent).map(|(node, _)| (node, index));
+	}
+}
+
 impl Node {
-	pub fn get_next_node_operator(
+	pub fn get_node_operations(
 		&self,
 		max_precedence: Option<NodePrecedence>,
-	) -> Result<Option<(NodeOperator, Arc<dyn IsNodeOperator>, NodePrecedence)>> {
+	) -> Result<Option<(Vec<NodeOperation>, NodePrecedence)>> {
+		let location = NodeLocation {
+			parent: None,
+			path: Vec::new().into(),
+		};
+		self.do_get_node_operations(max_precedence, &location)
+	}
+
+	fn do_get_node_operations(
+		&self,
+		max_precedence: Option<NodePrecedence>,
+		location: &NodeLocation,
+	) -> Result<Option<(Vec<NodeOperation>, NodePrecedence)>> {
+		let mut errors = Errors::new();
+
+		// collect all operators for child nodes
+		let (mut operations, mut max_precedence) = {
+			let mut cur_precedence = max_precedence;
+			let mut cur_ops = Vec::new();
+			let mut location = location.push(self.clone());
+			for (index, it) in self.val().children().into_iter().enumerate() {
+				location.set_index(index);
+				let ops = it.do_get_node_operations(cur_precedence, &location).handle(&mut errors);
+				if let Some((mut ops, prec)) = ops {
+					if cur_precedence.is_none() || Some(prec) < cur_precedence {
+						assert!(ops.len() > 0);
+						cur_precedence = Some(prec);
+						cur_ops.clear();
+						cur_ops.append(&mut ops);
+					} else {
+						assert!(ops.len() > 0);
+						assert!(cur_precedence.is_none() || Some(prec) == cur_precedence);
+						cur_ops.append(&mut ops);
+					}
+				}
+			}
+			(cur_ops, cur_precedence)
+		};
+
+		// collect operators that apply to this node
 		let operators = self.scope().get_node_operators().into_iter().filter_map(|(op, prec)| {
-			op.get_for_node(self)
-				.and_then(|node_op| if node_op.can_apply(self) { Some(node_op) } else { None })
-				.map(|node_op| (op, node_op, prec))
-		});
-		let mut operators = operators.take_while(|(.., prec)| {
-			if let Some(max) = max_precedence {
-				prec <= &max && prec != &NodePrecedence::Never
+			if max_precedence.is_none() || Some(prec) <= max_precedence {
+				let op_impl = op.get_impl();
+				if op_impl.applies(self) {
+					Some((op, op_impl, prec))
+				} else {
+					None
+				}
 			} else {
-				true
+				None
 			}
 		});
 
-		if let Some((op, node_op, prec)) = operators.next() {
+		let mut operators = operators.take_while(|(.., prec)| {
+			prec != &NodePrecedence::Never
+				&& if let Some(max) = max_precedence {
+					prec <= &max
+				} else {
+					true
+				}
+		});
+
+		// do we have an operator for this node?
+		if let Some((op, op_impl, prec)) = operators.next() {
+			// validate that we have only one applicable operator
 			let operators = operators.take_while(|(.., op_prec)| op_prec == &prec && prec != NodePrecedence::Never);
 			let operators = operators.collect::<Vec<_>>();
 			if operators.len() > 0 {
-				let mut error =
-					format!("ambiguous node list can accept multiple node operators at the same precedence\n-> {op:?}");
+				let mut error = format!("node can accept multiple node operators at the same precedence\n-> {op:?}");
 				for (op, ..) in operators {
 					let _ = write!(error, ", {op:?}");
 				}
 				let _ = write!(error.indented(), "\n-> {self:?}");
-				Err(Errors::from(error, self.span()))
+				errors.add(error, self.span())
 			} else {
-				Ok(Some((op, node_op, prec)))
+				// if our operation takes precedence, ignore child operations
+				if let Some(max_precedence) = max_precedence {
+					if prec < max_precedence {
+						operations.clear();
+					}
+				}
+
+				max_precedence = Some(prec);
+				operations.push(NodeOperation {
+					node: self.clone(),
+					location: location.clone(),
+					operator: op,
+					operator_impl: op_impl,
+				})
 			}
+		}
+
+		errors.check()?;
+		if operations.len() > 0 {
+			Ok(Some((operations, max_precedence.unwrap())))
 		} else {
 			Ok(None)
 		}

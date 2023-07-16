@@ -18,11 +18,11 @@ impl ParseSplitSequence for CommaOperator {
 }
 
 impl IsNodeOperator for CommaOperator {
-	fn can_apply(&self, node: &Node) -> bool {
+	fn applies(&self, node: &Node) -> bool {
 		node.can_split_sequence(self)
 	}
 
-	fn eval(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
+	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
 		node.split_sequence(ctx, self)
 	}
 }

@@ -15,6 +15,14 @@ impl Errors {
 		Self::default()
 	}
 
+	pub fn check(self) -> Result<()> {
+		if self.len() > 0 {
+			Err(self)
+		} else {
+			Ok(())
+		}
+	}
+
 	pub fn at_pos(mut self, new_span: Span) -> Self {
 		let list = Arc::make_mut(&mut self.list);
 		for (_, span) in list.iter_mut() {
@@ -139,6 +147,8 @@ pub trait ResultChain {
 
 	fn at_pos(self, span: Span) -> Self;
 	fn at<T: Into<String>>(self, context: T, span: Span) -> Self;
+
+	fn take_errors(self, errors: &mut Errors);
 }
 
 impl<T> ResultChain for Result<T> {
@@ -174,7 +184,13 @@ impl<T> ResultChain for Result<T> {
 
 	fn unless(self, errors: Errors) -> Self {
 		if !errors.empty() {
-			self.and(Err(errors))
+			match self {
+				Ok(..) => Err(errors),
+				Err(mut err) => {
+					err.append(&errors);
+					Err(err)
+				}
+			}
 		} else {
 			self
 		}
@@ -191,6 +207,13 @@ impl<T> ResultChain for Result<T> {
 		match self {
 			ok @ Ok(_) => ok,
 			Err(errors) => Err(errors.at(context, span)),
+		}
+	}
+
+	fn take_errors(self, errors: &mut Errors) {
+		match self {
+			Err(err) => errors.append(&err),
+			_ => (),
 		}
 	}
 }

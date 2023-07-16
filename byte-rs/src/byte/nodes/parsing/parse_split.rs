@@ -37,7 +37,6 @@ impl Node {
 					continue;
 				}
 				let node = op.new_node(ctx, node)?;
-				node.get_dependencies(|list| ctx.add_new_node(list));
 				new_nodes.push(node);
 			} else {
 				line.push(it.clone());
@@ -47,7 +46,6 @@ impl Node {
 		if line.len() > 0 {
 			let node = Node::raw(std::mem::take(&mut line), scope.handle());
 			let node = op.new_node(ctx, node)?;
-			node.get_dependencies(|list| ctx.add_new_node(list));
 			new_nodes.push(node);
 		}
 
@@ -67,7 +65,6 @@ impl Node {
 			if op.is_split(&it) {
 				let node = std::mem::take(&mut line);
 				let node = Node::raw(node, scope.handle());
-				ctx.add_new_node(&node);
 				new_nodes.push(node);
 				has_splits = true;
 			} else {
@@ -79,7 +76,6 @@ impl Node {
 			if line.len() > 0 {
 				let node = std::mem::take(&mut line);
 				let node = Node::raw(node, scope.handle());
-				ctx.add_new_node(&node);
 				new_nodes.push(node);
 			}
 

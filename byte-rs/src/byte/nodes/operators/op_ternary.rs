@@ -6,11 +6,11 @@ pub type TernaryNodeFn = Arc<dyn Fn(Node, Node, Node, ScopeHandle, Span) -> Node
 pub struct OpTernary(pub Symbol, pub Symbol, pub TernaryNodeFn);
 
 impl IsNodeOperator for OpTernary {
-	fn can_apply(&self, node: &Node) -> bool {
+	fn applies(&self, node: &Node) -> bool {
 		node.has_ternary(self)
 	}
 
-	fn eval(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
+	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
 		node.parse_ternary(ctx, self)
 	}
 }

@@ -9,7 +9,7 @@ pub struct Program {
 struct ProgramData {
 	compiler: Compiler,
 	scopes: ScopeList,
-	to_process: RwLock<Vec<Node>>,
+	nodes: RwLock<Vec<Node>>,
 	run_list: RwLock<Vec<Node>>,
 	runtime: RwLock<RuntimeScope>,
 	dump_code: RwLock<bool>,
@@ -70,7 +70,7 @@ impl Program {
 			ProgramData {
 				compiler,
 				scopes,
-				to_process: Default::default(),
+				nodes: Default::default(),
 				run_list: Default::default(),
 				runtime: Default::default(),
 				dump_code: Default::default(),
@@ -146,14 +146,12 @@ impl Program {
 		let scope = self.root_scope().new_child();
 		let mut scope = self.data.scopes.get_writer(scope.get());
 		let node = scan(&mut scope, &span)?;
-		let mut segments = self.data.to_process.write().unwrap();
+		let mut segments = self.data.nodes.write().unwrap();
 		segments.push(node.clone());
 		Ok(node)
 	}
 
 	fn run_resolved(&self, node: &Node) -> Result<Value> {
-		node.sanity_check();
-
 		let mut context = CodeContext::new();
 		if self.dump_enabled() {
 			context.dump_code();
@@ -170,7 +168,7 @@ impl Program {
 	}
 
 	pub fn resolve(&self) -> Result<()> {
-		let mut nodes_to_process = self.data.to_process.write().unwrap();
+		let mut nodes_to_process = self.data.nodes.write().unwrap();
 
 		let mut errors = Errors::new();
 		let mut pc = 0;
@@ -178,19 +176,23 @@ impl Program {
 			let mut to_process = Vec::new();
 			let mut precedence = None;
 
+			if DEBUG_PROCESSING {
+				println!("\n=> processing {} node(s)", nodes_to_process.len());
+			}
+
 			// collect the applicable operator for all segments
 			for it in nodes_to_process.iter_mut() {
-				match it.get_next_node_operator(precedence) {
-					Ok(Some((op, node_op, op_prec))) => {
-						assert!(precedence.is_none() || Some(op_prec) <= precedence);
-						precedence = Some(op_prec);
-						to_process.push((op, node_op, op_prec, it));
+				match it.get_node_operations(precedence) {
+					Ok(Some((changes, prec))) => {
+						assert!(precedence.is_none() || Some(prec) <= precedence);
+						precedence = Some(prec);
+						to_process.push((changes, prec));
 					}
 					Ok(None) => {
 						// do nothing
 					}
-					Err(segment_errors) => {
-						errors.append(&segment_errors);
+					Err(node_errors) => {
+						errors.append(&node_errors);
 					}
 				}
 			}
@@ -204,37 +206,39 @@ impl Program {
 			let precedence = precedence.unwrap();
 
 			// only process segments that are at the highest precedence level
-			let to_process = to_process.into_iter().filter(|(_, _, prec, _)| *prec == precedence);
+			let to_process = to_process.into_iter().filter(|(_, prec)| *prec == precedence);
 
 			let mut has_changes = false;
 
-			let mut new_nodes = Vec::new();
-			let mut del_nodes = Vec::new();
+			let to_process = to_process.flat_map(|(ops, _)| ops.into_iter());
 
-			for (op, node_op, prec, node) in to_process {
+			for change in to_process {
+				let node = change.node();
+				let op = change.operator();
 				if DEBUG_PROCESSING {
-					let id = node.id();
-					let val = node.val();
-					println!("\n-> #{pc} -- apply {op:?} with precedence {prec:?} to node {id}:\n\n{val}");
+					println!("\n-> #{pc}: apply {op:?} to {}", node.short_repr());
 					pc += 1;
 				}
 
 				let mut context = OperatorContext::new(node);
 				let version = node.version();
-				match node_op.eval(&mut context, node) {
+				let mut node = node.clone(); // TODO: maybe have a node writer?
+				match change.operator_impl().execute(&mut context, &mut node) {
 					Ok(()) => (),
 					Err(errs) => {
 						errors.append(&errs);
 					}
 				};
 				let changed = node.version() > version;
-
-				context.get_nodes_to_add(&mut new_nodes);
-				context.get_nodes_to_del(&mut del_nodes);
 				has_changes = has_changes || changed;
 
 				let declares = context.get_declares();
 				drop(context);
+
+				if DEBUG_PROCESSING_DETAIL {
+					let pc = pc - 1;
+					println!("\n-> RESULT #{pc} = {node}");
+				}
 
 				let scope = node.scope_handle().get();
 				let mut writer = self.data.scopes.get_writer(scope);
@@ -261,24 +265,6 @@ impl Program {
 					println!("\n=====================");
 				}
 				return Err(errors);
-			}
-
-			for it in new_nodes {
-				if !nodes_to_process.iter().any(|x| x.id() == it.id()) {
-					if DEBUG_PROCESSING {
-						println!("\n--> queueing {} {it:?}\n", it.id());
-					}
-					has_changes = true;
-					nodes_to_process.push(it);
-				}
-			}
-
-			// TODO: optimize segment handling
-			for it in del_nodes {
-				*nodes_to_process = std::mem::take(&mut *nodes_to_process)
-					.into_iter()
-					.filter(|x| x.id() != it.id())
-					.collect();
 			}
 
 			if !has_changes {

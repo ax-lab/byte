@@ -21,7 +21,6 @@ struct NodeData {
 	value: RwLock<NodeValue>,
 	version: RwLock<usize>,
 	scope: ScopeHandle,
-	parent: RwLock<Option<(Weak<NodeData>, usize)>>,
 }
 
 impl Node {
@@ -36,10 +35,8 @@ impl Node {
 			value,
 			version,
 			scope,
-			parent: Default::default(),
 		};
 		let node = Self { data: data.into() };
-		node.fixup_children(&node.data.value.read().unwrap());
 		node
 	}
 
@@ -54,38 +51,6 @@ impl Node {
 
 	pub fn version(&self) -> usize {
 		*self.data.version.read().unwrap()
-	}
-
-	pub fn parent(&self) -> Option<Node> {
-		self.get_parent().map(|x| x.0)
-	}
-
-	pub fn next(&self) -> Option<Node> {
-		self.get_parent().and_then(|(node, index)| node.get(index + 1))
-	}
-
-	pub fn prev(&self) -> Option<Node> {
-		self.get_parent()
-			.and_then(|(node, index)| if index > 0 { node.get(index - 1) } else { None })
-	}
-
-	fn get_parent(&self) -> Option<(Node, usize)> {
-		let parent = self.data.parent.read().unwrap();
-		parent.as_ref().and_then(|(data, index)| {
-			if let Some(data) = data.upgrade() {
-				Some((Node { data }, *index))
-			} else {
-				None
-			}
-		})
-	}
-
-	fn set_parent(&self, new_parent: Option<(&Node, usize)>) {
-		let new_parent = new_parent.map(|(node, index)| (Arc::downgrade(&node.data), index));
-		self.write(|| {
-			let mut parent = self.data.parent.write().unwrap();
-			*parent = new_parent;
-		});
 	}
 
 	pub fn val(&self) -> NodeValue {
@@ -120,12 +85,6 @@ impl Node {
 		self.write(|| {
 			let mut value = self.data.value.write().unwrap();
 			let mut span = self.data.span.write().unwrap();
-
-			for it in value.children() {
-				it.set_parent(None);
-			}
-			self.fixup_children(&new_value);
-
 			*value = new_value;
 			*span = new_span;
 		});
@@ -137,15 +96,13 @@ impl Node {
 		(write)()
 	}
 
-	fn fixup_children(&self, value: &NodeValue) {
-		for (index, it) in value.children().iter().enumerate() {
-			it.set_parent(Some((self, index)));
-		}
-	}
-
 	//----------------------------------------------------------------------------------------------------------------//
 	// Node value helpers
 	//----------------------------------------------------------------------------------------------------------------//
+
+	pub fn short_repr(&self) -> String {
+		self.val().short_repr()
+	}
 
 	/// Number of child nodes.
 	pub fn len(&self) -> usize {
@@ -214,30 +171,6 @@ impl Node {
 
 	pub fn symbol(&self) -> Option<Symbol> {
 		self.val().symbol()
-	}
-
-	pub(crate) fn sanity_check(&self) {
-		let mut prev = None;
-		let mut next = self.get(0);
-		for it in self.val().children() {
-			assert_eq!(Some(it), next.as_ref());
-			next = it.next();
-			let parent = it.parent();
-			if parent.as_ref().map(|x| x.id()) != Some(self.id()) {
-				let msg = "\n\nsanity check failed: child/parent is broken:\n\n";
-				panic!(
-					"{msg}-> child:\n{it}\n\n-> should be parent:\n{self}\n\n-> but was: {}\n\n",
-					if let Some(parent) = parent {
-						format!("{parent}")
-					} else {
-						format!("(none)")
-					}
-				);
-			}
-			assert!(it.prev() == prev);
-			prev = Some(it.clone());
-			it.sanity_check();
-		}
 	}
 }
 

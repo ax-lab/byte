@@ -12,7 +12,6 @@ impl OpIf {
 
 	fn get_if(&self, node: &Node) -> Option<(Node, Node)> {
 		match node.val() {
-			NodeValue::Raw(list) if list.len() == 1 => self.get_if(&list[0]),
 			NodeValue::Block(head, body) => {
 				if head.is_symbol_at(0, &self.symbol_if) {
 					Some((head, body))
@@ -26,7 +25,6 @@ impl OpIf {
 
 	fn get_else(&self, node: &Node) -> Option<(Node, Node, bool)> {
 		match node.val() {
-			NodeValue::Raw(list) if list.len() == 1 => self.get_else(&list[0]),
 			NodeValue::Block(head, body) => {
 				if head.is_symbol_at(0, &self.symbol_else) {
 					let is_if = head.is_symbol_at(1, &self.symbol_if);
@@ -41,11 +39,11 @@ impl OpIf {
 }
 
 impl IsNodeOperator for OpIf {
-	fn can_apply(&self, node: &Node) -> bool {
+	fn applies(&self, node: &Node) -> bool {
 		node.contains(|node| self.get_if(node).is_some())
 	}
 
-	fn eval(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
+	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
 		let mut new_nodes = Vec::new();
 
 		let mut errors = Errors::new();
@@ -56,9 +54,6 @@ impl IsNodeOperator for OpIf {
 			if let Some((head, body)) = self.get_if(&child) {
 				let span = Span::merge(head.span(), body.span());
 				let cond = head.slice(1..);
-
-				ctx.forget_node(&head);
-				ctx.add_new_node(&cond);
 
 				let mut else_ifs = VecDeque::new();
 				let mut if_false = None;
@@ -73,23 +68,19 @@ impl IsNodeOperator for OpIf {
 					if let Some(node) = node.get(m) {
 						if let Some((head, body, is_if)) = self.get_else(&node) {
 							n = m;
-							ctx.forget_node(&head);
 							if is_if {
 								let head = head.slice(2..);
 								if head.len() == 0 {
 									errors.add("if condition missing", head.span());
 								}
-								ctx.add_new_node(&head);
 								else_ifs.push_back((head, body));
 							} else if head.len() == 1 {
 								if_false = Some(body);
 							} else {
 								let head = head.slice(1..);
-								ctx.add_new_node(&head);
 								let span = Span::merge(head.span(), body.span());
 								let node = NodeValue::Block(head, body.clone()).at(ctx.scope_handle(), span);
 								let node = node.to_raw();
-								ctx.add_new_node(&node);
 								if_false = Some(node);
 							}
 						} else {
@@ -109,7 +100,6 @@ impl IsNodeOperator for OpIf {
 					};
 					let node = node.at(ctx.scope_handle(), span);
 					let node = Node::raw(vec![node], ctx.scope_handle());
-					ctx.add_new_node(&node);
 					if_false = Some(node);
 				}
 

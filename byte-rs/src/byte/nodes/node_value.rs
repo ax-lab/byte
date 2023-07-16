@@ -98,6 +98,42 @@ impl NodeValue {
 			output(it);
 		}
 	}
+
+	pub fn short_repr(&self) -> String {
+		let short = |title, list| {
+			let span = Span::from_node_vec(list);
+			let ctx = Context::get();
+			ctx.with_format(ctx.format().with_mode(Mode::Minimal), || format!("<{title} {span}>"))
+		};
+		match self {
+			NodeValue::Token(token) => format!("<{token}>"),
+			NodeValue::Null => format!("<null>"),
+			NodeValue::Boolean(value) => format!("<{value}>"),
+			NodeValue::Raw(list) => short("raw", list),
+			NodeValue::Sequence(list) => short("seq", list),
+			NodeValue::Group(value) => {
+				let repr = value.short_repr();
+				format!("<group({repr})>")
+			}
+			NodeValue::Block(head, ..) => {
+				let head = head.short_repr();
+				format!("<block {head}...>")
+			}
+			NodeValue::If { expr, .. } => {
+				let expr = expr.short_repr();
+				format!("<if {expr}...>")
+			}
+			NodeValue::For { var, from, to, .. } => format!("<for {var} in {from}..{to}>"),
+			NodeValue::Let(name, _, expr) => format!("<let {name} = {}>", expr.short_repr()),
+			NodeValue::UnaryOp(op, arg) => format!("<{op} {}>", arg.short_repr()),
+			NodeValue::BinaryOp(op, lhs, rhs) => format!("<{op} {} {}>", lhs.short_repr(), rhs.short_repr()),
+			NodeValue::Variable(name, _) => format!("<var {name}>"),
+			NodeValue::Print(expr, _) => format!("<print {}>", expr.short_repr()),
+			NodeValue::Conditional(a, b, c) => {
+				format!("<{} ? {} : {}>", a.short_repr(), b.short_repr(), c.short_repr())
+			}
+		}
+	}
 }
 
 impl Display for NodeValue {

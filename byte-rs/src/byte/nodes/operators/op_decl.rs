@@ -15,11 +15,11 @@ impl OpDecl {
 }
 
 impl IsNodeOperator for OpDecl {
-	fn can_apply(&self, node: &Node) -> bool {
+	fn applies(&self, node: &Node) -> bool {
 		node.can_fold(self)
 	}
 
-	fn eval(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
+	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
 		node.fold(ctx, self)
 	}
 }

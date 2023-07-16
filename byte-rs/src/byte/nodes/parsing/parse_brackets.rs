@@ -40,7 +40,6 @@ impl Node {
 							let node = segments.pop_back().unwrap();
 							let node = Node::raw(node, scope);
 							let node = op.new_node(ctx, start, node, cur)?;
-							node.get_dependencies(|list| ctx.add_new_node(list));
 							segments.back_mut().unwrap().push(node);
 							continue;
 						}

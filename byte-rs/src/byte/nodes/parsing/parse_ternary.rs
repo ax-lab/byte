@@ -32,8 +32,6 @@ impl Node {
 						let b = Node::raw(b, self.scope_handle());
 						let c = Node::raw(c, self.scope_handle());
 						let node = op.new_node(ctx, a, b, c, self.span())?;
-						node.get_dependencies(|list| ctx.add_new_node(list));
-
 						self.set_value(node.val(), node.span());
 						return Ok(());
 					}
