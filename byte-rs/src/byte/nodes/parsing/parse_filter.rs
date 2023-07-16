@@ -10,7 +10,7 @@ impl Node {
 	}
 
 	pub fn filter<T: ParseFilter>(&mut self, op: &T) {
-		self.write(|nodes| {
+		self.rewrite(|nodes| {
 			*nodes = std::mem::take(nodes).into_iter().filter(|x| op.filter(&x)).collect();
 			true
 		});

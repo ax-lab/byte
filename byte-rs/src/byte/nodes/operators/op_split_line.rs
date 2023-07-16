@@ -3,11 +3,11 @@ use super::*;
 pub struct OpSplitLine;
 
 impl IsNodeOperator for OpSplitLine {
-	fn can_apply(&self, node: &Node) -> bool {
+	fn applies(&self, node: &Node) -> bool {
 		node.contains(|node| matches!(node.token(), Some(Token::Break(..))))
 	}
 
-	fn eval(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
 		/*
 			Split nodes by line while grouping by indentation.
 
@@ -68,10 +68,7 @@ impl IsNodeOperator for OpSplitLine {
 
 		let new_nodes = lines.into_iter().filter(|nodes| nodes.len() > 0).map(|nodes| {
 			let node = Node::raw(nodes, ctx.scope_handle());
-			let span = node.span();
-			ctx.add_new_node(&node);
-			// TODO: this indirection can probably be removed
-			NodeValue::Line(node).at(ctx.scope_handle(), span)
+			node
 		});
 
 		node.replace_all(new_nodes.collect());

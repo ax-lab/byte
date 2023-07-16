@@ -79,6 +79,7 @@ const MAX_ERRORS: usize = 10;
 const DUMP_CODE: bool = false;
 
 const DEBUG_PROCESSING: bool = false;
+const DEBUG_PROCESSING_DETAIL: bool = false;
 
 pub type Result<T> = std::result::Result<T, Errors>;
 

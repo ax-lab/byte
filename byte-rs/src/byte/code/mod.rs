@@ -69,10 +69,8 @@ impl CodeContext {
 
 impl Node {
 	pub fn generate_code(&self, context: &mut CodeContext) -> Result<Expr> {
-		let mut errors = Errors::new();
-
-		let output = self.generate_node(context).handle(&mut errors);
-		if (errors.len() > 0 && DEBUG_NODES) || DUMP_CODE || context.dump_code {
+		let output = self.generate_node(context);
+		if (output.is_err() && DEBUG_NODES) || DUMP_CODE || context.dump_code {
 			println!("\n------ SOURCE ------\n");
 			println!("{self}");
 			println!("\n--------------------");
@@ -82,7 +80,7 @@ impl Node {
 			println!("\n--------------------");
 		}
 
-		Ok(output).unless(errors).at_pos(self.span())
+		output.at_pos(self.span())
 	}
 
 	fn generate_node(&self, context: &mut CodeContext) -> Result<Expr> {
@@ -95,9 +93,12 @@ impl Node {
 					let mut errors = Errors::new();
 					let mut sequence = Vec::new();
 					for node in list.iter() {
-						let expr = node.generate_node(context).handle(&mut errors);
-						sequence.push(expr);
+						match node.generate_node(context) {
+							Ok(expr) => sequence.push(expr),
+							Err(err) => errors.append(&err),
+						}
 					}
+					errors.check()?;
 					Expr::Sequence(sequence)
 				}
 			},
@@ -119,7 +120,6 @@ impl Node {
 			}
 			NodeValue::Null => Expr::Null,
 			NodeValue::Token(Token::Literal(value)) => Expr::Str(value.clone()),
-			NodeValue::Line(list) => list.generate_node(context)?,
 			NodeValue::Group(list) => list.generate_node(context)?,
 			NodeValue::Let(name, offset, list) => {
 				let expr = list.generate_node(context)?;
@@ -184,15 +184,15 @@ impl Node {
 				let mut errors = Errors::new();
 				let mut sequence = Vec::new();
 				for it in list.iter() {
-					let it = it.generate_node(context).handle(&mut errors);
-					sequence.push(it);
+					match it.generate_node(context) {
+						Ok(expr) => sequence.push(expr),
+						Err(err) => errors.append(&err),
+					};
 					if errors.len() >= MAX_ERRORS {
 						break;
 					}
 				}
-				if !errors.empty() {
-					return Err(errors);
-				}
+				errors.check()?;
 				Expr::Sequence(sequence)
 			}
 			NodeValue::Conditional(a, b, c) => {
@@ -221,9 +221,8 @@ impl Node {
 //====================================================================================================================//
 
 /// Enumeration of builtin root expressions.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub enum Expr {
-	#[default]
 	Never,
 	Unit,
 	Null,

@@ -5,13 +5,13 @@ pub trait ParseSplitBy {
 
 	fn is_split(&self, node: &Node) -> bool;
 
-	fn new_node(&self, ctx: &mut EvalContext, node: Node) -> Result<Node>;
+	fn new_node(&self, ctx: &mut OperatorContext, node: Node) -> Result<Node>;
 }
 
 pub trait ParseSplitSequence {
 	fn is_split(&self, node: &Node) -> bool;
 
-	fn new_node(&self, ctx: &mut EvalContext, node: Vec<Node>, span: Span) -> Result<Node>;
+	fn new_node(&self, ctx: &mut OperatorContext, node: Vec<Node>, span: Span) -> Result<Node>;
 }
 
 impl Node {
@@ -23,7 +23,7 @@ impl Node {
 		self.contains(|x| op.is_split(x))
 	}
 
-	pub fn split<T: ParseSplitBy>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
+	pub fn split<T: ParseSplitBy>(&mut self, ctx: &mut OperatorContext, op: &T) -> Result<()> {
 		let scope = self.scope();
 		let mut new_nodes = Vec::new();
 		let mut line = Vec::new();
@@ -37,7 +37,6 @@ impl Node {
 					continue;
 				}
 				let node = op.new_node(ctx, node)?;
-				node.get_dependencies(|list| ctx.add_new_node(list));
 				new_nodes.push(node);
 			} else {
 				line.push(it.clone());
@@ -47,7 +46,6 @@ impl Node {
 		if line.len() > 0 {
 			let node = Node::raw(std::mem::take(&mut line), scope.handle());
 			let node = op.new_node(ctx, node)?;
-			node.get_dependencies(|list| ctx.add_new_node(list));
 			new_nodes.push(node);
 		}
 
@@ -57,7 +55,7 @@ impl Node {
 		Ok(())
 	}
 
-	pub fn split_sequence<T: ParseSplitSequence>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
+	pub fn split_sequence<T: ParseSplitSequence>(&mut self, ctx: &mut OperatorContext, op: &T) -> Result<()> {
 		let scope = self.scope();
 		let mut new_nodes = Vec::new();
 		let mut line = Vec::new();
@@ -67,7 +65,6 @@ impl Node {
 			if op.is_split(&it) {
 				let node = std::mem::take(&mut line);
 				let node = Node::raw(node, scope.handle());
-				ctx.add_new_node(&node);
 				new_nodes.push(node);
 				has_splits = true;
 			} else {
@@ -79,7 +76,6 @@ impl Node {
 			if line.len() > 0 {
 				let node = std::mem::take(&mut line);
 				let node = Node::raw(node, scope.handle());
-				ctx.add_new_node(&node);
 				new_nodes.push(node);
 			}
 
