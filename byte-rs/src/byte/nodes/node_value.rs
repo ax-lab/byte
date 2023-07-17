@@ -7,6 +7,7 @@ use super::*;
 /// definitions.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum NodeValue {
+	Code(Expr),
 	Token(Token),
 	Null,
 	Boolean(bool),
@@ -65,6 +66,7 @@ impl NodeValue {
 
 	pub fn children(&self) -> Vec<&Node> {
 		match self {
+			NodeValue::Code(_) => vec![],
 			NodeValue::Token(_) => vec![],
 			NodeValue::Null => vec![],
 			NodeValue::Boolean(_) => vec![],
@@ -106,6 +108,7 @@ impl NodeValue {
 			ctx.with_format(ctx.format().with_mode(Mode::Minimal), || format!("<{title} {span}>"))
 		};
 		match self {
+			NodeValue::Code(expr) => format!("<!{expr:?}>"),
 			NodeValue::Token(token) => format!("<{token}>"),
 			NodeValue::Null => format!("<null>"),
 			NodeValue::Boolean(value) => format!("<{value}>"),
@@ -142,6 +145,7 @@ impl Display for NodeValue {
 		ctx.is_used();
 
 		match self {
+			NodeValue::Code(code) => write!(f, "{code}"),
 			NodeValue::Token(token) => write!(f, "{token}"),
 			NodeValue::Null => write!(f, "(null)"),
 			NodeValue::Boolean(value) => write!(f, "({value})"),

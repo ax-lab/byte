@@ -49,7 +49,7 @@ use super::*;
 
 const DEBUG_NODES: bool = false;
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum CodeOffset {
 	Static,
 	At(usize),
@@ -70,6 +70,12 @@ impl Display for CodeOffset {
 			CodeOffset::Static => write!(f, "static scope"),
 			CodeOffset::At(offset) => write!(f, "offset {offset}"),
 		}
+	}
+}
+
+impl Debug for CodeOffset {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		write!(f, ".{}", self.value())
 	}
 }
 
@@ -100,7 +106,11 @@ impl Node {
 			println!("\n--------------------");
 
 			println!("\n------ OUTPUT ------\n");
-			println!("{output:#?}");
+			if let Ok(output) = &output {
+				println!("{output}");
+			} else {
+				println!("{output:#?}");
+			}
 			println!("\n--------------------");
 		}
 
@@ -110,6 +120,7 @@ impl Node {
 	fn generate_node(&self, context: &mut CodeContext) -> Result<Expr> {
 		let span = self.span();
 		let value = match self.val() {
+			NodeValue::Code(expr) => expr,
 			NodeValue::Raw(list) => match list.len() {
 				0 => Expr::Unit,
 				1 => list[0].generate_node(context)?,
@@ -195,14 +206,14 @@ impl Node {
 			}
 			NodeValue::UnaryOp(op, arg) => {
 				let arg = arg.generate_node(context)?;
-				let op = op.for_type(&arg.get_type())?;
-				Expr::Unary(op, arg.into())
+				let op_impl = op.for_type(&arg.get_type())?;
+				Expr::Unary(op, op_impl, arg.into())
 			}
 			NodeValue::BinaryOp(op, lhs, rhs) => {
 				let lhs = lhs.generate_node(context)?;
 				let rhs = rhs.generate_node(context)?;
-				let op = op.for_types(&lhs.get_type(), &rhs.get_type())?;
-				Expr::Binary(op, lhs.into(), rhs.into())
+				let op_impl = op.for_types(&lhs.get_type(), &rhs.get_type())?;
+				Expr::Binary(op, op_impl, lhs.into(), rhs.into())
 			}
 			NodeValue::Sequence(list) => {
 				let mut errors = Errors::new();
@@ -245,7 +256,7 @@ impl Node {
 //====================================================================================================================//
 
 /// Enumeration of builtin root expressions.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Expr {
 	Never,
 	Unit,
@@ -259,8 +270,8 @@ pub enum Expr {
 	Float(FloatValue),
 	Variable(Symbol, CodeOffset, Type),
 	Print(Arc<Expr>, &'static str),
-	Unary(UnaryOpImpl, Arc<Expr>),
-	Binary(BinaryOpImpl, Arc<Expr>, Arc<Expr>),
+	Unary(UnaryOp, UnaryOpImpl, Arc<Expr>),
+	Binary(BinaryOp, BinaryOpImpl, Arc<Expr>, Arc<Expr>),
 	Sequence(Vec<Expr>),
 }
 
@@ -278,8 +289,8 @@ impl Expr {
 			Expr::Float(float) => Type::Float(float.get_type()),
 			Expr::Variable(.., kind) => Type::Ref(kind.clone().into()),
 			Expr::Print(..) => Type::Unit,
-			Expr::Unary(op, ..) => op.get().get_type(),
-			Expr::Binary(op, ..) => op.get().get_type(),
+			Expr::Unary(_, op, ..) => op.get().get_type(),
+			Expr::Binary(_, op, ..) => op.get().get_type(),
 			Expr::Sequence(list) => list.last().map(|x| x.get_type()).unwrap_or_else(|| Type::Unit),
 			Expr::Conditional(_, a, b) => {
 				let a = a.get_type();
@@ -334,8 +345,8 @@ impl Expr {
 				write!(output, "{tail}")?;
 				Ok(Value::from(()).into())
 			}
-			Expr::Unary(op, arg) => op.get().execute(scope, &arg),
-			Expr::Binary(op, lhs, rhs) => op.get().execute(scope, lhs, rhs),
+			Expr::Unary(_, op, arg) => op.get().execute(scope, &arg),
+			Expr::Binary(_, op, lhs, rhs) => op.get().execute(scope, lhs, rhs),
 			Expr::Sequence(list) => {
 				let mut value = Value::from(()).into();
 				for it in list.iter() {
@@ -425,6 +436,48 @@ impl From<Value> for ExprValue {
 	}
 }
 
+impl Display for Expr {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		match self {
+			Expr::Never => write!(f, "(!)"),
+			Expr::Unit => write!(f, "()"),
+			Expr::Null => write!(f, "null"),
+			Expr::Declare(name, at, expr) => write!(f, "decl {name}{at:?}: {} = {expr}", expr.get_type()),
+			Expr::Conditional(cond, a, b) => {
+				write!(f, "if {cond} {{")?;
+				write!(f.indented(), "\n{a}")?;
+				write!(f, "\n}} else {{")?;
+				write!(f.indented(), "\n{b}")?;
+				write!(f, "\n}}")
+			}
+			Expr::For(name, at, from, to, expr) => {
+				write!(f, "for {name}{at:?} in {from}..{to} {{")?;
+				write!(f.indented(), "\n{expr}")?;
+				write!(f, "\n}}")
+			}
+			Expr::Bool(value) => write!(f, "{value}"),
+			Expr::Str(value) => write!(f, "{value:?}"),
+			Expr::Int(value) => write!(f, "{value:?}"),
+			Expr::Float(value) => write!(f, "{value:?}"),
+			Expr::Variable(name, at, kind) => write!(f, "<{name}{at:?} -- {kind}>"),
+			Expr::Print(expr, _) => write!(f, "print({expr})"),
+			Expr::Unary(op, _, arg) => write!(f, "{op}({arg})"),
+			Expr::Binary(op, _, lhs, rhs) => write!(f, "({lhs}) {op} ({rhs})"),
+			Expr::Sequence(list) => match list.len() {
+				0 => write!(f, "{{ }}"),
+				1 => write!(f, "{{ {} }}", list[0]),
+				_ => {
+					write!(f, "{{")?;
+					for it in list.iter() {
+						write!(f.indented(), "\n{it};")?;
+					}
+					write!(f, "\n}}")
+				}
+			},
+		}
+	}
+}
+
 //====================================================================================================================//
 // Tests
 //====================================================================================================================//
@@ -440,7 +493,7 @@ mod tests {
 
 		let op = BinaryOpImpl::from(OpAdd::for_type(&a.get_type()).unwrap());
 
-		let expr = Expr::Binary(op, a.into(), b.into());
+		let expr = Expr::Binary(BinaryOp::Add, op, a.into(), b.into());
 
 		let mut scope = RuntimeScope::new();
 		let result = expr.execute(&mut scope)?.into_value();

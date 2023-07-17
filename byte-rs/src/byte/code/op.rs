@@ -4,6 +4,8 @@ use super::*;
 // UnaryOp
 //====================================================================================================================//
 
+// TODO: review the Unary/BinaryOp and implementation duality
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum UnaryOp {
 	Not,
@@ -70,6 +72,20 @@ impl UnaryOpImpl {
 impl Debug for UnaryOpImpl {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		self.get().fmt(f)
+	}
+}
+
+impl PartialEq for UnaryOpImpl {
+	fn eq(&self, other: &Self) -> bool {
+		Arc::as_ptr(&self.inner) == Arc::as_ptr(&other.inner)
+	}
+}
+
+impl Eq for UnaryOpImpl {}
+
+impl Hash for UnaryOpImpl {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		Arc::as_ptr(&self.inner).hash(state)
 	}
 }
 
@@ -179,5 +195,19 @@ impl Display for BinaryOp {
 			BinaryOp::CompareEqual => "==",
 		};
 		write!(f, "{str}")
+	}
+}
+
+impl PartialEq for BinaryOpImpl {
+	fn eq(&self, other: &Self) -> bool {
+		Arc::as_ptr(&self.inner) == Arc::as_ptr(&other.inner)
+	}
+}
+
+impl Eq for BinaryOpImpl {}
+
+impl Hash for BinaryOpImpl {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		Arc::as_ptr(&self.inner).hash(state)
 	}
 }
