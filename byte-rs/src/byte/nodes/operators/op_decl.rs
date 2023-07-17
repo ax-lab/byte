@@ -35,7 +35,7 @@ impl ParseFold for OpDecl {
 
 	fn new_node(&self, ctx: &mut OperatorContext, lhs: Node, rhs: Node, span: Span) -> Result<Node> {
 		let name = lhs.get_symbol_at(lhs.len() - 1).unwrap();
-		let value = BindingValue::Node(rhs.clone());
+		let value = rhs.clone();
 		let offset = if self.mode() == Decl::Const {
 			ctx.declare_static(name.clone(), value);
 			None

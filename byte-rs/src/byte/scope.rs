@@ -186,7 +186,7 @@ impl Scope {
 		})
 	}
 
-	pub fn get_static(&self, name: Symbol) -> Option<BindingValue> {
+	pub fn get_static(&self, name: Symbol) -> Option<Node> {
 		let value = {
 			let bindings = self.data.bindings.read().unwrap();
 			bindings.get(&name).and_then(|x| x.get_static().cloned())
@@ -201,7 +201,7 @@ impl Scope {
 		})
 	}
 
-	pub fn get_at(&self, name: Symbol, offset: usize) -> Option<BindingValue> {
+	pub fn get_at(&self, name: Symbol, offset: usize) -> Option<Node> {
 		let value = {
 			let bindings = self.data.bindings.read().unwrap();
 			bindings.get(&name).and_then(|x| x.get_at(offset).cloned())
@@ -232,7 +232,7 @@ impl ScopeWriter {
 		operators.insert(op, prec);
 	}
 
-	pub fn set_static(&mut self, name: Symbol, value: BindingValue) -> Result<()> {
+	pub fn set_static(&mut self, name: Symbol, value: Node) -> Result<()> {
 		let mut bindings = self.data().bindings.write().unwrap();
 		let binding = bindings.entry(name.clone()).or_insert(Default::default());
 		let span = value.span();
@@ -245,7 +245,7 @@ impl ScopeWriter {
 		}
 	}
 
-	pub fn set_at(&mut self, name: Symbol, offset: usize, value: BindingValue) -> Result<()> {
+	pub fn set_at(&mut self, name: Symbol, offset: usize, value: Node) -> Result<()> {
 		let mut bindings = self.data().bindings.write().unwrap();
 		let binding = bindings.entry(name.clone()).or_insert(Default::default());
 		let span = value.span();
@@ -277,30 +277,16 @@ impl Deref for ScopeWriter {
 
 #[derive(Default)]
 struct BindingList {
-	value_static: Option<BindingValue>,
-	value_from: Vec<(usize, BindingValue)>,
-}
-
-// TODO: replace by the node itself
-#[derive(Clone)]
-pub enum BindingValue {
-	Node(Node),
-}
-
-impl BindingValue {
-	pub fn span(&self) -> Span {
-		match self {
-			BindingValue::Node(node) => node.span().clone(),
-		}
-	}
+	value_static: Option<Node>,
+	value_from: Vec<(usize, Node)>,
 }
 
 impl BindingList {
-	pub fn get_static(&self) -> Option<&BindingValue> {
+	pub fn get_static(&self) -> Option<&Node> {
 		self.value_static.as_ref()
 	}
 
-	pub fn set_static(&mut self, value: BindingValue) -> bool {
+	pub fn set_static(&mut self, value: Node) -> bool {
 		if self.value_static.is_some() {
 			false
 		} else {
@@ -309,7 +295,7 @@ impl BindingList {
 		}
 	}
 
-	pub fn set_at(&mut self, offset: usize, value: BindingValue) -> bool {
+	pub fn set_at(&mut self, offset: usize, value: Node) -> bool {
 		let index = self.value_from.binary_search_by_key(&offset, |x| x.0);
 		match index {
 			Ok(..) => false, // offset already exists
@@ -340,7 +326,7 @@ impl BindingList {
 		}
 	}
 
-	pub fn get_at(&self, offset: usize) -> Option<&BindingValue> {
+	pub fn get_at(&self, offset: usize) -> Option<&Node> {
 		let index = self.value_from.binary_search_by_key(&offset, |x| x.0);
 
 		// return the nearest definition visible at the requested offset
