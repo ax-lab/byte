@@ -15,9 +15,9 @@ impl IsBinaryOp for OpAssign {
 				let error = Errors::from(error, Span::default());
 				Err(error)
 			}
-			ExprValue::Variable(name, index, ..) => {
-				scope.set(name.clone(), index, rhs.value().clone());
-				Ok(ExprValue::Variable(name, index, rhs.into_value()))
+			ExprValue::Variable(name, offset, ..) => {
+				scope.set(name.clone(), offset, rhs.value().clone());
+				Ok(ExprValue::Variable(name, offset, rhs.into_value()))
 			}
 		}
 	}

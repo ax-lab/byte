@@ -37,7 +37,7 @@ pub use op_unraw::*;
 /// Context for an [`NodeOperator`] application.
 pub struct OperatorContext {
 	scope: Scope,
-	declares: Vec<(Symbol, Option<usize>, Node)>,
+	declares: Vec<(Symbol, CodeOffset, Node)>,
 }
 
 impl OperatorContext {
@@ -56,15 +56,11 @@ impl OperatorContext {
 		self.scope.handle()
 	}
 
-	pub fn declare_static(&mut self, symbol: Symbol, value: Node) {
-		self.declares.push((symbol, None, value));
+	pub fn declare(&mut self, symbol: Symbol, offset: CodeOffset, value: Node) {
+		self.declares.push((symbol, offset, value));
 	}
 
-	pub fn declare_at(&mut self, symbol: Symbol, offset: usize, value: Node) {
-		self.declares.push((symbol, Some(offset), value));
-	}
-
-	pub(crate) fn get_declares(&mut self) -> Vec<(Symbol, Option<usize>, Node)> {
+	pub(crate) fn get_declares(&mut self) -> Vec<(Symbol, CodeOffset, Node)> {
 		std::mem::take(&mut self.declares)
 	}
 }

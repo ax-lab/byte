@@ -11,8 +11,8 @@ impl ParseReplace for OpBind {
 		let scope = ctx.scope();
 		if let NodeValue::Token(Token::Word(name)) = node.val() {
 			let span = node.span().clone();
-			if let Some(index) = scope.lookup(&name, Some(node.offset())) {
-				let value = NodeValue::Variable(name.clone(), index).at(scope.handle(), span);
+			if let Some(offset) = scope.lookup(&name, &CodeOffset::At(node.offset())) {
+				let value = NodeValue::Variable(name.clone(), offset).at(scope.handle(), span);
 				Ok(Some(value))
 			} else {
 				Err(Errors::from(format!("undefined symbol `{name}`"), span))

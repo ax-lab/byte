@@ -37,13 +37,12 @@ impl ParseFold for OpDecl {
 		let name = lhs.get_symbol_at(lhs.len() - 1).unwrap();
 		let value = rhs.clone();
 		let offset = if self.mode() == Decl::Const {
-			ctx.declare_static(name.clone(), value);
-			None
+			CodeOffset::Static
 		} else {
 			let offset = lhs.offset();
-			ctx.declare_at(name.clone(), offset, value);
-			Some(offset)
+			CodeOffset::At(offset)
 		};
+		ctx.declare(name.clone(), offset, value);
 		Ok(NodeValue::Let(name, offset, rhs).at(ctx.scope_handle(), span))
 	}
 }

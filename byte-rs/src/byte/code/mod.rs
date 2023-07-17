@@ -49,8 +49,32 @@ use super::*;
 
 const DEBUG_NODES: bool = false;
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum CodeOffset {
+	Static,
+	At(usize),
+}
+
+impl CodeOffset {
+	pub fn value(&self) -> usize {
+		match self {
+			CodeOffset::Static => 0,
+			CodeOffset::At(offset) => *offset,
+		}
+	}
+}
+
+impl Display for CodeOffset {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		match self {
+			CodeOffset::Static => write!(f, "static scope"),
+			CodeOffset::At(offset) => write!(f, "offset {offset}"),
+		}
+	}
+}
+
 pub struct CodeContext {
-	declares: HashMap<(Symbol, Option<usize>), Type>,
+	declares: HashMap<(Symbol, CodeOffset), Type>,
 	dump_code: bool,
 }
 
@@ -152,7 +176,7 @@ impl Node {
 				// TODO: `for` should validate types on code generation
 				let from = from.generate_node(context)?;
 				let to = to.generate_node(context)?;
-				context.declares.insert((var.clone(), Some(offset)), from.get_type());
+				context.declares.insert((var.clone(), offset), from.get_type());
 				let body = body.generate_node(context)?;
 				Expr::For(var.clone(), offset, from.into(), to.into(), body.into())
 			}
@@ -226,14 +250,14 @@ pub enum Expr {
 	Never,
 	Unit,
 	Null,
-	Declare(Symbol, Option<usize>, Arc<Expr>),
+	Declare(Symbol, CodeOffset, Arc<Expr>),
 	Conditional(Arc<Expr>, Arc<Expr>, Arc<Expr>),
-	For(Symbol, usize, Arc<Expr>, Arc<Expr>, Arc<Expr>),
+	For(Symbol, CodeOffset, Arc<Expr>, Arc<Expr>, Arc<Expr>),
 	Bool(bool),
 	Str(StringValue),
 	Int(IntValue),
 	Float(FloatValue),
-	Variable(Symbol, Option<usize>, Type),
+	Variable(Symbol, CodeOffset, Type),
 	Print(Arc<Expr>, &'static str),
 	Unary(UnaryOpImpl, Arc<Expr>),
 	Binary(BinaryOpImpl, Arc<Expr>, Arc<Expr>),
@@ -286,8 +310,8 @@ impl Expr {
 			Expr::Str(value) => Ok(Value::from(value.to_string()).into()),
 			Expr::Int(value) => Ok(Value::from(value.clone()).into()),
 			Expr::Float(value) => Ok(Value::from(value.clone()).into()),
-			Expr::Variable(name, index, ..) => match scope.get(name, *index).cloned() {
-				Some(value) => Ok(ExprValue::Variable(name.clone(), index.clone(), value)),
+			Expr::Variable(name, offset, ..) => match scope.get(name, *offset).cloned() {
+				Some(value) => Ok(ExprValue::Variable(name.clone(), offset.clone(), value)),
 				None => Err(Errors::from(format!("variable {name} not set"), Span::default())),
 			},
 			Expr::Print(expr, tail) => {
@@ -342,11 +366,10 @@ impl Expr {
 
 				let step = if from_value <= to_value { 1 } else { -1 };
 
-				let var_offset = Some(*offset);
 				let mut cur = from_value;
 				loop {
 					let value = Value::from(cur).cast_to(&from_type, NumericConversion::None)?;
-					scope.set(var.clone(), var_offset, value);
+					scope.set(var.clone(), *offset, value);
 					body.execute(scope)?;
 					if cur == to_value {
 						break;
@@ -371,7 +394,7 @@ impl Expr {
 #[derive(Clone, Debug)]
 pub enum ExprValue {
 	Value(Value),
-	Variable(Symbol, Option<usize>, Value),
+	Variable(Symbol, CodeOffset, Value),
 }
 
 impl ExprValue {

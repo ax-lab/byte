@@ -243,12 +243,7 @@ impl Program {
 				let scope = node.scope_handle().get();
 				let mut writer = self.data.scopes.get_writer(scope);
 				for (name, offset, value) in declares {
-					let result = if let Some(offset) = offset {
-						writer.set_at(name, offset, value)
-					} else {
-						writer.set_static(name, value)
-					};
-					match result {
+					match writer.set(name, offset, value) {
 						Ok(..) => {}
 						Err(errs) => errors.append(&errs),
 					}

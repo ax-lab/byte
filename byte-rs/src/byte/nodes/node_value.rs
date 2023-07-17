@@ -23,16 +23,16 @@ pub enum NodeValue {
 	},
 	For {
 		var: Symbol,
-		offset: usize,
+		offset: CodeOffset,
 		from: Node,
 		to: Node,
 		body: Node,
 	},
 	//----[ AST ]-------------------------------------------------------------//
-	Let(Symbol, Option<usize>, Node),
+	Let(Symbol, CodeOffset, Node),
 	UnaryOp(UnaryOp, Node),
 	BinaryOp(BinaryOp, Node, Node),
-	Variable(Symbol, Option<usize>),
+	Variable(Symbol, CodeOffset),
 	Print(Node, &'static str),
 	Conditional(Node, Node, Node),
 }
@@ -210,13 +210,13 @@ impl Display for NodeValue {
 				write!(f, "\n}}")
 			}
 			NodeValue::Let(name, offset, expr) => {
-				let offset = offset.unwrap_or(0);
+				let offset = offset.value();
 				write!(f, "let {name}_{offset} = {expr}")
 			}
 			NodeValue::UnaryOp(op, arg) => write!(f, "{op} {arg}"),
 			NodeValue::BinaryOp(op, lhs, rhs) => write!(f, "({lhs} {op} {rhs})"),
 			NodeValue::Variable(var, offset) => {
-				let offset = offset.unwrap_or(0);
+				let offset = offset.value();
 				write!(f, "{var}_{offset}")
 			}
 			NodeValue::Print(expr, _) => write!(f, "Print({expr})"),
