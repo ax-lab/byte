@@ -152,6 +152,7 @@ impl Program {
 	}
 
 	fn run_resolved(&self, node: &mut Node) -> Result<Value> {
+		// TODO: unify scope and runtime
 		let runtime_scope = self.data.runtime.write();
 		let mut runtime_scope = match runtime_scope {
 			Ok(scope) => scope,
