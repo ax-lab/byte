@@ -47,7 +47,8 @@ impl ParseReplace for OpFor {
 
 						let offset = CodeOffset::At(var_node.offset());
 
-						let value = NodeValue::Variable(var.clone(), offset).at(ctx.scope_handle(), var_node.span());
+						let value = NodeValue::Let(var.clone(), offset, from.clone());
+						let value = value.at(ctx.scope_handle(), var_node.span());
 						ctx.declare(var.clone(), offset, Expr::from_node(value));
 
 						let body = body.clone();

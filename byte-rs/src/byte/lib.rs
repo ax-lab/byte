@@ -136,8 +136,8 @@ mod tests {
 			rt.redirect_stdout(output);
 		});
 
-		let node = program.load_string("hello", "print 'hello world!!!'")?;
-		program.run_node(&node)?;
+		let mut node = program.load_string("hello", "print 'hello world!!!'")?;
+		program.run_node(&mut node)?;
 
 		let output = output.read().unwrap().clone();
 		let output = String::from_utf8(output)?;

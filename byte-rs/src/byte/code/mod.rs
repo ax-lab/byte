@@ -79,29 +79,11 @@ impl Debug for CodeOffset {
 	}
 }
 
-// TODO: merge this or include it in the Scope
-pub struct CodeContext {
-	declares: HashMap<(Symbol, CodeOffset), Type>,
-	dump_code: bool,
-}
-
-impl CodeContext {
-	pub fn new() -> Self {
-		Self {
-			declares: Default::default(),
-			dump_code: false,
-		}
-	}
-
-	pub fn dump_code(&mut self) {
-		self.dump_code = true;
-	}
-}
-
 impl Node {
-	pub fn generate_code(&self, context: &mut CodeContext) -> Result<Expr> {
-		let output = self.generate_node(context);
-		if (output.is_err() && DEBUG_NODES) || DUMP_CODE || context.dump_code {
+	pub fn generate_code(&mut self) -> Result<Expr> {
+		let output = self.generate_node();
+		let scope = self.scope();
+		if (output.is_err() && DEBUG_NODES) || DUMP_CODE || scope.program().dump_enabled() {
 			println!("\n------ SOURCE ------\n");
 			println!("{self}");
 			println!("\n--------------------");
@@ -118,44 +100,36 @@ impl Node {
 		output.at_pos(self.span())
 	}
 
-	pub fn as_expr(&self) -> Result<Expr> {
-		/*
-			TODO: figure out Expr::Node
-
-			Currently, Expr::Node is only used by the scope declarations, so
-			the value never actually makes it into the expression tree.
-
-			If it did, it would actually cause an error here because the node
-			is embedded in the expression, but never actually makes it as code.
-
-			One solution would be for `generate_node` to rewrite the node as
-			an `NodeValue::Code` when solving.
-
-			The other would be for this method to actually try to solve the
-			node code, which requires merging CodeContext and Scope.
-		*/
-		if let NodeValue::Code(expr) = self.val() {
-			Ok(expr.clone())
-		} else {
-			let error = format!("unresolved node in the expression tree: {self}");
-			let error = Errors::from(error, self.span());
-			Err(error)
+	pub fn as_expr(&self, parent: &Expr) -> Result<Expr> {
+		match self.val() {
+			NodeValue::Code(expr) => Ok(expr.clone()),
+			_ => {
+				if parent.info().solve() {
+					self.generate_node()
+				} else {
+					let ctx = Context::get().format_without_span();
+					ctx.is_used();
+					let error = format!("unresolved node in the expression tree -- `{self}`");
+					let error = Errors::from(error, self.span());
+					Err(error)
+				}
+			}
 		}
 	}
 
-	fn generate_node(&self, context: &mut CodeContext) -> Result<Expr> {
+	fn generate_node(&self) -> Result<Expr> {
 		let span = self.span();
 		let info = Info::new(span.clone());
 		let value = match self.val() {
 			NodeValue::Code(expr) => expr,
 			NodeValue::Raw(list) => match list.len() {
 				0 => Expr::Unit(info),
-				1 => list[0].generate_node(context)?,
+				1 => list[0].generate_node()?,
 				_ => {
 					let mut errors = Errors::new();
 					let mut sequence = Vec::new();
 					for node in list.iter() {
-						match node.generate_node(context) {
+						match node.generate_node() {
 							Ok(expr) => sequence.push(expr),
 							Err(err) => errors.append(&err),
 						}
@@ -182,12 +156,10 @@ impl Node {
 			}
 			NodeValue::Null => Expr::Null(info),
 			NodeValue::Token(Token::Literal(value)) => Expr::Str(info, value.clone()),
-			NodeValue::Group(list) => list.generate_node(context)?,
+			NodeValue::Group(list) => list.generate_node()?,
 			NodeValue::Let(name, offset, list) => {
-				let expr = list.generate_node(context)?;
-				let kind = expr.get_type()?;
+				let expr = list.generate_node()?;
 				let offset = offset;
-				context.declares.insert((name.clone(), offset), kind);
 				Expr::Declare(info, name.clone(), offset, Arc::new(expr))
 			}
 			NodeValue::If {
@@ -195,10 +167,10 @@ impl Node {
 				if_true,
 				if_false,
 			} => {
-				let condition = condition.generate_node(context)?;
-				let if_true = if_true.generate_node(context)?;
+				let condition = condition.generate_node()?;
+				let if_true = if_true.generate_node()?;
 				let if_false = if let Some(if_false) = if_false {
-					if_false.generate_node(context)?
+					if_false.generate_node()?
 				} else {
 					Expr::Unit(Info::none())
 				};
@@ -212,15 +184,20 @@ impl Node {
 				body,
 			} => {
 				// TODO: `for` should validate types on code generation
-				let from = from.generate_node(context)?;
-				let to = to.generate_node(context)?;
-				context.declares.insert((var.clone(), offset), from.get_type()?);
-				let body = body.generate_node(context)?;
+				let from = from.generate_node()?;
+				let to = to.generate_node()?;
+				let body = body.generate_node()?;
 				Expr::For(info, var.clone(), offset, from.into(), to.into(), body.into())
 			}
 			NodeValue::Variable(name, index) => {
-				if let Some(kind) = context.declares.get(&(name.clone(), index)) {
-					Expr::Variable(info, name.clone(), index, kind.clone())
+				let scope = self.scope();
+				if let Some(value) = scope.get(name.clone(), &index) {
+					Expr::Variable(
+						info,
+						name.clone(),
+						index,
+						value.get_type().because(format!("solving variable `{name}`"), &span)?,
+					)
 				} else {
 					let error = format!("variable `{name}` ({index:?}) does not match any declaration");
 					let error = Errors::from(error, span);
@@ -228,17 +205,17 @@ impl Node {
 				}
 			}
 			NodeValue::Print(expr, tail) => {
-				let expr = expr.generate_node(context)?;
+				let expr = expr.generate_node()?;
 				Expr::Print(info, expr.into(), tail)
 			}
 			NodeValue::UnaryOp(op, arg) => {
-				let arg = arg.generate_node(context)?;
+				let arg = arg.generate_node()?;
 				let op_impl = op.for_type(&arg.get_type()?)?;
 				Expr::Unary(info, op, op_impl, arg.into())
 			}
 			NodeValue::BinaryOp(op, lhs, rhs) => {
-				let lhs = lhs.generate_node(context)?;
-				let rhs = rhs.generate_node(context)?;
+				let lhs = lhs.generate_node()?;
+				let rhs = rhs.generate_node()?;
 				let op_impl = op.for_types(&lhs.get_type()?, &rhs.get_type()?)?;
 				Expr::Binary(info, op, op_impl, lhs.into(), rhs.into())
 			}
@@ -246,7 +223,7 @@ impl Node {
 				let mut errors = Errors::new();
 				let mut sequence = Vec::new();
 				for it in list.iter() {
-					match it.generate_node(context) {
+					match it.generate_node() {
 						Ok(expr) => sequence.push(expr),
 						Err(err) => errors.append(&err),
 					};
@@ -258,9 +235,9 @@ impl Node {
 				Expr::Sequence(info, sequence)
 			}
 			NodeValue::Conditional(a, b, c) => {
-				let a = a.generate_node(context)?;
-				let b = b.generate_node(context)?;
-				let c = c.generate_node(context)?;
+				let a = a.generate_node()?;
+				let b = b.generate_node()?;
+				let c = c.generate_node()?;
 				Expr::Conditional(info, a.into(), b.into(), c.into())
 			}
 			value => {
@@ -274,6 +251,19 @@ impl Node {
 				return Err(error);
 			}
 		};
+
+		// TODO: review the need and use of `set_value_inner`
+		//
+		// Generate_node cannot be mutable without too much fuzz, so we're doing
+		// this because it is only advisory anyway (internally it uses a mutex)
+		// and our external interface already requires a mut reference.
+		//
+		// Even though the above is "safe", it still reeks, so maybe review this
+		// whole node mutability thing.
+		let span = self.span();
+		unsafe {
+			self.set_value_inner(NodeValue::Code(value.clone()), span);
+		}
 		Ok(value)
 	}
 }
@@ -292,10 +282,11 @@ impl Node {
 	- the node should be fully solved by the time the expression is being generated
 */
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone)]
 pub struct Info {
 	id: Id,
 	span: Span,
+	solving: Arc<RwLock<bool>>,
 }
 
 impl Info {
@@ -303,10 +294,16 @@ impl Info {
 		Self {
 			id: id(),
 			span: Span::default(),
+			solving: Default::default(),
 		}
 	}
+
 	pub fn new(span: Span) -> Self {
-		Self { id: id(), span }
+		Self {
+			id: id(),
+			span,
+			solving: Default::default(),
+		}
 	}
 
 	pub fn id(&self) -> Id {
@@ -315,6 +312,36 @@ impl Info {
 
 	pub fn span(&self) -> &Span {
 		&self.span
+	}
+
+	pub fn solve(&self) -> bool {
+		let mut solving = self.solving.write().unwrap();
+		if *solving {
+			false
+		} else {
+			*solving = true;
+			true
+		}
+	}
+}
+
+impl PartialEq for Info {
+	fn eq(&self, other: &Self) -> bool {
+		self.id == other.id
+	}
+}
+
+impl Eq for Info {}
+
+impl Hash for Info {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		self.id.hash(state)
+	}
+}
+
+impl Debug for Info {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		write!(f, "{}", self.id)
 	}
 }
 
@@ -377,7 +404,10 @@ impl Expr {
 			Expr::Null(..) => Type::Null,
 			Expr::Node(.., node) => {
 				// TODO: depending on how as_expr is implemented, this could be bad
-				return node.as_expr()?.get_type();
+				return node
+					.as_expr(self)
+					.because("get node expr type", self.span())?
+					.get_type();
 			}
 			Expr::Declare(.., expr) => expr.get_type()?,
 			Expr::Bool(..) => Type::Bool,

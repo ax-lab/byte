@@ -107,17 +107,17 @@ impl Program {
 	pub fn run(&self) -> Result<Value> {
 		self.resolve()?;
 		let mut value = Value::from(());
-		let run_list = { self.data.run_list.read().unwrap().clone() };
-		for it in run_list.iter() {
+		let mut run_list = { self.data.run_list.read().unwrap().clone() };
+		for it in run_list.iter_mut() {
 			value = self.run_resolved(it)?;
 		}
 		Ok(value)
 	}
 
 	pub fn eval<T1: Into<String>, T2: AsRef<str>>(&mut self, name: T1, text: T2) -> Result<Value> {
-		let node = self.load_string(name, text)?;
+		let mut node = self.load_string(name, text)?;
 		self.resolve()?;
-		self.run_resolved(&node)
+		self.run_resolved(&mut node)
 	}
 
 	pub fn load_string<T1: Into<String>, T2: AsRef<str>>(&mut self, name: T1, data: T2) -> Result<Node> {
@@ -137,7 +137,7 @@ impl Program {
 		Ok(list)
 	}
 
-	pub fn run_node(&mut self, node: &Node) -> Result<Value> {
+	pub fn run_node(&mut self, node: &mut Node) -> Result<Value> {
 		self.resolve()?;
 		self.run_resolved(node)
 	}
@@ -151,19 +151,14 @@ impl Program {
 		Ok(node)
 	}
 
-	fn run_resolved(&self, node: &Node) -> Result<Value> {
-		let mut context = CodeContext::new();
-		if self.dump_enabled() {
-			context.dump_code();
-		}
-
-		let scope = self.data.runtime.write();
-		let mut scope = match scope {
+	fn run_resolved(&self, node: &mut Node) -> Result<Value> {
+		let runtime_scope = self.data.runtime.write();
+		let mut runtime_scope = match runtime_scope {
 			Ok(scope) => scope,
 			Err(poisoned) => poisoned.into_inner(),
 		};
-		let expr = node.generate_code(&mut context)?;
-		let value = expr.execute(&mut scope)?.into_value();
+		let expr = node.generate_code()?;
+		let value = expr.execute(&mut runtime_scope)?.into_value();
 		Ok(value)
 	}
 

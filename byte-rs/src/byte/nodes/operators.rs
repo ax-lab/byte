@@ -57,6 +57,7 @@ impl OperatorContext {
 	}
 
 	pub fn declare(&mut self, symbol: Symbol, offset: CodeOffset, value: Expr) {
+		// TODO: review what the value of the declare actually means in the code
 		self.declares.push((symbol, offset, value));
 	}
 

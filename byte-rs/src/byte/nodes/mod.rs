@@ -90,6 +90,15 @@ impl Node {
 		});
 	}
 
+	pub unsafe fn set_value_inner(&self, new_value: NodeValue, new_span: Span) {
+		self.write(|| {
+			let mut value = self.data.value.write().unwrap();
+			let mut span = self.data.span.write().unwrap();
+			*value = new_value;
+			*span = new_span;
+		});
+	}
+
 	fn write<T, P: FnOnce() -> T>(&self, write: P) -> T {
 		let mut version = self.data.version.write().unwrap();
 		*version = *version + 1;
