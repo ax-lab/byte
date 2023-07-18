@@ -5,7 +5,7 @@ pub struct OpAssign(pub Type);
 
 impl IsBinaryOp for OpAssign {
 	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue> {
-		let typ = rhs.get_type();
+		let typ = rhs.get_type()?;
 		let rhs = rhs.execute(scope)?;
 		let lhs = lhs.execute(scope)?;
 		match lhs {

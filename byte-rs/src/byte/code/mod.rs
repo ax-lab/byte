@@ -79,6 +79,7 @@ impl Debug for CodeOffset {
 	}
 }
 
+// TODO: merge this or include it in the Scope
 pub struct CodeContext {
 	declares: HashMap<(Symbol, CodeOffset), Type>,
 	dump_code: bool,
@@ -117,12 +118,38 @@ impl Node {
 		output.at_pos(self.span())
 	}
 
+	pub fn as_expr(&self) -> Result<Expr> {
+		/*
+			TODO: figure out Expr::Node
+
+			Currently, Expr::Node is only used by the scope declarations, so
+			the value never actually makes it into the expression tree.
+
+			If it did, it would actually cause an error here because the node
+			is embedded in the expression, but never actually makes it as code.
+
+			One solution would be for `generate_node` to rewrite the node as
+			an `NodeValue::Code` when solving.
+
+			The other would be for this method to actually try to solve the
+			node code, which requires merging CodeContext and Scope.
+		*/
+		if let NodeValue::Code(expr) = self.val() {
+			Ok(expr.clone())
+		} else {
+			let error = format!("unresolved node in the expression tree: {self}");
+			let error = Errors::from(error, self.span());
+			Err(error)
+		}
+	}
+
 	fn generate_node(&self, context: &mut CodeContext) -> Result<Expr> {
 		let span = self.span();
+		let info = Info::new(span.clone());
 		let value = match self.val() {
 			NodeValue::Code(expr) => expr,
 			NodeValue::Raw(list) => match list.len() {
-				0 => Expr::Unit,
+				0 => Expr::Unit(info),
 				1 => list[0].generate_node(context)?,
 				_ => {
 					let mut errors = Errors::new();
@@ -134,13 +161,13 @@ impl Node {
 						}
 					}
 					errors.check()?;
-					Expr::Sequence(sequence)
+					Expr::Sequence(info, sequence)
 				}
 			},
-			NodeValue::Boolean(value) => Expr::Bool(value),
+			NodeValue::Boolean(value) => Expr::Bool(info, value),
 			NodeValue::Token(Token::Integer(value)) => {
 				let value = IntValue::new(value, DEFAULT_INT).at_pos(span)?;
-				Expr::Int(value)
+				Expr::Int(info, value)
 			}
 			NodeValue::Token(Token::Float(value)) => {
 				let value: f64 = match value.as_str().parse() {
@@ -151,17 +178,17 @@ impl Node {
 					}
 				};
 				let value = FloatValue::new(value, FloatType::F64);
-				Expr::Float(value)
+				Expr::Float(info, value)
 			}
-			NodeValue::Null => Expr::Null,
-			NodeValue::Token(Token::Literal(value)) => Expr::Str(value.clone()),
+			NodeValue::Null => Expr::Null(info),
+			NodeValue::Token(Token::Literal(value)) => Expr::Str(info, value.clone()),
 			NodeValue::Group(list) => list.generate_node(context)?,
 			NodeValue::Let(name, offset, list) => {
 				let expr = list.generate_node(context)?;
-				let kind = expr.get_type();
+				let kind = expr.get_type()?;
 				let offset = offset;
 				context.declares.insert((name.clone(), offset), kind);
-				Expr::Declare(name.clone(), offset, Arc::new(expr))
+				Expr::Declare(info, name.clone(), offset, Arc::new(expr))
 			}
 			NodeValue::If {
 				expr: condition,
@@ -173,9 +200,9 @@ impl Node {
 				let if_false = if let Some(if_false) = if_false {
 					if_false.generate_node(context)?
 				} else {
-					Expr::Unit
+					Expr::Unit(Info::none())
 				};
-				Expr::Conditional(condition.into(), if_true.into(), if_false.into())
+				Expr::Conditional(info, condition.into(), if_true.into(), if_false.into())
 			}
 			NodeValue::For {
 				var,
@@ -187,13 +214,13 @@ impl Node {
 				// TODO: `for` should validate types on code generation
 				let from = from.generate_node(context)?;
 				let to = to.generate_node(context)?;
-				context.declares.insert((var.clone(), offset), from.get_type());
+				context.declares.insert((var.clone(), offset), from.get_type()?);
 				let body = body.generate_node(context)?;
-				Expr::For(var.clone(), offset, from.into(), to.into(), body.into())
+				Expr::For(info, var.clone(), offset, from.into(), to.into(), body.into())
 			}
 			NodeValue::Variable(name, index) => {
 				if let Some(kind) = context.declares.get(&(name.clone(), index)) {
-					Expr::Variable(name.clone(), index, kind.clone())
+					Expr::Variable(info, name.clone(), index, kind.clone())
 				} else {
 					let error = format!("variable `{name}` ({index:?}) does not match any declaration");
 					let error = Errors::from(error, span);
@@ -202,18 +229,18 @@ impl Node {
 			}
 			NodeValue::Print(expr, tail) => {
 				let expr = expr.generate_node(context)?;
-				Expr::Print(expr.into(), tail)
+				Expr::Print(info, expr.into(), tail)
 			}
 			NodeValue::UnaryOp(op, arg) => {
 				let arg = arg.generate_node(context)?;
-				let op_impl = op.for_type(&arg.get_type())?;
-				Expr::Unary(op, op_impl, arg.into())
+				let op_impl = op.for_type(&arg.get_type()?)?;
+				Expr::Unary(info, op, op_impl, arg.into())
 			}
 			NodeValue::BinaryOp(op, lhs, rhs) => {
 				let lhs = lhs.generate_node(context)?;
 				let rhs = rhs.generate_node(context)?;
-				let op_impl = op.for_types(&lhs.get_type(), &rhs.get_type())?;
-				Expr::Binary(op, op_impl, lhs.into(), rhs.into())
+				let op_impl = op.for_types(&lhs.get_type()?, &rhs.get_type()?)?;
+				Expr::Binary(info, op, op_impl, lhs.into(), rhs.into())
 			}
 			NodeValue::Sequence(list) => {
 				let mut errors = Errors::new();
@@ -228,13 +255,13 @@ impl Node {
 					}
 				}
 				errors.check()?;
-				Expr::Sequence(sequence)
+				Expr::Sequence(info, sequence)
 			}
 			NodeValue::Conditional(a, b, c) => {
 				let a = a.generate_node(context)?;
 				let b = b.generate_node(context)?;
 				let c = c.generate_node(context)?;
-				Expr::Conditional(a.into(), b.into(), c.into())
+				Expr::Conditional(info, a.into(), b.into(), c.into())
 			}
 			value => {
 				let mut error = format!("cannot generate code for `{value:?}`");
@@ -255,77 +282,154 @@ impl Node {
 // Expressions
 //====================================================================================================================//
 
+/*
+	TODO: add the ability to have nodes in Expr.
+
+	- add an expression that is just a proxy for a node, the counterpart for Node::Code
+	- this will allow to use Expr directly in the node tree, eliminating duplicated Node/Expr
+	- the proxy node will have to be added as a separate entry to the program resolve list
+	  - alternatively, Expr can have a way of iterating nodes, but that is iffy
+	- the node should be fully solved by the time the expression is being generated
+*/
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct Info {
+	id: Id,
+	span: Span,
+}
+
+impl Info {
+	pub fn none() -> Self {
+		Self {
+			id: id(),
+			span: Span::default(),
+		}
+	}
+	pub fn new(span: Span) -> Self {
+		Self { id: id(), span }
+	}
+
+	pub fn id(&self) -> Id {
+		self.id
+	}
+
+	pub fn span(&self) -> &Span {
+		&self.span
+	}
+}
+
 /// Enumeration of builtin root expressions.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Expr {
-	Never,
-	Unit,
-	Null,
-	Declare(Symbol, CodeOffset, Arc<Expr>),
-	Conditional(Arc<Expr>, Arc<Expr>, Arc<Expr>),
-	For(Symbol, CodeOffset, Arc<Expr>, Arc<Expr>, Arc<Expr>),
-	Bool(bool),
-	Str(StringValue),
-	Int(IntValue),
-	Float(FloatValue),
-	Variable(Symbol, CodeOffset, Type),
-	Print(Arc<Expr>, &'static str),
-	Unary(UnaryOp, UnaryOpImpl, Arc<Expr>),
-	Binary(BinaryOp, BinaryOpImpl, Arc<Expr>, Arc<Expr>),
-	Sequence(Vec<Expr>),
+	Never(Info),
+	Unit(Info),
+	Null(Info),
+	Node(Info, Node),
+	Declare(Info, Symbol, CodeOffset, Arc<Expr>),
+	Conditional(Info, Arc<Expr>, Arc<Expr>, Arc<Expr>),
+	For(Info, Symbol, CodeOffset, Arc<Expr>, Arc<Expr>, Arc<Expr>),
+	Bool(Info, bool),
+	Str(Info, StringValue),
+	Int(Info, IntValue),
+	Float(Info, FloatValue),
+	Variable(Info, Symbol, CodeOffset, Type),
+	Print(Info, Arc<Expr>, &'static str),
+	Unary(Info, UnaryOp, UnaryOpImpl, Arc<Expr>),
+	Binary(Info, BinaryOp, BinaryOpImpl, Arc<Expr>, Arc<Expr>),
+	Sequence(Info, Vec<Expr>),
 }
 
 impl Expr {
-	pub fn get_type(&self) -> Type {
+	pub fn from_node(node: Node) -> Self {
+		let info = Info::new(node.span());
+		Expr::Node(info, node)
+	}
+
+	pub fn info(&self) -> &Info {
 		match self {
-			Expr::Never => Type::Never,
-			Expr::Unit => Type::Unit,
-			Expr::Null => Type::Null,
-			Expr::Declare(.., expr) => expr.get_type(),
+			Expr::Never(info) => info,
+			Expr::Unit(info) => info,
+			Expr::Null(info) => info,
+			Expr::Node(info, ..) => info,
+			Expr::Declare(info, ..) => info,
+			Expr::Conditional(info, ..) => info,
+			Expr::For(info, ..) => info,
+			Expr::Bool(info, ..) => info,
+			Expr::Str(info, ..) => info,
+			Expr::Int(info, ..) => info,
+			Expr::Float(info, ..) => info,
+			Expr::Variable(info, ..) => info,
+			Expr::Print(info, ..) => info,
+			Expr::Unary(info, ..) => info,
+			Expr::Binary(info, ..) => info,
+			Expr::Sequence(info, ..) => info,
+		}
+	}
+
+	pub fn span(&self) -> &Span {
+		self.info().span()
+	}
+
+	pub fn get_type(&self) -> Result<Type> {
+		let typ = match self {
+			Expr::Never(..) => Type::Never,
+			Expr::Unit(..) => Type::Unit,
+			Expr::Null(..) => Type::Null,
+			Expr::Node(.., node) => {
+				// TODO: depending on how as_expr is implemented, this could be bad
+				return node.as_expr()?.get_type();
+			}
+			Expr::Declare(.., expr) => expr.get_type()?,
 			Expr::Bool(..) => Type::Bool,
 			Expr::Str(..) => Type::String,
-			Expr::Int(int) => Type::Int(int.get_type()),
+			Expr::Int(.., int) => Type::Int(int.get_type()),
 			Expr::For(..) => Type::Unit,
-			Expr::Float(float) => Type::Float(float.get_type()),
+			Expr::Float(.., float) => Type::Float(float.get_type()),
 			Expr::Variable(.., kind) => Type::Ref(kind.clone().into()),
 			Expr::Print(..) => Type::Unit,
-			Expr::Unary(_, op, ..) => op.get().get_type(),
-			Expr::Binary(_, op, ..) => op.get().get_type(),
-			Expr::Sequence(list) => list.last().map(|x| x.get_type()).unwrap_or_else(|| Type::Unit),
-			Expr::Conditional(_, a, b) => {
-				let a = a.get_type();
-				let b = b.get_type();
+			Expr::Unary(_, _, op, ..) => op.get().get_type(),
+			Expr::Binary(_, _, op, ..) => op.get().get_type(),
+			Expr::Sequence(.., list) => list.last().map(|x| x.get_type()).unwrap_or_else(|| Ok(Type::Unit))?,
+			Expr::Conditional(_, _, a, b) => {
+				let a = a.get_type()?;
+				let b = b.get_type()?;
 				if a == b {
 					a
 				} else {
 					Type::Or(a.into(), b.into())
 				}
 			}
-		}
+		};
+		Ok(typ)
 	}
 
 	pub fn execute(&self, scope: &mut RuntimeScope) -> Result<ExprValue> {
 		match self {
-			Expr::Never => {
+			Expr::Never(..) => {
 				let error = format!("never expression cannot be evaluated");
-				Err(Errors::from(error, Span::default()))
+				Err(Errors::from(error, self.span().clone()))
 			}
-			Expr::Unit => Ok(Value::from(()).into()),
-			Expr::Null => Ok(Value::Null.into()),
-			Expr::Declare(name, offset, expr) => {
+			Expr::Node(..) => {
+				// TODO: allow runtime generation of nodes
+				let error = format!("Expr::Node should never make it past codegen");
+				Err(Errors::from(error, self.span().clone()))
+			}
+			Expr::Unit(..) => Ok(Value::from(()).into()),
+			Expr::Null(..) => Ok(Value::Null.into()),
+			Expr::Declare(_, name, offset, expr) => {
 				let value = expr.execute(scope)?;
 				scope.set(name.clone(), *offset, value.clone().into());
 				Ok(value)
 			}
-			Expr::Bool(value) => Ok(Value::from(*value).into()),
-			Expr::Str(value) => Ok(Value::from(value.to_string()).into()),
-			Expr::Int(value) => Ok(Value::from(value.clone()).into()),
-			Expr::Float(value) => Ok(Value::from(value.clone()).into()),
-			Expr::Variable(name, offset, ..) => match scope.get(name, *offset).cloned() {
+			Expr::Bool(_, value) => Ok(Value::from(*value).into()),
+			Expr::Str(_, value) => Ok(Value::from(value.to_string()).into()),
+			Expr::Int(_, value) => Ok(Value::from(value.clone()).into()),
+			Expr::Float(_, value) => Ok(Value::from(value.clone()).into()),
+			Expr::Variable(_, name, offset, ..) => match scope.get(name, *offset).cloned() {
 				Some(value) => Ok(ExprValue::Variable(name.clone(), offset.clone(), value)),
-				None => Err(Errors::from(format!("variable {name} not set"), Span::default())),
+				None => Err(Errors::from(format!("variable {name} not set"), self.span().clone())),
 			},
-			Expr::Print(expr, tail) => {
+			Expr::Print(_, expr, tail) => {
 				let list = expr.as_sequence();
 				let mut values = Vec::new();
 				for expr in list.iter() {
@@ -345,16 +449,16 @@ impl Expr {
 				write!(output, "{tail}")?;
 				Ok(Value::from(()).into())
 			}
-			Expr::Unary(_, op, arg) => op.get().execute(scope, &arg),
-			Expr::Binary(_, op, lhs, rhs) => op.get().execute(scope, lhs, rhs),
-			Expr::Sequence(list) => {
+			Expr::Unary(_, _, op, arg) => op.get().execute(scope, &arg),
+			Expr::Binary(_, _, op, lhs, rhs) => op.get().execute(scope, lhs, rhs),
+			Expr::Sequence(_, list) => {
 				let mut value = Value::from(()).into();
 				for it in list.iter() {
 					value = it.execute(scope)?;
 				}
 				Ok(value)
 			}
-			Expr::Conditional(cond, a, b) => {
+			Expr::Conditional(_, cond, a, b) => {
 				let cond = cond.execute(scope)?;
 				let cond = cond.value().bool()?;
 				if cond {
@@ -363,7 +467,7 @@ impl Expr {
 					b.execute(scope)
 				}
 			}
-			Expr::For(var, offset, from, to, body) => {
+			Expr::For(_, var, offset, from, to, body) => {
 				let from_value = from.execute(scope)?;
 				let from_value = from_value.value();
 				let from_type = from_value.get_type();
@@ -395,7 +499,7 @@ impl Expr {
 	pub fn as_sequence(&self) -> Vec<Expr> {
 		let mut output = Vec::new();
 		match self {
-			Expr::Sequence(list) => output = list.clone(),
+			Expr::Sequence(_, list) => output = list.clone(),
 			expr => output.push(expr.clone()),
 		}
 		output
@@ -439,31 +543,39 @@ impl From<Value> for ExprValue {
 impl Display for Expr {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		match self {
-			Expr::Never => write!(f, "(!)"),
-			Expr::Unit => write!(f, "()"),
-			Expr::Null => write!(f, "null"),
-			Expr::Declare(name, at, expr) => write!(f, "decl {name}{at:?}: {} = {expr}", expr.get_type()),
-			Expr::Conditional(cond, a, b) => {
+			Expr::Never(..) => write!(f, "(!)"),
+			Expr::Unit(..) => write!(f, "()"),
+			Expr::Null(..) => write!(f, "null"),
+			Expr::Node(.., node) => write!(f, "<<{node}>>"),
+			Expr::Declare(_, name, at, expr) => write!(
+				f,
+				"decl {name}{at:?}: {} = {expr}",
+				match expr.get_type() {
+					Ok(typ) => format!("{typ}"),
+					Err(_) => format!("!?"),
+				}
+			),
+			Expr::Conditional(_, cond, a, b) => {
 				write!(f, "if {cond} {{")?;
 				write!(f.indented(), "\n{a}")?;
 				write!(f, "\n}} else {{")?;
 				write!(f.indented(), "\n{b}")?;
 				write!(f, "\n}}")
 			}
-			Expr::For(name, at, from, to, expr) => {
+			Expr::For(_, name, at, from, to, expr) => {
 				write!(f, "for {name}{at:?} in {from}..{to} {{")?;
 				write!(f.indented(), "\n{expr}")?;
 				write!(f, "\n}}")
 			}
-			Expr::Bool(value) => write!(f, "{value}"),
-			Expr::Str(value) => write!(f, "{value:?}"),
-			Expr::Int(value) => write!(f, "{value:?}"),
-			Expr::Float(value) => write!(f, "{value:?}"),
-			Expr::Variable(name, at, kind) => write!(f, "<{name}{at:?} -- {kind}>"),
-			Expr::Print(expr, _) => write!(f, "print({expr})"),
-			Expr::Unary(op, _, arg) => write!(f, "{op}({arg})"),
-			Expr::Binary(op, _, lhs, rhs) => write!(f, "({lhs}) {op} ({rhs})"),
-			Expr::Sequence(list) => match list.len() {
+			Expr::Bool(_, value) => write!(f, "{value}"),
+			Expr::Str(_, value) => write!(f, "{value:?}"),
+			Expr::Int(_, value) => write!(f, "{value:?}"),
+			Expr::Float(_, value) => write!(f, "{value:?}"),
+			Expr::Variable(_, name, at, kind) => write!(f, "<{name}{at:?} -- {kind}>"),
+			Expr::Print(_, expr, _) => write!(f, "print({expr})"),
+			Expr::Unary(_, op, _, arg) => write!(f, "{op}({arg})"),
+			Expr::Binary(_, op, _, lhs, rhs) => write!(f, "({lhs}) {op} ({rhs})"),
+			Expr::Sequence(_, list) => match list.len() {
 				0 => write!(f, "{{ }}"),
 				1 => write!(f, "{{ {} }}", list[0]),
 				_ => {
@@ -488,12 +600,12 @@ mod tests {
 
 	#[test]
 	fn basic_eval() -> Result<()> {
-		let a = Expr::Int(IntValue::I32(2));
-		let b = Expr::Int(IntValue::I32(3));
+		let a = Expr::Int(Info::none(), IntValue::I32(2));
+		let b = Expr::Int(Info::none(), IntValue::I32(3));
 
-		let op = BinaryOpImpl::from(OpAdd::for_type(&a.get_type()).unwrap());
+		let op = BinaryOpImpl::from(OpAdd::for_type(&a.get_type()?).unwrap());
 
-		let expr = Expr::Binary(BinaryOp::Add, op, a.into(), b.into());
+		let expr = Expr::Binary(Info::none(), BinaryOp::Add, op, a.into(), b.into());
 
 		let mut scope = RuntimeScope::new();
 		let result = expr.execute(&mut scope)?.into_value();

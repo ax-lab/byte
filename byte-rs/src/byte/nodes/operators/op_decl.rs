@@ -42,7 +42,8 @@ impl ParseFold for OpDecl {
 			let offset = lhs.offset();
 			CodeOffset::At(offset)
 		};
-		ctx.declare(name.clone(), offset, value);
+
+		ctx.declare(name.clone(), offset, Expr::from_node(value));
 		Ok(NodeValue::Let(name, offset, rhs).at(ctx.scope_handle(), span))
 	}
 }

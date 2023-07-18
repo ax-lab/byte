@@ -45,9 +45,10 @@ impl ParseReplace for OpFor {
 							errors.add("missing upper bound in `for`", head.span());
 						}
 
-						// TODO: this for binding is completely bogus, figure out a better way
 						let offset = CodeOffset::At(var_node.offset());
-						ctx.declare(var.clone(), offset, from.clone());
+
+						let value = NodeValue::Variable(var.clone(), offset).at(ctx.scope_handle(), var_node.span());
+						ctx.declare(var.clone(), offset, Expr::from_node(value));
 
 						let body = body.clone();
 						let node = NodeValue::For {

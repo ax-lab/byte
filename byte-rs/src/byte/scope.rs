@@ -188,7 +188,7 @@ impl Scope {
 		})
 	}
 
-	pub fn get(&self, name: Symbol, offset: &CodeOffset) -> Option<Node> {
+	pub fn get(&self, name: Symbol, offset: &CodeOffset) -> Option<Expr> {
 		let value = {
 			let bindings = self.data.bindings.read().unwrap();
 			bindings.get(&name).and_then(|x| x.get(offset).cloned())
@@ -219,7 +219,7 @@ impl ScopeWriter {
 		operators.insert(op, prec);
 	}
 
-	pub fn set(&mut self, name: Symbol, offset: CodeOffset, value: Node) -> Result<()> {
+	pub fn set(&mut self, name: Symbol, offset: CodeOffset, value: Expr) -> Result<()> {
 		let mut bindings = self.data().bindings.write().unwrap();
 		let binding = bindings
 			.entry(name.clone())
@@ -247,7 +247,7 @@ impl Deref for ScopeWriter {
 #[derive(Default)]
 struct BindingList {
 	name: Symbol,
-	values: BTreeMap<CodeOffset, Node>,
+	values: BTreeMap<CodeOffset, Expr>,
 }
 
 impl BindingList {
@@ -258,12 +258,12 @@ impl BindingList {
 		}
 	}
 
-	pub fn get(&self, offset: &CodeOffset) -> Option<&Node> {
+	pub fn get(&self, offset: &CodeOffset) -> Option<&Expr> {
 		let offset = self.lookup_index(offset);
 		offset.and_then(|offset| self.values.get(&offset))
 	}
 
-	pub fn set(&mut self, offset: CodeOffset, value: Node) -> Result<()> {
+	pub fn set(&mut self, offset: CodeOffset, value: Expr) -> Result<()> {
 		match self.values.entry(offset) {
 			Entry::Vacant(entry) => {
 				entry.insert(value);
@@ -272,7 +272,7 @@ impl BindingList {
 			Entry::Occupied(..) => {
 				let name = &self.name;
 				let error = format!("`{name}` already bound at {offset}");
-				Err(Errors::from(error, value.span()))
+				Err(Errors::from(error, value.span().clone()))
 			}
 		}
 	}
