@@ -52,7 +52,18 @@ pub use values::*;
 	- [ ] generalize framework for type conversion
 	- [ ] isomorphic code gen and eval
 	- [ ] improve segment handling and resolving (e.g. if-else problem -- defer to code gen?)
-		- [ ] e.g., add a formal code analysis step
+		- [ ] e.g., add a formal code analysis step'
+
+	Next Language Milestones
+	========================
+
+	- Import / Modules
+	- Functions
+	- Type declarations
+	- Pattern matching
+	- Borrows / Timeline
+	- JS transpilation
+	- Native compilation
 
 */
 
