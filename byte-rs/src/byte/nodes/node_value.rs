@@ -39,6 +39,10 @@ pub enum NodeValue {
 }
 
 impl NodeValue {
+	pub fn get_type(self) -> Option<Type> {
+		todo!()
+	}
+
 	pub fn at(self, scope: ScopeHandle, span: Span) -> Node {
 		Node::new(self, scope, at(span))
 	}

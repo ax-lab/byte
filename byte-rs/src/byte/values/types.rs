@@ -3,6 +3,8 @@ use super::*;
 /// Enumeration of builtin types.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Type {
+	Unknown,
+	Any,
 	Unit,
 	Null,
 	Never,
@@ -23,6 +25,16 @@ pub enum LookupKey {
 pub struct Func;
 
 impl Type {
+	pub fn or(a: Self, b: Self) -> Self {
+		let _ = (a, b);
+		todo!()
+	}
+
+	pub fn and(a: Self, b: Self) -> Self {
+		let _ = (a, b);
+		todo!()
+	}
+
 	pub fn lookup(&self, key: &LookupKey, args: Vec<Type>) -> Result<Vec<Func>> {
 		let _ = (key, args);
 		todo!()
@@ -34,8 +46,13 @@ impl Type {
 	pub fn merge_for_upcast(a: Self, b: Self) -> Self {
 		if a == b {
 			a
+		} else if a == Type::Any || b == Type::Any {
+			Type::Any
+		} else if a == Type::Unknown || b == Type::Unknown {
+			Type::Unknown
 		} else {
 			let a = match a {
+				Type::Any | Type::Unknown => unreachable!(),
 				Type::Unit => a,
 				Type::Null => a,
 				Type::Never => return b,
@@ -75,6 +92,8 @@ impl Type {
 
 	pub fn name(&self) -> StringValue {
 		match self {
+			Type::Unknown => "unknown".into(),
+			Type::Any => "any".into(),
 			Type::Unit => "unit".into(),
 			Type::Null => "null".into(),
 			Type::Never => "never".into(),
@@ -164,6 +183,8 @@ impl Type {
 
 	pub fn bool_output(&self) -> Option<Type> {
 		match self {
+			Type::Unknown => None,
+			Type::Any => None,
 			Type::Unit => Some(Type::Unit),
 			Type::Null => Some(Type::Null),
 			Type::Never => Some(Type::Never),

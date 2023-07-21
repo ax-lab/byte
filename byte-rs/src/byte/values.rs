@@ -52,6 +52,8 @@ impl Value {
 			Ok(self.clone())
 		} else {
 			let output = match to {
+				Type::Unknown => return Err(Errors::from("cannot cast to unknown type", Span::default())),
+				Type::Any => Some(self.clone()),
 				Type::Unit => None,
 				Type::Null => None,
 				Type::Never => None,
