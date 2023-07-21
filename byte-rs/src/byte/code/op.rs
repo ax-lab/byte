@@ -104,6 +104,7 @@ pub enum BinaryOp {
 	Or,
 	Assign,
 	CompareEqual,
+	Member,
 }
 
 impl BinaryOp {
@@ -140,6 +141,7 @@ impl BinaryOp {
 				// TODO: the operator actually needs access to the whole expression
 				Some(BinaryOpImpl::from(OpAssign(lhs.clone())))
 			}
+			BinaryOp::Member => todo!(),
 		};
 
 		match result {
@@ -153,6 +155,7 @@ impl BinaryOp {
 	}
 }
 
+// TODO: this needs to be a generic concept
 pub trait IsBinaryOp: Debug + 'static {
 	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue>;
 	fn get_type(&self) -> Type;
@@ -193,6 +196,7 @@ impl Display for BinaryOp {
 			BinaryOp::Or => "or",
 			BinaryOp::Assign => "=",
 			BinaryOp::CompareEqual => "==",
+			BinaryOp::Member => ".",
 		};
 		write!(f, "{str}")
 	}

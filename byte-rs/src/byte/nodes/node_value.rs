@@ -88,6 +88,13 @@ impl NodeValue {
 			NodeValue::For { from, to, body, .. } => vec![from, to, body],
 			NodeValue::Let(.., expr) => vec![expr],
 			NodeValue::UnaryOp(_, expr) => vec![expr],
+			NodeValue::BinaryOp(BinaryOp::Member, lhs, rhs) => {
+				if rhs.as_identifier().is_some() {
+					vec![lhs]
+				} else {
+					vec![lhs, rhs]
+				}
+			}
 			NodeValue::BinaryOp(_, lhs, rhs) => vec![lhs, rhs],
 			NodeValue::Variable(..) => vec![],
 			NodeValue::Print(expr, _) => vec![expr],
@@ -128,8 +135,8 @@ impl NodeValue {
 			}
 			NodeValue::For { var, from, to, .. } => format!("<for {var} in {from}..{to}>"),
 			NodeValue::Let(name, _, expr) => format!("<let {name} = {}>", expr.short_repr()),
-			NodeValue::UnaryOp(op, arg) => format!("<{op} {}>", arg.short_repr()),
-			NodeValue::BinaryOp(op, lhs, rhs) => format!("<{op} {} {}>", lhs.short_repr(), rhs.short_repr()),
+			NodeValue::UnaryOp(op, arg) => format!("({op} {})", arg.short_repr()),
+			NodeValue::BinaryOp(op, lhs, rhs) => format!("({op} {} {})", lhs.short_repr(), rhs.short_repr()),
 			NodeValue::Variable(name, _) => format!("<var {name}>"),
 			NodeValue::Print(expr, _) => format!("<print {}>", expr.short_repr()),
 			NodeValue::Conditional(a, b, c) => {

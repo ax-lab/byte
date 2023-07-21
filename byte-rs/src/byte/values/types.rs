@@ -14,7 +14,20 @@ pub enum Type {
 	Ref(Arc<Type>),
 }
 
+pub enum LookupKey {
+	UnaryOp(UnaryOp),
+	BinaryOp(BinaryOp),
+	Member(Symbol),
+}
+
+pub struct Func;
+
 impl Type {
+	pub fn lookup(&self, key: &LookupKey, args: Vec<Type>) -> Result<Vec<Func>> {
+		let _ = (key, args);
+		todo!()
+	}
+
 	/// Merge two types into an upper base type that encompasses both.
 	///
 	/// If the types are unrelated, this will return [`Type::Or`] instead.

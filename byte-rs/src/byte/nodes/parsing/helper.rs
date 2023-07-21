@@ -1,6 +1,26 @@
 use super::*;
 
 impl Node {
+	pub fn as_identifier(&self) -> Option<Symbol> {
+		self.unraw().and_then(|node| match node.val() {
+			NodeValue::Token(Token::Word(symbol)) => Some(symbol),
+			_ => None,
+		})
+	}
+
+	pub fn unraw(&self) -> Option<Node> {
+		match self.val() {
+			NodeValue::Raw(ls) => {
+				if ls.len() == 1 {
+					ls[0].unraw()
+				} else {
+					None
+				}
+			}
+			_ => Some(self.clone()),
+		}
+	}
+
 	pub fn contains<P: Fn(&Node) -> bool>(&self, predicate: P) -> bool {
 		self.iter().any(|node| predicate(&node))
 	}

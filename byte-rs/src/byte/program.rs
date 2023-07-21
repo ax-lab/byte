@@ -9,10 +9,14 @@ pub struct Program {
 struct ProgramData {
 	compiler: Compiler,
 	scopes: ScopeList,
-	nodes: RwLock<Vec<Node>>,
 	run_list: RwLock<Vec<Node>>,
 	runtime: RwLock<RuntimeScope>,
 	dump_code: RwLock<bool>,
+
+	/// List of top level nodes to resolve. Evaluators are applied to all
+	/// nodes, to their entire tree, in order of precedence. Each evaluation
+	/// step occurs "in parallel" for all nodes.
+	nodes: RwLock<Vec<Node>>,
 }
 
 //====================================================================================================================//
@@ -177,13 +181,13 @@ impl Program {
 				println!("\n=> processing {} node(s)", nodes_to_process.len());
 			}
 
-			// collect the applicable operations for all segments
+			// collect the applicable operations for all nodes
 			for it in nodes_to_process.iter_mut() {
 				match it.get_node_operations(precedence) {
-					Ok(Some((changes, prec))) => {
+					Ok(Some((ops, prec))) => {
 						assert!(precedence.is_none() || Some(prec) <= precedence);
 						precedence = Some(prec);
-						to_process.push((changes, prec));
+						to_process.push((ops, prec));
 					}
 					Ok(None) => {
 						// do nothing
@@ -198,17 +202,15 @@ impl Program {
 				break;
 			}
 
-			// precedence will contain the highest precedence level from all
-			// segments
+			// this contains the highest precedence level from all nodes
 			let precedence = precedence.unwrap();
 
-			// only process segments that are at the highest precedence level
+			// only process the highest precedence level for a given step
 			let to_process = to_process.into_iter().filter(|(_, prec)| *prec == precedence);
-
-			let mut has_changes = false;
-
 			let to_process = to_process.flat_map(|(ops, _)| ops.into_iter());
 
+			let mut has_changes = false;
+			let mut declare_list = Vec::new();
 			for change in to_process {
 				let node = change.node();
 				let op = change.evaluator();
@@ -217,6 +219,7 @@ impl Program {
 					pc += 1;
 				}
 
+				// apply the evaluator to the node
 				let mut context = EvalContext::new(node);
 				let version = node.version();
 				let mut node = node.clone(); // TODO: maybe have a node writer?
@@ -229,15 +232,24 @@ impl Program {
 				let changed = node.version() > version;
 				has_changes = has_changes || changed;
 
+				// collect scope changes, those are processed at the end
 				let declares = context.get_declares();
+				has_changes = has_changes || declares.len() > 0;
 				drop(context);
+
+				if declares.len() > 0 {
+					declare_list.push((node.scope_handle(), declares));
+				}
 
 				if DEBUG_PROCESSING_DETAIL {
 					let pc = pc - 1;
 					println!("\n-> RESULT #{pc} = {node}");
 				}
+			}
 
-				let scope = node.scope_handle().get();
+			// apply changes to the scope
+			for (scope, declares) in declare_list {
+				let scope = scope.get();
 				let mut writer = self.data.scopes.get_writer(scope);
 				for (name, offset, value) in declares {
 					match writer.set(name, offset, value) {
@@ -259,6 +271,7 @@ impl Program {
 				return Err(errors);
 			}
 
+			// TODO: add a step that allows unresolved nodes to process when there are no further changes
 			if !has_changes {
 				break;
 			}

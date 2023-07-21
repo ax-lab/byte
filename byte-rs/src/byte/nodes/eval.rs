@@ -153,6 +153,7 @@ impl NodeEval {
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum OpPrecedence {
 	Highest,
+	Member,
 	Unary,
 	Multiplicative,
 	Additive,
@@ -258,6 +259,13 @@ pub fn default_operators() -> OperatorSet {
 		BinaryOp::Assign,
 		OpPrecedence::Assign,
 		Grouping::Right,
+	));
+
+	ops.add(Operator::new_binary(
+		".".into(),
+		BinaryOp::Member,
+		OpPrecedence::Member,
+		Grouping::Left,
 	));
 
 	ops.add(
@@ -419,6 +427,7 @@ impl NodeLocation {
 }
 
 impl Node {
+	// TODO: allow operations that are defined by the node itself
 	pub fn get_node_operations(
 		&self,
 		max_precedence: Option<NodePrecedence>,

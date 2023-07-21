@@ -19,6 +19,7 @@ pub enum Expr {
 	Unary(Info, UnaryOp, UnaryOpImpl, Arc<Expr>),
 	Binary(Info, BinaryOp, BinaryOpImpl, Arc<Expr>, Arc<Expr>),
 	Sequence(Info, Vec<Expr>),
+	// TODO: Apply(Info, Func, Vec<Expr>),
 }
 
 impl Expr {
