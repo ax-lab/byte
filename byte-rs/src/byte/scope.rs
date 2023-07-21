@@ -220,6 +220,7 @@ impl ScopeWriter {
 	}
 
 	pub fn set(&mut self, name: Symbol, offset: CodeOffset, value: Expr) -> Result<()> {
+		// TODO: setting the expression value here does not have much of a meaning right now
 		let mut bindings = self.data().bindings.write().unwrap();
 		let binding = bindings
 			.entry(name.clone())

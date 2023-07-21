@@ -63,6 +63,7 @@ impl Deref for ProgramRef {
 
 impl Program {
 	pub fn new(compiler: &Compiler) -> Program {
+		let runtime = RuntimeScope::new();
 		let data = Arc::new_cyclic(|data| {
 			let handle = ProgramHandle { data: data.clone() };
 			let compiler = compiler.clone();
@@ -72,7 +73,7 @@ impl Program {
 				scopes,
 				nodes: Default::default(),
 				run_list: Default::default(),
-				runtime: Default::default(),
+				runtime: runtime.into(),
 				dump_code: Default::default(),
 			}
 		});
