@@ -1,13 +1,13 @@
 use super::*;
 
-pub struct OpSplitLine;
+pub struct EvalSplitLine;
 
-impl IsNodeOperator for OpSplitLine {
+impl IsNodeEval for EvalSplitLine {
 	fn applies(&self, node: &Node) -> bool {
 		node.contains(|node| matches!(node.token(), Some(Token::Break(..))))
 	}
 
-	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
+	fn execute(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
 		/*
 			Split nodes by line while grouping by indentation.
 

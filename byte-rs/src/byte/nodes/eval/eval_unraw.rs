@@ -1,13 +1,13 @@
 use super::*;
 
-pub struct OpUnraw;
+pub struct EvalUnraw;
 
-impl IsNodeOperator for OpUnraw {
+impl IsNodeEval for EvalUnraw {
 	fn applies(&self, node: &Node) -> bool {
 		matches!(node.val(), NodeValue::Raw(list) if list.len() == 1)
 	}
 
-	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
+	fn execute(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
 		let _ = ctx;
 		match node.val() {
 			NodeValue::Raw(list) => {

@@ -3,7 +3,7 @@ use super::*;
 pub trait ParseFold {
 	fn fold_at(&self, node: &Node) -> Option<usize>;
 
-	fn new_node(&self, ctx: &mut OperatorContext, lhs: Node, rhs: Node, span: Span) -> Result<Node>;
+	fn new_node(&self, ctx: &mut EvalContext, lhs: Node, rhs: Node, span: Span) -> Result<Node>;
 }
 
 impl Node {
@@ -11,7 +11,7 @@ impl Node {
 		op.fold_at(self).is_some()
 	}
 
-	pub fn fold<T: ParseFold>(&mut self, ctx: &mut OperatorContext, op: &T) -> Result<()> {
+	pub fn fold<T: ParseFold>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
 		if let Some(index) = op.fold_at(self) {
 			let span = self.span();
 			let lhs = self.slice(..index);

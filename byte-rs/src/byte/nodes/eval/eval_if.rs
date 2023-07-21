@@ -1,11 +1,11 @@
 use super::*;
 
-pub struct OpIf {
+pub struct EvalIf {
 	symbol_if: Symbol,
 	symbol_else: Symbol,
 }
 
-impl OpIf {
+impl EvalIf {
 	pub fn new(symbol_if: Symbol, symbol_else: Symbol) -> Self {
 		Self { symbol_if, symbol_else }
 	}
@@ -38,12 +38,12 @@ impl OpIf {
 	}
 }
 
-impl IsNodeOperator for OpIf {
+impl IsNodeEval for EvalIf {
 	fn applies(&self, node: &Node) -> bool {
 		node.contains(|node| self.get_if(node).is_some())
 	}
 
-	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
+	fn execute(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
 		let mut new_nodes = Vec::new();
 
 		let mut errors = Errors::new();
@@ -59,7 +59,7 @@ impl IsNodeOperator for OpIf {
 				let mut if_false = None;
 
 				while if_false.is_none() {
-					// skip line breaks because the line operator hasn't run yet
+					// skip line breaks because the line eval hasn't run yet
 					let mut m = n + 1;
 					while let Some(Token::Break(..)) = node.get(m).and_then(|x| x.token()) {
 						m += 1;

@@ -80,7 +80,7 @@ struct ScopeData {
 	parent: Option<ScopeHandle>,
 	children: RwLock<Vec<Arc<ScopeData>>>,
 	matcher: Arc<RwLock<Option<Matcher>>>,
-	node_operators: Arc<RwLock<HashMap<NodeOperator, NodePrecedence>>>,
+	node_evaluators: Arc<RwLock<HashMap<NodeEval, NodePrecedence>>>,
 	bindings: RwLock<HashMap<Symbol, BindingList>>,
 }
 
@@ -92,7 +92,7 @@ impl ScopeData {
 			parent: Default::default(),
 			children: Default::default(),
 			matcher: Default::default(),
-			node_operators: Default::default(),
+			node_evaluators: Default::default(),
 			bindings: Default::default(),
 		}
 	}
@@ -143,24 +143,24 @@ impl Scope {
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
-	// Node operators
+	// Node evaluators
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub fn get_node_operators(&self) -> Vec<(NodeOperator, NodePrecedence)> {
+	pub fn get_node_evaluators(&self) -> Vec<(NodeEval, NodePrecedence)> {
 		let mut map = HashMap::new();
 		if let Some(parent) = self.parent() {
-			parent.get_node_operator_map(&mut map);
+			parent.get_node_evaluator_map(&mut map);
 		}
-		self.get_node_operator_map(&mut map);
+		self.get_node_evaluator_map(&mut map);
 
 		let mut output = map.into_iter().collect::<Vec<_>>();
 		output.sort_by_key(|x| x.1);
 		output
 	}
 
-	fn get_node_operator_map(&self, map: &mut HashMap<NodeOperator, NodePrecedence>) {
-		let operators = self.data.node_operators.read().unwrap();
-		for (key, val) in operators.iter() {
+	fn get_node_evaluator_map(&self, map: &mut HashMap<NodeEval, NodePrecedence>) {
+		let evaluators = self.data.node_evaluators.read().unwrap();
+		for (key, val) in evaluators.iter() {
 			map.insert(key.clone(), val.clone());
 		}
 	}
@@ -214,9 +214,9 @@ impl ScopeWriter {
 		*matcher = Some(new_matcher);
 	}
 
-	pub fn add_node_operator(&mut self, op: NodeOperator, prec: NodePrecedence) {
-		let mut operators = self.data().node_operators.write().unwrap();
-		operators.insert(op, prec);
+	pub fn add_node_eval(&mut self, op: NodeEval, prec: NodePrecedence) {
+		let mut evaluators = self.data().node_evaluators.write().unwrap();
+		evaluators.insert(op, prec);
 	}
 
 	pub fn set(&mut self, name: Symbol, offset: CodeOffset, value: Expr) -> Result<()> {

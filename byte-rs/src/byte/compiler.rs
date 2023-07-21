@@ -72,7 +72,7 @@ impl CompilerData {
 
 impl Compiler {
 	pub(crate) fn configure_root_scope(&self, scope: &mut ScopeWriter) {
-		configure_default_node_operators(scope);
+		configure_default_node_evaluators(scope);
 	}
 }
 

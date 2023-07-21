@@ -1,8 +1,8 @@
 use super::*;
 
-pub struct OpParseBlocks(pub Symbol);
+pub struct EvalParseBlocks(pub Symbol);
 
-impl OpParseBlocks {
+impl EvalParseBlocks {
 	fn find_block(&self, node: &Node, offset: usize) -> Option<(usize, usize, usize, usize)> {
 		enum State {
 			Start,
@@ -61,7 +61,7 @@ impl OpParseBlocks {
 					} else {
 						// don't include the line break in the block or else
 						// it will get merged to the next line by the line
-						// operator
+						// evaluator
 						return Some((line_start, pivot, pivot + 2, n - 1));
 					}
 				}
@@ -82,12 +82,12 @@ impl OpParseBlocks {
 	}
 }
 
-impl IsNodeOperator for OpParseBlocks {
+impl IsNodeEval for EvalParseBlocks {
 	fn applies(&self, node: &Node) -> bool {
 		self.find_block(node, 0).is_some()
 	}
 
-	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
+	fn execute(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
 		let mut offset = 0;
 		let mut new_nodes = Vec::new();
 		while let Some((start, pivot, body, end)) = self.find_block(node, offset) {

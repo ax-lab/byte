@@ -1,11 +1,11 @@
 use super::*;
 
+pub mod eval;
 pub mod node_value;
-pub mod operators;
 pub mod parsing;
 
+pub use eval::*;
 pub use node_value::*;
-pub use operators::*;
 pub use parsing::*;
 
 const SHOW_INDENT: bool = false;

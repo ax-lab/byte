@@ -1,13 +1,13 @@
 use super::*;
 
-pub struct OpBind;
+pub struct EvalBind;
 
-impl ParseReplace for OpBind {
+impl ParseReplace for EvalBind {
 	fn can_replace(&self, node: &Node) -> bool {
 		matches!(node.val(), NodeValue::Token(Token::Word(..)))
 	}
 
-	fn replace(&self, ctx: &mut OperatorContext, node: &Node) -> Result<Option<Node>> {
+	fn replace(&self, ctx: &mut EvalContext, node: &Node) -> Result<Option<Node>> {
 		let scope = ctx.scope();
 		if let NodeValue::Token(Token::Word(name)) = node.val() {
 			let span = node.span().clone();
@@ -23,12 +23,12 @@ impl ParseReplace for OpBind {
 	}
 }
 
-impl IsNodeOperator for OpBind {
+impl IsNodeEval for EvalBind {
 	fn applies(&self, node: &Node) -> bool {
 		node.can_replace(self)
 	}
 
-	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
+	fn execute(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
 		node.replace(ctx, self)
 	}
 }

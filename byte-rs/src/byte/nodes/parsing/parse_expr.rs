@@ -19,9 +19,9 @@ pub trait IsOperator: Clone + Display {
 	/// True if the [`Node`] for this operator is also a valid value.
 	fn can_be_value(&self) -> bool;
 
-	fn node_prefix(&self, ctx: &mut OperatorContext, op: Node, arg: Node, span: Span) -> Result<Node>;
-	fn node_posfix(&self, ctx: &mut OperatorContext, op: Node, arg: Node, span: Span) -> Result<Node>;
-	fn node_binary(&self, ctx: &mut OperatorContext, op: Node, lhs: Node, rhs: Node, span: Span) -> Result<Node>;
+	fn node_prefix(&self, ctx: &mut EvalContext, op: Node, arg: Node, span: Span) -> Result<Node>;
+	fn node_posfix(&self, ctx: &mut EvalContext, op: Node, arg: Node, span: Span) -> Result<Node>;
+	fn node_binary(&self, ctx: &mut EvalContext, op: Node, lhs: Node, rhs: Node, span: Span) -> Result<Node>;
 }
 
 /// Grouping for binary operators with [`IsOperator`].
@@ -46,7 +46,7 @@ impl Node {
 		self.contains(|x| op.is_operator(x))
 	}
 
-	pub fn parse_expr<T: ParseExpr>(&mut self, ctx: &mut OperatorContext, op: &T) -> Result<()> {
+	pub fn parse_expr<T: ParseExpr>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
 		let mut errors = Errors::new();
 		let mut expr = ExprStack::new(ctx);
 
@@ -120,13 +120,13 @@ impl OperatorMode {
 
 /// Helper to parse an expression.
 struct ExprStack<'a, T: IsOperator> {
-	ctx: &'a mut OperatorContext,
+	ctx: &'a mut EvalContext,
 	ops: VecDeque<(T, OperatorMode, Node)>,
 	values: VecDeque<Vec<Node>>,
 }
 
 impl<'a, T: IsOperator> ExprStack<'a, T> {
-	pub fn new(ctx: &'a mut OperatorContext) -> Self {
+	pub fn new(ctx: &'a mut EvalContext) -> Self {
 		let mut output = Self {
 			ctx,
 			ops: Default::default(),

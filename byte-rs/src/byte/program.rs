@@ -177,7 +177,7 @@ impl Program {
 				println!("\n=> processing {} node(s)", nodes_to_process.len());
 			}
 
-			// collect the applicable operator for all segments
+			// collect the applicable operations for all segments
 			for it in nodes_to_process.iter_mut() {
 				match it.get_node_operations(precedence) {
 					Ok(Some((changes, prec))) => {
@@ -211,16 +211,16 @@ impl Program {
 
 			for change in to_process {
 				let node = change.node();
-				let op = change.operator();
+				let op = change.evaluator();
 				if DEBUG_PROCESSING {
 					println!("\n-> #{pc}: apply {op:?} to {}", node.short_repr());
 					pc += 1;
 				}
 
-				let mut context = OperatorContext::new(node);
+				let mut context = EvalContext::new(node);
 				let version = node.version();
 				let mut node = node.clone(); // TODO: maybe have a node writer?
-				match change.operator_impl().execute(&mut context, &mut node) {
+				match change.evaluator_impl().execute(&mut context, &mut node) {
 					Ok(()) => (),
 					Err(errs) => {
 						errors.append(&errs);
@@ -273,16 +273,16 @@ impl Program {
 		}
 
 		/*
-			for all Node segments, determine the next set of operators to
+			for all Node segments, determine the next set of evaluators to
 			apply
 
-				in each set, evaluate operators in groups of precedence and
+				in each set, evaluate evaluators in groups of precedence and
 				check that they can be applied
 
 				take only the highest precedence group across all segments to
 				apply
 
-			apply the next set of operators across all segments
+			apply the next set of evaluators across all segments
 
 			merge and apply changes; repeat until there are no changes to
 			apply
@@ -308,7 +308,7 @@ impl Program {
 			inter-module dependencies
 			=========================
 
-			just use bindings declared between the modules and let the operator
+			just use bindings declared between the modules and let the evaluator
 			precedence take care of resolution
 		*/
 		Ok(())
