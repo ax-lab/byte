@@ -1,5 +1,7 @@
 use super::*;
 
+// TODO: `print` should obviously be a macro, or better yet a "plain" function
+
 pub struct EvalPrint(pub Symbol);
 
 impl IsNodeEval for EvalPrint {

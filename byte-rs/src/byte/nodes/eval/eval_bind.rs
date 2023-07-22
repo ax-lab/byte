@@ -4,6 +4,7 @@ pub struct EvalBind;
 
 impl ParseReplace for EvalBind {
 	fn can_replace(&self, node: &Node) -> bool {
+		// TODO: symbol tokens can resolve to evaluators with a given precedence that apply to their context.
 		matches!(node.expr(), Expr::Token(Token::Word(..)))
 	}
 

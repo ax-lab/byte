@@ -1,5 +1,7 @@
 use super::*;
 
+// TODO: make `if` into a macro
+
 pub struct EvalIf {
 	symbol_if: Symbol,
 	symbol_else: Symbol,

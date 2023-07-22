@@ -1,5 +1,7 @@
 use super::*;
 
+// TODO: make `for` into a macro
+
 pub struct EvalFor(pub Symbol, pub Symbol, pub Symbol);
 
 impl EvalFor {

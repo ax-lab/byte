@@ -1,5 +1,7 @@
 use super::*;
 
+// TODO: comments should be filtered out but stored somewhere for doc comments
+
 pub struct EvalStripComments;
 
 impl ParseFilter for EvalStripComments {

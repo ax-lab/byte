@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 
 use super::*;
 
+// TODO: check if structural evaluators should be a special case for a `Raw` node.
+
 pub type BracketFn = Arc<dyn Fn(Symbol, Node, Symbol) -> Expr>;
 
 /// Configures a set of bracket pairs and provides parsing for [`Node`].

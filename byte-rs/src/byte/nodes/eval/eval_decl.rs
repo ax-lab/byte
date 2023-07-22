@@ -1,5 +1,7 @@
 use super::*;
 
+// TODO: this should be a "macro" style binding that evaluates to a `Let` expression
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Decl {
 	Let,
