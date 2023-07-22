@@ -17,7 +17,7 @@ impl OpNot {
 }
 
 impl IsUnaryOp for OpNot {
-	fn execute(&self, scope: &mut RuntimeScope, arg: &Expr) -> Result<ExprValue> {
+	fn execute(&self, scope: &mut RuntimeScope, arg: &Node) -> Result<ExprValue> {
 		let arg = arg.execute(scope)?.into_value();
 		let arg = Type::to_bool(&arg)?;
 		Ok(Value::Bool(!arg).into())

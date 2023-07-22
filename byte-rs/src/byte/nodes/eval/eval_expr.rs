@@ -113,19 +113,19 @@ impl IsOperator for Operator {
 
 	fn node_prefix(&self, ctx: &mut EvalContext, op: Node, arg: Node, span: Span) -> Result<Node> {
 		let _ = op;
-		let node = NodeValue::UnaryOp(self.prefix.unwrap().0, arg).at(ctx.scope_handle(), span);
+		let node = NodeValue::UnaryOp(self.prefix.unwrap().0, None, arg).at(ctx.scope_handle(), span);
 		Ok(node)
 	}
 
 	fn node_posfix(&self, ctx: &mut EvalContext, op: Node, arg: Node, span: Span) -> Result<Node> {
 		let _ = op;
-		let node = NodeValue::UnaryOp(self.posfix.unwrap().0, arg).at(ctx.scope_handle(), span);
+		let node = NodeValue::UnaryOp(self.posfix.unwrap().0, None, arg).at(ctx.scope_handle(), span);
 		Ok(node)
 	}
 
 	fn node_binary(&self, ctx: &mut EvalContext, op: Node, lhs: Node, rhs: Node, span: Span) -> Result<Node> {
 		let _ = op;
-		let node = NodeValue::BinaryOp(self.binary.unwrap().0, lhs, rhs).at(ctx.scope_handle(), span);
+		let node = NodeValue::BinaryOp(self.binary.unwrap().0, None, lhs, rhs).at(ctx.scope_handle(), span);
 		Ok(node)
 	}
 }

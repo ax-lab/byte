@@ -3,8 +3,8 @@ use super::*;
 /// Represents an offset value derived from the source code location and used
 /// for scoping purposes.
 ///
-/// Both [`Node`] and [`Expr`] maintain their offset information, which is
-/// used for name binding and resolution.
+/// Each [`Node`] contains offset information, which is then used for name
+/// binding and resolution.
 ///
 /// Within a [`Scope`], a symbol or variable declared with [`CodeOffset::At`]
 /// is only visible from that offset forward.

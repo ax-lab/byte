@@ -24,6 +24,12 @@ pub enum LookupKey {
 
 pub struct Func;
 
+impl Func {
+	pub fn get_type(&self) -> Type {
+		todo!()
+	}
+}
+
 impl Type {
 	pub fn or(a: Self, b: Self) -> Self {
 		let _ = (a, b);

@@ -30,7 +30,7 @@ impl OpAnd {
 }
 
 impl IsBinaryOp for OpAnd {
-	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue> {
+	fn execute(&self, scope: &mut RuntimeScope, lhs: &Node, rhs: &Node) -> Result<ExprValue> {
 		let lhs = lhs.execute(scope)?.into_value();
 		let (lhs, bool) = Type::to_bool_output(&lhs)?;
 		if bool {

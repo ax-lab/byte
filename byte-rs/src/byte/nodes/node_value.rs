@@ -1,5 +1,7 @@
 use super::*;
 
+// TODO: differentiate between a resolved and unresolved node for codegen
+
 /// Enumeration of all available language elements.
 ///
 /// Nodes relate to the source code, representing language constructs of all
@@ -7,10 +9,16 @@ use super::*;
 /// definitions.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum NodeValue {
-	Code(Expr),
 	Token(Token),
+	//----[ Basic values ]----------------------------------------------------//
+	Unit,
 	Null,
+	Never,
+	Str(StringValue),
+	Int(IntValue),
+	Float(FloatValue),
 	Boolean(bool),
+	Variable(Symbol, CodeOffset, Type),
 	//----[ Structural ]------------------------------------------------------//
 	Raw(Arc<Vec<Node>>),
 	Sequence(Arc<Vec<Node>>),
@@ -31,16 +39,55 @@ pub enum NodeValue {
 	},
 	//----[ AST ]-------------------------------------------------------------//
 	Let(Symbol, CodeOffset, Node),
-	UnaryOp(UnaryOp, Node),
-	BinaryOp(BinaryOp, Node, Node),
-	Variable(Symbol, CodeOffset),
+	UnaryOp(UnaryOp, Option<UnaryOpImpl>, Node),
+	BinaryOp(BinaryOp, Option<BinaryOpImpl>, Node, Node),
+	UnresolvedVariable(Symbol, CodeOffset),
 	Print(Node, &'static str),
 	Conditional(Node, Node, Node),
+	// TODO: Apply(Info, Func, Vec<Node>),
 }
 
 impl NodeValue {
-	pub fn get_type(self) -> Option<Type> {
-		todo!()
+	pub fn get_type(self) -> Result<Type> {
+		let typ = match self {
+			NodeValue::Never => Type::Never,
+			NodeValue::Unit => Type::Unit,
+			NodeValue::Null => Type::Null,
+			NodeValue::Let(.., expr) => expr.get_type()?,
+			NodeValue::Boolean(..) => Type::Bool,
+			NodeValue::Str(..) => Type::String,
+			NodeValue::Int(.., int) => Type::Int(int.get_type()),
+			NodeValue::For { .. } => Type::Unit,
+			NodeValue::Float(.., float) => Type::Float(float.get_type()),
+			NodeValue::Variable(.., kind) => Type::Ref(kind.clone().into()),
+			NodeValue::Print(..) => Type::Unit,
+			NodeValue::UnaryOp(_, op, ..) => {
+				if let Some(op) = op {
+					op.get().get_type()
+				} else {
+					Type::Unknown
+				}
+			}
+			NodeValue::BinaryOp(_, op, ..) => {
+				if let Some(op) = op {
+					op.get().get_type()
+				} else {
+					Type::Unknown
+				}
+			}
+			NodeValue::Sequence(.., list) => list.last().map(|x| x.get_type()).unwrap_or_else(|| Ok(Type::Unit))?,
+			NodeValue::Conditional(_, a, b) => {
+				let a = a.get_type()?;
+				let b = b.get_type()?;
+				if a == b {
+					a
+				} else {
+					Type::Or(a.into(), b.into())
+				}
+			}
+			_ => Type::Unknown,
+		};
+		Ok(typ)
 	}
 
 	pub fn at(self, scope: ScopeHandle, span: Span) -> Node {
@@ -70,10 +117,15 @@ impl NodeValue {
 
 	pub fn children(&self) -> Vec<&Node> {
 		match self {
-			NodeValue::Code(_) => vec![],
 			NodeValue::Token(_) => vec![],
 			NodeValue::Null => vec![],
 			NodeValue::Boolean(_) => vec![],
+			NodeValue::Unit => vec![],
+			NodeValue::Never => vec![],
+			NodeValue::Str(_) => vec![],
+			NodeValue::Int(_) => vec![],
+			NodeValue::Float(_) => vec![],
+			NodeValue::Variable(_, _, _) => vec![],
 			NodeValue::Raw(ls) => ls.iter().map(|x| x).collect(),
 			NodeValue::Sequence(ls) => ls.iter().map(|x| x).collect(),
 			NodeValue::Group(it) => vec![it],
@@ -91,16 +143,16 @@ impl NodeValue {
 			}
 			NodeValue::For { from, to, body, .. } => vec![from, to, body],
 			NodeValue::Let(.., expr) => vec![expr],
-			NodeValue::UnaryOp(_, expr) => vec![expr],
-			NodeValue::BinaryOp(BinaryOp::Member, lhs, rhs) => {
+			NodeValue::UnaryOp(_, _, expr) => vec![expr],
+			NodeValue::BinaryOp(BinaryOp::Member, _, lhs, rhs) => {
 				if rhs.as_identifier().is_some() {
 					vec![lhs]
 				} else {
 					vec![lhs, rhs]
 				}
 			}
-			NodeValue::BinaryOp(_, lhs, rhs) => vec![lhs, rhs],
-			NodeValue::Variable(..) => vec![],
+			NodeValue::BinaryOp(_, _, lhs, rhs) => vec![lhs, rhs],
+			NodeValue::UnresolvedVariable(..) => vec![],
 			NodeValue::Print(expr, _) => vec![expr],
 			NodeValue::Conditional(cond, t, f) => vec![cond, t, f],
 		}
@@ -119,10 +171,15 @@ impl NodeValue {
 			ctx.with_format(ctx.format().with_mode(Mode::Minimal), || format!("<{title} {span}>"))
 		};
 		match self {
-			NodeValue::Code(expr) => format!("<!{expr:?}>"),
 			NodeValue::Token(token) => format!("<{token}>"),
 			NodeValue::Null => format!("<null>"),
 			NodeValue::Boolean(value) => format!("<{value}>"),
+			NodeValue::Unit => format!("<unit>"),
+			NodeValue::Never => format!("<never>"),
+			NodeValue::Str(value) => format!("{value:?}"),
+			NodeValue::Int(value) => format!("{value:?}"),
+			NodeValue::Float(value) => format!("{value:?}"),
+			NodeValue::Variable(name, at, kind) => format!("<var {name}{at:?} -- {kind}>"),
 			NodeValue::Raw(list) => short("raw", list),
 			NodeValue::Sequence(list) => short("seq", list),
 			NodeValue::Group(value) => {
@@ -139,9 +196,9 @@ impl NodeValue {
 			}
 			NodeValue::For { var, from, to, .. } => format!("<for {var} in {from}..{to}>"),
 			NodeValue::Let(name, _, expr) => format!("<let {name} = {}>", expr.short_repr()),
-			NodeValue::UnaryOp(op, arg) => format!("({op} {})", arg.short_repr()),
-			NodeValue::BinaryOp(op, lhs, rhs) => format!("({op} {} {})", lhs.short_repr(), rhs.short_repr()),
-			NodeValue::Variable(name, _) => format!("<var {name}>"),
+			NodeValue::UnaryOp(op, _, arg) => format!("({op} {})", arg.short_repr()),
+			NodeValue::BinaryOp(op, _, lhs, rhs) => format!("({op} {} {})", lhs.short_repr(), rhs.short_repr()),
+			NodeValue::UnresolvedVariable(name, _) => format!("<var {name}>"),
 			NodeValue::Print(expr, _) => format!("<print {}>", expr.short_repr()),
 			NodeValue::Conditional(a, b, c) => {
 				format!("<{} ? {} : {}>", a.short_repr(), b.short_repr(), c.short_repr())
@@ -156,10 +213,15 @@ impl Display for NodeValue {
 		ctx.is_used();
 
 		match self {
-			NodeValue::Code(code) => write!(f, "{code}"),
 			NodeValue::Token(token) => write!(f, "{token}"),
 			NodeValue::Null => write!(f, "(null)"),
 			NodeValue::Boolean(value) => write!(f, "({value})"),
+			NodeValue::Unit => write!(f, "<unit>"),
+			NodeValue::Never => write!(f, "<never>"),
+			NodeValue::Str(value) => write!(f, "{value:?}"),
+			NodeValue::Int(value) => write!(f, "{value:?}"),
+			NodeValue::Float(value) => write!(f, "{value:?}"),
+			NodeValue::Variable(name, at, kind) => write!(f, "<var {name}{at:?} -- {kind}>"),
 			NodeValue::Raw(nodes) => match nodes.len() {
 				0 => write!(f, "<>"),
 				1 => {
@@ -228,11 +290,11 @@ impl Display for NodeValue {
 				let offset = offset.value();
 				write!(f, "let {name}_{offset} = {expr}")
 			}
-			NodeValue::UnaryOp(op, arg) => write!(f, "{op} {arg}"),
-			NodeValue::BinaryOp(op, lhs, rhs) => write!(f, "({lhs} {op} {rhs})"),
-			NodeValue::Variable(var, offset) => {
+			NodeValue::UnaryOp(op, _, arg) => write!(f, "{op} {arg}"),
+			NodeValue::BinaryOp(op, _, lhs, rhs) => write!(f, "({lhs} {op} {rhs})"),
+			NodeValue::UnresolvedVariable(var, offset) => {
 				let offset = offset.value();
-				write!(f, "{var}_{offset}")
+				write!(f, "{var}{offset}")
 			}
 			NodeValue::Print(expr, _) => write!(f, "Print({expr})"),
 			NodeValue::Conditional(cond, a, b) => write!(f, "{cond} ? {a} : {b}"),

@@ -4,7 +4,7 @@ use super::*;
 pub struct OpAssign(pub Type);
 
 impl IsBinaryOp for OpAssign {
-	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue> {
+	fn execute(&self, scope: &mut RuntimeScope, lhs: &Node, rhs: &Node) -> Result<ExprValue> {
 		let typ = rhs.get_type()?;
 		let rhs_val = rhs.execute(scope)?;
 		let lhs_val = lhs.execute(scope)?;

@@ -12,7 +12,7 @@ impl ParseReplace for EvalBind {
 		if let NodeValue::Token(Token::Word(name)) = node.val() {
 			let span = node.span().clone();
 			if let Some(offset) = scope.lookup(&name, &CodeOffset::At(node.offset())) {
-				let value = NodeValue::Variable(name.clone(), offset).at(scope.handle(), span);
+				let value = NodeValue::UnresolvedVariable(name.clone(), offset).at(scope.handle(), span);
 				Ok(Some(value))
 			} else {
 				Err(Errors::from(format!("undefined symbol `{name}`"), span))

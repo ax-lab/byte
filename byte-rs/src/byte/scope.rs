@@ -188,7 +188,7 @@ impl Scope {
 		})
 	}
 
-	pub fn get(&self, name: Symbol, offset: &CodeOffset) -> Option<Expr> {
+	pub fn get(&self, name: Symbol, offset: &CodeOffset) -> Option<Node> {
 		let value = {
 			let bindings = self.data.bindings.read().unwrap();
 			bindings.get(&name).and_then(|x| x.get(offset).cloned())
@@ -219,7 +219,7 @@ impl ScopeWriter {
 		evaluators.insert(op, prec);
 	}
 
-	pub fn set(&mut self, name: Symbol, offset: CodeOffset, value: Expr) -> Result<()> {
+	pub fn set(&mut self, name: Symbol, offset: CodeOffset, value: Node) -> Result<()> {
 		// TODO: setting the expression value here does not have much of a meaning right now
 		let mut bindings = self.data().bindings.write().unwrap();
 		let binding = bindings
@@ -248,7 +248,7 @@ impl Deref for ScopeWriter {
 #[derive(Default)]
 struct BindingList {
 	name: Symbol,
-	values: BTreeMap<CodeOffset, Expr>,
+	values: BTreeMap<CodeOffset, Node>,
 }
 
 impl BindingList {
@@ -259,12 +259,12 @@ impl BindingList {
 		}
 	}
 
-	pub fn get(&self, offset: &CodeOffset) -> Option<&Expr> {
+	pub fn get(&self, offset: &CodeOffset) -> Option<&Node> {
 		let offset = self.lookup_index(offset);
 		offset.and_then(|offset| self.values.get(&offset))
 	}
 
-	pub fn set(&mut self, offset: CodeOffset, value: Expr) -> Result<()> {
+	pub fn set(&mut self, offset: CodeOffset, value: Node) -> Result<()> {
 		match self.values.entry(offset) {
 			Entry::Vacant(entry) => {
 				entry.insert(value);

@@ -37,7 +37,7 @@ pub use eval_unraw::*;
 /// Context for an [`NodeEval`] execution.
 pub struct EvalContext {
 	scope: Scope,
-	declares: Vec<(Symbol, CodeOffset, Expr)>,
+	declares: Vec<(Symbol, CodeOffset, Node)>,
 }
 
 impl EvalContext {
@@ -56,12 +56,12 @@ impl EvalContext {
 		self.scope.handle()
 	}
 
-	pub fn declare(&mut self, symbol: Symbol, offset: CodeOffset, value: Expr) {
+	pub fn declare(&mut self, symbol: Symbol, offset: CodeOffset, value: Node) {
 		// TODO: review what the value of the declare actually means in the code
 		self.declares.push((symbol, offset, value));
 	}
 
-	pub(crate) fn get_declares(&mut self) -> Vec<(Symbol, CodeOffset, Expr)> {
+	pub(crate) fn get_declares(&mut self) -> Vec<(Symbol, CodeOffset, Node)> {
 		std::mem::take(&mut self.declares)
 	}
 }

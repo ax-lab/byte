@@ -49,7 +49,7 @@ impl ParseReplace for EvalFor {
 
 						let value = NodeValue::Let(var.clone(), offset, from.clone());
 						let value = value.at(ctx.scope_handle(), var_node.span());
-						ctx.declare(var.clone(), offset, Expr::from_node(value));
+						ctx.declare(var.clone(), offset, value);
 
 						let body = body.clone();
 						let node = NodeValue::For {

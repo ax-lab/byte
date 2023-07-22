@@ -21,6 +21,7 @@ struct NodeData {
 	value: RwLock<NodeValue>,
 	version: RwLock<usize>,
 	scope: ScopeHandle,
+	_code: RwLock<Option<Func>>, // TODO: implement this
 }
 
 impl Node {
@@ -35,9 +36,14 @@ impl Node {
 			value,
 			version,
 			scope,
+			_code: Default::default(),
 		};
 		let node = Self { data: data.into() };
 		node
+	}
+
+	pub fn get_type(&self) -> Result<Type> {
+		self.val().get_type()
 	}
 
 	pub fn raw(nodes: Vec<Node>, scope: ScopeHandle) -> Self {
@@ -180,6 +186,157 @@ impl Node {
 
 	pub fn symbol(&self) -> Option<Symbol> {
 		self.val().symbol()
+	}
+
+	pub fn execute(&self, scope: &mut RuntimeScope) -> Result<ExprValue> {
+		match self.val() {
+			NodeValue::Never => {
+				let error = format!("never expression cannot be evaluated");
+				Err(Errors::from(error, self.span().clone()))
+			}
+			NodeValue::Unit => Ok(Value::from(()).into()),
+			NodeValue::Null => Ok(Value::Null.into()),
+			NodeValue::Let(name, offset, expr) => {
+				let value = expr.execute(scope)?;
+				scope.set(name.clone(), offset, value.clone().into());
+				Ok(value)
+			}
+			NodeValue::Boolean(value) => Ok(Value::from(value).into()),
+			NodeValue::Str(value) => Ok(Value::from(value.to_string()).into()),
+			NodeValue::Int(value) => Ok(Value::from(value.clone()).into()),
+			NodeValue::Float(value) => Ok(Value::from(value.clone()).into()),
+			NodeValue::Variable(name, offset, ..) => match scope.get(&name, offset).cloned() {
+				Some(value) => Ok(ExprValue::Variable(name.clone(), offset.clone(), value)),
+				None => Err(Errors::from(format!("variable `{name}` not set"), self.span().clone())),
+			},
+			NodeValue::Print(expr, tail) => {
+				let list = expr.as_sequence();
+				let mut values = Vec::new();
+				for expr in list.iter() {
+					let value = expr.execute(scope)?.into_value();
+					if !value.is_unit() {
+						values.push(value)
+					}
+				}
+
+				let mut output = scope.stdout();
+				for (i, it) in values.into_iter().enumerate() {
+					if i > 0 {
+						write!(output, " ")?;
+					}
+					write!(output, "{it}")?;
+				}
+				write!(output, "{tail}")?;
+				Ok(Value::from(()).into())
+			}
+			NodeValue::UnaryOp(op, op_impl, arg) => {
+				if let Some(op_impl) = op_impl {
+					op_impl.get().execute(scope, &arg)
+				} else {
+					let error = format!("unresolved unary operator `{op}`");
+					let error = Errors::from(error, self.span());
+					Err(error)
+				}
+			}
+			NodeValue::BinaryOp(op, op_impl, lhs, rhs) => {
+				if let Some(op_impl) = op_impl {
+					op_impl.get().execute(scope, &lhs, &rhs)
+				} else {
+					let error = format!("unresolved binary operator `{op}`");
+					let error = Errors::from(error, self.span());
+					Err(error)
+				}
+			}
+			NodeValue::Sequence(list) => {
+				let mut value = Value::from(()).into();
+				for it in list.iter() {
+					value = it.execute(scope)?;
+				}
+				Ok(value)
+			}
+			NodeValue::Conditional(cond, a, b) => {
+				let cond = cond.execute(scope)?;
+				let cond = cond.value().bool()?;
+				if cond {
+					a.execute(scope)
+				} else {
+					b.execute(scope)
+				}
+			}
+			NodeValue::If {
+				expr,
+				if_true,
+				if_false,
+			} => {
+				let expr = expr.execute(scope)?;
+				let expr = expr.value().bool()?;
+				if expr {
+					if_true.execute(scope)
+				} else if let Some(if_false) = if_false {
+					if_false.execute(scope)
+				} else {
+					Ok(Value::Unit.into())
+				}
+			}
+			NodeValue::For {
+				var,
+				offset,
+				from,
+				to,
+				body,
+			} => {
+				let from_value = from.execute(scope)?;
+				let from_value = from_value.value();
+				let from_type = from_value.get_type();
+				let from_value = from_value.int_value(&IntType::I128, NumericConversion::None)?;
+				let from_value = from_value.signed();
+
+				let to_value = to.execute(scope)?;
+				let to_value = to_value.value();
+				let to_value = to_value.int_value(&IntType::I128, NumericConversion::None)?;
+				let to_value = to_value.signed();
+
+				let step = if from_value <= to_value { 1 } else { -1 };
+
+				let mut cur = from_value;
+				loop {
+					let value = Value::from(cur).cast_to(&from_type, NumericConversion::None)?;
+					scope.set(var.clone(), offset, value);
+					body.execute(scope)?;
+					if cur == to_value {
+						break;
+					}
+					cur += step;
+				}
+				Ok(Value::Unit.into())
+			}
+			NodeValue::Group(expr) => expr.execute(scope),
+			NodeValue::Token(token) => {
+				let error = format!("raw token `{token}` cannot be executed");
+				Err(Errors::from(error, self.span().clone()))
+			}
+			NodeValue::Raw(..) => {
+				let error = format!("unresolved raw token list");
+				Err(Errors::from(error, self.span().clone()))
+			}
+			NodeValue::Block(head, _) => {
+				let error = format!("unresolved block expression: {head}");
+				Err(Errors::from(error, self.span().clone()))
+			}
+			NodeValue::UnresolvedVariable(name, _) => {
+				let error = format!("unresolved variable `{name}`");
+				Err(Errors::from(error, self.span().clone()))
+			}
+		}
+	}
+
+	pub fn as_sequence(&self) -> Vec<Node> {
+		let mut output = Vec::new();
+		match self.val() {
+			NodeValue::Sequence(list) => output = (*list).clone(),
+			_ => output.push(self.clone()),
+		}
+		output
 	}
 }
 

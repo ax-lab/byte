@@ -2,8 +2,7 @@ use super::*;
 
 // TODO: add Info to this
 
-/// Wraps the result of an [`Expr`] with additional information and support
-/// for references.
+/// Wraps the result of an [`Node`] execution with support for references.
 #[derive(Clone, Debug)]
 pub enum ExprValue {
 	Value(Value),

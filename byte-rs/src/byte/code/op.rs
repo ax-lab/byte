@@ -48,7 +48,7 @@ impl Display for UnaryOp {
 }
 
 pub trait IsUnaryOp: Debug + 'static {
-	fn execute(&self, scope: &mut RuntimeScope, arg: &Expr) -> Result<ExprValue>;
+	fn execute(&self, scope: &mut RuntimeScope, arg: &Node) -> Result<ExprValue>;
 	fn get_type(&self) -> Type;
 }
 
@@ -157,7 +157,7 @@ impl BinaryOp {
 
 // TODO: this needs to be a generic concept
 pub trait IsBinaryOp: Debug + 'static {
-	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue>;
+	fn execute(&self, scope: &mut RuntimeScope, lhs: &Node, rhs: &Node) -> Result<ExprValue>;
 	fn get_type(&self) -> Type;
 }
 
