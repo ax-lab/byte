@@ -31,7 +31,7 @@ pub enum Grouping {
 	Right,
 }
 
-pub trait ParseExpr {
+pub trait ParseOps {
 	type Op: IsOperator;
 
 	fn is_operator(&self, node: &Node) -> bool {
@@ -42,13 +42,13 @@ pub trait ParseExpr {
 }
 
 impl Node {
-	pub fn has_expr<T: ParseExpr>(&self, op: &T) -> bool {
+	pub fn has_ops<T: ParseOps>(&self, op: &T) -> bool {
 		self.contains(|x| op.is_operator(x))
 	}
 
-	pub fn parse_expr<T: ParseExpr>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
+	pub fn parse_ops<T: ParseOps>(&mut self, ctx: &mut EvalContext, op: &T) -> Result<()> {
 		let mut errors = Errors::new();
-		let mut expr = ExprStack::new(ctx);
+		let mut expr = OpStack::new(ctx);
 
 		for node in self.iter() {
 			if let Some(op) = op.get_operator(&node) {
@@ -119,13 +119,13 @@ impl OperatorMode {
 }
 
 /// Helper to parse an expression.
-struct ExprStack<'a, T: IsOperator> {
+struct OpStack<'a, T: IsOperator> {
 	ctx: &'a mut EvalContext,
 	ops: VecDeque<(T, OperatorMode, Node)>,
 	values: VecDeque<Vec<Node>>,
 }
 
-impl<'a, T: IsOperator> ExprStack<'a, T> {
+impl<'a, T: IsOperator> OpStack<'a, T> {
 	pub fn new(ctx: &'a mut EvalContext) -> Self {
 		let mut output = Self {
 			ctx,

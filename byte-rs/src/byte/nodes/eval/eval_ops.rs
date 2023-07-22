@@ -22,7 +22,7 @@ impl OperatorSet {
 	}
 }
 
-impl ParseExpr for OperatorSet {
+impl ParseOps for OperatorSet {
 	type Op = Operator;
 
 	fn get_operator(&self, node: &Node) -> Option<Self::Op> {
@@ -32,11 +32,11 @@ impl ParseExpr for OperatorSet {
 
 impl IsNodeEval for OperatorSet {
 	fn applies(&self, node: &Node) -> bool {
-		node.has_expr(self)
+		node.has_ops(self)
 	}
 
 	fn execute(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
-		node.parse_expr(ctx, self)
+		node.parse_ops(ctx, self)
 	}
 }
 
