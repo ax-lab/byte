@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use super::*;
 
-pub type BracketFn = Arc<dyn Fn(Symbol, Node, Symbol) -> NodeValue>;
+pub type BracketFn = Arc<dyn Fn(Symbol, Node, Symbol) -> Expr>;
 
 /// Configures a set of bracket pairs and provides parsing for [`Node`].
 #[derive(Clone, Default)]

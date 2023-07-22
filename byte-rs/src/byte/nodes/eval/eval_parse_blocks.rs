@@ -100,7 +100,7 @@ impl IsNodeEval for EvalParseBlocks {
 			offset = end;
 
 			let span = Span::merge(head.span(), body.span());
-			let new_node = NodeValue::Block(head, body).at(ctx.scope_handle(), span);
+			let new_node = Expr::Block(head, body).at(ctx.scope_handle(), span);
 			new_nodes.push(new_node);
 		}
 		new_nodes.extend(node.slice(offset..).iter());

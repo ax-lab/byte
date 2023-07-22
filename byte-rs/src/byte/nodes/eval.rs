@@ -207,7 +207,7 @@ pub fn configure_default_node_evaluators(scope: &mut ScopeWriter) {
 	let ternary = EvalTernary(
 		Context::symbol("?"),
 		Context::symbol(":"),
-		Arc::new(|a, b, c, scope, span| NodeValue::Conditional(a, b, c).at(scope, span)),
+		Arc::new(|a, b, c, scope, span| Expr::Conditional(a, b, c).at(scope, span)),
 	);
 	scope.add_node_eval(NodeEval::Ternary(ternary), NodePrecedence::Ternary);
 
@@ -216,7 +216,7 @@ pub fn configure_default_node_evaluators(scope: &mut ScopeWriter) {
 	brackets.add(
 		Context::symbol("("),
 		Context::symbol(")"),
-		Arc::new(|_, n, _| NodeValue::Group(n)),
+		Arc::new(|_, n, _| Expr::Group(n)),
 	);
 
 	scope.add_node_eval(NodeEval::Brackets(brackets), NodePrecedence::Brackets);
@@ -226,20 +226,20 @@ pub fn configure_default_node_evaluators(scope: &mut ScopeWriter) {
 	// boolean
 	scope.add_node_eval(
 		NodeEval::Replace(Context::symbol("true"), |scope, span| {
-			NodeValue::Boolean(true).at(scope, span)
+			Expr::Boolean(true).at(scope, span)
 		}),
 		NodePrecedence::Boolean(true),
 	);
 	scope.add_node_eval(
 		NodeEval::Replace(Context::symbol("false"), |scope, span| {
-			NodeValue::Boolean(false).at(scope, span)
+			Expr::Boolean(false).at(scope, span)
 		}),
 		NodePrecedence::Boolean(false),
 	);
 
 	// null
 	scope.add_node_eval(
-		NodeEval::Replace(Context::symbol("null"), |scope, span| NodeValue::Null.at(scope, span)),
+		NodeEval::Replace(Context::symbol("null"), |scope, span| Expr::Null.at(scope, span)),
 		NodePrecedence::Null,
 	);
 }
@@ -451,7 +451,7 @@ impl Node {
 			let mut cur_precedence = max_precedence;
 			let mut cur_ops = Vec::new();
 			let mut location = location.push(self.clone());
-			for (index, it) in self.val().children().into_iter().enumerate() {
+			for (index, it) in self.expr().children().into_iter().enumerate() {
 				location.set_index(index);
 				let ops = it.do_get_node_operations(cur_precedence, &location).handle(&mut errors);
 				if let Some((mut ops, prec)) = ops {

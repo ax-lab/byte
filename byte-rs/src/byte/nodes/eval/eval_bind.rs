@@ -4,15 +4,15 @@ pub struct EvalBind;
 
 impl ParseReplace for EvalBind {
 	fn can_replace(&self, node: &Node) -> bool {
-		matches!(node.val(), NodeValue::Token(Token::Word(..)))
+		matches!(node.expr(), Expr::Token(Token::Word(..)))
 	}
 
 	fn replace(&self, ctx: &mut EvalContext, node: &Node) -> Result<Option<Node>> {
 		let scope = ctx.scope();
-		if let NodeValue::Token(Token::Word(name)) = node.val() {
+		if let Expr::Token(Token::Word(name)) = node.expr() {
 			let span = node.span().clone();
 			if let Some(offset) = scope.lookup(&name, &CodeOffset::At(node.offset())) {
-				let value = NodeValue::UnresolvedVariable(name.clone(), offset).at(scope.handle(), span);
+				let value = Expr::UnresolvedVariable(name.clone(), offset).at(scope.handle(), span);
 				Ok(Some(value))
 			} else {
 				Err(Errors::from(format!("undefined symbol `{name}`"), span))

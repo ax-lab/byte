@@ -76,9 +76,9 @@ impl Node {
 	fn generate_node(&self) -> Result<Node> {
 		let scope = self.scope_handle();
 		let span = self.span();
-		let value = match self.val() {
-			NodeValue::Raw(list) => match list.len() {
-				0 => NodeValue::Unit.at(scope, span),
+		let value = match self.expr() {
+			Expr::Raw(list) => match list.len() {
+				0 => Expr::Unit.at(scope, span),
 				1 => list[0].generate_node()?,
 				_ => {
 					let mut errors = Errors::new();
@@ -90,15 +90,15 @@ impl Node {
 						}
 					}
 					errors.check()?;
-					NodeValue::Sequence(sequence.into()).at(scope, span)
+					Expr::Sequence(sequence.into()).at(scope, span)
 				}
 			},
-			NodeValue::Boolean(..) => self.clone(),
-			NodeValue::Token(Token::Integer(value)) => {
+			Expr::Boolean(..) => self.clone(),
+			Expr::Token(Token::Integer(value)) => {
 				let value = IntValue::new(value, DEFAULT_INT).at_pos(span.clone())?;
-				NodeValue::Int(value).at(scope, span)
+				Expr::Int(value).at(scope, span)
 			}
-			NodeValue::Token(Token::Float(value)) => {
+			Expr::Token(Token::Float(value)) => {
 				let value: f64 = match value.as_str().parse() {
 					Ok(value) => value,
 					Err(err) => {
@@ -107,17 +107,17 @@ impl Node {
 					}
 				};
 				let value = FloatValue::new(value, FloatType::F64);
-				NodeValue::Float(value).at(scope, span)
+				Expr::Float(value).at(scope, span)
 			}
-			NodeValue::Null => self.clone(),
-			NodeValue::Token(Token::Literal(value)) => NodeValue::Str(value.clone()).at(scope, span),
-			NodeValue::Group(inner) => inner.generate_node()?,
-			NodeValue::Let(name, offset, list) => {
+			Expr::Null => self.clone(),
+			Expr::Token(Token::Literal(value)) => Expr::Str(value.clone()).at(scope, span),
+			Expr::Group(inner) => inner.generate_node()?,
+			Expr::Let(name, offset, list) => {
 				let expr = list.generate_node()?;
 				let offset = offset;
-				NodeValue::Let(name.clone(), offset, expr).at(scope, span)
+				Expr::Let(name.clone(), offset, expr).at(scope, span)
 			}
-			NodeValue::If {
+			Expr::If {
 				expr,
 				if_true,
 				if_false,
@@ -129,14 +129,14 @@ impl Node {
 				} else {
 					None
 				};
-				NodeValue::If {
+				Expr::If {
 					expr,
 					if_true,
 					if_false,
 				}
 				.at(scope, span)
 			}
-			NodeValue::For {
+			Expr::For {
 				var,
 				offset,
 				from,
@@ -147,7 +147,7 @@ impl Node {
 				let from = from.generate_node()?;
 				let to = to.generate_node()?;
 				let body = body.generate_node()?;
-				NodeValue::For {
+				Expr::For {
 					var,
 					offset,
 					from,
@@ -156,11 +156,11 @@ impl Node {
 				}
 				.at(scope, span)
 			}
-			NodeValue::UnresolvedVariable(name, index) => {
+			Expr::UnresolvedVariable(name, index) => {
 				let scope = scope.get();
 				if let Some(mut value) = scope.get(name.clone(), &index) {
 					let value = value.generate_code()?;
-					NodeValue::Variable(
+					Expr::Variable(
 						name.clone(),
 						index,
 						value.get_type().because(format!("solving variable `{name}`"), &span)?,
@@ -172,30 +172,30 @@ impl Node {
 					return Err(error);
 				}
 			}
-			NodeValue::Print(expr, tail) => {
+			Expr::Print(expr, tail) => {
 				let expr = expr.generate_node()?;
-				NodeValue::Print(expr, tail).at(scope, span)
+				Expr::Print(expr, tail).at(scope, span)
 			}
-			NodeValue::UnaryOp(op, op_impl, arg) => {
+			Expr::UnaryOp(op, op_impl, arg) => {
 				if op_impl.is_some() {
 					self.clone()
 				} else {
 					let arg = arg.generate_node()?;
 					let op_impl = op.for_type(&arg.get_type()?)?;
-					NodeValue::UnaryOp(op, Some(op_impl), arg).at(scope, span)
+					Expr::UnaryOp(op, Some(op_impl), arg).at(scope, span)
 				}
 			}
-			NodeValue::BinaryOp(op, op_impl, lhs, rhs) => {
+			Expr::BinaryOp(op, op_impl, lhs, rhs) => {
 				if op_impl.is_some() {
 					self.clone()
 				} else {
 					let lhs = lhs.generate_node()?;
 					let rhs = rhs.generate_node()?;
 					let op_impl = op.for_types(&lhs.get_type()?, &rhs.get_type()?)?;
-					NodeValue::BinaryOp(op, Some(op_impl), lhs, rhs).at(scope, span)
+					Expr::BinaryOp(op, Some(op_impl), lhs, rhs).at(scope, span)
 				}
 			}
-			NodeValue::Sequence(list) => {
+			Expr::Sequence(list) => {
 				let mut errors = Errors::new();
 				let mut sequence = Vec::new();
 				for it in list.iter() {
@@ -208,13 +208,13 @@ impl Node {
 					}
 				}
 				errors.check()?;
-				NodeValue::Sequence(sequence.into()).at(scope, span)
+				Expr::Sequence(sequence.into()).at(scope, span)
 			}
-			NodeValue::Conditional(a, b, c) => {
+			Expr::Conditional(a, b, c) => {
 				let a = a.generate_node()?;
 				let b = b.generate_node()?;
 				let c = c.generate_node()?;
-				NodeValue::Conditional(a, b, c).at(scope, span)
+				Expr::Conditional(a, b, c).at(scope, span)
 			}
 			value => {
 				let mut error = format!("cannot generate code for {}", value.short_repr());
@@ -245,12 +245,12 @@ mod tests {
 		let compiler = Compiler::new();
 		let program = compiler.new_program();
 		let scope = program.root_scope().handle();
-		let a = NodeValue::Int(IntValue::I32(2)).at(scope.clone(), Span::default());
-		let b = NodeValue::Int(IntValue::I32(3)).at(scope.clone(), Span::default());
+		let a = Expr::Int(IntValue::I32(2)).at(scope.clone(), Span::default());
+		let b = Expr::Int(IntValue::I32(3)).at(scope.clone(), Span::default());
 
 		let op = BinaryOpImpl::from(OpAdd::for_type(&a.get_type()?).unwrap());
 
-		let expr = NodeValue::BinaryOp(BinaryOp::Add, Some(op), a, b).at(scope, Span::default());
+		let expr = Expr::BinaryOp(BinaryOp::Add, Some(op), a, b).at(scope, Span::default());
 
 		let mut scope = RuntimeScope::new();
 		let result = expr.execute(&mut scope)?.into_value();

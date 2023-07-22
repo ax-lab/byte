@@ -11,8 +11,8 @@ impl EvalIf {
 	}
 
 	fn get_if(&self, node: &Node) -> Option<(Node, Node)> {
-		match node.val() {
-			NodeValue::Block(head, body) => {
+		match node.expr() {
+			Expr::Block(head, body) => {
 				if head.is_symbol_at(0, &self.symbol_if) {
 					Some((head, body))
 				} else {
@@ -24,8 +24,8 @@ impl EvalIf {
 	}
 
 	fn get_else(&self, node: &Node) -> Option<(Node, Node, bool)> {
-		match node.val() {
-			NodeValue::Block(head, body) => {
+		match node.expr() {
+			Expr::Block(head, body) => {
 				if head.is_symbol_at(0, &self.symbol_else) {
 					let is_if = head.is_symbol_at(1, &self.symbol_if);
 					Some((head.clone(), body.clone(), is_if))
@@ -79,7 +79,7 @@ impl IsNodeEval for EvalIf {
 							} else {
 								let head = head.slice(1..);
 								let span = Span::merge(head.span(), body.span());
-								let node = NodeValue::Block(head, body.clone()).at(ctx.scope_handle(), span);
+								let node = Expr::Block(head, body.clone()).at(ctx.scope_handle(), span);
 								let node = node.to_raw();
 								if_false = Some(node);
 							}
@@ -93,7 +93,7 @@ impl IsNodeEval for EvalIf {
 
 				while let Some((if_cond, if_body)) = else_ifs.pop_back() {
 					let span = Span::merge(if_cond.span(), if_body.span());
-					let node = NodeValue::If {
+					let node = Expr::If {
 						expr: if_cond,
 						if_true: if_body,
 						if_false,
@@ -103,7 +103,7 @@ impl IsNodeEval for EvalIf {
 					if_false = Some(node);
 				}
 
-				let node = NodeValue::If {
+				let node = Expr::If {
 					expr: cond,
 					if_true: body.clone(),
 					if_false,

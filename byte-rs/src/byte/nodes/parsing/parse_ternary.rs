@@ -32,7 +32,7 @@ impl Node {
 						let b = Node::raw(b, self.scope_handle());
 						let c = Node::raw(c, self.scope_handle());
 						let node = op.new_node(ctx, a, b, c, self.span())?;
-						self.set_value(node.val(), node.span());
+						self.set_value(node.expr(), node.span());
 						return Ok(());
 					}
 				}

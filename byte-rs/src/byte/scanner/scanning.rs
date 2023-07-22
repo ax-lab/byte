@@ -6,7 +6,7 @@ pub fn scan(scope: &mut ScopeWriter, input: &Span) -> Result<Node> {
 	let mut nodes = Vec::new();
 	let mut cursor = input.clone();
 	while let Some((token, span)) = matcher.scan(&mut cursor, &mut errors) {
-		nodes.push(NodeValue::Token(token).at(scope.handle(), span));
+		nodes.push(Expr::Token(token).at(scope.handle(), span));
 		if !errors.empty() {
 			break;
 		}
@@ -21,7 +21,7 @@ pub fn scan(scope: &mut ScopeWriter, input: &Span) -> Result<Node> {
 	if errors.len() > 0 {
 		Err(errors)
 	} else {
-		let nodes = NodeValue::Raw(nodes.into()).at(scope.handle(), input.clone());
+		let nodes = Expr::Raw(nodes.into()).at(scope.handle(), input.clone());
 		Ok(nodes)
 	}
 }

@@ -19,6 +19,6 @@ impl ParseKeyword for EvalPrint {
 
 	fn new_node(&self, ctx: &mut EvalContext, args: Node, span: Span) -> Result<Node> {
 		let _ = ctx;
-		Ok(NodeValue::Print(args, "\n").at(ctx.scope_handle(), span))
+		Ok(Expr::Print(args, "\n").at(ctx.scope_handle(), span))
 	}
 }

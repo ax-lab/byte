@@ -1,11 +1,11 @@
 use super::*;
 
 pub mod eval;
-pub mod node_value;
+pub mod expr;
 pub mod parsing;
 
 pub use eval::*;
-pub use node_value::*;
+pub use expr::*;
 pub use parsing::*;
 
 const SHOW_INDENT: bool = false;
@@ -18,14 +18,14 @@ pub struct Node {
 struct NodeData {
 	id: Id,
 	span: RwLock<Span>,
-	value: RwLock<NodeValue>,
+	value: RwLock<Expr>,
 	version: RwLock<usize>,
 	scope: ScopeHandle,
 	_code: RwLock<Option<Func>>, // TODO: implement this
 }
 
 impl Node {
-	pub fn new(value: NodeValue, scope: ScopeHandle, span: Span) -> Self {
+	pub fn new(value: Expr, scope: ScopeHandle, span: Span) -> Self {
 		let value = value.into();
 		let version = 0.into();
 		let id = id();
@@ -43,12 +43,12 @@ impl Node {
 	}
 
 	pub fn get_type(&self) -> Result<Type> {
-		self.val().get_type()
+		self.expr().get_type()
 	}
 
 	pub fn raw(nodes: Vec<Node>, scope: ScopeHandle) -> Self {
 		let span = Span::from_node_vec(&nodes);
-		NodeValue::Raw(nodes.into()).at(scope, span)
+		Expr::Raw(nodes.into()).at(scope, span)
 	}
 
 	pub fn id(&self) -> Id {
@@ -59,7 +59,7 @@ impl Node {
 		*self.data.version.read().unwrap()
 	}
 
-	pub fn val(&self) -> NodeValue {
+	pub fn expr(&self) -> Expr {
 		self.data.value.read().unwrap().clone()
 	}
 
@@ -84,10 +84,10 @@ impl Node {
 	}
 
 	pub fn get_dependencies<P: FnMut(&Node)>(&self, output: P) {
-		self.val().get_dependencies(output)
+		self.expr().get_dependencies(output)
 	}
 
-	pub fn set_value(&mut self, new_value: NodeValue, new_span: Span) {
+	pub fn set_value(&mut self, new_value: Expr, new_span: Span) {
 		self.write(|| {
 			let mut value = self.data.value.write().unwrap();
 			let mut span = self.data.span.write().unwrap();
@@ -96,7 +96,7 @@ impl Node {
 		});
 	}
 
-	pub unsafe fn set_value_inner(&self, new_value: NodeValue, new_span: Span) {
+	pub unsafe fn set_value_inner(&self, new_value: Expr, new_span: Span) {
 		self.write(|| {
 			let mut value = self.data.value.write().unwrap();
 			let mut span = self.data.span.write().unwrap();
@@ -116,26 +116,26 @@ impl Node {
 	//----------------------------------------------------------------------------------------------------------------//
 
 	pub fn short_repr(&self) -> String {
-		self.val().short_repr()
+		self.expr().short_repr()
 	}
 
 	/// Number of child nodes.
 	pub fn len(&self) -> usize {
-		self.val().len()
+		self.expr().len()
 	}
 
 	/// Get a node children by its index.
 	pub fn get(&self, index: usize) -> Option<Node> {
-		self.val().get(index).cloned()
+		self.expr().get(index).cloned()
 	}
 
-	/// Return a new [`NodeValue::Raw`] from a slice of this node's children.
+	/// Return a new [`Expr::Raw`] from a slice of this node's children.
 	pub fn slice<T: RangeBounds<usize>>(&self, range: T) -> Node {
 		let scope = self.scope_handle();
-		let node = self.val();
+		let node = self.expr();
 
 		// TODO: maybe have a `can_slice` property
-		assert!(matches!(node, NodeValue::Raw(..))); // we don't want slice to be used with any node
+		assert!(matches!(node, Expr::Raw(..))); // we don't want slice to be used with any node
 		let list = node.children();
 		let range = compute_range(range, list.len());
 		let index = range.start;
@@ -143,12 +143,12 @@ impl Node {
 		let span = Span::from_nodes(slice);
 		let span = span.or_with(|| list.get(index).map(|x| x.span().pos()).unwrap_or_default());
 		let list = Arc::new(slice.iter().map(|x| (*x).clone()).collect());
-		NodeValue::Raw(list).at(scope, span)
+		Expr::Raw(list).at(scope, span)
 	}
 
 	/// Iterator over this node's children.
 	pub fn iter(&self) -> impl Iterator<Item = Node> {
-		let node = self.val();
+		let node = self.expr();
 		let list = node.iter().cloned().collect::<Vec<_>>();
 		list.into_iter()
 	}
@@ -160,56 +160,56 @@ impl Node {
 	pub fn to_raw(self) -> Node {
 		let span = self.span();
 		let scope = self.scope_handle();
-		NodeValue::Raw(vec![self].into()).at(scope, span)
+		Expr::Raw(vec![self].into()).at(scope, span)
 	}
 
 	pub fn is_symbol(&self, expected: &Symbol) -> bool {
-		match self.val() {
-			NodeValue::Token(Token::Symbol(symbol) | Token::Word(symbol)) => &symbol == expected,
+		match self.expr() {
+			Expr::Token(Token::Symbol(symbol) | Token::Word(symbol)) => &symbol == expected,
 			_ => false,
 		}
 	}
 
 	pub fn is_keyword(&self, expected: &Symbol) -> bool {
-		match self.val() {
-			NodeValue::Token(Token::Word(symbol)) => &symbol == expected,
+		match self.expr() {
+			Expr::Token(Token::Word(symbol)) => &symbol == expected,
 			_ => false,
 		}
 	}
 
 	pub fn has_symbol(&self, symbol: &Symbol) -> bool {
-		match self.val() {
-			NodeValue::Token(Token::Symbol(s) | Token::Word(s)) => &s == symbol,
+		match self.expr() {
+			Expr::Token(Token::Symbol(s) | Token::Word(s)) => &s == symbol,
 			_ => false,
 		}
 	}
 
 	pub fn symbol(&self) -> Option<Symbol> {
-		self.val().symbol()
+		self.expr().symbol()
 	}
 
 	pub fn execute(&self, scope: &mut RuntimeScope) -> Result<ExprValue> {
-		match self.val() {
-			NodeValue::Never => {
+		match self.expr() {
+			Expr::Never => {
 				let error = format!("never expression cannot be evaluated");
 				Err(Errors::from(error, self.span().clone()))
 			}
-			NodeValue::Unit => Ok(Value::from(()).into()),
-			NodeValue::Null => Ok(Value::Null.into()),
-			NodeValue::Let(name, offset, expr) => {
+			Expr::Unit => Ok(Value::from(()).into()),
+			Expr::Null => Ok(Value::Null.into()),
+			Expr::Let(name, offset, expr) => {
 				let value = expr.execute(scope)?;
 				scope.set(name.clone(), offset, value.clone().into());
 				Ok(value)
 			}
-			NodeValue::Boolean(value) => Ok(Value::from(value).into()),
-			NodeValue::Str(value) => Ok(Value::from(value.to_string()).into()),
-			NodeValue::Int(value) => Ok(Value::from(value.clone()).into()),
-			NodeValue::Float(value) => Ok(Value::from(value.clone()).into()),
-			NodeValue::Variable(name, offset, ..) => match scope.get(&name, offset).cloned() {
+			Expr::Boolean(value) => Ok(Value::from(value).into()),
+			Expr::Str(value) => Ok(Value::from(value.to_string()).into()),
+			Expr::Int(value) => Ok(Value::from(value.clone()).into()),
+			Expr::Float(value) => Ok(Value::from(value.clone()).into()),
+			Expr::Variable(name, offset, ..) => match scope.get(&name, offset).cloned() {
 				Some(value) => Ok(ExprValue::Variable(name.clone(), offset.clone(), value)),
 				None => Err(Errors::from(format!("variable `{name}` not set"), self.span().clone())),
 			},
-			NodeValue::Print(expr, tail) => {
+			Expr::Print(expr, tail) => {
 				let list = expr.as_sequence();
 				let mut values = Vec::new();
 				for expr in list.iter() {
@@ -229,7 +229,7 @@ impl Node {
 				write!(output, "{tail}")?;
 				Ok(Value::from(()).into())
 			}
-			NodeValue::UnaryOp(op, op_impl, arg) => {
+			Expr::UnaryOp(op, op_impl, arg) => {
 				if let Some(op_impl) = op_impl {
 					op_impl.get().execute(scope, &arg)
 				} else {
@@ -238,7 +238,7 @@ impl Node {
 					Err(error)
 				}
 			}
-			NodeValue::BinaryOp(op, op_impl, lhs, rhs) => {
+			Expr::BinaryOp(op, op_impl, lhs, rhs) => {
 				if let Some(op_impl) = op_impl {
 					op_impl.get().execute(scope, &lhs, &rhs)
 				} else {
@@ -247,14 +247,14 @@ impl Node {
 					Err(error)
 				}
 			}
-			NodeValue::Sequence(list) => {
+			Expr::Sequence(list) => {
 				let mut value = Value::from(()).into();
 				for it in list.iter() {
 					value = it.execute(scope)?;
 				}
 				Ok(value)
 			}
-			NodeValue::Conditional(cond, a, b) => {
+			Expr::Conditional(cond, a, b) => {
 				let cond = cond.execute(scope)?;
 				let cond = cond.value().bool()?;
 				if cond {
@@ -263,7 +263,7 @@ impl Node {
 					b.execute(scope)
 				}
 			}
-			NodeValue::If {
+			Expr::If {
 				expr,
 				if_true,
 				if_false,
@@ -278,7 +278,7 @@ impl Node {
 					Ok(Value::Unit.into())
 				}
 			}
-			NodeValue::For {
+			Expr::For {
 				var,
 				offset,
 				from,
@@ -310,20 +310,20 @@ impl Node {
 				}
 				Ok(Value::Unit.into())
 			}
-			NodeValue::Group(expr) => expr.execute(scope),
-			NodeValue::Token(token) => {
+			Expr::Group(expr) => expr.execute(scope),
+			Expr::Token(token) => {
 				let error = format!("raw token `{token}` cannot be executed");
 				Err(Errors::from(error, self.span().clone()))
 			}
-			NodeValue::Raw(..) => {
+			Expr::Raw(..) => {
 				let error = format!("unresolved raw token list");
 				Err(Errors::from(error, self.span().clone()))
 			}
-			NodeValue::Block(head, _) => {
+			Expr::Block(head, _) => {
 				let error = format!("unresolved block expression: {head}");
 				Err(Errors::from(error, self.span().clone()))
 			}
-			NodeValue::UnresolvedVariable(name, _) => {
+			Expr::UnresolvedVariable(name, _) => {
 				let error = format!("unresolved variable `{name}`");
 				Err(Errors::from(error, self.span().clone()))
 			}
@@ -332,8 +332,8 @@ impl Node {
 
 	pub fn as_sequence(&self) -> Vec<Node> {
 		let mut output = Vec::new();
-		match self.val() {
-			NodeValue::Sequence(list) => output = (*list).clone(),
+		match self.expr() {
+			Expr::Sequence(list) => output = (*list).clone(),
 			_ => output.push(self.clone()),
 		}
 		output
@@ -363,7 +363,7 @@ impl Eq for Node {}
 
 impl Debug for Node {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "{}", self.val())?;
+		write!(f, "{}", self.expr())?;
 
 		let ctx = Context::get();
 		let format = ctx.format().with_mode(Mode::Minimal).with_separator(" @");
@@ -377,7 +377,7 @@ impl Debug for Node {
 
 impl Display for Node {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "{}", self.val())?;
+		write!(f, "{}", self.expr())?;
 
 		let ctx = Context::get();
 		let format = ctx.format().with_mode(Mode::Minimal).with_separator(" @");

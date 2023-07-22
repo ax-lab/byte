@@ -44,6 +44,6 @@ impl ParseFold for EvalDecl {
 		};
 
 		ctx.declare(name.clone(), offset, value);
-		Ok(NodeValue::Let(name, offset, rhs).at(ctx.scope_handle(), span))
+		Ok(Expr::Let(name, offset, rhs).at(ctx.scope_handle(), span))
 	}
 }

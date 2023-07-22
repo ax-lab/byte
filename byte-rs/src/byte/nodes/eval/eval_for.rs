@@ -4,7 +4,7 @@ pub struct EvalFor(pub Symbol, pub Symbol, pub Symbol);
 
 impl EvalFor {
 	fn get_for(&self, node: &Node) -> Option<(Node, Node)> {
-		if let NodeValue::Block(head, body) = node.val() {
+		if let Expr::Block(head, body) = node.expr() {
 			if head.is_symbol_at(0, &self.0) {
 				Some((head, body))
 			} else {
@@ -47,12 +47,12 @@ impl ParseReplace for EvalFor {
 
 						let offset = CodeOffset::At(var_node.offset());
 
-						let value = NodeValue::Let(var.clone(), offset, from.clone());
+						let value = Expr::Let(var.clone(), offset, from.clone());
 						let value = value.at(ctx.scope_handle(), var_node.span());
 						ctx.declare(var.clone(), offset, value);
 
 						let body = body.clone();
-						let node = NodeValue::For {
+						let node = Expr::For {
 							var,
 							offset,
 							from,

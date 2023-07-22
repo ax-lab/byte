@@ -4,7 +4,7 @@ pub struct SplitComma(pub Symbol);
 
 impl ParseSplitSequence for SplitComma {
 	fn is_split(&self, node: &Node) -> bool {
-		if let NodeValue::Token(Token::Symbol(symbol)) = node.val() {
+		if let Expr::Token(Token::Symbol(symbol)) = node.expr() {
 			symbol == self.0
 		} else {
 			false
@@ -13,7 +13,7 @@ impl ParseSplitSequence for SplitComma {
 
 	fn new_node(&self, ctx: &mut EvalContext, node: Vec<Node>, span: Span) -> Result<Node> {
 		let _ = ctx;
-		Ok(NodeValue::Sequence(node.into()).at(ctx.scope_handle(), span))
+		Ok(Expr::Sequence(node.into()).at(ctx.scope_handle(), span))
 	}
 }
 

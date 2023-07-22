@@ -8,7 +8,7 @@ use super::*;
 /// levels, from files, raw text, and tokens, all the way to fully fledged
 /// definitions.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum NodeValue {
+pub enum Expr {
 	Token(Token),
 	//----[ Basic values ]----------------------------------------------------//
 	Unit,
@@ -47,36 +47,36 @@ pub enum NodeValue {
 	// TODO: Apply(Info, Func, Vec<Node>),
 }
 
-impl NodeValue {
+impl Expr {
 	pub fn get_type(self) -> Result<Type> {
 		let typ = match self {
-			NodeValue::Never => Type::Never,
-			NodeValue::Unit => Type::Unit,
-			NodeValue::Null => Type::Null,
-			NodeValue::Let(.., expr) => expr.get_type()?,
-			NodeValue::Boolean(..) => Type::Bool,
-			NodeValue::Str(..) => Type::String,
-			NodeValue::Int(.., int) => Type::Int(int.get_type()),
-			NodeValue::For { .. } => Type::Unit,
-			NodeValue::Float(.., float) => Type::Float(float.get_type()),
-			NodeValue::Variable(.., kind) => Type::Ref(kind.clone().into()),
-			NodeValue::Print(..) => Type::Unit,
-			NodeValue::UnaryOp(_, op, ..) => {
+			Expr::Never => Type::Never,
+			Expr::Unit => Type::Unit,
+			Expr::Null => Type::Null,
+			Expr::Let(.., expr) => expr.get_type()?,
+			Expr::Boolean(..) => Type::Bool,
+			Expr::Str(..) => Type::String,
+			Expr::Int(.., int) => Type::Int(int.get_type()),
+			Expr::For { .. } => Type::Unit,
+			Expr::Float(.., float) => Type::Float(float.get_type()),
+			Expr::Variable(.., kind) => Type::Ref(kind.clone().into()),
+			Expr::Print(..) => Type::Unit,
+			Expr::UnaryOp(_, op, ..) => {
 				if let Some(op) = op {
 					op.get().get_type()
 				} else {
 					Type::Unknown
 				}
 			}
-			NodeValue::BinaryOp(_, op, ..) => {
+			Expr::BinaryOp(_, op, ..) => {
 				if let Some(op) = op {
 					op.get().get_type()
 				} else {
 					Type::Unknown
 				}
 			}
-			NodeValue::Sequence(.., list) => list.last().map(|x| x.get_type()).unwrap_or_else(|| Ok(Type::Unit))?,
-			NodeValue::Conditional(_, a, b) => {
+			Expr::Sequence(.., list) => list.last().map(|x| x.get_type()).unwrap_or_else(|| Ok(Type::Unit))?,
+			Expr::Conditional(_, a, b) => {
 				let a = a.get_type()?;
 				let b = b.get_type()?;
 				if a == b {
@@ -96,8 +96,8 @@ impl NodeValue {
 
 	pub fn symbol(&self) -> Option<Symbol> {
 		let symbol = match self {
-			NodeValue::Token(Token::Word(symbol)) => symbol,
-			NodeValue::Token(Token::Symbol(symbol)) => symbol,
+			Expr::Token(Token::Word(symbol)) => symbol,
+			Expr::Token(Token::Symbol(symbol)) => symbol,
 			_ => return None,
 		};
 		Some(symbol.clone())
@@ -117,20 +117,20 @@ impl NodeValue {
 
 	pub fn children(&self) -> Vec<&Node> {
 		match self {
-			NodeValue::Token(_) => vec![],
-			NodeValue::Null => vec![],
-			NodeValue::Boolean(_) => vec![],
-			NodeValue::Unit => vec![],
-			NodeValue::Never => vec![],
-			NodeValue::Str(_) => vec![],
-			NodeValue::Int(_) => vec![],
-			NodeValue::Float(_) => vec![],
-			NodeValue::Variable(_, _, _) => vec![],
-			NodeValue::Raw(ls) => ls.iter().map(|x| x).collect(),
-			NodeValue::Sequence(ls) => ls.iter().map(|x| x).collect(),
-			NodeValue::Group(it) => vec![it],
-			NodeValue::Block(head, body) => vec![head, body],
-			NodeValue::If {
+			Expr::Token(_) => vec![],
+			Expr::Null => vec![],
+			Expr::Boolean(_) => vec![],
+			Expr::Unit => vec![],
+			Expr::Never => vec![],
+			Expr::Str(_) => vec![],
+			Expr::Int(_) => vec![],
+			Expr::Float(_) => vec![],
+			Expr::Variable(_, _, _) => vec![],
+			Expr::Raw(ls) => ls.iter().map(|x| x).collect(),
+			Expr::Sequence(ls) => ls.iter().map(|x| x).collect(),
+			Expr::Group(it) => vec![it],
+			Expr::Block(head, body) => vec![head, body],
+			Expr::If {
 				expr,
 				if_true,
 				if_false,
@@ -141,20 +141,20 @@ impl NodeValue {
 				}
 				out
 			}
-			NodeValue::For { from, to, body, .. } => vec![from, to, body],
-			NodeValue::Let(.., expr) => vec![expr],
-			NodeValue::UnaryOp(_, _, expr) => vec![expr],
-			NodeValue::BinaryOp(BinaryOp::Member, _, lhs, rhs) => {
+			Expr::For { from, to, body, .. } => vec![from, to, body],
+			Expr::Let(.., expr) => vec![expr],
+			Expr::UnaryOp(_, _, expr) => vec![expr],
+			Expr::BinaryOp(BinaryOp::Member, _, lhs, rhs) => {
 				if rhs.as_identifier().is_some() {
 					vec![lhs]
 				} else {
 					vec![lhs, rhs]
 				}
 			}
-			NodeValue::BinaryOp(_, _, lhs, rhs) => vec![lhs, rhs],
-			NodeValue::UnresolvedVariable(..) => vec![],
-			NodeValue::Print(expr, _) => vec![expr],
-			NodeValue::Conditional(cond, t, f) => vec![cond, t, f],
+			Expr::BinaryOp(_, _, lhs, rhs) => vec![lhs, rhs],
+			Expr::UnresolvedVariable(..) => vec![],
+			Expr::Print(expr, _) => vec![expr],
+			Expr::Conditional(cond, t, f) => vec![cond, t, f],
 		}
 	}
 
@@ -171,58 +171,58 @@ impl NodeValue {
 			ctx.with_format(ctx.format().with_mode(Mode::Minimal), || format!("<{title} {span}>"))
 		};
 		match self {
-			NodeValue::Token(..) => format!("{self}"),
-			NodeValue::Null => format!("{self}"),
-			NodeValue::Boolean(..) => format!("{self}"),
-			NodeValue::Unit => format!("{self}"),
-			NodeValue::Never => format!("{self}"),
-			NodeValue::Str(..) => format!("{self}"),
-			NodeValue::Int(..) => format!("{self}"),
-			NodeValue::Float(..) => format!("{self}"),
-			NodeValue::Variable(..) => format!("{self}"),
-			NodeValue::Raw(list) => short("raw", list),
-			NodeValue::Sequence(list) => short("seq", list),
-			NodeValue::Group(value) => {
+			Expr::Token(..) => format!("{self}"),
+			Expr::Null => format!("{self}"),
+			Expr::Boolean(..) => format!("{self}"),
+			Expr::Unit => format!("{self}"),
+			Expr::Never => format!("{self}"),
+			Expr::Str(..) => format!("{self}"),
+			Expr::Int(..) => format!("{self}"),
+			Expr::Float(..) => format!("{self}"),
+			Expr::Variable(..) => format!("{self}"),
+			Expr::Raw(list) => short("raw", list),
+			Expr::Sequence(list) => short("seq", list),
+			Expr::Group(value) => {
 				let repr = value.short_repr();
 				format!("{{ {repr} }}")
 			}
-			NodeValue::Block(head, ..) => {
+			Expr::Block(head, ..) => {
 				let head = head.short_repr();
 				format!("<block {head}...>")
 			}
-			NodeValue::If { expr, .. } => {
+			Expr::If { expr, .. } => {
 				let expr = expr.short_repr();
 				format!("<if {expr}...>")
 			}
-			NodeValue::For { var, from, to, .. } => format!("<for {var} in {from}..{to}>"),
-			NodeValue::Let(name, _, expr) => format!("<let {name} = {}>", expr.short_repr()),
-			NodeValue::UnaryOp(op, _, arg) => format!("({op} {})", arg.short_repr()),
-			NodeValue::BinaryOp(op, _, lhs, rhs) => format!("({op} {} {})", lhs.short_repr(), rhs.short_repr()),
-			NodeValue::UnresolvedVariable(name, _) => format!("<var {name}>"),
-			NodeValue::Print(expr, _) => format!("<print {}>", expr.short_repr()),
-			NodeValue::Conditional(a, b, c) => {
+			Expr::For { var, from, to, .. } => format!("<for {var} in {from}..{to}>"),
+			Expr::Let(name, _, expr) => format!("<let {name} = {}>", expr.short_repr()),
+			Expr::UnaryOp(op, _, arg) => format!("({op} {})", arg.short_repr()),
+			Expr::BinaryOp(op, _, lhs, rhs) => format!("({op} {} {})", lhs.short_repr(), rhs.short_repr()),
+			Expr::UnresolvedVariable(name, _) => format!("<var {name}>"),
+			Expr::Print(expr, _) => format!("<print {}>", expr.short_repr()),
+			Expr::Conditional(a, b, c) => {
 				format!("<{} ? {} : {}>", a.short_repr(), b.short_repr(), c.short_repr())
 			}
 		}
 	}
 }
 
-impl Display for NodeValue {
+impl Display for Expr {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		let ctx = Context::get().format_without_span();
 		ctx.is_used();
 
 		match self {
-			NodeValue::Token(token) => write!(f, "`{token}`"),
-			NodeValue::Null => write!(f, "null"),
-			NodeValue::Boolean(value) => write!(f, "{value}"),
-			NodeValue::Unit => write!(f, "()"),
-			NodeValue::Never => write!(f, "(!)"),
-			NodeValue::Str(value) => write!(f, "{value:?}"),
-			NodeValue::Int(value) => write!(f, "{value:?}"),
-			NodeValue::Float(value) => write!(f, "{value:?}"),
-			NodeValue::Variable(name, at, kind) => write!(f, "({name}{at:?} as {kind})"),
-			NodeValue::Raw(nodes) => match nodes.len() {
+			Expr::Token(token) => write!(f, "`{token}`"),
+			Expr::Null => write!(f, "null"),
+			Expr::Boolean(value) => write!(f, "{value}"),
+			Expr::Unit => write!(f, "()"),
+			Expr::Never => write!(f, "(!)"),
+			Expr::Str(value) => write!(f, "{value:?}"),
+			Expr::Int(value) => write!(f, "{value:?}"),
+			Expr::Float(value) => write!(f, "{value:?}"),
+			Expr::Variable(name, at, kind) => write!(f, "({name}{at:?} as {kind})"),
+			Expr::Raw(nodes) => match nodes.len() {
 				0 => write!(f, "[]"),
 				1 => {
 					let output = format!("{}", nodes[0]);
@@ -245,7 +245,7 @@ impl Display for NodeValue {
 					write!(f, "\n]")
 				}
 			},
-			NodeValue::Sequence(nodes) => {
+			Expr::Sequence(nodes) => {
 				let ctx = ctx.format_with_span();
 				ctx.is_used();
 				write!(f, "# sequence:")?;
@@ -256,13 +256,13 @@ impl Display for NodeValue {
 				}
 				Ok(())
 			}
-			NodeValue::Group(value) => write!(f, "{{ {value} }}"),
-			NodeValue::Block(head, body) => {
+			Expr::Group(value) => write!(f, "{{ {value} }}"),
+			Expr::Block(head, body) => {
 				write!(f, "block({head}:")?;
 				write!(f.indented(), "\n{body}")?;
 				write!(f, "\n)")
 			}
-			NodeValue::If {
+			Expr::If {
 				expr,
 				if_true,
 				if_false,
@@ -275,7 +275,7 @@ impl Display for NodeValue {
 				}
 				write!(f, "\n}}")
 			}
-			NodeValue::For {
+			Expr::For {
 				var,
 				offset,
 				from,
@@ -286,18 +286,18 @@ impl Display for NodeValue {
 				write!(f.indented(), "\n{body}")?;
 				write!(f, "\n}}")
 			}
-			NodeValue::Let(name, offset, expr) => {
+			Expr::Let(name, offset, expr) => {
 				let offset = offset.value();
 				write!(f, "let {name}{offset} = {expr}")
 			}
-			NodeValue::UnaryOp(op, _, arg) => write!(f, "({op} {arg})"),
-			NodeValue::BinaryOp(op, _, lhs, rhs) => write!(f, "({lhs} {op} {rhs})"),
-			NodeValue::UnresolvedVariable(var, offset) => {
+			Expr::UnaryOp(op, _, arg) => write!(f, "({op} {arg})"),
+			Expr::BinaryOp(op, _, lhs, rhs) => write!(f, "({lhs} {op} {rhs})"),
+			Expr::UnresolvedVariable(var, offset) => {
 				let offset = offset.value();
 				write!(f, "{var}{offset}")
 			}
-			NodeValue::Print(expr, _) => write!(f, "print({expr})"),
-			NodeValue::Conditional(cond, a, b) => write!(f, "{cond} ? {a} : {b}"),
+			Expr::Print(expr, _) => write!(f, "print({expr})"),
+			Expr::Conditional(cond, a, b) => write!(f, "{cond} ? {a} : {b}"),
 		}
 	}
 }
