@@ -217,7 +217,7 @@ impl Node {
 				NodeValue::Conditional(a, b, c).at(scope, span)
 			}
 			value => {
-				let mut error = format!("cannot generate code for `{value:?}`");
+				let mut error = format!("cannot generate code for {}", value.short_repr());
 				{
 					let mut output = error.indented();
 					let _ = write!(output, "\n\n");

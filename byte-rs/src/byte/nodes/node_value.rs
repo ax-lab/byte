@@ -171,20 +171,20 @@ impl NodeValue {
 			ctx.with_format(ctx.format().with_mode(Mode::Minimal), || format!("<{title} {span}>"))
 		};
 		match self {
-			NodeValue::Token(token) => format!("<{token}>"),
-			NodeValue::Null => format!("<null>"),
-			NodeValue::Boolean(value) => format!("<{value}>"),
-			NodeValue::Unit => format!("<unit>"),
-			NodeValue::Never => format!("<never>"),
-			NodeValue::Str(value) => format!("{value:?}"),
-			NodeValue::Int(value) => format!("{value:?}"),
-			NodeValue::Float(value) => format!("{value:?}"),
-			NodeValue::Variable(name, at, kind) => format!("<var {name}{at:?} -- {kind}>"),
+			NodeValue::Token(..) => format!("{self}"),
+			NodeValue::Null => format!("{self}"),
+			NodeValue::Boolean(..) => format!("{self}"),
+			NodeValue::Unit => format!("{self}"),
+			NodeValue::Never => format!("{self}"),
+			NodeValue::Str(..) => format!("{self}"),
+			NodeValue::Int(..) => format!("{self}"),
+			NodeValue::Float(..) => format!("{self}"),
+			NodeValue::Variable(..) => format!("{self}"),
 			NodeValue::Raw(list) => short("raw", list),
 			NodeValue::Sequence(list) => short("seq", list),
 			NodeValue::Group(value) => {
 				let repr = value.short_repr();
-				format!("<group({repr})>")
+				format!("{{ {repr} }}")
 			}
 			NodeValue::Block(head, ..) => {
 				let head = head.short_repr();
@@ -213,42 +213,42 @@ impl Display for NodeValue {
 		ctx.is_used();
 
 		match self {
-			NodeValue::Token(token) => write!(f, "{token}"),
-			NodeValue::Null => write!(f, "(null)"),
-			NodeValue::Boolean(value) => write!(f, "({value})"),
-			NodeValue::Unit => write!(f, "<unit>"),
-			NodeValue::Never => write!(f, "<never>"),
+			NodeValue::Token(token) => write!(f, "`{token}`"),
+			NodeValue::Null => write!(f, "null"),
+			NodeValue::Boolean(value) => write!(f, "{value}"),
+			NodeValue::Unit => write!(f, "()"),
+			NodeValue::Never => write!(f, "(!)"),
 			NodeValue::Str(value) => write!(f, "{value:?}"),
 			NodeValue::Int(value) => write!(f, "{value:?}"),
 			NodeValue::Float(value) => write!(f, "{value:?}"),
-			NodeValue::Variable(name, at, kind) => write!(f, "<var {name}{at:?} -- {kind}>"),
+			NodeValue::Variable(name, at, kind) => write!(f, "({name}{at:?} as {kind})"),
 			NodeValue::Raw(nodes) => match nodes.len() {
-				0 => write!(f, "<>"),
+				0 => write!(f, "[]"),
 				1 => {
 					let output = format!("{}", nodes[0]);
 					if output.contains('\n') || output.len() > 50 {
-						write!(f.indented(), "<\n{output}")?;
-						write!(f, "\n>")
+						write!(f.indented(), "[\n{output}")?;
+						write!(f, "\n]")
 					} else {
-						write!(f, "<{output}>")
+						write!(f, "[{output}]")
 					}
 				}
 				_ => {
 					let ctx = ctx.format_with_span();
 					ctx.is_used();
-					write!(f, "<# Raw:")?;
+					write!(f, "[# raw:")?;
 					let mut out = f.indented();
 					for (n, it) in nodes.iter().enumerate() {
 						write!(out, "\n# {n}:")?;
 						write!(out.indented(), "\n{it}")?;
 					}
-					write!(f, "\n>")
+					write!(f, "\n]")
 				}
 			},
 			NodeValue::Sequence(nodes) => {
 				let ctx = ctx.format_with_span();
 				ctx.is_used();
-				write!(f, "# Sequence:")?;
+				write!(f, "# sequence:")?;
 				let mut out = f.indented();
 				for (n, it) in nodes.iter().enumerate() {
 					write!(out, "\n# {n}:")?;
@@ -256,9 +256,9 @@ impl Display for NodeValue {
 				}
 				Ok(())
 			}
-			NodeValue::Group(value) => write!(f, "Group({value})"),
+			NodeValue::Group(value) => write!(f, "{{ {value} }}"),
 			NodeValue::Block(head, body) => {
-				write!(f, "Block({head}:")?;
+				write!(f, "block({head}:")?;
 				write!(f.indented(), "\n{body}")?;
 				write!(f, "\n)")
 			}
@@ -282,21 +282,21 @@ impl Display for NodeValue {
 				to,
 				body,
 			} => {
-				write!(f, "for {var}#{offset} in {from}..{to} {{")?;
+				write!(f, "for {var}{offset} in {from}..{to} {{")?;
 				write!(f.indented(), "\n{body}")?;
 				write!(f, "\n}}")
 			}
 			NodeValue::Let(name, offset, expr) => {
 				let offset = offset.value();
-				write!(f, "let {name}_{offset} = {expr}")
+				write!(f, "let {name}{offset} = {expr}")
 			}
-			NodeValue::UnaryOp(op, _, arg) => write!(f, "{op} {arg}"),
+			NodeValue::UnaryOp(op, _, arg) => write!(f, "({op} {arg})"),
 			NodeValue::BinaryOp(op, _, lhs, rhs) => write!(f, "({lhs} {op} {rhs})"),
 			NodeValue::UnresolvedVariable(var, offset) => {
 				let offset = offset.value();
 				write!(f, "{var}{offset}")
 			}
-			NodeValue::Print(expr, _) => write!(f, "Print({expr})"),
+			NodeValue::Print(expr, _) => write!(f, "print({expr})"),
 			NodeValue::Conditional(cond, a, b) => write!(f, "{cond} ? {a} : {b}"),
 		}
 	}
