@@ -3,6 +3,7 @@ pub use context::*;
 
 pub mod code;
 pub mod compiler;
+pub mod engine;
 pub mod errors;
 pub mod nodes;
 pub mod offset;

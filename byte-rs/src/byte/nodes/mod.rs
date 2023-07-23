@@ -10,6 +10,26 @@ pub use parsing::*;
 
 const SHOW_INDENT: bool = false;
 
+/*
+	TODO: get node evaluation to operate on the individual nodes.
+
+	Each node has a key that is used to lookup a node function in the scope.
+
+	Functions have a precedence associated, the highest precedence function at
+	any given point executes with any associated nodes.
+
+	The list of bindings for a given node key is dynamic. It can be shadowed
+	for a given scope.
+
+	The scope consists of a top-level scope and an offset. This is initially
+	derived from the node location in the source code. (TODO: how to sub-scope?)
+
+	TODO: node functions should have total access to their environment. How to detect conflicts?
+
+	TODO: how to deal with node mutation?
+
+*/
+
 #[derive(Clone)]
 pub struct Node {
 	data: Arc<NodeData>,
