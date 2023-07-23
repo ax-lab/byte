@@ -73,6 +73,56 @@ impl Node {
 		output.at_pos(self.span())
 	}
 
+	pub(crate) fn can_resolve(&self) -> Option<(Arc<dyn EvalFn>, NodePrecedence)> {
+		match self.expr() {
+			Expr::Token(Token::Integer(value)) => {
+				let eval = move |_: &mut EvalContext, node: &mut Node| -> Result<()> {
+					let span = node.span();
+					let value = IntValue::new(value, DEFAULT_INT).at_pos(span.clone())?;
+					node.set_value(Expr::Int(value), span);
+					Ok(())
+				};
+				Some((Arc::new(eval), NodePrecedence::Literal))
+			}
+			Expr::Token(Token::Float(value)) => {
+				let eval = move |_: &mut EvalContext, node: &mut Node| -> Result<()> {
+					let span = node.span();
+					let value: f64 = match value.as_str().parse() {
+						Ok(value) => value,
+						Err(err) => {
+							let error = Errors::from(format!("not a valid float: {err}"), span);
+							return Err(error);
+						}
+					};
+					let value = FloatValue::new(value, FloatType::F64);
+					node.set_value(Expr::Float(value), span);
+					Ok(())
+				};
+				Some((Arc::new(eval), NodePrecedence::Literal))
+			}
+			Expr::Token(_) => None,
+			Expr::Unit => None,
+			Expr::Null => None,
+			Expr::Never => None,
+			Expr::Str(_) => None,
+			Expr::Int(_) => None,
+			Expr::Float(_) => None,
+			Expr::Boolean(_) => None,
+			Expr::Variable(_, _, _) => None,
+			Expr::Raw(_) => None,
+			Expr::Sequence(_) => None,
+			Expr::Group(_) => None,
+			Expr::Block(_, _) => None,
+			Expr::If { .. } => None,
+			Expr::For { .. } => None,
+			Expr::Let(_, _, _) => None,
+			Expr::UnaryOp(_, _, _) => None,
+			Expr::BinaryOp(_, _, _, _) => None,
+			Expr::Print(_, _) => None,
+			Expr::Conditional(_, _, _) => None,
+		}
+	}
+
 	fn generate_node(&self) -> Result<Node> {
 		let scope = self.scope_handle();
 		let span = self.span();
@@ -94,22 +144,10 @@ impl Node {
 				}
 			},
 			Expr::Boolean(..) => self.clone(),
-			Expr::Token(Token::Integer(value)) => {
-				let value = IntValue::new(value, DEFAULT_INT).at_pos(span.clone())?;
-				Expr::Int(value).at(scope, span)
-			}
-			Expr::Token(Token::Float(value)) => {
-				let value: f64 = match value.as_str().parse() {
-					Ok(value) => value,
-					Err(err) => {
-						let error = Errors::from(format!("not a valid float: {err}"), span);
-						return Err(error);
-					}
-				};
-				let value = FloatValue::new(value, FloatType::F64);
-				Expr::Float(value).at(scope, span)
-			}
+			Expr::Int(..) => self.clone(),
+			Expr::Float(..) => self.clone(),
 			Expr::Null => self.clone(),
+			Expr::Variable(..) => self.clone(),
 			Expr::Token(Token::Literal(value)) => Expr::Str(value.clone()).at(scope, span),
 			Expr::Group(inner) => inner.generate_node()?,
 			Expr::Let(name, offset, list) => {
@@ -155,22 +193,6 @@ impl Node {
 					body,
 				}
 				.at(scope, span)
-			}
-			Expr::UnresolvedVariable(name, index) => {
-				let scope = scope.get();
-				if let Some(mut value) = scope.get(name.clone(), &index) {
-					let value = value.generate_code()?;
-					Expr::Variable(
-						name.clone(),
-						index,
-						value.get_type().because(format!("solving variable `{name}`"), &span)?,
-					)
-					.at(scope.handle(), span)
-				} else {
-					let error = format!("variable `{name}` ({index:?}) does not match any declaration");
-					let error = Errors::from(error, span);
-					return Err(error);
-				}
 			}
 			Expr::Print(expr, tail) => {
 				let expr = expr.generate_node()?;

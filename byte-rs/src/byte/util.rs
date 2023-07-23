@@ -24,3 +24,21 @@ pub fn compute_range<R: RangeBounds<usize>>(range: R, len: usize) -> Range<usize
 	assert!(sta <= end);
 	sta..end
 }
+
+pub struct Timer {
+	timer: std::time::Instant,
+	label: String,
+}
+
+pub fn measure<T: Into<String>>(label: T) -> Timer {
+	let timer = std::time::Instant::now();
+	let label = label.into();
+	Timer { label, timer }
+}
+
+impl Timer {
+	pub fn elapsed(&self, point: &str) {
+		let label = &self.label;
+		println!("{label}: {:?} ({point})", self.timer.elapsed())
+	}
+}

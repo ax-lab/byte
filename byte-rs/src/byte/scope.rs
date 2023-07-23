@@ -82,6 +82,7 @@ struct ScopeData {
 	matcher: Arc<RwLock<Option<Matcher>>>,
 	node_evaluators: Arc<RwLock<HashMap<NodeEval, NodePrecedence>>>,
 	bindings: RwLock<HashMap<Symbol, BindingList>>,
+	init: Arc<RwLock<Vec<Node>>>,
 }
 
 impl ScopeData {
@@ -94,6 +95,7 @@ impl ScopeData {
 			matcher: Default::default(),
 			node_evaluators: Default::default(),
 			bindings: Default::default(),
+			init: Default::default(),
 		}
 	}
 }
@@ -188,6 +190,25 @@ impl Scope {
 		})
 	}
 
+	pub fn lookup_value(&self, name: &Symbol, offset: &CodeOffset) -> Option<Node> {
+		let value = {
+			let bindings = self.data.bindings.read().unwrap();
+			if let Some(value) = bindings.get(&name) {
+				value.lookup_value(offset)
+			} else {
+				None
+			}
+		};
+
+		value.or_else(|| {
+			if let Some(parent) = self.parent() {
+				parent.lookup_value(name, offset)
+			} else {
+				None
+			}
+		})
+	}
+
 	pub fn get(&self, name: Symbol, offset: &CodeOffset) -> Option<Node> {
 		let value = {
 			let bindings = self.data.bindings.read().unwrap();
@@ -217,6 +238,11 @@ impl ScopeWriter {
 	pub fn add_node_eval(&mut self, op: NodeEval, prec: NodePrecedence) {
 		let mut evaluators = self.data().node_evaluators.write().unwrap();
 		evaluators.insert(op, prec);
+	}
+
+	pub fn init(&mut self, code: Node) {
+		let mut init = self.data().init.write().unwrap();
+		init.push(code);
 	}
 
 	pub fn set(&mut self, name: Symbol, offset: CodeOffset, value: Node) -> Result<()> {
@@ -299,6 +325,28 @@ impl BindingList {
 				});
 				if let Some(offset) = keys.get(index) {
 					Some(**offset)
+				} else {
+					static_offset()
+				}
+			}
+		}
+	}
+
+	pub fn lookup_value(&self, offset: &CodeOffset) -> Option<Node> {
+		let static_offset = || self.values.get(&CodeOffset::Static).cloned();
+		match offset {
+			CodeOffset::Static => static_offset(),
+			CodeOffset::At(offset) => {
+				let pairs = self.values.iter().collect::<Vec<_>>();
+				let index = pairs.partition_point(|(x, _)| {
+					if let CodeOffset::At(bind_offset) = x {
+						offset < bind_offset
+					} else {
+						true
+					}
+				});
+				if let Some((_, node)) = pairs.get(index) {
+					Some((*node).clone())
 				} else {
 					static_offset()
 				}

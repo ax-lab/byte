@@ -30,6 +30,10 @@ pub use eval_strip_comments::*;
 pub use eval_ternary::*;
 pub use eval_unraw::*;
 
+pub trait EvalFn: Fn(&mut EvalContext, &mut Node) -> Result<()> {}
+
+impl<T: Fn(&mut EvalContext, &mut Node) -> Result<()>> EvalFn for T {}
+
 //====================================================================================================================//
 // Eval Context
 //====================================================================================================================//
@@ -38,6 +42,7 @@ pub use eval_unraw::*;
 pub struct EvalContext {
 	scope: Scope,
 	declares: Vec<(Symbol, CodeOffset, Node)>,
+	init: Vec<Node>,
 }
 
 impl EvalContext {
@@ -45,6 +50,7 @@ impl EvalContext {
 		Self {
 			scope: node.scope(),
 			declares: Default::default(),
+			init: Default::default(),
 		}
 	}
 
@@ -61,8 +67,16 @@ impl EvalContext {
 		self.declares.push((symbol, offset, value));
 	}
 
+	pub fn init(&mut self, node: Node) {
+		self.init.push(node)
+	}
+
 	pub(crate) fn get_declares(&mut self) -> Vec<(Symbol, CodeOffset, Node)> {
 		std::mem::take(&mut self.declares)
+	}
+
+	pub(crate) fn get_init(&mut self) -> Vec<Node> {
+		std::mem::take(&mut self.init)
 	}
 }
 
@@ -93,9 +107,11 @@ pub enum NodePrecedence {
 	Comma,
 	Ternary,
 	Expression,
+	Literal,
 	Boolean(bool),
 	Null,
 	Bind,
+	ResolveVar,
 	Least,
 	Never,
 }
@@ -382,8 +398,8 @@ pub fn default_operators() -> OperatorSet {
 pub struct NodeOperation {
 	node: Node,
 	location: NodeLocation,
-	evaluator: NodeEval,
-	evaluator_impl: Arc<dyn IsNodeEval>,
+	debug: Arc<dyn Fn() -> String>,
+	evaluator: Arc<dyn EvalFn>,
 }
 
 impl NodeOperation {
@@ -391,16 +407,20 @@ impl NodeOperation {
 		&self.node
 	}
 
-	pub fn evaluator(&self) -> &NodeEval {
-		&self.evaluator
-	}
-
-	pub fn evaluator_impl(&self) -> &dyn IsNodeEval {
-		&*self.evaluator_impl
+	pub fn evaluator(&self) -> &dyn EvalFn {
+		&*self.evaluator
 	}
 
 	pub fn parent(&self) -> Option<(&Node, usize)> {
 		self.location.parent.as_ref().map(|(node, index)| (node, *index))
+	}
+}
+
+impl Debug for NodeOperation {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		let op = (self.debug)();
+		let node = self.node.short_repr();
+		write!(f, "{op} to {node}")
 	}
 }
 
@@ -431,18 +451,20 @@ impl Node {
 	pub fn get_node_operations(
 		&self,
 		max_precedence: Option<NodePrecedence>,
+		seen: &mut HashSet<Id>,
 	) -> Result<Option<(Vec<NodeOperation>, NodePrecedence)>> {
 		let location = NodeLocation {
 			parent: None,
 			path: Vec::new().into(),
 		};
-		self.do_get_node_operations(max_precedence, &location)
+		self.do_get_node_operations(max_precedence, &location, seen)
 	}
 
 	fn do_get_node_operations(
 		&self,
 		max_precedence: Option<NodePrecedence>,
 		location: &NodeLocation,
+		seen: &mut HashSet<Id>,
 	) -> Result<Option<(Vec<NodeOperation>, NodePrecedence)>> {
 		let mut errors = Errors::new();
 
@@ -452,10 +474,31 @@ impl Node {
 			let mut cur_ops = Vec::new();
 			let mut location = location.push(self.clone());
 			for (index, it) in self.expr().children().into_iter().enumerate() {
+				if !seen.insert(it.id()) {
+					continue;
+				}
 				location.set_index(index);
-				let ops = it.do_get_node_operations(cur_precedence, &location).handle(&mut errors);
+				if let Some((eval, prec)) = it.can_resolve() {
+					if cur_precedence.is_none() || Some(prec) <= cur_precedence {
+						let node = it.clone();
+						if Some(prec) < cur_precedence {
+							cur_ops.clear();
+						}
+						cur_precedence = Some(prec);
+						cur_ops.push(NodeOperation {
+							node: it.clone(),
+							location: location.clone(),
+							debug: Arc::new(move || format!("eval for {node}")),
+							evaluator: eval,
+						})
+					}
+				}
+
+				let ops = it
+					.do_get_node_operations(cur_precedence, &location, seen)
+					.handle(&mut errors);
 				if let Some((mut ops, prec)) = ops {
-					if cur_precedence.is_none() || Some(prec) < cur_precedence {
+					if cur_precedence.is_none() || Some(prec) <= cur_precedence {
 						assert!(ops.len() > 0);
 						cur_precedence = Some(prec);
 						cur_ops.clear();
@@ -517,8 +560,8 @@ impl Node {
 				operations.push(NodeOperation {
 					node: self.clone(),
 					location: location.clone(),
-					evaluator: op,
-					evaluator_impl: op_impl,
+					debug: Arc::new(move || format!("{op:?}")),
+					evaluator: Arc::new(move |ctx, node| op_impl.execute(ctx, node)),
 				})
 			}
 		}

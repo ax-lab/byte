@@ -65,7 +65,7 @@ fn main() {
 			let compiler = Compiler::new();
 			let mut program = compiler.new_program();
 			if dump_code {
-				program.dump_code();
+				program.enable_dump();
 			}
 
 			if let Err(errors) = execute(&mut program, files, eval_list) {

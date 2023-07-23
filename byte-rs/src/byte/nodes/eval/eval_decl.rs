@@ -37,7 +37,6 @@ impl ParseFold for EvalDecl {
 
 	fn new_node(&self, ctx: &mut EvalContext, lhs: Node, rhs: Node, span: Span) -> Result<Node> {
 		let name = lhs.get_symbol_at(lhs.len() - 1).unwrap();
-		let value = rhs.clone();
 		let offset = if self.mode() == Decl::Const {
 			CodeOffset::Static
 		} else {
@@ -45,6 +44,7 @@ impl ParseFold for EvalDecl {
 			CodeOffset::At(offset)
 		};
 
+		let value = Expr::Variable(name.clone(), offset, rhs.clone()).at(ctx.scope_handle(), lhs.span());
 		ctx.declare(name.clone(), offset, value);
 		Ok(Expr::Let(name, offset, rhs).at(ctx.scope_handle(), span))
 	}

@@ -92,7 +92,7 @@ impl Program {
 		&self.data.compiler
 	}
 
-	pub fn dump_code(&mut self) {
+	pub fn enable_dump(&mut self) {
 		*self.data.dump_code.write().unwrap() = true;
 	}
 
@@ -182,8 +182,9 @@ impl Program {
 			}
 
 			// collect the applicable operations for all nodes
+			let mut seen = HashSet::new();
 			for it in nodes_to_process.iter_mut() {
-				match it.get_node_operations(precedence) {
+				match it.get_node_operations(precedence, &mut seen) {
 					Ok(Some((ops, prec))) => {
 						assert!(precedence.is_none() || Some(prec) <= precedence);
 						precedence = Some(prec);
@@ -210,20 +211,20 @@ impl Program {
 			let to_process = to_process.flat_map(|(ops, _)| ops.into_iter());
 
 			let mut has_changes = false;
-			let mut declare_list = Vec::new();
+			let mut scope_changes = Vec::new();
 			for change in to_process {
 				let node = change.node();
-				let op = change.evaluator();
 				if DEBUG_PROCESSING {
-					println!("\n-> #{pc}: apply {op:?} to {}", node.short_repr());
-					pc += 1;
+					println!("\n-> #{pc}: apply {change:?}");
 				}
+				pc += 1;
 
 				// apply the evaluator to the node
 				let mut context = EvalContext::new(node);
 				let version = node.version();
 				let mut node = node.clone(); // TODO: maybe have a node writer?
-				match change.evaluator_impl().execute(&mut context, &mut node) {
+				let evaluator = change.evaluator();
+				match evaluator(&mut context, &mut node) {
 					Ok(()) => (),
 					Err(errs) => {
 						errors.append(&errs);
@@ -234,11 +235,11 @@ impl Program {
 
 				// collect scope changes, those are processed at the end
 				let declares = context.get_declares();
-				has_changes = has_changes || declares.len() > 0;
+				let init = context.get_init();
 				drop(context);
 
-				if declares.len() > 0 {
-					declare_list.push((node.scope_handle(), declares));
+				if declares.len() > 0 || init.len() > 0 {
+					scope_changes.push((node.scope_handle(), declares, init));
 				}
 
 				if DEBUG_PROCESSING_DETAIL {
@@ -248,7 +249,8 @@ impl Program {
 			}
 
 			// apply changes to the scope
-			for (scope, declares) in declare_list {
+			for (scope, declares, init) in scope_changes {
+				has_changes = true;
 				let scope = scope.get();
 				let mut writer = self.data.scopes.get_writer(scope);
 				for (name, offset, value) in declares {
@@ -256,6 +258,9 @@ impl Program {
 						Ok(..) => {}
 						Err(errs) => errors.append(&errs),
 					}
+				}
+				for it in init {
+					writer.init(it);
 				}
 			}
 

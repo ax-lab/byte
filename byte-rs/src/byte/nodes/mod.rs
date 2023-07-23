@@ -323,10 +323,6 @@ impl Node {
 				let error = format!("unresolved block expression: {head}");
 				Err(Errors::from(error, self.span().clone()))
 			}
-			Expr::UnresolvedVariable(name, _) => {
-				let error = format!("unresolved variable `{name}`");
-				Err(Errors::from(error, self.span().clone()))
-			}
 		}
 	}
 

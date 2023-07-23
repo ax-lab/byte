@@ -33,7 +33,16 @@ impl Compiler {
 
 	pub fn eval_string<T: AsRef<str>>(&self, input: T) -> Result<Value> {
 		let mut program = self.new_program();
+		let dump = *self.data.dump.read().unwrap();
+		if dump {
+			program.enable_dump();
+		}
 		program.eval("eval", input)
+	}
+
+	pub fn enable_dump(&self) {
+		let mut dump = self.data.dump.write().unwrap();
+		*dump = true;
 	}
 }
 
@@ -54,6 +63,7 @@ const DIGIT: &'static str = "0123456789";
 struct CompilerData {
 	// default matcher used by any new compiler context
 	matcher: Arc<Matcher>,
+	dump: Arc<RwLock<bool>>,
 }
 
 impl CompilerData {
@@ -66,6 +76,7 @@ impl CompilerData {
 
 		CompilerData {
 			matcher: matcher.into(),
+			dump: Default::default(),
 		}
 	}
 }

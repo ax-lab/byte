@@ -18,7 +18,7 @@ pub enum Expr {
 	Int(IntValue),
 	Float(FloatValue),
 	Boolean(bool),
-	Variable(Symbol, CodeOffset, Type),
+	Variable(Symbol, CodeOffset, Node),
 	//----[ Structural ]------------------------------------------------------//
 	Raw(Arc<Vec<Node>>),
 	Sequence(Arc<Vec<Node>>),
@@ -41,7 +41,6 @@ pub enum Expr {
 	Let(Symbol, CodeOffset, Node),
 	UnaryOp(UnaryOp, Option<UnaryOpImpl>, Node),
 	BinaryOp(BinaryOp, Option<BinaryOpImpl>, Node, Node),
-	UnresolvedVariable(Symbol, CodeOffset),
 	Print(Node, &'static str),
 	Conditional(Node, Node, Node),
 	// TODO: Apply(Info, Func, Vec<Node>),
@@ -59,20 +58,34 @@ impl Expr {
 			Expr::Int(.., int) => Type::Int(int.get_type()),
 			Expr::For { .. } => Type::Unit,
 			Expr::Float(.., float) => Type::Float(float.get_type()),
-			Expr::Variable(.., kind) => Type::Ref(kind.clone().into()),
+			// TODO: ref_value should not be necessary in variable
+			Expr::Variable(.., ref_value) => Type::Ref(ref_value.get_type()?.into()),
 			Expr::Print(..) => Type::Unit,
-			Expr::UnaryOp(_, op, ..) => {
-				if let Some(op) = op {
-					op.get().get_type()
+			Expr::UnaryOp(op, op_impl, arg) => {
+				if let Some(op_impl) = op_impl {
+					op_impl.get().get_type()
 				} else {
-					Type::Unknown
+					let arg = arg.get_type().unwrap_or(Type::Unknown);
+					if arg != Type::Unknown {
+						let op = op.for_type(&arg)?;
+						op.get().get_type()
+					} else {
+						arg
+					}
 				}
 			}
-			Expr::BinaryOp(_, op, ..) => {
-				if let Some(op) = op {
-					op.get().get_type()
+			Expr::BinaryOp(op, op_impl, lhs, rhs) => {
+				if let Some(op_impl) = op_impl {
+					op_impl.get().get_type()
 				} else {
-					Type::Unknown
+					let lhs = lhs.get_type().unwrap_or(Type::Unknown);
+					let rhs = rhs.get_type().unwrap_or(Type::Unknown);
+					if lhs != Type::Unknown && rhs != Type::Unknown {
+						let op = op.for_types(&lhs, &rhs)?;
+						op.get().get_type()
+					} else {
+						Type::Unknown
+					}
 				}
 			}
 			Expr::Sequence(.., list) => list.last().map(|x| x.get_type()).unwrap_or_else(|| Ok(Type::Unit))?,
@@ -152,7 +165,6 @@ impl Expr {
 				}
 			}
 			Expr::BinaryOp(_, _, lhs, rhs) => vec![lhs, rhs],
-			Expr::UnresolvedVariable(..) => vec![],
 			Expr::Print(expr, _) => vec![expr],
 			Expr::Conditional(cond, t, f) => vec![cond, t, f],
 		}
@@ -198,7 +210,6 @@ impl Expr {
 			Expr::Let(name, _, expr) => format!("<let {name} = {}>", expr.short_repr()),
 			Expr::UnaryOp(op, _, arg) => format!("({op} {})", arg.short_repr()),
 			Expr::BinaryOp(op, _, lhs, rhs) => format!("({op} {} {})", lhs.short_repr(), rhs.short_repr()),
-			Expr::UnresolvedVariable(name, _) => format!("<var {name}>"),
 			Expr::Print(expr, _) => format!("<print {}>", expr.short_repr()),
 			Expr::Conditional(a, b, c) => {
 				format!("<{} ? {} : {}>", a.short_repr(), b.short_repr(), c.short_repr())
@@ -221,7 +232,10 @@ impl Display for Expr {
 			Expr::Str(value) => write!(f, "{value:?}"),
 			Expr::Int(value) => write!(f, "{value:?}"),
 			Expr::Float(value) => write!(f, "{value:?}"),
-			Expr::Variable(name, at, kind) => write!(f, "({name}{at:?} as {kind})"),
+			Expr::Variable(name, at, node) => {
+				let kind = node.get_type().unwrap_or(Type::Unknown);
+				write!(f, "({name}{at:?} as {kind})")
+			}
 			Expr::Raw(nodes) => match nodes.len() {
 				0 => write!(f, "[]"),
 				1 => {
@@ -282,20 +296,17 @@ impl Display for Expr {
 				to,
 				body,
 			} => {
-				write!(f, "for {var}{offset} in {from}..{to} {{")?;
+				write!(f, "for {var}{offset:?} in {from}..{to} {{")?;
 				write!(f.indented(), "\n{body}")?;
 				write!(f, "\n}}")
 			}
 			Expr::Let(name, offset, expr) => {
 				let offset = offset.value();
-				write!(f, "let {name}{offset} = {expr}")
+				let kind = expr.get_type().unwrap_or(Type::Unknown);
+				write!(f, "let {name}{offset}: {kind} = {expr}")
 			}
 			Expr::UnaryOp(op, _, arg) => write!(f, "({op} {arg})"),
 			Expr::BinaryOp(op, _, lhs, rhs) => write!(f, "({lhs} {op} {rhs})"),
-			Expr::UnresolvedVariable(var, offset) => {
-				let offset = offset.value();
-				write!(f, "{var}{offset}")
-			}
 			Expr::Print(expr, _) => write!(f, "print({expr})"),
 			Expr::Conditional(cond, a, b) => write!(f, "{cond} ? {a} : {b}"),
 		}

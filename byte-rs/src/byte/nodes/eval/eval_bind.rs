@@ -12,8 +12,7 @@ impl ParseReplace for EvalBind {
 		let scope = ctx.scope();
 		if let Expr::Token(Token::Word(name)) = node.expr() {
 			let span = node.span().clone();
-			if let Some(offset) = scope.lookup(&name, &CodeOffset::At(node.offset())) {
-				let value = Expr::UnresolvedVariable(name.clone(), offset).at(scope.handle(), span);
+			if let Some(value) = scope.lookup_value(&name, &CodeOffset::At(node.offset())) {
 				Ok(Some(value))
 			} else {
 				Err(Errors::from(format!("undefined symbol `{name}`"), span))

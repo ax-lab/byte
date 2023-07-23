@@ -49,7 +49,7 @@ impl ParseReplace for EvalFor {
 
 						let offset = CodeOffset::At(var_node.offset());
 
-						let value = Expr::Let(var.clone(), offset, from.clone());
+						let value = Expr::Variable(var.clone(), offset, from.clone());
 						let value = value.at(ctx.scope_handle(), var_node.span());
 						ctx.declare(var.clone(), offset, value);
 
