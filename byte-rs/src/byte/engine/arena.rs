@@ -28,7 +28,7 @@ impl<T> Arena<T> {
 	}
 
 	pub fn push(&self, value: T) -> *mut T {
-		unsafe { self.inner.push(value) }
+		self.inner.push(value)
 	}
 }
 
@@ -146,7 +146,11 @@ impl Drop for RawArenaPage {
 				cur = unsafe { cur.add(elem) };
 			}
 		}
-		let data = unsafe { Vec::from_raw_parts(self.data, 0, page) };
+
+		let data = unsafe {
+			std::ptr::write_bytes(data, 0xD0, page);
+			Vec::from_raw_parts(self.data, 0, page)
+		};
 		drop(data);
 	}
 }
@@ -232,9 +236,9 @@ impl RawArena {
 
 	/// Allocate a buffer for the given `T` value.
 	///
-	/// UNSAFE: if `T` needs drop, the drop function must be supplied to the
+	/// NOTE: if `T` needs drop, the drop function must be supplied to the
 	/// arena using `RawArena::new_with_drop`.
-	pub unsafe fn push<T>(&self, value: T) -> *mut T {
+	pub fn push<T>(&self, value: T) -> *mut T {
 		assert_eq!(std::mem::size_of::<T>(), self.elem);
 		let data = self.alloc() as *mut T;
 		unsafe {
