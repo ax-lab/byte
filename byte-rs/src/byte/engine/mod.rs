@@ -46,11 +46,11 @@ impl<'a> Node<'a> {
 		todo!()
 	}
 
-	fn data(&self) -> &NodeData<'a> {
+	fn data(&self) -> &'a NodeData<'a> {
 		unsafe { &*self.data }
 	}
 
-	unsafe fn data_mut(&self) -> &mut NodeData<'a> {
+	unsafe fn data_mut(&self) -> &'a mut NodeData<'a> {
 		unsafe { &mut *self.data }
 	}
 }
@@ -66,7 +66,7 @@ impl<'a> Eq for Node<'a> {}
 unsafe impl<'a> Send for Node<'a> {}
 unsafe impl<'a> Sync for Node<'a> {}
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone, Copy)]
 pub enum Expr<'a> {
 	#[default]
 	None,
@@ -256,14 +256,18 @@ impl<'a> IntoIterator for NodeList<'a> {
 // NodeStore
 //====================================================================================================================//
 
-#[derive(Default)]
 pub struct NodeStore {
 	buffer: Buffer,
+	nodes: RawArena,
 }
 
 impl NodeStore {
 	pub fn new() -> Self {
-		Self::default()
+		assert!(!std::mem::needs_drop::<NodeData>());
+		Self {
+			buffer: Default::default(),
+			nodes: RawArena::for_type::<NodeData>(1024),
+		}
 	}
 
 	pub fn new_node<'a>(&'a self, expr: Expr<'a>) -> Node<'a> {
@@ -315,7 +319,7 @@ impl NodeStore {
 //====================================================================================================================//
 
 struct NodeData<'a> {
-	expr: AtomicPtr<Expr<'a>>,
+	expr: Expr<'a>,
 	version: AtomicU32,
 	index: AtomicU32,
 	parent: AtomicPtr<NodeData<'a>>,
@@ -335,17 +339,11 @@ impl<'a> NodeData<'a> {
 		ok.expect("Node data got dirty while changing");
 	}
 
-	pub fn expr(&self) -> &'a Expr<'a> {
-		let expr = self.expr.load(Ordering::SeqCst);
-		if expr.is_null() {
-			static EMPTY: Expr = Expr::None;
-			unsafe { std::mem::transmute(&EMPTY) }
-		} else {
-			unsafe { &*expr }
-		}
+	pub fn expr(&self) -> &Expr<'a> {
+		&self.expr
 	}
 
-	pub fn set_expr(&mut self, expr: *mut Expr<'a>) {
+	pub fn set_expr(&mut self, expr: Expr<'a>) {
 		let version = self.version();
 
 		// clear the parent for the old children nodes
@@ -356,13 +354,13 @@ impl<'a> NodeData<'a> {
 		}
 
 		// set the new expression
-		self.expr.store(expr, Ordering::SeqCst);
+		self.expr = expr;
 
 		// set the parent for the new expression
-		for it in self.expr().children() {
+		for (index, it) in self.expr().children().enumerate() {
 			let data = unsafe { it.data_mut() };
-			data.index.store(0, Ordering::SeqCst);
-			data.parent.store(std::ptr::null_mut(), Ordering::SeqCst);
+			data.index.store(index as u32, Ordering::SeqCst);
+			data.parent.store(self, Ordering::SeqCst);
 		}
 
 		self.inc_version(version);
@@ -373,13 +371,12 @@ impl<'a> NodeData<'a> {
 // Buffer
 //====================================================================================================================//
 
-#[derive(Default)]
 pub struct Buffer {
-	list_8: Arena<[u8; 8]>,
-	list_16: Arena<[u8; 16]>,
-	list_32: Arena<[u8; 32]>,
-	list_64: Arena<[u8; 64]>,
-	list_128: Arena<[u8; 128]>,
+	list_08: RawArena,
+	list_16: RawArena,
+	list_32: RawArena,
+	list_64: RawArena,
+	list_128: RawArena,
 	large: RwLock<VecDeque<Vec<u8>>>,
 }
 
@@ -387,25 +384,15 @@ impl Buffer {
 	pub fn alloc(&self, size: usize) -> *mut u8 {
 		unsafe {
 			if size <= 8 {
-				let data = std::mem::MaybeUninit::uninit();
-				let data = self.list_8.push(data.assume_init());
-				data as *mut u8
+				self.list_08.alloc()
 			} else if size <= 16 {
-				let data = std::mem::MaybeUninit::uninit();
-				let data = self.list_16.push(data.assume_init());
-				data as *mut u8
+				self.list_16.alloc()
 			} else if size <= 32 {
-				let data = std::mem::MaybeUninit::uninit();
-				let data = self.list_32.push(data.assume_init());
-				data as *mut u8
+				self.list_32.alloc()
 			} else if size <= 64 {
-				let data = std::mem::MaybeUninit::uninit();
-				let data = self.list_64.push(data.assume_init());
-				data as *mut u8
+				self.list_64.alloc()
 			} else if size <= 128 {
-				let data = std::mem::MaybeUninit::uninit();
-				let data = self.list_128.push(data.assume_init());
-				data as *mut u8
+				self.list_128.alloc()
 			} else {
 				let mut data = Vec::with_capacity(size);
 				let data_ptr = data.as_mut_ptr();
@@ -426,54 +413,106 @@ impl Buffer {
 	}
 }
 
+impl Default for Buffer {
+	fn default() -> Self {
+		Self {
+			list_08: RawArena::new(8, 1024),
+			list_16: RawArena::new(16, 512),
+			list_32: RawArena::new(32, 256),
+			list_64: RawArena::new(64, 128),
+			list_128: RawArena::new(128, 64),
+			large: Default::default(),
+		}
+	}
+}
+
 //====================================================================================================================//
 // Arena
 //====================================================================================================================//
 
-pub struct Arena<T> {
-	pages: RwLock<Vec<ArenaPage<T>>>,
-	current: AtomicPtr<ArenaPage<T>>,
+pub struct RawArena {
+	elem: usize,
+	page: usize,
+	drop: Option<fn(*mut u8)>,
+	pages: RwLock<Vec<RawArenaPage>>,
+	current: AtomicPtr<RawArenaPage>,
 }
 
-struct ArenaPage<T> {
-	data: *mut T,
-	size: usize,
+struct RawArenaPage {
+	arena: *const RawArena,
+	data: *mut u8,
 	next: AtomicUsize,
 }
 
-impl<T> Drop for ArenaPage<T> {
+impl Drop for RawArenaPage {
 	fn drop(&mut self) {
-		let next = self.next.load(Ordering::SeqCst);
-		let next = std::cmp::min(next, self.size); // next can go past size in store
-		let data = unsafe { Vec::from_raw_parts(self.data, next, self.size) };
+		let arena = unsafe { &*self.arena };
+		let page = arena.page_size();
+		let data = self.data;
+		if let Some(drop) = arena.drop {
+			let elem = arena.elem;
+			let last = self.next.load(Ordering::SeqCst);
+			let last = std::cmp::min(last, page); // next can go past size in alloc
+			let last = unsafe { data.add(last) };
+			let mut cur = data;
+			while cur < last {
+				drop(cur);
+				cur = unsafe { cur.add(elem) };
+			}
+		}
+		let data = unsafe { Vec::from_raw_parts(self.data, 0, page) };
 		drop(data);
 	}
 }
 
-impl<T> Arena<T> {
-	pub fn new() -> Self {
+impl RawArena {
+	pub fn new(elem: usize, page: usize) -> Self {
+		Self::new_with_drop(elem, page, None)
+	}
+
+	pub fn new_with_drop(elem: usize, page: usize, drop: Option<fn(*mut u8)>) -> Self {
 		Self {
+			elem,
+			page,
+			drop,
 			pages: Default::default(),
 			current: Default::default(),
 		}
 	}
 
-	pub fn push(&self, new: T) -> *mut T {
+	pub fn for_type<T>(page: usize) -> Self {
+		let elem = std::mem::size_of::<T>();
+		if std::mem::needs_drop::<T>() {
+			let drop = |ptr: *mut u8| {
+				let ptr = ptr as *mut T;
+				unsafe { std::ptr::drop_in_place(ptr) }
+			};
+			Self::new_with_drop(elem, page, Some(drop))
+		} else {
+			Self::new(elem, page)
+		}
+	}
+
+	pub fn alloc(&self) -> *mut u8 {
 		loop {
 			let ptr = self.current.load(Ordering::SeqCst);
 			let ptr = if ptr.is_null() {
 				let mut pages = self.pages.write().unwrap();
 				let last = self.current.load(Ordering::SeqCst);
 				if last.is_null() {
-					let data = Vec::<T>::with_capacity(256);
+					let data = Vec::with_capacity(self.page_size());
 					let size = data.capacity();
 					let next = AtomicUsize::new(0);
 
 					let mut data = ManuallyDrop::new(data);
 					let data = data.as_mut_ptr();
-					let page = ArenaPage { data, size, next };
+					let page = RawArenaPage {
+						arena: self,
+						data,
+						next,
+					};
 					pages.push(page);
-					let page = pages.last_mut().unwrap() as *mut ArenaPage<T>;
+					let page = pages.last_mut().unwrap() as *mut RawArenaPage;
 					self.current.store(page, Ordering::SeqCst);
 					page
 				} else {
@@ -482,13 +521,13 @@ impl<T> Arena<T> {
 			} else {
 				ptr
 			};
+
 			let mut page = unsafe { NonNull::new_unchecked(ptr) };
 			let page = unsafe { page.as_mut() };
-			let next = page.next.fetch_add(1, Ordering::SeqCst);
-			if next < page.size {
+			let next = page.next.fetch_add(self.elem, Ordering::SeqCst);
+			if next < self.page_size() {
 				unsafe {
 					let data = page.data.add(next);
-					data.write(new);
 					return data;
 				}
 			} else {
@@ -497,6 +536,43 @@ impl<T> Arena<T> {
 					.compare_exchange(ptr, std::ptr::null_mut(), Ordering::SeqCst, Ordering::SeqCst);
 			}
 		}
+	}
+
+	pub fn push<T>(&self, value: T) -> *mut T {
+		assert_eq!(std::mem::size_of::<T>(), self.elem);
+		let data = self.alloc() as *mut T;
+		unsafe {
+			data.write(value);
+			data
+		}
+	}
+
+	#[inline(always)]
+	fn page_size(&self) -> usize {
+		self.page * self.elem
+	}
+}
+
+//====================================================================================================================//
+// Arena
+//====================================================================================================================//
+
+pub struct Arena<T> {
+	inner: RawArena,
+	_elem: PhantomData<T>,
+}
+
+impl<T> Arena<T> {
+	pub fn new() -> Self {
+		let inner = RawArena::for_type::<T>(256);
+		Self {
+			inner,
+			_elem: Default::default(),
+		}
+	}
+
+	pub fn push(&self, value: T) -> *mut T {
+		self.inner.push(value)
 	}
 }
 
@@ -512,11 +588,15 @@ impl<T> Default for Arena<T> {
 
 const _: () = {
 	fn assert_safe<T: Send + Sync>() {}
+	fn assert_copy<T: Copy>() {}
 
 	fn assert_all() {
 		assert_safe::<NodeData>();
 		assert_safe::<Node>();
 		assert_safe::<Expr>();
+
+		assert_copy::<Node>();
+		assert_copy::<Expr>();
 	}
 };
 
@@ -547,31 +627,31 @@ mod tests {
 		let counter = Arc::new(RwLock::new(0));
 
 		let mut arena = Arena::new();
-		for _ in 0..2048 {
-			arena.push(Value::new(counter.clone()));
+		for i in 1..=2048 {
+			arena.push(Value::new(i, counter.clone()));
 		}
 
-		assert_eq!(*counter.read().unwrap(), 2048);
+		assert_eq!(*counter.read().unwrap(), 2098176);
 		drop(arena);
 		assert_eq!(*counter.read().unwrap(), 0);
 
-		struct Value(Arc<RwLock<i32>>);
+		struct Value(i32, Arc<RwLock<i32>>);
 
 		impl Value {
-			pub fn new(counter: Arc<RwLock<i32>>) -> Self {
+			pub fn new(val: i32, counter: Arc<RwLock<i32>>) -> Self {
 				{
 					let mut counter = counter.write().unwrap();
-					*counter += 1;
+					*counter += val;
 				}
-				Self(counter)
+				Self(val, counter)
 			}
 		}
 
 		impl Drop for Value {
 			fn drop(&mut self) {
-				let counter = &mut self.0;
+				let counter = &mut self.1;
 				let mut counter = counter.write().unwrap();
-				*counter -= 1;
+				*counter -= self.0;
 			}
 		}
 	}
