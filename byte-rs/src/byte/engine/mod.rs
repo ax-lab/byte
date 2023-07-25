@@ -30,13 +30,106 @@ use std::{
 
 	We need a quick way of filtering scopes both ways.
 
-	Data structures and details
-	---------------------------
+	Maybe list
+	----------
 
-	- Node needs its heap index (to reposition when the key changes)
-	  - If enough nodes change, it might be cheaper to rebuild the heap?
-	- A hash table of node key to possible node func, and then a scope filter
 	- Nodes should have a done flag to prevent processing discarded nodes
+
+	Implementation details
+	======================
+
+	New nodes are allocated in the arena.
+
+	The node key is added to a priority-queue heap and the node itself added to
+	that key set.
+
+	When a node key changes, the node is removed from the old key set. The new
+	key is added to the priority-queue and the node added to the new key set.
+
+	When a key is bound to a new value, it's relocated in the priority-queue
+	based on the new priority. The node set is not changed.
+
+	Bindings for a key are scoped based on the node offset. This means the
+	actual key for a node is it's key and its offset.
+
+	A key node set must be such that finding a sub-set of nodes based on their
+	offset must be fast. This is used when a key value is set in a particular
+	scope.
+
+	## Key lookup
+
+	All defined keys are kept in a hash table and linked to a scope tree.
+
+	## Scope tree
+
+	Each key in the hash table keeps a tree of bindings, where each tree node
+	represents that key binding for a specific scope.
+
+	The root node would be the global program scope, with child tree nodes
+	representing the key definition in a child scope. Some scopes might be
+	unbound, meaning the key is not defined for that scope.
+
+	Child scopes are only created when a key binding is overridden in that
+	scope. They do not map 1:1 to actual program scopes.
+
+	Scopes are represented as an offset range. Offsets are unique across the
+	whole program.
+
+	A node in the scope tree can be split when that key is redefined for a
+	child scope. The associated nodes will be split along side.
+
+	## Key bindings & Priority Queue
+
+	A key binding defines the value of a key for a specific scope. The binding
+	defines an operator to be applied to the nodes in that scope with a given
+	precedence.
+
+	For the actual implementation, each scope tree node is associated with a
+	precedence and added to the priority-queue heap. The queue will process
+	all scopes that have the next highest priority as a single transactional
+	step.
+
+	If a key is rebound, its scope tree node priorities will be reevaluated
+	alongside their position in the heap.
+
+	## Priority re-queue
+
+	Nodes that are processed should be removed from the queue. When nodes
+	are created, they may be added to a scope tree node that was already
+	processed previously, in which case that node would get re-added to the
+	queue, with only the new nodes.
+
+	## Node List
+
+	The node list is the actual value of a scope tree node. Nodes here are
+	sorted by their offset to allow fast positional lookup and splitting.
+
+	The node list should be efficient enough to handle all nodes in the
+	program, if need be. It should also allow fast insertion and removal.
+
+	## Node updates
+
+	Nodes are updated when their expression updates.
+
+	When processing node operators, the changes are queued but not applied
+	immediately. The entire set of changes must be validated for conflicts
+	before applying.
+
+	Once changes are validated, their application will generate new values
+	for the existing nodes, as well as node changes. Those will then be
+	applied for the above structure.
+
+	Node operators can also set new bindings, which will also re-evaluate
+	the scope tree and key bindings.
+
+	## Node structure
+
+	The node hierarchical structure is separate from the scope and key bindings
+	representation. When applying operators to nodes, they are applied in their
+	parent-child context.
+
+	Operators should probably take the scope into consideration to limit their
+	range of application, where applicable.
 
 */
 
