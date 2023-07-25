@@ -43,6 +43,9 @@ use std::{
 pub mod arena;
 use arena::*;
 
+pub mod node;
+pub use node::*;
+
 /// Marker types that define a [`Node`] and its associated types.
 pub trait IsNode: Copy + 'static {
 	type Expr<'a>: IsExpr<'a, Self>;
@@ -56,255 +59,15 @@ pub trait IsExpr<'a, T: IsNode + 'a>: 'a + Copy + Debug + Send + Sync {
 }
 
 //====================================================================================================================//
-// Node
+// Store
 //====================================================================================================================//
 
-#[derive(Copy, Clone)]
-pub struct Node<'a, T: IsNode> {
-	data: *const NodeData<'a, T>,
-}
-
-impl<'a, T: IsNode> Node<'a, T> {
-	pub fn expr(&self) -> &'a T::Expr<'a> {
-		self.data().expr()
-	}
-
-	pub fn key(&self) -> T::Key {
-		todo!()
-	}
-
-	pub fn parent(&self) -> Option<Node<'a, T>> {
-		todo!()
-	}
-
-	pub fn next(&self) -> Option<Node<'a, T>> {
-		todo!()
-	}
-
-	pub fn prev(&self) -> Option<Node<'a, T>> {
-		todo!()
-	}
-
-	pub fn children(&self) -> NodeIterator<'a, T> {
-		todo!()
-	}
-
-	pub fn len(&self) -> usize {
-		todo!()
-	}
-
-	fn data(&self) -> &'a NodeData<'a, T> {
-		unsafe { &*self.data }
-	}
-
-	unsafe fn data_mut(&self) -> &'a mut NodeData<'a, T> {
-		let data = self.data as *mut NodeData<'a, T>;
-		&mut *data
-	}
-}
-
-impl<'a, T: IsNode> PartialEq for Node<'a, T> {
-	fn eq(&self, other: &Self) -> bool {
-		self.data == other.data
-	}
-}
-
-impl<'a, T: IsNode> Eq for Node<'a, T> {}
-
-unsafe impl<'a, T: IsNode> Send for Node<'a, T> {}
-unsafe impl<'a, T: IsNode> Sync for Node<'a, T> {}
-
-impl<'a, T: IsNode> Debug for Node<'a, T> {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		self.expr().fmt(f)
-	}
-}
-
-//====================================================================================================================//
-// NodeList
-//====================================================================================================================//
-
-#[derive(Copy, Clone)]
-pub union NodeList<'a, T: IsNode> {
-	fix: NodeListFix<'a, T>,
-	vec: NodeListVec<'a, T>,
-}
-
-#[derive(Copy, Clone)]
-struct NodeListFix<'a, T: IsNode> {
-	len: usize,
-	ptr: [*const NodeData<'a, T>; 3],
-}
-
-#[derive(Copy, Clone)]
-struct NodeListVec<'a, T: IsNode> {
-	len: usize,
-	ptr: *const *const NodeData<'a, T>,
-}
-
-impl<'a, T: IsNode> NodeList<'a, T> {
-	pub const fn empty() -> Self {
-		let null = std::ptr::null_mut();
-		NodeList {
-			fix: NodeListFix {
-				len: 0,
-				ptr: [null, null, null],
-			},
-		}
-	}
-
-	pub fn single(node: Node<'a, T>) -> Self {
-		let node = node.data;
-		let null = std::ptr::null_mut();
-		NodeList {
-			fix: NodeListFix {
-				len: 1,
-				ptr: [node, null, null],
-			},
-		}
-	}
-
-	pub fn pair(a: Node<'a, T>, b: Node<'a, T>) -> Self {
-		let a = a.data;
-		let b = b.data;
-		let null = std::ptr::null_mut();
-		NodeList {
-			fix: NodeListFix {
-				len: 2,
-				ptr: [a, b, null],
-			},
-		}
-	}
-
-	pub fn triple(a: Node<'a, T>, b: Node<'a, T>, c: Node<'a, T>) -> Self {
-		let a = a.data;
-		let b = b.data;
-		let c = c.data;
-		NodeList {
-			fix: NodeListFix { len: 3, ptr: [a, b, c] },
-		}
-	}
-
-	#[inline(always)]
-	pub fn len(&self) -> usize {
-		unsafe { self.fix.len }
-	}
-
-	#[inline(always)]
-	pub fn get(&self, index: usize) -> Option<Node<'a, T>> {
-		let len = self.len();
-		if index < len {
-			let ptr = unsafe {
-				if len <= self.fix_len() {
-					self.fix.ptr[index]
-				} else {
-					self.vec.ptr.add(index).read()
-				}
-			};
-			let node = Node { data: ptr };
-			Some(node)
-		} else {
-			None
-		}
-	}
-
-	pub fn iter(&self) -> NodeIterator<'a, T> {
-		self.into_iter()
-	}
-
-	#[inline(always)]
-	const fn fix_len(&self) -> usize {
-		unsafe { self.fix.ptr.len() }
-	}
-}
-
-impl<'a, T: IsNode> Default for NodeList<'a, T> {
-	fn default() -> Self {
-		Self::empty()
-	}
-}
-
-impl<'a, T: IsNode> PartialEq for NodeList<'a, T> {
-	fn eq(&self, other: &Self) -> bool {
-		if self.len() == other.len() {
-			for i in 0..self.len() {
-				if self.get(i) != other.get(i) {
-					return false;
-				}
-			}
-			true
-		} else {
-			false
-		}
-	}
-}
-
-impl<'a, T: IsNode> Eq for NodeList<'a, T> {}
-
-unsafe impl<'a, T: IsNode> Send for NodeList<'a, T> {}
-unsafe impl<'a, T: IsNode> Sync for NodeList<'a, T> {}
-
-impl<'a, T: IsNode> Debug for NodeList<'a, T> {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		// TODO: implement proper
-		write!(f, "[")?;
-		for (n, it) in self.iter().enumerate() {
-			write!(f, "{}", if n == 0 { " " } else { ", " })?;
-			write!(f, "{it:?}")?;
-		}
-		write!(f, " ]")
-	}
-}
-
-/// Iterator over a [`NodeList`].
-pub struct NodeIterator<'a, T: IsNode> {
-	list: NodeList<'a, T>,
-	next: usize,
-}
-
-impl<'a, T: IsNode> NodeIterator<'a, T> {
-	pub fn empty() -> Self {
-		NodeList::empty().into_iter()
-	}
-
-	pub fn single(node: &Node<'a, T>) -> Self {
-		NodeList::single(*node).into_iter()
-	}
-
-	pub fn to_list(&self) -> NodeList<'a, T> {
-		self.list
-	}
-}
-
-impl<'a, T: IsNode> Iterator for NodeIterator<'a, T> {
-	type Item = Node<'a, T>;
-
-	fn next(&mut self) -> Option<Self::Item> {
-		let next = self.list.get(self.next);
-		if next.is_some() {
-			self.next += 1;
-		}
-		next
-	}
-}
-
-impl<'a, T: IsNode> IntoIterator for NodeList<'a, T> {
-	type Item = Node<'a, T>;
-	type IntoIter = NodeIterator<'a, T>;
-
-	fn into_iter(self) -> Self::IntoIter {
-		NodeIterator { list: self, next: 0 }
-	}
-}
-
-//====================================================================================================================//
-// NodeStore
-//====================================================================================================================//
-
+/// Provides storage for [`NodeSet`] and its set of [`Node`]. The store owns all
+/// set and node data.
 pub struct NodeStore<T: IsNode> {
 	buffer: Buffer,
 	nodes: RawArena,
-	_expr: PhantomData<T>,
+	_node: PhantomData<T>,
 }
 
 impl<T: IsNode> NodeStore<T> {
@@ -312,130 +75,19 @@ impl<T: IsNode> NodeStore<T> {
 		Self {
 			buffer: Buffer::default(),
 			nodes: RawArena::for_type::<NodeData<T>>(1024),
-			_expr: Default::default(),
+			_node: Default::default(),
 		}
+	}
+
+	/// Create a new [`NodeSet`] backed by this store.
+	pub fn new_node_set(&self) -> NodeSet<T> {
+		NodeSet::new(self)
 	}
 }
 
-pub struct NodeSet<'a, T: IsNode> {
-	data: &'a NodeStore<T>,
-	_expr: PhantomData<T>,
-}
-
-impl<'a, T: IsNode> NodeSet<'a, T> {
-	pub fn new(store: &'a NodeStore<T>) -> Self {
-		assert!(!std::mem::needs_drop::<NodeData<T>>());
-		Self {
-			data: store,
-			_expr: Default::default(),
-		}
-	}
-
-	pub fn new_node(&self, expr: T::Expr<'a>) -> Node<'a, T> {
-		let data = self.data.nodes.push(NodeData::new(expr));
-		Node { data }
-	}
-
-	pub fn list_empty(&self) -> NodeList<'a, T> {
-		NodeList::empty()
-	}
-
-	pub fn list_single(&self, node: Node<'a, T>) -> NodeList<'a, T> {
-		NodeList::single(node)
-	}
-
-	pub fn list_pair(&self, a: Node<'a, T>, b: Node<'a, T>) -> NodeList<'a, T> {
-		NodeList::pair(a, b)
-	}
-
-	pub fn list_triple(&self, a: Node<'a, T>, b: Node<'a, T>, c: Node<'a, T>) -> NodeList<'a, T> {
-		NodeList::triple(a, b, c)
-	}
-
-	pub fn list_from(&self, nodes: &[Node<'a, T>]) -> NodeList<'a, T> {
-		match nodes.len() {
-			0 => self.list_empty(),
-			1 => self.list_single(nodes[0]),
-			2 => self.list_pair(nodes[0], nodes[1]),
-			3 => self.list_triple(nodes[0], nodes[1], nodes[2]),
-			_ => {
-				let bytes = std::mem::size_of::<*const NodeData<'a, T>>() * nodes.len();
-				let ptr = self.data.buffer.alloc(bytes) as *mut *const NodeData<'a, T>;
-				let mut cur = ptr;
-				for it in nodes.iter() {
-					unsafe {
-						cur.write(it.data);
-						cur = cur.add(1);
-					}
-				}
-				let vec = NodeListVec { len: nodes.len(), ptr };
-				let _ = vec.len; // otherwise unused
-				NodeList { vec }
-			}
-		}
-	}
-}
-
-//====================================================================================================================//
-// NodeData
-//====================================================================================================================//
-
-struct NodeData<'a, T: IsNode> {
-	expr: T::Expr<'a>,
-	version: AtomicU32,
-	index: AtomicU32,
-	parent: AtomicPtr<NodeData<'a, T>>,
-}
-
-#[allow(unused)]
-impl<'a, T: IsNode> NodeData<'a, T> {
-	pub fn new(expr: T::Expr<'a>) -> Self {
-		Self {
-			expr,
-			version: Default::default(),
-			index: Default::default(),
-			parent: Default::default(),
-		}
-	}
-
-	#[inline(always)]
-	pub fn version(&self) -> u32 {
-		self.version.load(Ordering::SeqCst)
-	}
-
-	#[inline(always)]
-	pub fn inc_version(&mut self, version: u32) {
-		let ok = self
-			.version
-			.compare_exchange(version, version + 1, Ordering::SeqCst, Ordering::SeqCst);
-		ok.expect("Node data got dirty while changing");
-	}
-
-	pub fn expr(&self) -> &T::Expr<'a> {
-		&self.expr
-	}
-
-	pub fn set_expr(&mut self, expr: T::Expr<'a>) {
-		let version = self.version();
-
-		// clear the parent for the old children nodes
-		for it in self.expr().children() {
-			let data = unsafe { it.data_mut() };
-			data.index.store(0, Ordering::SeqCst);
-			data.parent.store(std::ptr::null_mut(), Ordering::SeqCst);
-		}
-
-		// set the new expression
-		self.expr = expr;
-
-		// set the parent for the new expression
-		for (index, it) in self.expr().children().enumerate() {
-			let data = unsafe { it.data_mut() };
-			data.index.store(index as u32, Ordering::SeqCst);
-			data.parent.store(self, Ordering::SeqCst);
-		}
-
-		self.inc_version(version);
+impl<T: IsNode> Default for NodeStore<T> {
+	fn default() -> Self {
+		Self::new()
 	}
 }
 
@@ -449,9 +101,9 @@ mod tests {
 
 	#[test]
 	fn test_simple() {
-		let data = NodeStore::<Test>::new();
-		let store = NodeSet::new(&data);
-		let list = make_simple_list(&store);
+		let store = NodeStore::<Test>::new();
+		let set = store.new_node_set();
+		let list = make_simple_list(&set);
 
 		let actual = format!("{list:?}");
 		assert_eq!(actual, "List([ Zero, Node(Zero) ])");
@@ -473,6 +125,7 @@ mod tests {
 		assert_eq!(format!("{zero:?}"), "Zero");
 		assert_eq!(format!("{node1_a:?}"), "Number(1)");
 		assert_eq!(format!("{node2_a:?}"), "Number(2)");
+		drop(data);
 	}
 
 	fn make_simple_list<'a>(store: &'a NodeSet<'a, Test>) -> Node<'a, Test> {
@@ -489,27 +142,26 @@ mod tests {
 	}
 
 	struct Compiler<'a> {
-		store: NodeSet<'a, Test>,
+		set: NodeSet<'a, Test>,
 		nodes: Vec<Node<'a, Test>>,
 	}
 
 	impl<'a> Compiler<'a> {
 		pub fn new(store: &'a NodeStore<Test>) -> Self {
-			let store = NodeSet::new(store);
 			Self {
-				store,
+				set: store.new_node_set(),
 				nodes: Default::default(),
 			}
 		}
 
 		pub fn add_zero(&mut self) -> Node<'a, Test> {
-			let node = self.store.new_node(TestExpr::Zero);
+			let node = self.set.new_node(TestExpr::Zero);
 			self.nodes.push(node);
 			node
 		}
 
 		pub fn add_num(&mut self, value: i32) -> Node<'a, Test> {
-			let node = self.store.new_node(TestExpr::Number(value));
+			let node = self.set.new_node(TestExpr::Number(value));
 			self.nodes.push(node);
 			node
 		}
@@ -547,6 +199,7 @@ mod tests {
 		}
 	}
 
+	// Assert individual node types implement the intended auto-traits.
 	const _: () = {
 		fn assert_safe<T: Send + Sync>() {}
 		fn assert_copy<T: Copy>() {}
