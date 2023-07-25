@@ -323,44 +323,56 @@ impl<'a, T: IsExpr<'a>> IntoIterator for NodeList<'a, T> {
 // NodeStore
 //====================================================================================================================//
 
-pub struct NodeStore<'a, T: IsExpr<'a>> {
+pub struct NodeStore {
 	buffer: Buffer,
 	nodes: RawArena,
-	_expr: PhantomData<&'a T>,
 }
 
-impl<'a, T: IsExpr<'a>> NodeStore<'a, T> {
-	pub fn new() -> Self {
+impl NodeStore {
+	pub fn for_expr<'a, T: IsExpr<'a>>() -> Self {
+		Self {
+			buffer: Buffer::default(),
+			nodes: RawArena::for_type::<NodeData<'a, T>>(1024),
+		}
+	}
+}
+
+pub struct NodeSet<'a, T: IsExpr<'a>> {
+	data: &'a NodeStore,
+	_expr: PhantomData<T>,
+}
+
+impl<'a, T: IsExpr<'a>> NodeSet<'a, T> {
+	pub fn new(store: &'a NodeStore) -> Self {
 		assert!(!std::mem::needs_drop::<NodeData<T>>());
 		Self {
-			buffer: Default::default(),
-			nodes: RawArena::for_type::<NodeData<T>>(1024),
+			data: store,
 			_expr: Default::default(),
 		}
 	}
 
-	pub fn new_node(&'a self, expr: T) -> Node<'a, T> {
-		let data = self.nodes.push(NodeData::new(expr));
+	pub fn new_node(&self, expr: T) -> Node<'a, T> {
+		let data = self.data.nodes.push(NodeData::new(expr));
 		Node { data }
 	}
 
-	pub fn list_empty(&'a self) -> NodeList<'a, T> {
+	pub fn list_empty(&self) -> NodeList<'a, T> {
 		NodeList::empty()
 	}
 
-	pub fn list_single(&'a self, node: Node<'a, T>) -> NodeList<'a, T> {
+	pub fn list_single(&self, node: Node<'a, T>) -> NodeList<'a, T> {
 		NodeList::single(node)
 	}
 
-	pub fn list_pair(&'a self, a: Node<'a, T>, b: Node<'a, T>) -> NodeList<'a, T> {
+	pub fn list_pair(&self, a: Node<'a, T>, b: Node<'a, T>) -> NodeList<'a, T> {
 		NodeList::pair(a, b)
 	}
 
-	pub fn list_triple(&'a self, a: Node<'a, T>, b: Node<'a, T>, c: Node<'a, T>) -> NodeList<'a, T> {
+	pub fn list_triple(&self, a: Node<'a, T>, b: Node<'a, T>, c: Node<'a, T>) -> NodeList<'a, T> {
 		NodeList::triple(a, b, c)
 	}
 
-	pub fn list_from(&'a self, nodes: &[Node<'a, T>]) -> NodeList<'a, T> {
+	pub fn list_from(&self, nodes: &[Node<'a, T>]) -> NodeList<'a, T> {
 		match nodes.len() {
 			0 => self.list_empty(),
 			1 => self.list_single(nodes[0]),
@@ -368,7 +380,7 @@ impl<'a, T: IsExpr<'a>> NodeStore<'a, T> {
 			3 => self.list_triple(nodes[0], nodes[1], nodes[2]),
 			_ => {
 				let bytes = std::mem::size_of::<*const NodeData<'a, T>>() * nodes.len();
-				let ptr = self.buffer.alloc(bytes) as *mut *const NodeData<'a, T>;
+				let ptr = self.data.buffer.alloc(bytes) as *mut *const NodeData<'a, T>;
 				let mut cur = ptr;
 				for it in nodes.iter() {
 					unsafe {
@@ -470,23 +482,76 @@ mod tests {
 
 	#[test]
 	fn test_simple() {
-		let store = NodeStore::new();
+		let data = NodeStore::for_expr::<Val<'_>>();
+		let store = NodeSet::new(&data);
 		let list = make_simple_list(&store);
 
 		let actual = format!("{list:?}");
 		assert_eq!(actual, "List([ Zero, Node(Zero) ])");
 	}
 
-	struct ValResult<'a> {
-		store: NodeStore<'a, Val<'a>>,
-		value: Node<'a, Val<'a>>,
+	#[test]
+	fn test_compiler() {
+		let data = NodeStore::for_expr::<Val<'_>>();
+		let mut compiler = make_compiler(&data);
+		let node1_a = compiler.add_num(1);
+		let node2_a = compiler.add_num(2);
+
+		let zero = compiler.get(0);
+		let node1_b = compiler.get(1);
+		let node2_b = compiler.get(2);
+
+		assert_eq!(node1_a, node1_b);
+		assert_eq!(node2_a, node2_b);
+		assert_eq!(format!("{zero:?}"), "Zero");
+		assert_eq!(format!("{node1_a:?}"), "Number(1)");
+		assert_eq!(format!("{node2_a:?}"), "Number(2)");
 	}
 
-	fn make_simple_list<'a>(store: &'a NodeStore<'a, Val<'a>>) -> Node<'a, Val<'a>> {
+	fn make_simple_list<'a>(store: &'a NodeSet<'a, Val<'a>>) -> Node<'a, Val<'a>> {
 		let zero = store.new_node(Val::Zero);
 		let node = store.new_node(Val::Node(zero));
 		let list = store.new_node(Val::List(NodeList::pair(zero, node)));
 		list
+	}
+
+	fn make_compiler<'a>(data: &'a NodeStore) -> Compiler<'a> {
+		let mut compiler = Compiler::new(data);
+		compiler.add_zero();
+		compiler
+	}
+
+	struct Compiler<'a> {
+		store: NodeSet<'a, Val<'a>>,
+		nodes: RwLock<Vec<Node<'a, Val<'a>>>>,
+	}
+
+	impl<'a> Compiler<'a> {
+		pub fn new(store: &'a NodeStore) -> Self {
+			let store = NodeSet::new(store);
+			Self {
+				store,
+				nodes: Default::default(),
+			}
+		}
+
+		pub fn add_zero(&self) -> Node<'a, Val<'a>> {
+			let node = self.store.new_node(Val::Zero);
+			let mut nodes = self.nodes.write().unwrap();
+			nodes.push(node);
+			node
+		}
+
+		pub fn add_num(&self, value: i32) -> Node<'a, Val<'a>> {
+			let node = self.store.new_node(Val::Number((value)));
+			let mut nodes = self.nodes.write().unwrap();
+			nodes.push(node);
+			node
+		}
+
+		pub fn get(&self, index: usize) -> Node<'a, Val<'a>> {
+			self.nodes.read().unwrap()[index]
+		}
 	}
 
 	#[derive(Copy, Clone, Debug)]
@@ -494,6 +559,7 @@ mod tests {
 		Zero,
 		Node(Node<'a, Val<'a>>),
 		List(NodeList<'a, Val<'a>>),
+		Number(i32),
 	}
 
 	impl<'a> IsExpr<'a> for Val<'a> {
@@ -502,6 +568,7 @@ mod tests {
 				Val::Zero => NodeIterator::empty(),
 				Val::Node(node) => NodeIterator::single(node),
 				Val::List(list) => list.into_iter(),
+				Val::Number(..) => NodeIterator::empty(),
 			}
 		}
 	}
