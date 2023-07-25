@@ -64,26 +64,24 @@ pub struct Buffer {
 
 impl Buffer {
 	pub fn alloc(&self, size: usize) -> *mut u8 {
-		unsafe {
-			if size <= 8 {
-				self.list_08.alloc()
-			} else if size <= 16 {
-				self.list_16.alloc()
-			} else if size <= 32 {
-				self.list_32.alloc()
-			} else if size <= 64 {
-				self.list_64.alloc()
-			} else if size <= 128 {
-				self.list_128.alloc()
-			} else if size <= 256 {
-				self.list_256.alloc()
-			} else {
-				let mut data = Vec::with_capacity(size);
-				let data_ptr = data.as_mut_ptr();
-				let mut large = self.large.write().unwrap();
-				large.push_back(data);
-				data_ptr
-			}
+		if size <= 8 {
+			self.list_08.alloc()
+		} else if size <= 16 {
+			self.list_16.alloc()
+		} else if size <= 32 {
+			self.list_32.alloc()
+		} else if size <= 64 {
+			self.list_64.alloc()
+		} else if size <= 128 {
+			self.list_128.alloc()
+		} else if size <= 256 {
+			self.list_256.alloc()
+		} else {
+			let mut data = Vec::with_capacity(size);
+			let data_ptr = data.as_mut_ptr();
+			let mut large = self.large.write().unwrap();
+			large.push_back(data);
+			data_ptr
 		}
 	}
 
@@ -197,7 +195,6 @@ impl RawArena {
 				let last = self.current.load(Ordering::SeqCst);
 				if last.is_null() {
 					let data = Vec::with_capacity(self.page_size());
-					let size = data.capacity();
 					let next = AtomicUsize::new(0);
 
 					let mut data = ManuallyDrop::new(data);
@@ -265,7 +262,7 @@ mod tests {
 
 	#[test]
 	fn arena_simple() {
-		let mut arena = Arena::new();
+		let arena = Arena::new();
 		let mut pointers = Vec::new();
 		for i in 0..2048 {
 			let ptr = arena.push(i);
@@ -283,7 +280,7 @@ mod tests {
 	fn arena_drop() {
 		let counter = Arc::new(RwLock::new(0));
 
-		let mut arena = Arena::new();
+		let arena = Arena::new();
 		for i in 1..=2048 {
 			arena.push(Value::new(i, counter.clone()));
 		}
