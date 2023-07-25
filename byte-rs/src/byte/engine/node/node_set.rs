@@ -8,7 +8,6 @@ pub struct NodeSet<'a, T: IsNode> {
 
 impl<'a, T: IsNode> NodeSet<'a, T> {
 	pub fn new(store: &'a NodeStore<T>) -> Self {
-		assert!(!std::mem::needs_drop::<NodeData<T>>());
 		Self {
 			store,
 			_expr: Default::default(),
