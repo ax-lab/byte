@@ -22,7 +22,11 @@ impl<'a, T: IsNode> Node<'a, T> {
 	}
 
 	pub fn key(&self) -> T::Key {
-		todo!()
+		self.expr().key()
+	}
+
+	pub fn offset(&self) -> usize {
+		self.expr().offset()
 	}
 
 	pub fn parent(&self) -> Option<Node<'a, T>> {
@@ -45,8 +49,12 @@ impl<'a, T: IsNode> Node<'a, T> {
 		todo!()
 	}
 
-	fn data(&self) -> &'a NodeData<'a, T> {
+	pub(crate) fn data(&self) -> &'a NodeData<'a, T> {
 		unsafe { &*self.data }
+	}
+
+	pub(crate) fn ptr(&self) -> *const NodeData<'a, T> {
+		self.data
 	}
 
 	unsafe fn data_mut(&self) -> &'a mut NodeData<'a, T> {

@@ -146,11 +146,19 @@ pub trait IsNode: Copy + 'static {
 
 	/// Key based on [`IsNode::Expr`] used to lookup node data and operations
 	/// in the scope.
-	type Key: Clone + Hash + 'static;
+	type Key: Default + Clone + Hash + Eq + PartialEq + 'static;
 }
 
 /// Types that are used as values for a [`Node`].
 pub trait IsExpr<'a, T: IsNode + 'a>: 'a + Debug + Send + Sync {
+	fn key(&self) -> T::Key {
+		<T::Key as Default>::default()
+	}
+
+	fn offset(&self) -> usize {
+		0
+	}
+
 	fn children(&self) -> NodeIterator<'a, T> {
 		NodeIterator::empty()
 	}
@@ -202,9 +210,8 @@ mod tests {
 	#[test]
 	fn test_simple() {
 		let store = NodeStore::<Test>::new();
-		let set = store.new_node_set();
-		let list = make_simple_list(&set);
-
+		let mut set = store.new_node_set();
+		let list = make_simple_list(&mut set);
 		let actual = format!("{list:?}");
 		assert_eq!(actual, "List([ Zero, Node(Zero) ])");
 	}
@@ -231,7 +238,7 @@ mod tests {
 	#[test]
 	fn test_expr_drops() {
 		let store = NodeStore::<DropTest>::new();
-		let set = store.new_node_set();
+		let mut set = store.new_node_set();
 		let num = 100;
 
 		let counter: Arc<RwLock<usize>> = Default::default();
@@ -275,7 +282,7 @@ mod tests {
 		}
 	}
 
-	fn make_simple_list<'a>(store: &'a NodeSet<'a, Test>) -> Node<'a, Test> {
+	fn make_simple_list<'a>(store: &mut NodeSet<'a, Test>) -> Node<'a, Test> {
 		let zero = store.new_node(TestExpr::Zero);
 		let node = store.new_node(TestExpr::Node(zero));
 		let list = store.new_node(TestExpr::List(NodeList::pair(zero, node)));
