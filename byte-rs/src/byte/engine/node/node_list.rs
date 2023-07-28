@@ -313,8 +313,9 @@ mod tests {
 
 	impl IsNode for List {
 		type Expr<'a> = Expr;
-
 		type Key = ();
+		type Val = ();
+		type Precedence = ();
 	}
 
 	impl<'a> IsExpr<'a, List> for Expr {}

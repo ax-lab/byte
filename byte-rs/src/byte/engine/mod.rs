@@ -147,6 +147,18 @@ pub trait IsNode: Copy + 'static {
 	/// Key based on [`IsNode::Expr`] used to lookup node data and operations
 	/// in the scope.
 	type Key: Default + Clone + Hash + Eq + PartialEq + 'static;
+	type Val: Default + Clone + Hash + Eq + PartialEq + 'static;
+
+	type Precedence: Default + Ord + PartialOrd + 'static;
+
+	fn get_precedence(val: &Self::Val) -> Self::Precedence {
+		let _ = val;
+		<Self::Precedence as Default>::default()
+	}
+
+	fn apply(val: &Self::Val, node: Node<Self>) {
+		let _ = (val, node);
+	}
 }
 
 /// Types that are used as values for a [`Node`].
@@ -269,6 +281,8 @@ mod tests {
 	impl IsNode for Test {
 		type Expr<'a> = TestExpr<'a>;
 		type Key = ();
+		type Val = ();
+		type Precedence = ();
 	}
 
 	impl<'a> IsExpr<'a, Test> for TestExpr<'a> {
@@ -341,8 +355,9 @@ mod tests {
 
 	impl IsNode for DropTest {
 		type Expr<'a> = DropExpr;
-
 		type Key = ();
+		type Val = ();
+		type Precedence = ();
 	}
 
 	#[derive(Debug)]

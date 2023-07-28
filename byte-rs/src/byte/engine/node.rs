@@ -7,6 +7,61 @@ pub use node_iter::*;
 pub use node_list::*;
 pub use node_set::*;
 
+/// Writer for a [`NodeSet`].
+pub struct NodeWriter<'a, T: IsNode> {
+	node: Node<'a, T>,
+}
+
+impl<'a, T: IsNode> NodeWriter<'a, T> {
+	pub fn new_node(&mut self, expr: T::Expr<'a>) -> Node<'a, T> {
+		todo!()
+	}
+
+	pub fn bind(&mut self, key: T::Key, scope: Scope, value: T::Val) {
+		todo!()
+	}
+
+	pub fn offset_end(&self) -> usize {
+		todo!()
+	}
+
+	pub fn node(&self) -> Node<'a, T> {
+		self.node
+	}
+
+	pub fn node_index(&self) -> usize {
+		todo!()
+	}
+
+	pub fn nodes(&self) -> NodeList<'a, T> {
+		todo!()
+	}
+
+	pub fn target_count(&self) -> usize {
+		todo!()
+	}
+
+	pub fn target_index(&self, n: usize) -> usize {
+		todo!()
+	}
+
+	pub fn set_value(&mut self, expr: T::Expr<'a>) {
+		todo!()
+	}
+
+	pub fn replace_range(&mut self, start: Node<'a, T>, end: Node<'a, T>, node: Node<'a, T>) {
+		todo!()
+	}
+
+	pub fn remove_range(&mut self, start: Node<'a, T>, end: Node<'a, T>) {
+		todo!()
+	}
+
+	pub fn replace_all(&mut self, nodes: &[Node<'a, T>]) {
+		todo!()
+	}
+}
+
 //====================================================================================================================//
 // Node
 //====================================================================================================================//
