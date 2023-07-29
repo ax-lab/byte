@@ -139,6 +139,9 @@ use arena::*;
 pub mod node;
 pub use node::*;
 
+pub mod scope;
+pub use scope::*;
+
 /// Marker types that define a [`Node`] and its associated types.
 pub trait IsNode: Copy + 'static {
 	/// Value for the node.
