@@ -62,6 +62,10 @@ impl<'a, T: IsNode> ScopeMap<'a, T> {
 			.or_insert_with(|| ScopeTree::new(&mut self.values));
 		entry.add_node(&mut self.values, node)
 	}
+
+	pub fn shift_next(&mut self) -> ScopeValueIterator<'a, '_, T> {
+		self.values.shift_next()
+	}
 }
 
 //----------------------------------------------------------------------------------------------------------------//
@@ -71,23 +75,37 @@ impl<'a, T: IsNode> ScopeMap<'a, T> {
 /// Stores an entry for each value and node segment pair in the scope.
 struct ValueTable<'a, T: IsNode> {
 	list: Vec<ValueEntry<'a, T>>,
-	heap_index: Vec<usize>,
-	index_heap: Vec<usize>,
+	heap_to_list: Vec<usize>, // list index at the given heap position
+	list_to_heap: Vec<usize>, // heap position for the given list index
+	heap_sorted: usize,       // number of sorted heap entries
+	heap_length: usize,       // total number of non-removed heap entries
 }
 
 impl<'a, T: IsNode> ValueTable<'a, T> {
 	pub fn new() -> Self {
 		Self {
 			list: Default::default(),
-			heap_index: Default::default(),
-			index_heap: Default::default(),
+			heap_to_list: Default::default(),
+			list_to_heap: Default::default(),
+			heap_sorted: 0,
+			heap_length: 0,
 		}
 	}
 
 	pub fn new_entry(&mut self, value: T::Val, nodes: BoundNodes<'a, T>) -> usize {
 		let index = self.list.len();
 		self.list.push(ValueEntry { value, nodes });
-		self.heap_insert(index);
+
+		// add the entry to the unsorted section of the heap
+		self.heap_to_list.push(index);
+		self.list_to_heap.push(index);
+		if index > self.heap_length {
+			// make sure unsorted heap entries are contiguous, as there may be
+			// removed ones
+			self.heap_swap(index, self.heap_length);
+		}
+		self.heap_length += 1;
+
 		index
 	}
 
@@ -105,47 +123,141 @@ impl<'a, T: IsNode> ValueTable<'a, T> {
 
 	pub fn set_value(&mut self, index: usize, value: T::Val) {
 		self.list[index].value = value;
-		self.heap_fixup(self.index_heap[index]);
+		self.heap_fixup(self.list_to_heap[index], false);
 	}
 
-	fn heap_insert(&mut self, index: usize) {
-		let next = self.heap_index.len();
-		self.heap_index.push(index);
-		self.index_heap.push(next);
-		self.heap_fixup(next);
+	//------------------------------------------------------------------------------------------------------------//
+	// Priority queue
+	//------------------------------------------------------------------------------------------------------------//
+
+	pub fn shift_next(&mut self) -> ScopeValueIterator<'a, '_, T> {
+		if self.heap_sorted < self.heap_length {
+			self.heapify();
+		}
+
+		if self.heap_length > 0 {
+			let mut should_continue = true;
+			let mut count = 0;
+			let value = self.heap_value(0);
+			while should_continue {
+				count += 1;
+				self.heap_swap(0, self.heap_length - 1);
+				self.heap_length -= 1;
+				self.heap_sorted -= 1;
+				let next_value = self.heap_value(0);
+				should_continue = self.heap_length > 0 && next_value == value;
+				self.heap_shift_down(0, next_value, self.heap_length);
+			}
+
+			ScopeValueIterator {
+				parent: self,
+				next: self.heap_length,
+				last: self.heap_length + count,
+			}
+		} else {
+			ScopeValueIterator {
+				parent: self,
+				next: 0,
+				last: 0,
+			}
+		}
 	}
 
+	//------------------------------------------------------------------------------------------------------------//
+	// Priority queue implementation
+	//------------------------------------------------------------------------------------------------------------//
+
+	/// Rebuild the heap invariant for all entries in the table.
+	pub fn heapify(&mut self) {
+		let entries = self.heap_length;
+		let added = entries - self.heap_sorted;
+		if added == 0 {
+			return; // heap is already well formed
+		}
+
+		// check if we are better off rebuilding the heap with O(n) or
+		// inserting the remaining elements with O(n * log n)
+		let rebuild = if self.heap_sorted > 0 {
+			let log_n = (usize::BITS - entries.leading_zeros()) as usize;
+			entries / added <= log_n
+		} else {
+			true
+		};
+
+		if !rebuild {
+			// fix the heap by inserting each of the new entries by shifting
+			// them up into the heap from the bottom of the array
+			while self.heap_sorted < entries {
+				let next = self.heap_sorted;
+				self.heap_sorted += 1;
+				self.heap_fixup(next, true);
+			}
+		} else {
+			// rebuild the entire heap from scratch using the bottom up method
+			for pos in 0..=(entries - 1) / 2 {
+				let val = self.heap_value(pos);
+				self.heap_shift_down(pos, val, entries);
+			}
+			self.heap_sorted = entries;
+		}
+	}
+
+	/// Precedence value for the entry at the given heap position.
+	#[inline(always)]
+	fn heap_value(&self, pos: usize) -> T::Precedence {
+		T::get_precedence(&self.list[self.heap_to_list[pos]].value)
+	}
+
+	/// Swap two heap positions.
 	fn heap_swap(&mut self, pos_a: usize, pos_b: usize) {
-		self.heap_index.swap(pos_a, pos_b);
-		self.index_heap.swap(self.heap_index[pos_a], self.heap_index[pos_b]);
+		let idx_a = self.heap_to_list[pos_a];
+		let idx_b = self.heap_to_list[pos_b];
+		self.heap_to_list.swap(pos_a, pos_b);
+		self.list_to_heap.swap(idx_a, idx_b);
 	}
 
-	fn heap_fixup(&mut self, mut pos: usize) {
-		let val = T::get_precedence(&self.list[pos].value);
+	/// Fix the position of a single heap entry when its value changes.
+	fn heap_fixup(&mut self, mut pos: usize, up_only: bool) {
+		if pos >= self.heap_sorted {
+			// ignore if the entry is outside the current valid heap
+			return;
+		}
 
-		if pos > 0 {
-			while pos > 0 {
-				let parent_pos = (pos - 1) / 2;
-				let parent_val = T::get_precedence(&self.list[parent_pos].value);
-				if val < parent_val {
-					self.heap_swap(pos, parent_pos);
-					pos = parent_pos;
-				} else {
-					break;
-				}
+		let val = self.heap_value(pos);
+
+		// shift up an entry that is less than its parent
+		while pos > 0 {
+			let parent_pos = (pos - 1) / 2;
+			let parent_val = self.heap_value(parent_pos);
+			if val < parent_val {
+				self.heap_swap(pos, parent_pos);
+				pos = parent_pos;
+			} else {
+				break;
 			}
 		}
 
+		// shift down an entry that is greater than either children
+		if !up_only {
+			self.heap_shift_down(pos, val, self.heap_sorted);
+		}
+	}
+
+	/// Fix the position of a single heap entry by shifting it down in case it
+	/// is greater than either of its children.
+	///
+	/// This assumes that both children sub-trees hold the heap invariant.
+	fn heap_shift_down(&mut self, mut pos: usize, val: T::Precedence, heap_len: usize) {
 		loop {
 			let lhs = pos * 2 + 1;
 			let rhs = pos * 2 + 2;
-			if lhs >= self.heap_index.len() {
+			if lhs >= heap_len {
 				break;
 			}
 
-			let lhs_val = T::get_precedence(&self.list[lhs].value);
-			let (child_pos, child_val) = if rhs < self.heap_index.len() {
-				let rhs_val = T::get_precedence(&self.list[lhs].value);
+			let lhs_val = self.heap_value(lhs);
+			let (child_pos, child_val) = if rhs < heap_len {
+				let rhs_val = self.heap_value(rhs);
 				if rhs_val < lhs_val {
 					(rhs, rhs_val)
 				} else {
@@ -167,6 +279,28 @@ impl<'a, T: IsNode> ValueTable<'a, T> {
 struct ValueEntry<'a, T: IsNode> {
 	value: T::Val,
 	nodes: BoundNodes<'a, T>,
+}
+
+pub struct ScopeValueIterator<'a, 'b, T: IsNode> {
+	parent: &'b ValueTable<'a, T>,
+	next: usize,
+	last: usize,
+}
+
+impl<'a, 'b, T: IsNode> Iterator for ScopeValueIterator<'a, 'b, T> {
+	type Item = (&'b T::Val, &'b BoundNodes<'a, T>);
+
+	fn next(&mut self) -> Option<Self::Item> {
+		if self.next < self.last {
+			let index = self.parent.heap_to_list[self.next];
+			let item = &self.parent.list[index];
+			let output = (&item.value, &item.nodes);
+			self.next += 1;
+			Some(output)
+		} else {
+			None
+		}
+	}
 }
 
 //====================================================================================================================//
@@ -393,7 +527,7 @@ impl<'a, T: IsNode> BindSegment<'a, T> {
 // BoundNodes
 //====================================================================================================================//
 
-struct BoundNodes<'a, T: IsNode> {
+pub struct BoundNodes<'a, T: IsNode> {
 	nodes: Vec<Node<'a, T>>,
 	sorted: usize,
 }
@@ -485,6 +619,33 @@ mod tests {
 		assert_eq!(map.get(&"b", 2), Some(&20));
 		assert_eq!(map.get(&"b", 3), Some(&20));
 		assert_eq!(map.get(&"b", 0), None);
+	}
+
+	#[test]
+	pub fn basic_precedence() {
+		let mut map = ScopeMap::<Bind>::new();
+		map.bind("d", Scope::Root, 4);
+		map.bind("a", Scope::Root, 1);
+		map.bind("c", Scope::Root, 3);
+		map.bind("b", Scope::Root, 2);
+		map.bind("g", Scope::Root, 7);
+
+		let check = |map: &mut ScopeMap<Bind>, n: i32| {
+			let actual = map.shift_next().map(|(a, _)| *a).collect::<Vec<_>>();
+			assert_eq!(actual, vec![n])
+		};
+
+		check(&mut map, 1);
+		check(&mut map, 2);
+		check(&mut map, 3);
+		check(&mut map, 4);
+
+		map.bind("f", Scope::Root, 6);
+		map.bind("e", Scope::Root, 5);
+
+		check(&mut map, 5);
+		check(&mut map, 6);
+		check(&mut map, 7);
 	}
 
 	#[derive(Copy, Clone)]
