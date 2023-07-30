@@ -51,14 +51,23 @@ impl Ord for Scope {
 	}
 }
 
+//====================================================================================================================//
+// BindingMap
+//====================================================================================================================//
+
+/// Maps binding values for node keys.
 pub struct BindingMap<'a, T: IsNode> {
 	table: HashMap<T::Key, ScopeTree<'a, T>>,
+	values: BindingValues<'a, T>,
 }
 
 impl<'a, T: IsNode> BindingMap<'a, T> {
 	pub fn new() -> Self {
 		Self {
 			table: Default::default(),
+			values: BindingValues {
+				list: Default::default(),
+			},
 		}
 	}
 
@@ -73,43 +82,92 @@ impl<'a, T: IsNode> BindingMap<'a, T> {
 	/// If scope binds overlap, the behavior is defined by the [`Override`]
 	/// flag.
 	pub fn bind(&mut self, key: T::Key, scope: Scope, data: T::Val) {
-		let entry = self.table.entry(key).or_insert_with(|| ScopeTree::new());
-		entry.bind(scope, data)
+		let entry = self
+			.table
+			.entry(key)
+			.or_insert_with(|| ScopeTree::new(&mut self.values));
+		entry.bind(&mut self.values, scope, data)
 	}
 
 	pub fn get(&self, key: &T::Key, offset: usize) -> Option<&T::Val> {
 		if let Some(entry) = self.table.get(key) {
-			entry.get(offset)
+			entry.get(&self.values, offset)
 		} else {
 			None
 		}
 	}
 
 	pub fn add_node(&mut self, key: T::Key, node: Node<'a, T>) {
-		let entry = self.table.entry(key).or_insert_with(|| ScopeTree::new());
-		entry.add_node(node)
+		let entry = self
+			.table
+			.entry(key)
+			.or_insert_with(|| ScopeTree::new(&mut self.values));
+		entry.add_node(&mut self.values, node)
 	}
 }
 
+struct BindingValues<'a, T: IsNode> {
+	list: Vec<BindingValue<'a, T>>,
+}
+
+impl<'a, T: IsNode> BindingValues<'a, T> {
+	pub fn new_entry(&mut self, value: T::Val, nodes: BoundNodes<'a, T>) -> usize {
+		let index = self.list.len();
+		self.list.push(BindingValue { value, nodes });
+		index
+	}
+
+	pub fn extract_range(&mut self, index: usize, sta: usize, end: usize) -> BoundNodes<'a, T> {
+		self.list[index].nodes.extract_range(sta, end)
+	}
+
+	pub fn add_node(&mut self, index: usize, node: Node<'a, T>) {
+		self.list[index].nodes.add_node(node);
+	}
+
+	pub fn get_value(&self, index: usize) -> &T::Val {
+		&self.list[index].value
+	}
+
+	pub fn set_value(&mut self, index: usize, value: T::Val) {
+		self.list[index].value = value;
+	}
+}
+
+struct BindingValue<'a, T: IsNode> {
+	value: T::Val,
+	nodes: BoundNodes<'a, T>,
+}
+
+//====================================================================================================================//
+// ScopeTree
+//====================================================================================================================//
+
 /// A scope tree for a specific key in a [`BindingMap`].
+///
+/// The scope tree maps the associated key value for each scope in the program
+/// and maps the list of associated nodes with each scope.
 struct ScopeTree<'a, T: IsNode> {
-	root: Option<T::Val>,
-	root_nodes: BoundNodes<'a, T>,
+	root_index: usize,
+	root_value: bool,
 	list: Vec<BindSegment<'a, T>>,
 }
 
 impl<'a, T: IsNode> ScopeTree<'a, T> {
-	pub fn new() -> Self {
+	pub fn new(values: &mut BindingValues<'a, T>) -> Self {
 		Self {
-			root: None,
-			root_nodes: BoundNodes::new(),
+			root_index: values.new_entry(T::Val::default(), BoundNodes::new()),
+			root_value: false,
 			list: Default::default(),
 		}
 	}
 
-	pub fn bind(&mut self, scope: Scope, value: T::Val) {
+	pub fn bind(&mut self, values: &mut BindingValues<'a, T>, scope: Scope, value: T::Val) {
 		match scope {
-			Scope::Root => self.root = Some(value),
+			Scope::Root => {
+				self.root_value = true;
+				values.set_value(self.root_index, value);
+			}
 			Scope::Range(scope_sta, scope_end) => {
 				let length = self.list.len();
 
@@ -120,14 +178,14 @@ impl<'a, T: IsNode> ScopeTree<'a, T> {
 					// no overlap, just insert a new segment
 					let sta = scope_sta;
 					let end = scope_end;
-					let nodes = self.root_nodes.extract_range(sta, end);
+					let nodes = values.extract_range(self.root_index, sta, end);
 					self.list.push(BindSegment {
 						scope_sta,
 						scope_end,
-						nodes,
 						sta,
 						end,
-						val: value,
+						index: values.new_entry(value, nodes),
+						_data: Default::default(),
 					});
 				} else {
 					// check if the scope prefix is unbound
@@ -135,14 +193,14 @@ impl<'a, T: IsNode> ScopeTree<'a, T> {
 					if scope_sta < next.sta {
 						let sta = scope_sta;
 						let end = next.sta - 1;
-						let nodes = self.root_nodes.extract_range(sta, end);
+						let nodes = values.extract_range(self.root_index, sta, end);
 						self.list.push(BindSegment {
 							scope_sta,
 							scope_end,
-							nodes,
 							sta,
 							end,
-							val: value.clone(),
+							index: values.new_entry(value.clone(), nodes),
+							_data: Default::default(),
 						});
 						index += 1;
 					}
@@ -158,14 +216,14 @@ impl<'a, T: IsNode> ScopeTree<'a, T> {
 							if (item.sta - prev) > 1 {
 								let sta = prev + 1;
 								let end = item.sta - 1;
-								let nodes = self.root_nodes.extract_range(sta, end);
+								let nodes = values.extract_range(self.root_index, sta, end);
 								self.list.push(BindSegment {
 									scope_sta,
 									scope_end,
-									nodes,
 									sta,
 									end,
-									val: value.clone(),
+									index: values.new_entry(value.clone(), nodes),
+									_data: Default::default(),
 								});
 								item = &mut self.list[index - 1]; // re-borrow after changing list
 							}
@@ -181,35 +239,35 @@ impl<'a, T: IsNode> ScopeTree<'a, T> {
 							// split the first segment
 							let sta = scope_sta;
 							let end = item.end;
-							let nodes = item.nodes.extract_range(sta, end);
+							let nodes = values.extract_range(item.index, sta, end);
 							item.end = sta - 1;
 							self.list.push(BindSegment {
 								scope_sta,
 								scope_end,
-								nodes,
 								sta,
 								end,
-								val: value.clone(),
+								index: values.new_entry(value.clone(), nodes),
+								_data: Default::default(),
 							});
 						} else if scope_end < item.end {
 							// split the last segment
 							let sta = item.sta;
 							let end = scope_end;
-							let nodes = item.nodes.extract_range(sta, end);
+							let nodes = values.extract_range(item.index, sta, end);
 							item.sta = end + 1;
 							self.list.push(BindSegment {
 								scope_sta,
 								scope_end,
-								nodes,
 								sta,
 								end: scope_end,
-								val: value.clone(),
+								index: values.new_entry(value.clone(), nodes),
+								_data: Default::default(),
 							});
 						} else {
 							// segment is fully contained in the new binding, so just overwrite it
 							item.scope_sta = scope_sta;
 							item.scope_end = scope_end;
-							item.val = value.clone();
+							values.set_value(item.index, value.clone());
 						}
 					}
 				}
@@ -254,24 +312,32 @@ impl<'a, T: IsNode> ScopeTree<'a, T> {
 		*/
 	}
 
-	pub fn get(&self, offset: usize) -> Option<&T::Val> {
+	pub fn get<'b>(&self, values: &'b BindingValues<'a, T>, offset: usize) -> Option<&'b T::Val> {
 		let index = self.list.partition_point(|x| x.end < offset);
 		if let Some(item) = self.list.get(index) {
 			if offset >= item.sta && offset <= item.end {
-				Some(&item.val)
+				Some(values.get_value(item.index))
 			} else {
-				self.root.as_ref()
+				if self.root_value {
+					Some(values.get_value(self.root_index))
+				} else {
+					None
+				}
 			}
 		} else {
-			self.root.as_ref()
+			if self.root_value {
+				Some(values.get_value(self.root_index))
+			} else {
+				None
+			}
 		}
 	}
 
-	pub fn add_node(&mut self, node: Node<'a, T>) {
+	pub fn add_node(&mut self, values: &mut BindingValues<'a, T>, node: Node<'a, T>) {
 		if let Some(segment) = self.find_segment_mut(node.offset()) {
-			segment.nodes.add_node(node)
+			values.add_node(segment.index, node)
 		} else {
-			self.root_nodes.add_node(node)
+			values.add_node(self.root_index, node)
 		}
 	}
 
@@ -296,13 +362,17 @@ impl<'a, T: IsNode> ScopeTree<'a, T> {
 	}
 }
 
+//====================================================================================================================//
+// Segment and Nodes
+//====================================================================================================================//
+
 struct BindSegment<'a, T: IsNode> {
 	scope_sta: usize,
 	scope_end: usize,
-	nodes: BoundNodes<'a, T>,
+	index: usize,
 	sta: usize,
 	end: usize,
-	val: T::Val,
+	_data: PhantomData<BindingValue<'a, T>>,
 }
 
 impl<'a, T: IsNode> BindSegment<'a, T> {
