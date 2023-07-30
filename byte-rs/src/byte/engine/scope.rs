@@ -23,9 +23,7 @@ impl<'a, T: IsNode> ScopeMap<'a, T> {
 	pub fn new() -> Self {
 		Self {
 			table: Default::default(),
-			values: ValueTable {
-				list: Default::default(),
-			},
+			values: ValueTable::new(),
 		}
 	}
 
@@ -73,12 +71,23 @@ impl<'a, T: IsNode> ScopeMap<'a, T> {
 /// Stores an entry for each value and node segment pair in the scope.
 struct ValueTable<'a, T: IsNode> {
 	list: Vec<ValueEntry<'a, T>>,
+	heap_index: Vec<usize>,
+	index_heap: Vec<usize>,
 }
 
 impl<'a, T: IsNode> ValueTable<'a, T> {
+	pub fn new() -> Self {
+		Self {
+			list: Default::default(),
+			heap_index: Default::default(),
+			index_heap: Default::default(),
+		}
+	}
+
 	pub fn new_entry(&mut self, value: T::Val, nodes: BoundNodes<'a, T>) -> usize {
 		let index = self.list.len();
 		self.list.push(ValueEntry { value, nodes });
+		self.heap_insert(index);
 		index
 	}
 
@@ -96,6 +105,62 @@ impl<'a, T: IsNode> ValueTable<'a, T> {
 
 	pub fn set_value(&mut self, index: usize, value: T::Val) {
 		self.list[index].value = value;
+		self.heap_fixup(self.index_heap[index]);
+	}
+
+	fn heap_insert(&mut self, index: usize) {
+		let next = self.heap_index.len();
+		self.heap_index.push(index);
+		self.index_heap.push(next);
+		self.heap_fixup(next);
+	}
+
+	fn heap_swap(&mut self, pos_a: usize, pos_b: usize) {
+		self.heap_index.swap(pos_a, pos_b);
+		self.index_heap.swap(self.heap_index[pos_a], self.heap_index[pos_b]);
+	}
+
+	fn heap_fixup(&mut self, mut pos: usize) {
+		let val = T::get_precedence(&self.list[pos].value);
+
+		if pos > 0 {
+			while pos > 0 {
+				let parent_pos = (pos - 1) / 2;
+				let parent_val = T::get_precedence(&self.list[parent_pos].value);
+				if val < parent_val {
+					self.heap_swap(pos, parent_pos);
+					pos = parent_pos;
+				} else {
+					break;
+				}
+			}
+		}
+
+		loop {
+			let lhs = pos * 2 + 1;
+			let rhs = pos * 2 + 2;
+			if lhs >= self.heap_index.len() {
+				break;
+			}
+
+			let lhs_val = T::get_precedence(&self.list[lhs].value);
+			let (child_pos, child_val) = if rhs < self.heap_index.len() {
+				let rhs_val = T::get_precedence(&self.list[lhs].value);
+				if rhs_val < lhs_val {
+					(rhs, rhs_val)
+				} else {
+					(lhs, lhs_val)
+				}
+			} else {
+				(lhs, lhs_val)
+			};
+			if child_val < val {
+				self.heap_swap(pos, child_pos);
+				pos = child_pos;
+			} else {
+				break;
+			}
+		}
 	}
 }
 
