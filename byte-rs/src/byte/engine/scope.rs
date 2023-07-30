@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use super::*;
 
+// TODO: remove nodes from a scope tree
+
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum Scope {
 	Root,
@@ -83,26 +85,25 @@ impl<'a, T: IsNode> BindingMap<'a, T> {
 		}
 	}
 
-	pub fn add_node(&mut self, key: T::Key, node: &Node<'a, T>) {
+	pub fn add_node(&mut self, key: T::Key, node: Node<'a, T>) {
 		let entry = self.table.entry(key).or_insert_with(|| ScopeTree::new());
-		let offset = node.offset();
-		entry.add_node(offset, node.ptr())
+		entry.add_node(node)
 	}
 }
 
 /// A scope tree for a specific key in a [`BindingMap`].
 struct ScopeTree<'a, T: IsNode> {
 	root: Option<T::Val>,
-	list: Vec<BindSegment<T::Val>>,
-	_data: PhantomData<&'a T>,
+	root_nodes: BoundNodes<'a, T>,
+	list: Vec<BindSegment<'a, T>>,
 }
 
 impl<'a, T: IsNode> ScopeTree<'a, T> {
 	pub fn new() -> Self {
 		Self {
 			root: None,
+			root_nodes: BoundNodes::new(),
 			list: Default::default(),
-			_data: Default::default(),
 		}
 	}
 
@@ -117,23 +118,30 @@ impl<'a, T: IsNode> ScopeTree<'a, T> {
 
 				if index >= length || self.list[index].sta > scope_end {
 					// no overlap, just insert a new segment
+					let sta = scope_sta;
+					let end = scope_end;
+					let nodes = self.root_nodes.extract_range(sta, end);
 					self.list.push(BindSegment {
 						scope_sta,
 						scope_end,
-						sta: scope_sta,
-						end: scope_end,
+						nodes,
+						sta,
+						end,
 						val: value,
 					});
 				} else {
 					// check if the scope prefix is unbound
 					let next = &self.list[index];
 					if scope_sta < next.sta {
-						let sta = next.sta;
+						let sta = scope_sta;
+						let end = next.sta - 1;
+						let nodes = self.root_nodes.extract_range(sta, end);
 						self.list.push(BindSegment {
 							scope_sta,
 							scope_end,
-							sta: scope_sta,
-							end: sta - 1,
+							nodes,
+							sta,
+							end,
 							val: value.clone(),
 						});
 						index += 1;
@@ -145,21 +153,23 @@ impl<'a, T: IsNode> ScopeTree<'a, T> {
 						let mut item = &mut self.list[index];
 						index += 1;
 
+						// fill any gaps between segments
 						if let Some(prev) = prev {
-							let sta = item.sta;
-							if (sta - prev) > 1 {
-								// insert a new segment in the gap
+							if (item.sta - prev) > 1 {
+								let sta = prev + 1;
+								let end = item.sta - 1;
+								let nodes = self.root_nodes.extract_range(sta, end);
 								self.list.push(BindSegment {
 									scope_sta,
 									scope_end,
-									sta: prev + 1,
-									end: sta - 1,
+									nodes,
+									sta,
+									end,
 									val: value.clone(),
 								});
 								item = &mut self.list[index - 1]; // re-borrow after changing list
 							}
 						}
-
 						prev = Some(item.end);
 
 						// don't touch a segment from a more specific scope
@@ -169,22 +179,28 @@ impl<'a, T: IsNode> ScopeTree<'a, T> {
 
 						if scope_sta > item.sta {
 							// split the first segment
+							let sta = scope_sta;
 							let end = item.end;
-							item.end = scope_sta - 1;
+							let nodes = item.nodes.extract_range(sta, end);
+							item.end = sta - 1;
 							self.list.push(BindSegment {
 								scope_sta,
 								scope_end,
-								sta: scope_sta,
+								nodes,
+								sta,
 								end,
 								val: value.clone(),
 							});
 						} else if scope_end < item.end {
 							// split the last segment
 							let sta = item.sta;
-							item.sta = scope_end + 1;
+							let end = scope_end;
+							let nodes = item.nodes.extract_range(sta, end);
+							item.sta = end + 1;
 							self.list.push(BindSegment {
 								scope_sta,
 								scope_end,
+								nodes,
 								sta,
 								end: scope_end,
 								val: value.clone(),
@@ -251,27 +267,45 @@ impl<'a, T: IsNode> ScopeTree<'a, T> {
 		}
 	}
 
-	pub fn add_node(&mut self, offset: usize, node: *const NodeData<'a, T>) {
-		let _ = (offset, node);
-		/*
-			Find the most specific range that contains the offset and add the
-			node to it. Otherwise add it to the root.
+	pub fn add_node(&mut self, node: Node<'a, T>) {
+		if let Some(segment) = self.find_segment_mut(node.offset()) {
+			segment.nodes.add_node(node)
+		} else {
+			self.root_nodes.add_node(node)
+		}
+	}
 
-			TODO: implement a "gap buffer" with lazy-sorting for keeping the nodes.
-		*/
-		todo!()
+	fn find_segment_mut(&mut self, offset: usize) -> Option<&mut BindSegment<'a, T>> {
+		use std::cmp::Ordering;
+		if let Ok(index) = self.list.binary_search_by(|it| {
+			let (sta, end) = (it.sta, it.end);
+			if offset >= sta && offset <= end {
+				Ordering::Equal
+			} else {
+				if offset < sta {
+					Ordering::Less
+				} else {
+					Ordering::Greater
+				}
+			}
+		}) {
+			Some(&mut self.list[index])
+		} else {
+			None
+		}
 	}
 }
 
-struct BindSegment<T: Clone> {
+struct BindSegment<'a, T: IsNode> {
 	scope_sta: usize,
 	scope_end: usize,
+	nodes: BoundNodes<'a, T>,
 	sta: usize,
 	end: usize,
-	val: T,
+	val: T::Val,
 }
 
-impl<T: Clone> BindSegment<T> {
+impl<'a, T: IsNode> BindSegment<'a, T> {
 	/// Check if the given new scope binds to the current segment. The given
 	/// scope should intersect the current segment.
 	///
@@ -290,6 +324,50 @@ impl<T: Clone> BindSegment<T> {
 
 		let can_bind = new_sta >= cur_sta && new_end <= cur_end;
 		can_bind
+	}
+}
+
+struct BoundNodes<'a, T: IsNode> {
+	nodes: Vec<Node<'a, T>>,
+	sorted: usize,
+}
+
+impl<'a, T: IsNode> BoundNodes<'a, T> {
+	pub fn new() -> Self {
+		Self {
+			nodes: Default::default(),
+			sorted: 0,
+		}
+	}
+
+	pub fn add_node(&mut self, node: Node<'a, T>) {
+		let length = self.nodes.len();
+		let sorted = self.sorted == length
+			&& if length == 0 {
+				true
+			} else {
+				self.nodes[length - 1].offset() < node.offset()
+			};
+		self.nodes.push(node);
+		if sorted {
+			self.sorted = self.nodes.len();
+		}
+	}
+
+	pub fn extract_range(&mut self, sta: usize, end: usize) -> Self {
+		self.ensure_sorted();
+		let head = self.nodes.partition_point(|x| x.offset() < sta);
+		let tail = &self.nodes[head..];
+		let len = tail.partition_point(|x| x.offset() <= end);
+		let nodes = self.nodes.drain(head..head + len).collect();
+		Self { nodes, sorted: len }
+	}
+
+	pub fn ensure_sorted(&mut self) {
+		if self.sorted < self.nodes.len() {
+			self.nodes.sort_by_key(|x| x.offset());
+			self.sorted = self.nodes.len();
+		}
 	}
 }
 

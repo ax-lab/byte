@@ -20,7 +20,7 @@ impl<'a, T: IsNode> NodeSet<'a, T> {
 		let data = self.store.nodes.push(NodeData::new(expr));
 		let node = Node { data };
 		let key = node.key();
-		self.bindings.add_node(key, &node);
+		self.bindings.add_node(key, node);
 		node
 	}
 
