@@ -3,12 +3,12 @@ use super::*;
 /// Manages a collection of [`Node`].
 pub struct NodeSet<'a, T: IsNode> {
 	store: &'a NodeStore<T>,
-	bindings: BindingMap<'a, T>,
+	bindings: ScopeMap<'a, T>,
 }
 
 impl<'a, T: IsNode> NodeSet<'a, T> {
 	pub fn new(store: &'a NodeStore<T>) -> Self {
-		let bindings = BindingMap::new();
+		let bindings = ScopeMap::new();
 		Self { store, bindings }
 	}
 

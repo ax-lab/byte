@@ -2,74 +2,34 @@ use std::collections::HashMap;
 
 use super::*;
 
-// TODO: remove nodes from a scope tree
-
+/// Represents a scope in the program.
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum Scope {
 	Root,
 	Range(usize, usize),
 }
 
-impl Scope {
-	pub fn contains(&self, other: &Scope) -> bool {
-		match self {
-			Scope::Root => true,
-			Scope::Range(a0, a1) => match other {
-				Scope::Root => false,
-				Scope::Range(b0, b1) => {
-					let overlap = a0 <= b1 && b0 <= a1;
-					let contain = b0 >= a1 && b1 <= a1;
-					if overlap && contain {
-						panic!("intersecting scopes are not allowed");
-					}
-					contain
-				}
-			},
-		}
-	}
-}
-
-impl PartialOrd for Scope {
-	fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-		Some(self.cmp(other))
-	}
-}
-
-impl Ord for Scope {
-	fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-		use std::cmp::Ordering;
-		match self {
-			Scope::Root => match other {
-				Scope::Root => Ordering::Equal,
-				Scope::Range(..) => Ordering::Less,
-			},
-			Scope::Range(a0, a1) => match other {
-				Scope::Root => Ordering::Greater,
-				Scope::Range(b0, b1) => a0.cmp(b0).then(a1.cmp(b1)),
-			},
-		}
-	}
-}
-
 //====================================================================================================================//
-// BindingMap
+// ScopeMap
 //====================================================================================================================//
 
-/// Maps binding values for node keys.
-pub struct BindingMap<'a, T: IsNode> {
+/// Maps an [`IsNode::Key`] to an [`IsNode::Val`] in a given [`Scope`].
+pub struct ScopeMap<'a, T: IsNode> {
 	table: HashMap<T::Key, ScopeTree<'a, T>>,
-	values: BindingValues<'a, T>,
+	values: ValueTable<'a, T>,
 }
 
-impl<'a, T: IsNode> BindingMap<'a, T> {
+impl<'a, T: IsNode> ScopeMap<'a, T> {
 	pub fn new() -> Self {
 		Self {
 			table: Default::default(),
-			values: BindingValues {
+			values: ValueTable {
 				list: Default::default(),
 			},
 		}
 	}
+
+	// TODO: change interface to operate with the nodes directly.
 
 	/// Set the binding for a key in the given scope.
 	///
@@ -106,14 +66,19 @@ impl<'a, T: IsNode> BindingMap<'a, T> {
 	}
 }
 
-struct BindingValues<'a, T: IsNode> {
-	list: Vec<BindingValue<'a, T>>,
+//----------------------------------------------------------------------------------------------------------------//
+// ValueTable and Entry
+//----------------------------------------------------------------------------------------------------------------//
+
+/// Stores an entry for each value and node segment pair in the scope.
+struct ValueTable<'a, T: IsNode> {
+	list: Vec<ValueEntry<'a, T>>,
 }
 
-impl<'a, T: IsNode> BindingValues<'a, T> {
+impl<'a, T: IsNode> ValueTable<'a, T> {
 	pub fn new_entry(&mut self, value: T::Val, nodes: BoundNodes<'a, T>) -> usize {
 		let index = self.list.len();
-		self.list.push(BindingValue { value, nodes });
+		self.list.push(ValueEntry { value, nodes });
 		index
 	}
 
@@ -134,7 +99,7 @@ impl<'a, T: IsNode> BindingValues<'a, T> {
 	}
 }
 
-struct BindingValue<'a, T: IsNode> {
+struct ValueEntry<'a, T: IsNode> {
 	value: T::Val,
 	nodes: BoundNodes<'a, T>,
 }
@@ -143,10 +108,7 @@ struct BindingValue<'a, T: IsNode> {
 // ScopeTree
 //====================================================================================================================//
 
-/// A scope tree for a specific key in a [`BindingMap`].
-///
-/// The scope tree maps the associated key value for each scope in the program
-/// and maps the list of associated nodes with each scope.
+/// Maps scope values for a specific key in a [`ScopeMap`].
 struct ScopeTree<'a, T: IsNode> {
 	root_index: usize,
 	root_value: bool,
@@ -154,7 +116,7 @@ struct ScopeTree<'a, T: IsNode> {
 }
 
 impl<'a, T: IsNode> ScopeTree<'a, T> {
-	pub fn new(values: &mut BindingValues<'a, T>) -> Self {
+	pub fn new(values: &mut ValueTable<'a, T>) -> Self {
 		Self {
 			root_index: values.new_entry(T::Val::default(), BoundNodes::new()),
 			root_value: false,
@@ -162,7 +124,7 @@ impl<'a, T: IsNode> ScopeTree<'a, T> {
 		}
 	}
 
-	pub fn bind(&mut self, values: &mut BindingValues<'a, T>, scope: Scope, value: T::Val) {
+	pub fn bind(&mut self, values: &mut ValueTable<'a, T>, scope: Scope, value: T::Val) {
 		match scope {
 			Scope::Root => {
 				self.root_value = true;
@@ -275,44 +237,9 @@ impl<'a, T: IsNode> ScopeTree<'a, T> {
 				self.list.sort_by_key(|x| x.sta);
 			}
 		}
-		/*
-			Initially a scope contains only a Scope::Root with no value. That
-			scope is handled separately.
-
-			For other scopes, check for overlapping scopes. If there is no
-			overlap, just add the new scope with the value.
-
-			Add new scope ranges for any non-overlapping ranges.
-
-			TODO: should we break the ranges or keep them intact and use an
-			actual tree for values?
-
-			For each overlapping range:
-
-			1) If new is an inner range, break outer in 2-3 ranges and set the
-			   overlapping region to the new value.
-
-			2) If new is an outer range, either override if `Override::All` or
-			   do nothing. The outer parts will already be covered by (1).
-
-			3) If the ranges overlap partially then:
-
-				a) If `Override::InnerOnly` then panic;
-
-				b) If `Override::Inner` do nothing. The non overlapping parts
-				   are already covered by (1).
-
-				c) Otherwise break the intersecting part from the existing
-				   binding and override its value.
-
-			4) TODO: what if the ranges are exactly equal? Overwrite the
-			   value in case (3.c)?
-
-			Note that breaking a scope range means splitting the nodes in it.
-		*/
 	}
 
-	pub fn get<'b>(&self, values: &'b BindingValues<'a, T>, offset: usize) -> Option<&'b T::Val> {
+	pub fn get<'b>(&self, values: &'b ValueTable<'a, T>, offset: usize) -> Option<&'b T::Val> {
 		let index = self.list.partition_point(|x| x.end < offset);
 		if let Some(item) = self.list.get(index) {
 			if offset >= item.sta && offset <= item.end {
@@ -333,7 +260,7 @@ impl<'a, T: IsNode> ScopeTree<'a, T> {
 		}
 	}
 
-	pub fn add_node(&mut self, values: &mut BindingValues<'a, T>, node: Node<'a, T>) {
+	pub fn add_node(&mut self, values: &mut ValueTable<'a, T>, node: Node<'a, T>) {
 		if let Some(segment) = self.find_segment_mut(node.offset()) {
 			values.add_node(segment.index, node)
 		} else {
@@ -362,9 +289,9 @@ impl<'a, T: IsNode> ScopeTree<'a, T> {
 	}
 }
 
-//====================================================================================================================//
-// Segment and Nodes
-//====================================================================================================================//
+//----------------------------------------------------------------------------------------------------------------//
+// BindSegment
+//----------------------------------------------------------------------------------------------------------------//
 
 struct BindSegment<'a, T: IsNode> {
 	scope_sta: usize,
@@ -372,7 +299,7 @@ struct BindSegment<'a, T: IsNode> {
 	index: usize,
 	sta: usize,
 	end: usize,
-	_data: PhantomData<BindingValue<'a, T>>,
+	_data: PhantomData<ValueEntry<'a, T>>,
 }
 
 impl<'a, T: IsNode> BindSegment<'a, T> {
@@ -396,6 +323,10 @@ impl<'a, T: IsNode> BindSegment<'a, T> {
 		can_bind
 	}
 }
+
+//====================================================================================================================//
+// BoundNodes
+//====================================================================================================================//
 
 struct BoundNodes<'a, T: IsNode> {
 	nodes: Vec<Node<'a, T>>,
@@ -451,7 +382,7 @@ mod tests {
 
 	#[test]
 	pub fn basic_root_binding() {
-		let mut map = BindingMap::<Bind>::new();
+		let mut map = ScopeMap::<Bind>::new();
 		map.bind("a", Scope::Root, 1);
 		map.bind("b", Scope::Root, 2);
 
@@ -465,7 +396,7 @@ mod tests {
 
 	#[test]
 	pub fn binding_offset() {
-		let mut map = BindingMap::<Bind>::new();
+		let mut map = ScopeMap::<Bind>::new();
 		map.bind("a", Scope::Root, 10);
 		map.bind("a", Scope::Range(1, 2), 11);
 		map.bind("a", Scope::Range(3, 4), 12);
