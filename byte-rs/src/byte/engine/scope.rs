@@ -27,8 +27,6 @@ impl<'a, T: IsNode> ScopeMap<'a, T> {
 		}
 	}
 
-	// TODO: change interface to operate with the nodes directly.
-
 	/// Set the binding for a key in the given scope.
 	///
 	/// Scopes are "nested". Smaller scopes override binds from the larger
@@ -55,7 +53,10 @@ impl<'a, T: IsNode> ScopeMap<'a, T> {
 		}
 	}
 
-	pub fn add_node(&mut self, key: T::Key, node: Node<'a, T>) {
+	/// Add a node to the binding map. The node is associated with its key
+	/// based on its offset.
+	pub fn add_node(&mut self, node: Node<'a, T>) {
+		let key = node.key();
 		let entry = self
 			.table
 			.entry(key)
@@ -63,7 +64,22 @@ impl<'a, T: IsNode> ScopeMap<'a, T> {
 		entry.add_node(&mut self.values, node)
 	}
 
-	pub fn shift_next(&mut self) -> ScopeValueIterator<'a, '_, T> {
+	/// Update a node position in the binding map. This should be called
+	/// whenever the node changes key.
+	pub fn reindex_node(&mut self, node: Node<'a, T>, old_key: &T::Key) {
+		let values = &mut self.values;
+		let key = node.key();
+		if &key != old_key {
+			if let Some(entry) = self.table.get_mut(old_key) {
+				entry.remove_node(values, &node);
+			}
+			self.add_node(node);
+		}
+	}
+
+	/// Shifts the next set of nodes based on precedence of their bound key
+	/// value.
+	pub fn shift_next(&mut self) -> Option<ScopeValueIterator<'a, '_, T>> {
 		self.values.shift_next()
 	}
 }
@@ -117,6 +133,10 @@ impl<'a, T: IsNode> ValueTable<'a, T> {
 		self.list[index].nodes.add_node(node);
 	}
 
+	pub fn remove_node(&mut self, index: usize, node: &Node<'a, T>) {
+		self.list[index].nodes.remove_node(node);
+	}
+
 	pub fn get_value(&self, index: usize) -> &T::Val {
 		&self.list[index].value
 	}
@@ -130,7 +150,7 @@ impl<'a, T: IsNode> ValueTable<'a, T> {
 	// Priority queue
 	//------------------------------------------------------------------------------------------------------------//
 
-	pub fn shift_next(&mut self) -> ScopeValueIterator<'a, '_, T> {
+	pub fn shift_next(&mut self) -> Option<ScopeValueIterator<'a, '_, T>> {
 		if self.heap_sorted < self.heap_length {
 			self.heapify();
 		}
@@ -140,6 +160,7 @@ impl<'a, T: IsNode> ValueTable<'a, T> {
 			let mut count = 0;
 			let value = self.heap_value(0);
 			while should_continue {
+				self.list[self.heap_to_list[0]].nodes.fix_nodes();
 				count += 1;
 				self.heap_swap(0, self.heap_length - 1);
 				self.heap_length -= 1;
@@ -149,17 +170,13 @@ impl<'a, T: IsNode> ValueTable<'a, T> {
 				self.heap_shift_down(0, next_value, self.heap_length);
 			}
 
-			ScopeValueIterator {
+			Some(ScopeValueIterator {
 				parent: self,
 				next: self.heap_length,
 				last: self.heap_length + count,
-			}
+			})
 		} else {
-			ScopeValueIterator {
-				parent: self,
-				next: 0,
-				last: 0,
-			}
+			None
 		}
 	}
 
@@ -467,6 +484,14 @@ impl<'a, T: IsNode> ScopeTree<'a, T> {
 		}
 	}
 
+	pub fn remove_node(&mut self, values: &mut ValueTable<'a, T>, node: &Node<'a, T>) {
+		if let Some(segment) = self.find_segment_mut(node.offset()) {
+			values.remove_node(segment.index, node)
+		} else {
+			values.remove_node(self.root_index, node)
+		}
+	}
+
 	fn find_segment_mut(&mut self, offset: usize) -> Option<&mut BindSegment<'a, T>> {
 		use std::cmp::Ordering;
 		if let Ok(index) = self.list.binary_search_by(|it| {
@@ -528,15 +553,19 @@ impl<'a, T: IsNode> BindSegment<'a, T> {
 //====================================================================================================================//
 
 pub struct BoundNodes<'a, T: IsNode> {
+	id: usize,
 	nodes: Vec<Node<'a, T>>,
 	sorted: usize,
+	removed: bool,
 }
 
 impl<'a, T: IsNode> BoundNodes<'a, T> {
 	pub fn new() -> Self {
 		Self {
+			id: new_id(),
 			nodes: Default::default(),
 			sorted: 0,
+			removed: false,
 		}
 	}
 
@@ -548,26 +577,60 @@ impl<'a, T: IsNode> BoundNodes<'a, T> {
 			} else {
 				self.nodes[length - 1].offset() < node.offset()
 			};
+		node.replace_binding(0, self.id)
+			.expect("BoundNodes: adding node already bound");
+
 		self.nodes.push(node);
 		if sorted {
 			self.sorted = self.nodes.len();
 		}
 	}
 
+	pub fn remove_node(&mut self, node: &Node<'a, T>) {
+		node.replace_binding(self.id, 0)
+			.expect("BoundNodes: removing node not on the list");
+		self.removed = true;
+	}
+
 	pub fn extract_range(&mut self, sta: usize, end: usize) -> Self {
-		self.ensure_sorted();
+		self.fix_nodes();
 		let head = self.nodes.partition_point(|x| x.offset() < sta);
 		let tail = &self.nodes[head..];
 		let len = tail.partition_point(|x| x.offset() <= end);
 		let nodes = self.nodes.drain(head..head + len).collect();
-		Self { nodes, sorted: len }
+		let output = Self {
+			id: new_id(),
+			nodes,
+			sorted: len,
+			removed: false,
+		};
+		for it in output.nodes.iter() {
+			it.replace_binding(self.id, output.id)
+				.expect("BoundNodes: extracted node was moved in the meantime");
+		}
+		output
 	}
 
-	pub fn ensure_sorted(&mut self) {
+	pub fn list(&mut self) -> &[Node<'a, T>] {
+		self.fix_nodes();
+		&self.nodes
+	}
+
+	fn fix_nodes(&mut self) {
+		if self.removed {
+			self.nodes.retain(|x| x.binding() != self.id);
+			self.removed = false;
+		}
 		if self.sorted < self.nodes.len() {
 			self.nodes.sort_by_key(|x| x.offset());
 			self.sorted = self.nodes.len();
 		}
+	}
+}
+
+impl<'a, T: IsNode> Debug for BoundNodes<'a, T> {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "{:?}", self.nodes)
 	}
 }
 
@@ -631,7 +694,7 @@ mod tests {
 		map.bind("g", Scope::Root, 7);
 
 		let check = |map: &mut ScopeMap<Bind>, n: i32| {
-			let actual = map.shift_next().map(|(a, _)| *a).collect::<Vec<_>>();
+			let actual = map.shift_next().unwrap().map(|(a, _)| *a).collect::<Vec<_>>();
 			assert_eq!(actual, vec![n])
 		};
 

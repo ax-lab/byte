@@ -213,6 +213,33 @@ impl<T: IsNode> Default for NodeStore<T> {
 }
 
 //====================================================================================================================//
+// Utility
+//====================================================================================================================//
+
+/// Return a non-zero globally unique incrementing ID.
+pub fn new_id() -> usize {
+	use std::sync::atomic::*;
+	static COUNTER: AtomicUsize = AtomicUsize::new(1);
+	let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+	id
+}
+
+pub type Success = std::result::Result<(), ()>;
+
+trait ToSuccess {
+	fn success(self) -> Success;
+}
+
+impl<T, U> ToSuccess for std::result::Result<T, U> {
+	fn success(self) -> Success {
+		match self {
+			Ok(..) => Ok(()),
+			Err(..) => Err(()),
+		}
+	}
+}
+
+//====================================================================================================================//
 // Tests
 //====================================================================================================================//
 

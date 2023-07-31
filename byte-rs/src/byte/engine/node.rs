@@ -104,12 +104,19 @@ impl<'a, T: IsNode> Node<'a, T> {
 		todo!()
 	}
 
+	#[inline(always)]
 	pub(crate) fn data(&self) -> &'a NodeData<'a, T> {
 		unsafe { &*self.data }
 	}
 
-	pub(crate) fn ptr(&self) -> *const NodeData<'a, T> {
-		self.data
+	#[inline(always)]
+	pub(crate) fn binding(&self) -> usize {
+		self.data().binding()
+	}
+
+	#[inline(always)]
+	pub(crate) fn replace_binding(&self, old_id: usize, new_id: usize) -> Success {
+		unsafe { self.data_mut() }.replace_binding(old_id, new_id)
 	}
 
 	unsafe fn data_mut(&self) -> &'a mut NodeData<'a, T> {
@@ -144,6 +151,7 @@ pub(crate) struct NodeData<'a, T: IsNode> {
 	version: AtomicU32,
 	index: AtomicU32,
 	parent: AtomicPtr<NodeData<'a, T>>,
+	binding: AtomicUsize,
 }
 
 #[allow(unused)]
@@ -154,7 +162,20 @@ impl<'a, T: IsNode> NodeData<'a, T> {
 			version: Default::default(),
 			index: Default::default(),
 			parent: Default::default(),
+			binding: Default::default(),
 		}
+	}
+
+	#[inline(always)]
+	pub fn binding(&self) -> usize {
+		self.binding.load(Ordering::SeqCst)
+	}
+
+	#[inline(always)]
+	pub fn replace_binding(&mut self, old_id: usize, new_id: usize) -> Success {
+		self.binding
+			.compare_exchange(old_id, new_id, Ordering::SeqCst, Ordering::SeqCst)
+			.success()
 	}
 
 	#[inline(always)]

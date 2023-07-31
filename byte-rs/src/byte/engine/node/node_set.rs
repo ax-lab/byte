@@ -19,8 +19,7 @@ impl<'a, T: IsNode> NodeSet<'a, T> {
 	pub fn new_node(&mut self, expr: T::Expr<'a>) -> Node<'a, T> {
 		let data = self.store.nodes.push(NodeData::new(expr));
 		let node = Node { data };
-		let key = node.key();
-		self.bindings.add_node(key, node);
+		self.bindings.add_node(node);
 		node
 	}
 
