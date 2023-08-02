@@ -53,18 +53,46 @@ impl<'a, T: IsNode> NodeList<'a, T> {
 	}
 
 	pub(crate) fn from_list(store: &NodeStore<T>, nodes: &[Node<'a, T>]) -> Self {
-		let bytes = std::mem::size_of::<*const NodeData<'a, T>>() * nodes.len();
-		let ptr = store.buffer.alloc(bytes) as *mut *const NodeData<'a, T>;
-		let mut cur = ptr;
-		for it in nodes.iter() {
-			unsafe {
-				cur.write(it.data);
-				cur = cur.add(1);
-			}
+		match nodes.len() {
+			0 => return Self::empty(),
+			1 => return Self::single(nodes[0]),
+			2 => return Self::pair(nodes[0], nodes[1]),
+			3 => return Self::triple(nodes[0], nodes[1], nodes[2]),
+			_ => Self::new(store, nodes.len(), nodes.iter().map(|x| x.data)),
 		}
-		let vec = NodeListVec { len: nodes.len(), ptr };
-		let _ = vec.len; // otherwise unused
-		NodeList { vec }
+	}
+
+	fn new<U: IntoIterator<Item = *const NodeData<'a, T>>>(store: &NodeStore<T>, len: usize, data: U) -> Self {
+		let mut data = data.into_iter();
+		if len <= NODE_LIST_FIX_LEN {
+			let null = std::ptr::null_mut();
+			NodeList {
+				fix: NodeListFix {
+					len,
+					ptr: [
+						data.next().unwrap_or(null),
+						data.next().unwrap_or(null),
+						data.next().unwrap_or(null),
+					],
+				},
+			}
+		} else {
+			let bytes = std::mem::size_of::<*const NodeData<'a, T>>() * len;
+			let ptr = store.buffer.alloc(bytes) as *mut *const NodeData<'a, T>;
+			let mut cur = ptr;
+			let mut cnt = 0;
+			for it in data {
+				cnt += 1;
+				assert!(cnt <= len);
+				unsafe {
+					cur.write(it);
+					cur = cur.add(1);
+				}
+			}
+			let vec = NodeListVec { len, ptr };
+			let _ = vec.len; // otherwise unused
+			NodeList { vec }
+		}
 	}
 
 	#[inline(always)]
@@ -142,6 +170,28 @@ impl<'a, T: IsNode> NodeList<'a, T> {
 					vec: NodeListVec { len, ptr },
 				}
 			}
+		}
+	}
+
+	pub fn remove(&self, store: &NodeStore<T>, index: usize) -> NodeList<'a, T> {
+		let src_len = self.len();
+		assert!(index < src_len);
+		Self::new(
+			store,
+			src_len - 1,
+			self.iter()
+				.enumerate()
+				.filter_map(|(n, x)| if n != index { Some(x.data) } else { None }),
+		)
+	}
+
+	#[allow(unused)]
+	fn internal_slice(&self) -> &[*const NodeData<'a, T>] {
+		let len = self.len();
+		if len <= NODE_LIST_FIX_LEN {
+			unsafe { &self.fix.ptr }
+		} else {
+			unsafe { std::slice::from_raw_parts(self.vec.ptr, len) }
 		}
 	}
 }

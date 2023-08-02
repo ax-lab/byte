@@ -77,6 +77,16 @@ impl<'a, T: IsNode> ScopeMap<'a, T> {
 		}
 	}
 
+	/// Update a node position in the binding map. This should be called
+	/// whenever the node changes key.
+	pub fn remove_node(&mut self, node: Node<'a, T>) {
+		let values = &mut self.values;
+		let key = node.key();
+		if let Some(entry) = self.table.get_mut(&key) {
+			entry.remove_node(values, &node);
+		}
+	}
+
 	/// Shifts the next set of nodes based on precedence of their bound key
 	/// value.
 	pub fn shift_next(&mut self) -> Option<ScopeValueIterator<'a, '_, T>> {

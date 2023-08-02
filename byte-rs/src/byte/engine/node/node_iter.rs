@@ -15,6 +15,10 @@ impl<'a, T: IsNode> NodeIterator<'a, T> {
 		NodeList::single(*node).into_iter()
 	}
 
+	pub fn len(&self) -> usize {
+		self.list.len()
+	}
+
 	pub fn to_list(&self) -> NodeList<'a, T> {
 		self.list
 	}

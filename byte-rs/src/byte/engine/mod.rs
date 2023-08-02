@@ -6,7 +6,7 @@ use std::{
 	mem::ManuallyDrop,
 	ptr::NonNull,
 	sync::{
-		atomic::{AtomicPtr, AtomicU32, AtomicUsize, Ordering},
+		atomic::{AtomicPtr, AtomicUsize, Ordering},
 		RwLock,
 	},
 };
@@ -149,10 +149,10 @@ pub trait IsNode: Copy + 'static {
 
 	/// Key based on [`IsNode::Expr`] used to lookup node data and operations
 	/// in the scope.
-	type Key: Default + Clone + Hash + Eq + PartialEq + 'static;
-	type Val: Default + Clone + Hash + Eq + PartialEq + 'static;
+	type Key: Default + Debug + Clone + Hash + Eq + PartialEq + 'static;
+	type Val: Default + Debug + Clone + Hash + Eq + PartialEq + 'static;
 
-	type Precedence: Default + Ord + PartialOrd + 'static;
+	type Precedence: Default + Ord + PartialOrd + 'static; // TODO: support optional precedence
 
 	fn get_precedence(val: &Self::Val) -> Self::Precedence {
 		let _ = val;
@@ -176,6 +176,10 @@ pub trait IsExpr<'a, T: IsNode + 'a>: 'a + Debug + Send + Sync {
 
 	fn children(&self) -> NodeIterator<'a, T> {
 		NodeIterator::empty()
+	}
+
+	fn children_mut(&mut self) -> Option<&mut NodeList<'a, T>> {
+		None
 	}
 }
 
