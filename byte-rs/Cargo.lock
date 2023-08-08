@@ -3,6 +3,10 @@
 version = 3
 
 [[package]]
+name = "bit"
+version = "0.1.0"
+
+[[package]]
 name = "byte"
 version = "0.1.0"
 dependencies = [
