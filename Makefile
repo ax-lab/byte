@@ -1,5 +1,7 @@
 .PHONY: build test test-cargo test-go test-byte
 
+all: build
+
 test: test-cargo test-go test-byte
 	@echo
 	@echo ======================================================
@@ -32,4 +34,5 @@ test-byte:
 	@go run ./byte.go test
 	
 build:
-	go build ./byte.go
+	@go build ./byte.go
+	@cd byte-rs && cargo build $(cargo)
