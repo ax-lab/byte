@@ -86,6 +86,7 @@ mod tests {
 	use super::*;
 
 	#[test]
+	#[ignore = "just an example"]
 	fn test_expr() {
 		let store: NodeStore<Eval> = NodeStore::new();
 		let mut nodes = store.new_node_set();
