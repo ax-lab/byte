@@ -34,22 +34,11 @@ impl<T> Arena<T> {
 	}
 
 	pub fn push(&self, value: T) -> &T {
-		self.push_with_index(value).0
+		let ptr = self.alloc(value);
+		unsafe { &*ptr }
 	}
 
-	pub fn push_with_index(&self, value: T) -> (&T, usize) {
-		let (ptr, index) = self.alloc(value);
-		let item = unsafe { &*ptr };
-		(item, index)
-	}
-
-	pub fn get(&self, index: usize) -> *const T {
-		let pages = self.pages.read().unwrap();
-		let item = &pages[index / self.page_size][index % self.page_size];
-		item as *const T
-	}
-
-	pub fn alloc(&self, value: T) -> (*mut T, usize) {
+	pub fn alloc(&self, value: T) -> *mut T {
 		let mut pages = self.pages.write().unwrap();
 		let page = match pages.last_mut() {
 			Some(page) => {
@@ -70,9 +59,8 @@ impl<T> Arena<T> {
 		};
 
 		unsafe {
-			let index = self.count.fetch_add(1, ORDER);
 			page.push(value);
-			(page.as_mut_ptr().add(page.len() - 1), index)
+			page.as_mut_ptr().add(page.len() - 1)
 		}
 	}
 }
@@ -128,28 +116,6 @@ mod tests {
 
 		for (n, it) in items.into_iter().enumerate() {
 			assert_eq!(*it, n + 10_000);
-		}
-	}
-
-	#[test]
-	fn arena_index() {
-		let arena = Arena::new();
-		let (a, na) = arena.push_with_index(1);
-		let (b, nb) = arena.push_with_index(2);
-		let (c, nc) = arena.push_with_index(3);
-		assert_eq!(*a, 1);
-		assert_eq!(*b, 2);
-		assert_eq!(*c, 3);
-
-		assert_eq!(na, 0);
-		assert_eq!(nb, 1);
-		assert_eq!(nc, 2);
-		assert_eq!(arena.len(), 3);
-
-		for i in 0..1024 {
-			let (_, n) = arena.push_with_index(i + 10_000);
-			assert_eq!(n, i + 3);
-			assert_eq!(arena.len(), i + 1 + 3);
 		}
 	}
 

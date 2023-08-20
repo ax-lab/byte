@@ -1,4 +1,4 @@
-use super::SymbolSet;
+use crate::{SourceMap, SymbolSet};
 
 /// Provides storage for compilation data.
 ///
@@ -7,6 +7,7 @@ use super::SymbolSet;
 #[derive(Default)]
 pub struct Store {
 	symbols: SymbolSet,
+	sources: SourceMap,
 }
 
 impl Store {
@@ -16,5 +17,9 @@ impl Store {
 
 	pub fn symbols(&self) -> &SymbolSet {
 		&self.symbols
+	}
+
+	pub fn sources(&self) -> &SourceMap {
+		&self.sources
 	}
 }
