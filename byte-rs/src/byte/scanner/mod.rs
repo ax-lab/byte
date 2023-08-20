@@ -1,5 +1,5 @@
 //! Scanning processes the raw source files or input text and returns a
-//! list of [`NodeValue::Token`] nodes for parsing.
+//! list of [`Expr::Token`] nodes for parsing.
 //!
 //! This process includes the lexical analysis and tokenization, but includes
 //! additional steps such as parsing brackets, lines, and indentation.

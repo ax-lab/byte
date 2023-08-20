@@ -1,50 +1,56 @@
 use super::*;
 
-pub mod op_bind;
-pub mod op_brackets;
-pub mod op_comma;
-pub mod op_decl;
-pub mod op_expr;
-pub mod op_for;
-pub mod op_if;
-pub mod op_parse_blocks;
-pub mod op_print;
-pub mod op_replace_symbol;
-pub mod op_split_line;
-pub mod op_strip_comments;
-pub mod op_ternary;
-pub mod op_unraw;
+pub mod eval_bind;
+pub mod eval_brackets;
+pub mod eval_comma;
+pub mod eval_decl;
+pub mod eval_for;
+pub mod eval_if;
+pub mod eval_ops;
+pub mod eval_parse_blocks;
+pub mod eval_print;
+pub mod eval_replace_symbol;
+pub mod eval_split_line;
+pub mod eval_strip_comments;
+pub mod eval_ternary;
+pub mod eval_unraw;
 
-pub use op_bind::*;
-pub use op_brackets::*;
-pub use op_comma::*;
-pub use op_decl::*;
-pub use op_expr::*;
-pub use op_for::*;
-pub use op_if::*;
-pub use op_parse_blocks::*;
-pub use op_print::*;
-pub use op_replace_symbol::*;
-pub use op_split_line::*;
-pub use op_strip_comments::*;
-pub use op_ternary::*;
-pub use op_unraw::*;
+pub use eval_bind::*;
+pub use eval_brackets::*;
+pub use eval_comma::*;
+pub use eval_decl::*;
+pub use eval_for::*;
+pub use eval_if::*;
+pub use eval_ops::*;
+pub use eval_parse_blocks::*;
+pub use eval_print::*;
+pub use eval_replace_symbol::*;
+pub use eval_split_line::*;
+pub use eval_strip_comments::*;
+pub use eval_ternary::*;
+pub use eval_unraw::*;
+
+pub trait EvalFn: Fn(&mut EvalContext, &mut Node) -> Result<()> {}
+
+impl<T: Fn(&mut EvalContext, &mut Node) -> Result<()>> EvalFn for T {}
 
 //====================================================================================================================//
-// Operator Context
+// Eval Context
 //====================================================================================================================//
 
-/// Context for an [`NodeOperator`] application.
-pub struct OperatorContext {
+/// Context for an [`NodeEval`] execution.
+pub struct EvalContext {
 	scope: Scope,
-	declares: Vec<(Symbol, Option<usize>, BindingValue)>,
+	declares: Vec<(Symbol, CodeOffset, Node)>,
+	init: Vec<Node>,
 }
 
-impl OperatorContext {
+impl EvalContext {
 	pub fn new(node: &Node) -> Self {
 		Self {
 			scope: node.scope(),
 			declares: Default::default(),
+			init: Default::default(),
 		}
 	}
 
@@ -56,31 +62,36 @@ impl OperatorContext {
 		self.scope.handle()
 	}
 
-	pub fn declare_static(&mut self, symbol: Symbol, value: BindingValue) {
-		self.declares.push((symbol, None, value));
+	pub fn declare(&mut self, symbol: Symbol, offset: CodeOffset, value: Node) {
+		// TODO: review what the value of the declare actually means in the code
+		self.declares.push((symbol, offset, value));
 	}
 
-	pub fn declare_at(&mut self, symbol: Symbol, offset: usize, value: BindingValue) {
-		self.declares.push((symbol, Some(offset), value));
+	pub fn init(&mut self, node: Node) {
+		self.init.push(node)
 	}
 
-	pub(crate) fn get_declares(&mut self) -> Vec<(Symbol, Option<usize>, BindingValue)> {
+	pub(crate) fn get_declares(&mut self) -> Vec<(Symbol, CodeOffset, Node)> {
 		std::mem::take(&mut self.declares)
+	}
+
+	pub(crate) fn get_init(&mut self) -> Vec<Node> {
+		std::mem::take(&mut self.init)
 	}
 }
 
 //====================================================================================================================//
-// Node operators
+// Node eval
 //====================================================================================================================//
 
 /// An operation applicable to a [`Node`] and [`Scope`].
-pub trait IsNodeOperator {
+pub trait IsNodeEval {
 	fn applies(&self, node: &Node) -> bool;
 
-	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()>;
+	fn execute(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()>;
 }
 
-/// Evaluation order precedence for [`NodeOperator`].
+/// Evaluation order precedence for [`NodeEval`] evaluation.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum NodePrecedence {
 	Highest,
@@ -96,9 +107,11 @@ pub enum NodePrecedence {
 	Comma,
 	Ternary,
 	Expression,
+	Literal,
 	Boolean(bool),
 	Null,
 	Bind,
+	ResolveVar,
 	Least,
 	Never,
 }
@@ -110,7 +123,7 @@ impl NodePrecedence {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum NodeOperator {
+pub enum NodeEval {
 	Brackets(BracketPairs),
 	Block(Symbol),
 	SplitLines,
@@ -118,7 +131,7 @@ pub enum NodeOperator {
 	Let(Symbol, Symbol, Decl),
 	If(Symbol, Symbol),
 	For(Symbol, Symbol, Symbol),
-	Ternary(OpTernary),
+	Ternary(EvalTernary),
 	Print(Symbol),
 	Comma(Symbol),
 	Replace(Symbol, fn(ScopeHandle, Span) -> Node),
@@ -127,23 +140,23 @@ pub enum NodeOperator {
 	Unraw,
 }
 
-impl NodeOperator {
-	pub fn get_impl(&self) -> Arc<dyn IsNodeOperator> {
+impl NodeEval {
+	pub fn get_impl(&self) -> Arc<dyn IsNodeEval> {
 		match self {
-			NodeOperator::Brackets(pairs) => Arc::new(pairs.clone()),
-			NodeOperator::Block(symbol) => Arc::new(OpParseBlocks(symbol.clone())),
-			NodeOperator::SplitLines => Arc::new(OpSplitLine),
-			NodeOperator::StripComments => Arc::new(OpStripComments),
-			NodeOperator::Let(decl, eq, mode) => Arc::new(OpDecl(decl.clone(), eq.clone(), *mode)),
-			NodeOperator::If(s_if, s_else) => Arc::new(OpIf::new(s_if.clone(), s_else.clone())),
-			NodeOperator::For(a, b, c) => Arc::new(OpFor(a.clone(), b.clone(), c.clone())),
-			NodeOperator::Bind => Arc::new(OpBind),
-			NodeOperator::Print(symbol) => Arc::new(OpPrint(symbol.clone())),
-			NodeOperator::Replace(symbol, node) => Arc::new(ReplaceSymbol(symbol.clone(), node.clone())),
-			NodeOperator::ParseExpression(ops) => Arc::new(ops.clone()),
-			NodeOperator::Comma(symbol) => Arc::new(CommaOperator(symbol.clone())),
-			NodeOperator::Ternary(op) => Arc::new(op.clone()),
-			NodeOperator::Unraw => Arc::new(OpUnraw),
+			NodeEval::Brackets(pairs) => Arc::new(pairs.clone()),
+			NodeEval::Block(symbol) => Arc::new(EvalParseBlocks(symbol.clone())),
+			NodeEval::SplitLines => Arc::new(EvalSplitLine),
+			NodeEval::StripComments => Arc::new(EvalStripComments),
+			NodeEval::Let(decl, eq, mode) => Arc::new(EvalDecl(decl.clone(), eq.clone(), *mode)),
+			NodeEval::If(s_if, s_else) => Arc::new(EvalIf::new(s_if.clone(), s_else.clone())),
+			NodeEval::For(a, b, c) => Arc::new(EvalFor(a.clone(), b.clone(), c.clone())),
+			NodeEval::Bind => Arc::new(EvalBind),
+			NodeEval::Print(symbol) => Arc::new(EvalPrint(symbol.clone())),
+			NodeEval::Replace(symbol, node) => Arc::new(ReplaceSymbol(symbol.clone(), node.clone())),
+			NodeEval::ParseExpression(ops) => Arc::new(ops.clone()),
+			NodeEval::Comma(symbol) => Arc::new(SplitComma(symbol.clone())),
+			NodeEval::Ternary(op) => Arc::new(op.clone()),
+			NodeEval::Unraw => Arc::new(EvalUnraw),
 		}
 	}
 }
@@ -156,6 +169,7 @@ impl NodeOperator {
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum OpPrecedence {
 	Highest,
+	Member,
 	Unary,
 	Multiplicative,
 	Additive,
@@ -168,10 +182,10 @@ pub enum OpPrecedence {
 }
 
 //====================================================================================================================//
-// Standard operators
+// Evaluators
 //====================================================================================================================//
 
-pub fn configure_default_node_operators(scope: &mut ScopeWriter) {
+pub fn configure_default_node_evaluators(scope: &mut ScopeWriter) {
 	// expression parsing
 	let ops = default_operators();
 
@@ -179,69 +193,69 @@ pub fn configure_default_node_operators(scope: &mut ScopeWriter) {
 	ops.register_symbols(&mut matcher);
 	scope.set_matcher(matcher);
 
-	scope.add_node_operator(NodeOperator::ParseExpression(ops), NodePrecedence::Expression);
-	scope.add_node_operator(NodeOperator::Unraw, NodePrecedence::Least);
+	scope.add_node_eval(NodeEval::ParseExpression(ops), NodePrecedence::Expression);
+	scope.add_node_eval(NodeEval::Unraw, NodePrecedence::Least);
 
 	//general parsing
-	scope.add_node_operator(NodeOperator::Block(Context::symbol(":")), NodePrecedence::Blocks);
-	scope.add_node_operator(NodeOperator::SplitLines, NodePrecedence::SplitLines);
-	scope.add_node_operator(NodeOperator::StripComments, NodePrecedence::Comments);
-	scope.add_node_operator(
-		NodeOperator::Let(Context::symbol("let"), Context::symbol("="), Decl::Let),
+	scope.add_node_eval(NodeEval::Block(Context::symbol(":")), NodePrecedence::Blocks);
+	scope.add_node_eval(NodeEval::SplitLines, NodePrecedence::SplitLines);
+	scope.add_node_eval(NodeEval::StripComments, NodePrecedence::Comments);
+	scope.add_node_eval(
+		NodeEval::Let(Context::symbol("let"), Context::symbol("="), Decl::Let),
 		NodePrecedence::Let,
 	);
-	scope.add_node_operator(
-		NodeOperator::Let(Context::symbol("const"), Context::symbol("="), Decl::Const),
+	scope.add_node_eval(
+		NodeEval::Let(Context::symbol("const"), Context::symbol("="), Decl::Const),
 		NodePrecedence::Const,
 	);
-	scope.add_node_operator(
-		NodeOperator::If(Context::symbol("if"), Context::symbol("else")),
+	scope.add_node_eval(
+		NodeEval::If(Context::symbol("if"), Context::symbol("else")),
 		NodePrecedence::If,
 	);
-	scope.add_node_operator(
-		NodeOperator::For(Context::symbol("for"), Context::symbol("in"), Context::symbol("..")),
+	scope.add_node_eval(
+		NodeEval::For(Context::symbol("for"), Context::symbol("in"), Context::symbol("..")),
 		NodePrecedence::For,
 	);
-	scope.add_node_operator(NodeOperator::Bind, NodePrecedence::Bind);
-	scope.add_node_operator(NodeOperator::Print(Context::symbol("print")), NodePrecedence::Print);
-	scope.add_node_operator(NodeOperator::Comma(Context::symbol(",")), NodePrecedence::Comma);
+	scope.add_node_eval(NodeEval::Bind, NodePrecedence::Bind);
+	scope.add_node_eval(NodeEval::Print(Context::symbol("print")), NodePrecedence::Print);
+	scope.add_node_eval(NodeEval::Comma(Context::symbol(",")), NodePrecedence::Comma);
 
-	let ternary = OpTernary(
+	let ternary = EvalTernary(
 		Context::symbol("?"),
 		Context::symbol(":"),
-		Arc::new(|a, b, c, scope, span| NodeValue::Conditional(a, b, c).at(scope, span)),
+		Arc::new(|a, b, c, scope, span| Expr::Conditional(a, b, c).at(scope, span)),
 	);
-	scope.add_node_operator(NodeOperator::Ternary(ternary), NodePrecedence::Ternary);
+	scope.add_node_eval(NodeEval::Ternary(ternary), NodePrecedence::Ternary);
 
 	// brackets
 	let mut brackets = BracketPairs::new();
 	brackets.add(
 		Context::symbol("("),
 		Context::symbol(")"),
-		Arc::new(|_, n, _| NodeValue::Group(n)),
+		Arc::new(|_, n, _| Expr::Group(n)),
 	);
 
-	scope.add_node_operator(NodeOperator::Brackets(brackets), NodePrecedence::Brackets);
+	scope.add_node_eval(NodeEval::Brackets(brackets), NodePrecedence::Brackets);
 
 	// TODO: handle literal values properly as to not need different precedences
 
 	// boolean
-	scope.add_node_operator(
-		NodeOperator::Replace(Context::symbol("true"), |scope, span| {
-			NodeValue::Boolean(true).at(scope, span)
+	scope.add_node_eval(
+		NodeEval::Replace(Context::symbol("true"), |scope, span| {
+			Expr::Boolean(true).at(scope, span)
 		}),
 		NodePrecedence::Boolean(true),
 	);
-	scope.add_node_operator(
-		NodeOperator::Replace(Context::symbol("false"), |scope, span| {
-			NodeValue::Boolean(false).at(scope, span)
+	scope.add_node_eval(
+		NodeEval::Replace(Context::symbol("false"), |scope, span| {
+			Expr::Boolean(false).at(scope, span)
 		}),
 		NodePrecedence::Boolean(false),
 	);
 
 	// null
-	scope.add_node_operator(
-		NodeOperator::Replace(Context::symbol("null"), |scope, span| NodeValue::Null.at(scope, span)),
+	scope.add_node_eval(
+		NodeEval::Replace(Context::symbol("null"), |scope, span| Expr::Null.at(scope, span)),
 		NodePrecedence::Null,
 	);
 }
@@ -261,6 +275,13 @@ pub fn default_operators() -> OperatorSet {
 		BinaryOp::Assign,
 		OpPrecedence::Assign,
 		Grouping::Right,
+	));
+
+	ops.add(Operator::new_binary(
+		".".into(),
+		BinaryOp::Member,
+		OpPrecedence::Member,
+		Grouping::Left,
 	));
 
 	ops.add(
@@ -320,7 +341,7 @@ pub fn default_operators() -> OperatorSet {
 }
 
 //====================================================================================================================//
-// Operator binding logic
+// Evaluator binding logic
 //====================================================================================================================//
 
 /*
@@ -333,25 +354,25 @@ pub fn default_operators() -> OperatorSet {
 
 	Ideas to improve performance:
 
-	- Each operator should keep an index of applicable nodes. Finding the next
-	  applicable operator and its set of nodes would be O(1).
+	- Each evaluator should keep an index of applicable nodes. Finding the next
+	  applicable evaluator and its set of nodes would be O(1).
 
-		- We need to keep a set of active (non-empty) operators sorted by index.
+		- We need to keep a set of active (non-empty) evaluators sorted by index.
 		- The index does not need to be perfect, as that would be very hard to
 		  keep. Even with false positives, it should allow quickly culling the
-		  set of nodes for an operator and quickly identifying no-ops.
-		- Nodes that have been applied an operator, should be saved so that they
-		  are out of consideration for that operator.
+		  set of nodes for an evaluator and quickly identifying no-ops.
+		- Nodes that have been applied an evaluator, should be saved so that they
+		  are out of consideration for that evaluator.
 			- This could be as simple as saving the last processed node ID
-			  for each operator (assuming Node IDs are strictly incremental).
+			  for each evaluator (assuming Node IDs are strictly incremental).
 
 	- As nodes are created, we need a fast lookup function to identify which
-	  operators could apply to a node. In some cases, it might make more sense
+	  evaluators could apply to a node. In some cases, it might make more sense
 	  to keep an index of specific node types instead.
 
-	- The index above would not be perfect, so operators still need to check
+	- The index above would not be perfect, so evaluators still need to check
 	  their apply condition to nodes. That should be done only for the highest
-	  precedence operator globally.
+	  precedence evaluator globally.
 
 	- We might need a quick way of removing nodes from all indexes (e.g. once
 	  they have been absorbed into another node). This could be a culling step
@@ -362,14 +383,14 @@ pub fn default_operators() -> OperatorSet {
 	  segments).
 
 	- Quickly looking up parent info for some of the nodes can be crucial for
-	  some of the parsing operators.
+	  some of the parsing evaluators.
 
-	- A lot of the operator can apply locally by simply replacing a node value.
+	- A lot of the evaluator can apply locally by simply replacing a node value.
 	  This should be a very fast operation.
 
 	Minor:
 
-	- Most scopes won't change the set of operators applicable, so there should
+	- Most scopes won't change the set of evaluators applicable, so there should
 	  be a fast path for that.
 
 */
@@ -377,8 +398,8 @@ pub fn default_operators() -> OperatorSet {
 pub struct NodeOperation {
 	node: Node,
 	location: NodeLocation,
-	operator: NodeOperator,
-	operator_impl: Arc<dyn IsNodeOperator>,
+	debug: Arc<dyn Fn() -> String>,
+	evaluator: Arc<dyn EvalFn>,
 }
 
 impl NodeOperation {
@@ -386,16 +407,20 @@ impl NodeOperation {
 		&self.node
 	}
 
-	pub fn operator(&self) -> &NodeOperator {
-		&self.operator
-	}
-
-	pub fn operator_impl(&self) -> &dyn IsNodeOperator {
-		&*self.operator_impl
+	pub fn evaluator(&self) -> &dyn EvalFn {
+		&*self.evaluator
 	}
 
 	pub fn parent(&self) -> Option<(&Node, usize)> {
 		self.location.parent.as_ref().map(|(node, index)| (node, *index))
+	}
+}
+
+impl Debug for NodeOperation {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		let op = (self.debug)();
+		let node = self.node.short_repr();
+		write!(f, "{op} to {node}")
 	}
 }
 
@@ -422,34 +447,58 @@ impl NodeLocation {
 }
 
 impl Node {
+	// TODO: allow operations that are defined by the node itself
 	pub fn get_node_operations(
 		&self,
 		max_precedence: Option<NodePrecedence>,
+		seen: &mut HashSet<Id>,
 	) -> Result<Option<(Vec<NodeOperation>, NodePrecedence)>> {
 		let location = NodeLocation {
 			parent: None,
 			path: Vec::new().into(),
 		};
-		self.do_get_node_operations(max_precedence, &location)
+		self.do_get_node_operations(max_precedence, &location, seen)
 	}
 
 	fn do_get_node_operations(
 		&self,
 		max_precedence: Option<NodePrecedence>,
 		location: &NodeLocation,
+		seen: &mut HashSet<Id>,
 	) -> Result<Option<(Vec<NodeOperation>, NodePrecedence)>> {
 		let mut errors = Errors::new();
 
-		// collect all operators for child nodes
+		// collect all evaluators for child nodes
 		let (mut operations, mut max_precedence) = {
 			let mut cur_precedence = max_precedence;
 			let mut cur_ops = Vec::new();
 			let mut location = location.push(self.clone());
-			for (index, it) in self.val().children().into_iter().enumerate() {
+			for (index, it) in self.expr().children().into_iter().enumerate() {
+				if !seen.insert(it.id()) {
+					continue;
+				}
 				location.set_index(index);
-				let ops = it.do_get_node_operations(cur_precedence, &location).handle(&mut errors);
+				if let Some((eval, prec)) = it.can_resolve() {
+					if cur_precedence.is_none() || Some(prec) <= cur_precedence {
+						let node = it.clone();
+						if Some(prec) < cur_precedence {
+							cur_ops.clear();
+						}
+						cur_precedence = Some(prec);
+						cur_ops.push(NodeOperation {
+							node: it.clone(),
+							location: location.clone(),
+							debug: Arc::new(move || format!("eval for {node}")),
+							evaluator: eval,
+						})
+					}
+				}
+
+				let ops = it
+					.do_get_node_operations(cur_precedence, &location, seen)
+					.handle(&mut errors);
 				if let Some((mut ops, prec)) = ops {
-					if cur_precedence.is_none() || Some(prec) < cur_precedence {
+					if cur_precedence.is_none() || Some(prec) <= cur_precedence {
 						assert!(ops.len() > 0);
 						cur_precedence = Some(prec);
 						cur_ops.clear();
@@ -464,8 +513,8 @@ impl Node {
 			(cur_ops, cur_precedence)
 		};
 
-		// collect operators that apply to this node
-		let operators = self.scope().get_node_operators().into_iter().filter_map(|(op, prec)| {
+		// collect evaluators that apply to this node
+		let evaluators = self.scope().get_node_evaluators().into_iter().filter_map(|(op, prec)| {
 			if max_precedence.is_none() || Some(prec) <= max_precedence {
 				let op_impl = op.get_impl();
 				if op_impl.applies(self) {
@@ -478,7 +527,7 @@ impl Node {
 			}
 		});
 
-		let mut operators = operators.take_while(|(.., prec)| {
+		let mut evaluators = evaluators.take_while(|(.., prec)| {
 			prec != &NodePrecedence::Never
 				&& if let Some(max) = max_precedence {
 					prec <= &max
@@ -487,14 +536,14 @@ impl Node {
 				}
 		});
 
-		// do we have an operator for this node?
-		if let Some((op, op_impl, prec)) = operators.next() {
-			// validate that we have only one applicable operator
-			let operators = operators.take_while(|(.., op_prec)| op_prec == &prec && prec != NodePrecedence::Never);
-			let operators = operators.collect::<Vec<_>>();
-			if operators.len() > 0 {
-				let mut error = format!("node can accept multiple node operators at the same precedence\n-> {op:?}");
-				for (op, ..) in operators {
+		// do we have an evaluator for this node?
+		if let Some((op, op_impl, prec)) = evaluators.next() {
+			// validate that we have only one applicable evaluator
+			let evaluators = evaluators.take_while(|(.., op_prec)| op_prec == &prec && prec != NodePrecedence::Never);
+			let evaluators = evaluators.collect::<Vec<_>>();
+			if evaluators.len() > 0 {
+				let mut error = format!("node can accept multiple node evaluators at the same precedence\n-> {op:?}");
+				for (op, ..) in evaluators {
 					let _ = write!(error, ", {op:?}");
 				}
 				let _ = write!(error.indented(), "\n-> {self:?}");
@@ -511,8 +560,8 @@ impl Node {
 				operations.push(NodeOperation {
 					node: self.clone(),
 					location: location.clone(),
-					operator: op,
-					operator_impl: op_impl,
+					debug: Arc::new(move || format!("{op:?}")),
+					evaluator: Arc::new(move |ctx, node| op_impl.execute(ctx, node)),
 				})
 			}
 		}

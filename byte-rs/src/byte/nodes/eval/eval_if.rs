@@ -1,18 +1,20 @@
 use super::*;
 
-pub struct OpIf {
+// TODO: make `if` into a macro
+
+pub struct EvalIf {
 	symbol_if: Symbol,
 	symbol_else: Symbol,
 }
 
-impl OpIf {
+impl EvalIf {
 	pub fn new(symbol_if: Symbol, symbol_else: Symbol) -> Self {
 		Self { symbol_if, symbol_else }
 	}
 
 	fn get_if(&self, node: &Node) -> Option<(Node, Node)> {
-		match node.val() {
-			NodeValue::Block(head, body) => {
+		match node.expr() {
+			Expr::Block(head, body) => {
 				if head.is_symbol_at(0, &self.symbol_if) {
 					Some((head, body))
 				} else {
@@ -24,8 +26,8 @@ impl OpIf {
 	}
 
 	fn get_else(&self, node: &Node) -> Option<(Node, Node, bool)> {
-		match node.val() {
-			NodeValue::Block(head, body) => {
+		match node.expr() {
+			Expr::Block(head, body) => {
 				if head.is_symbol_at(0, &self.symbol_else) {
 					let is_if = head.is_symbol_at(1, &self.symbol_if);
 					Some((head.clone(), body.clone(), is_if))
@@ -38,12 +40,12 @@ impl OpIf {
 	}
 }
 
-impl IsNodeOperator for OpIf {
+impl IsNodeEval for EvalIf {
 	fn applies(&self, node: &Node) -> bool {
 		node.contains(|node| self.get_if(node).is_some())
 	}
 
-	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
+	fn execute(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
 		let mut new_nodes = Vec::new();
 
 		let mut errors = Errors::new();
@@ -59,7 +61,7 @@ impl IsNodeOperator for OpIf {
 				let mut if_false = None;
 
 				while if_false.is_none() {
-					// skip line breaks because the line operator hasn't run yet
+					// skip line breaks because the line eval hasn't run yet
 					let mut m = n + 1;
 					while let Some(Token::Break(..)) = node.get(m).and_then(|x| x.token()) {
 						m += 1;
@@ -79,7 +81,7 @@ impl IsNodeOperator for OpIf {
 							} else {
 								let head = head.slice(1..);
 								let span = Span::merge(head.span(), body.span());
-								let node = NodeValue::Block(head, body.clone()).at(ctx.scope_handle(), span);
+								let node = Expr::Block(head, body.clone()).at(ctx.scope_handle(), span);
 								let node = node.to_raw();
 								if_false = Some(node);
 							}
@@ -93,7 +95,7 @@ impl IsNodeOperator for OpIf {
 
 				while let Some((if_cond, if_body)) = else_ifs.pop_back() {
 					let span = Span::merge(if_cond.span(), if_body.span());
-					let node = NodeValue::If {
+					let node = Expr::If {
 						expr: if_cond,
 						if_true: if_body,
 						if_false,
@@ -103,7 +105,7 @@ impl IsNodeOperator for OpIf {
 					if_false = Some(node);
 				}
 
-				let node = NodeValue::If {
+				let node = Expr::If {
 					expr: cond,
 					if_true: body.clone(),
 					if_false,

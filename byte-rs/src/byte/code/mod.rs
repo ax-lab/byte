@@ -13,6 +13,9 @@
 //! resolved, symbols statically bound, values stored as plain byte data, and
 //! any sort of dynamic code expansion and generation (e.g. macros) completed.
 
+pub mod expr_value;
+pub use expr_value::*;
+
 pub mod op;
 pub mod op_add;
 pub mod op_and;
@@ -49,100 +52,129 @@ use super::*;
 
 const DEBUG_NODES: bool = false;
 
-pub struct CodeContext {
-	declares: HashMap<(Symbol, Option<usize>), Type>,
-	dump_code: bool,
-}
-
-impl CodeContext {
-	pub fn new() -> Self {
-		Self {
-			declares: Default::default(),
-			dump_code: false,
-		}
-	}
-
-	pub fn dump_code(&mut self) {
-		self.dump_code = true;
-	}
-}
-
 impl Node {
-	pub fn generate_code(&self, context: &mut CodeContext) -> Result<Expr> {
-		let output = self.generate_node(context);
-		if (output.is_err() && DEBUG_NODES) || DUMP_CODE || context.dump_code {
+	pub fn generate_code(&mut self) -> Result<Node> {
+		let output = self.generate_node();
+		let scope = self.scope();
+		if (output.is_err() && DEBUG_NODES) || DUMP_CODE || scope.program().dump_enabled() {
 			println!("\n------ SOURCE ------\n");
 			println!("{self}");
 			println!("\n--------------------");
 
 			println!("\n------ OUTPUT ------\n");
-			println!("{output:#?}");
+			if let Ok(output) = &output {
+				println!("{output}");
+			} else {
+				println!("{output:#?}");
+			}
 			println!("\n--------------------");
 		}
 
 		output.at_pos(self.span())
 	}
 
-	fn generate_node(&self, context: &mut CodeContext) -> Result<Expr> {
+	pub(crate) fn can_resolve(&self) -> Option<(Arc<dyn EvalFn>, NodePrecedence)> {
+		match self.expr() {
+			Expr::Token(Token::Integer(value)) => {
+				let eval = move |_: &mut EvalContext, node: &mut Node| -> Result<()> {
+					let span = node.span();
+					let value = IntValue::new(value, DEFAULT_INT).at_pos(span.clone())?;
+					node.set_value(Expr::Int(value), span);
+					Ok(())
+				};
+				Some((Arc::new(eval), NodePrecedence::Literal))
+			}
+			Expr::Token(Token::Float(value)) => {
+				let eval = move |_: &mut EvalContext, node: &mut Node| -> Result<()> {
+					let span = node.span();
+					let value: f64 = match value.as_str().parse() {
+						Ok(value) => value,
+						Err(err) => {
+							let error = Errors::from(format!("not a valid float: {err}"), span);
+							return Err(error);
+						}
+					};
+					let value = FloatValue::new(value, FloatType::F64);
+					node.set_value(Expr::Float(value), span);
+					Ok(())
+				};
+				Some((Arc::new(eval), NodePrecedence::Literal))
+			}
+			Expr::Token(_) => None,
+			Expr::Unit => None,
+			Expr::Null => None,
+			Expr::Never => None,
+			Expr::Str(_) => None,
+			Expr::Int(_) => None,
+			Expr::Float(_) => None,
+			Expr::Boolean(_) => None,
+			Expr::Variable(_, _, _) => None,
+			Expr::Raw(_) => None,
+			Expr::Sequence(_) => None,
+			Expr::Group(_) => None,
+			Expr::Block(_, _) => None,
+			Expr::If { .. } => None,
+			Expr::For { .. } => None,
+			Expr::Let(_, _, _) => None,
+			Expr::UnaryOp(_, _, _) => None,
+			Expr::BinaryOp(_, _, _, _) => None,
+			Expr::Print(_, _) => None,
+			Expr::Conditional(_, _, _) => None,
+		}
+	}
+
+	fn generate_node(&self) -> Result<Node> {
+		let scope = self.scope_handle();
 		let span = self.span();
-		let value = match self.val() {
-			NodeValue::Raw(list) => match list.len() {
-				0 => Expr::Unit,
-				1 => list[0].generate_node(context)?,
+		let value = match self.expr() {
+			Expr::Raw(list) => match list.len() {
+				0 => Expr::Unit.at(scope, span),
+				1 => list[0].generate_node()?,
 				_ => {
 					let mut errors = Errors::new();
 					let mut sequence = Vec::new();
 					for node in list.iter() {
-						match node.generate_node(context) {
+						match node.generate_node() {
 							Ok(expr) => sequence.push(expr),
 							Err(err) => errors.append(&err),
 						}
 					}
 					errors.check()?;
-					Expr::Sequence(sequence)
+					Expr::Sequence(sequence.into()).at(scope, span)
 				}
 			},
-			NodeValue::Boolean(value) => Expr::Bool(value),
-			NodeValue::Token(Token::Integer(value)) => {
-				let value = IntValue::new(value, DEFAULT_INT).at_pos(span)?;
-				Expr::Int(value)
-			}
-			NodeValue::Token(Token::Float(value)) => {
-				let value: f64 = match value.as_str().parse() {
-					Ok(value) => value,
-					Err(err) => {
-						let error = Errors::from(format!("not a valid float: {err}"), span);
-						return Err(error);
-					}
-				};
-				let value = FloatValue::new(value, FloatType::F64);
-				Expr::Float(value)
-			}
-			NodeValue::Null => Expr::Null,
-			NodeValue::Token(Token::Literal(value)) => Expr::Str(value.clone()),
-			NodeValue::Group(list) => list.generate_node(context)?,
-			NodeValue::Let(name, offset, list) => {
-				let expr = list.generate_node(context)?;
-				let kind = expr.get_type();
+			Expr::Boolean(..) => self.clone(),
+			Expr::Int(..) => self.clone(),
+			Expr::Float(..) => self.clone(),
+			Expr::Null => self.clone(),
+			Expr::Variable(..) => self.clone(),
+			Expr::Token(Token::Literal(value)) => Expr::Str(value.clone()).at(scope, span),
+			Expr::Group(inner) => inner.generate_node()?,
+			Expr::Let(name, offset, list) => {
+				let expr = list.generate_node()?;
 				let offset = offset;
-				context.declares.insert((name.clone(), offset), kind);
-				Expr::Declare(name.clone(), offset, Arc::new(expr))
+				Expr::Let(name.clone(), offset, expr).at(scope, span)
 			}
-			NodeValue::If {
-				expr: condition,
+			Expr::If {
+				expr,
 				if_true,
 				if_false,
 			} => {
-				let condition = condition.generate_node(context)?;
-				let if_true = if_true.generate_node(context)?;
+				let expr = expr.generate_node()?;
+				let if_true = if_true.generate_node()?;
 				let if_false = if let Some(if_false) = if_false {
-					if_false.generate_node(context)?
+					Some(if_false.generate_node()?)
 				} else {
-					Expr::Unit
+					None
 				};
-				Expr::Conditional(condition.into(), if_true.into(), if_false.into())
+				Expr::If {
+					expr,
+					if_true,
+					if_false,
+				}
+				.at(scope, span)
 			}
-			NodeValue::For {
+			Expr::For {
 				var,
 				offset,
 				from,
@@ -150,41 +182,46 @@ impl Node {
 				body,
 			} => {
 				// TODO: `for` should validate types on code generation
-				let from = from.generate_node(context)?;
-				let to = to.generate_node(context)?;
-				context.declares.insert((var.clone(), Some(offset)), from.get_type());
-				let body = body.generate_node(context)?;
-				Expr::For(var.clone(), offset, from.into(), to.into(), body.into())
+				let from = from.generate_node()?;
+				let to = to.generate_node()?;
+				let body = body.generate_node()?;
+				Expr::For {
+					var,
+					offset,
+					from,
+					to,
+					body,
+				}
+				.at(scope, span)
 			}
-			NodeValue::Variable(name, index) => {
-				if let Some(kind) = context.declares.get(&(name.clone(), index)) {
-					Expr::Variable(name.clone(), index, kind.clone())
+			Expr::Print(expr, tail) => {
+				let expr = expr.generate_node()?;
+				Expr::Print(expr, tail).at(scope, span)
+			}
+			Expr::UnaryOp(op, op_impl, arg) => {
+				if op_impl.is_some() {
+					self.clone()
 				} else {
-					let error = format!("variable `{name}` ({index:?}) does not match any declaration");
-					let error = Errors::from(error, span);
-					return Err(error);
+					let arg = arg.generate_node()?;
+					let op_impl = op.for_type(&arg.get_type()?)?;
+					Expr::UnaryOp(op, Some(op_impl), arg).at(scope, span)
 				}
 			}
-			NodeValue::Print(expr, tail) => {
-				let expr = expr.generate_node(context)?;
-				Expr::Print(expr.into(), tail)
+			Expr::BinaryOp(op, op_impl, lhs, rhs) => {
+				if op_impl.is_some() {
+					self.clone()
+				} else {
+					let lhs = lhs.generate_node()?;
+					let rhs = rhs.generate_node()?;
+					let op_impl = op.for_types(&lhs.get_type()?, &rhs.get_type()?)?;
+					Expr::BinaryOp(op, Some(op_impl), lhs, rhs).at(scope, span)
+				}
 			}
-			NodeValue::UnaryOp(op, arg) => {
-				let arg = arg.generate_node(context)?;
-				let op = op.for_type(&arg.get_type())?;
-				Expr::Unary(op, arg.into())
-			}
-			NodeValue::BinaryOp(op, lhs, rhs) => {
-				let lhs = lhs.generate_node(context)?;
-				let rhs = rhs.generate_node(context)?;
-				let op = op.for_types(&lhs.get_type(), &rhs.get_type())?;
-				Expr::Binary(op, lhs.into(), rhs.into())
-			}
-			NodeValue::Sequence(list) => {
+			Expr::Sequence(list) => {
 				let mut errors = Errors::new();
 				let mut sequence = Vec::new();
 				for it in list.iter() {
-					match it.generate_node(context) {
+					match it.generate_node() {
 						Ok(expr) => sequence.push(expr),
 						Err(err) => errors.append(&err),
 					};
@@ -193,16 +230,16 @@ impl Node {
 					}
 				}
 				errors.check()?;
-				Expr::Sequence(sequence)
+				Expr::Sequence(sequence.into()).at(scope, span)
 			}
-			NodeValue::Conditional(a, b, c) => {
-				let a = a.generate_node(context)?;
-				let b = b.generate_node(context)?;
-				let c = c.generate_node(context)?;
-				Expr::Conditional(a.into(), b.into(), c.into())
+			Expr::Conditional(a, b, c) => {
+				let a = a.generate_node()?;
+				let b = b.generate_node()?;
+				let c = c.generate_node()?;
+				Expr::Conditional(a, b, c).at(scope, span)
 			}
 			value => {
-				let mut error = format!("cannot generate code for `{value:?}`");
+				let mut error = format!("cannot generate code for {}", value.short_repr());
 				{
 					let mut output = error.indented();
 					let _ = write!(output, "\n\n");
@@ -212,193 +249,8 @@ impl Node {
 				return Err(error);
 			}
 		};
+
 		Ok(value)
-	}
-}
-
-//====================================================================================================================//
-// Expressions
-//====================================================================================================================//
-
-/// Enumeration of builtin root expressions.
-#[derive(Clone, Debug)]
-pub enum Expr {
-	Never,
-	Unit,
-	Null,
-	Declare(Symbol, Option<usize>, Arc<Expr>),
-	Conditional(Arc<Expr>, Arc<Expr>, Arc<Expr>),
-	For(Symbol, usize, Arc<Expr>, Arc<Expr>, Arc<Expr>),
-	Bool(bool),
-	Str(StringValue),
-	Int(IntValue),
-	Float(FloatValue),
-	Variable(Symbol, Option<usize>, Type),
-	Print(Arc<Expr>, &'static str),
-	Unary(UnaryOpImpl, Arc<Expr>),
-	Binary(BinaryOpImpl, Arc<Expr>, Arc<Expr>),
-	Sequence(Vec<Expr>),
-}
-
-impl Expr {
-	pub fn get_type(&self) -> Type {
-		match self {
-			Expr::Never => Type::Never,
-			Expr::Unit => Type::Unit,
-			Expr::Null => Type::Null,
-			Expr::Declare(.., expr) => expr.get_type(),
-			Expr::Bool(..) => Type::Bool,
-			Expr::Str(..) => Type::String,
-			Expr::Int(int) => Type::Int(int.get_type()),
-			Expr::For(..) => Type::Unit,
-			Expr::Float(float) => Type::Float(float.get_type()),
-			Expr::Variable(.., kind) => Type::Ref(kind.clone().into()),
-			Expr::Print(..) => Type::Unit,
-			Expr::Unary(op, ..) => op.get().get_type(),
-			Expr::Binary(op, ..) => op.get().get_type(),
-			Expr::Sequence(list) => list.last().map(|x| x.get_type()).unwrap_or_else(|| Type::Unit),
-			Expr::Conditional(_, a, b) => {
-				let a = a.get_type();
-				let b = b.get_type();
-				if a == b {
-					a
-				} else {
-					Type::Or(a.into(), b.into())
-				}
-			}
-		}
-	}
-
-	pub fn execute(&self, scope: &mut RuntimeScope) -> Result<ExprValue> {
-		match self {
-			Expr::Never => {
-				let error = format!("never expression cannot be evaluated");
-				Err(Errors::from(error, Span::default()))
-			}
-			Expr::Unit => Ok(Value::from(()).into()),
-			Expr::Null => Ok(Value::Null.into()),
-			Expr::Declare(name, offset, expr) => {
-				let value = expr.execute(scope)?;
-				scope.set(name.clone(), *offset, value.clone().into());
-				Ok(value)
-			}
-			Expr::Bool(value) => Ok(Value::from(*value).into()),
-			Expr::Str(value) => Ok(Value::from(value.to_string()).into()),
-			Expr::Int(value) => Ok(Value::from(value.clone()).into()),
-			Expr::Float(value) => Ok(Value::from(value.clone()).into()),
-			Expr::Variable(name, index, ..) => match scope.get(name, *index).cloned() {
-				Some(value) => Ok(ExprValue::Variable(name.clone(), index.clone(), value)),
-				None => Err(Errors::from(format!("variable {name} not set"), Span::default())),
-			},
-			Expr::Print(expr, tail) => {
-				let list = expr.as_sequence();
-				let mut values = Vec::new();
-				for expr in list.iter() {
-					let value = expr.execute(scope)?.into_value();
-					if !value.is_unit() {
-						values.push(value)
-					}
-				}
-
-				let mut output = scope.stdout();
-				for (i, it) in values.into_iter().enumerate() {
-					if i > 0 {
-						write!(output, " ")?;
-					}
-					write!(output, "{it}")?;
-				}
-				write!(output, "{tail}")?;
-				Ok(Value::from(()).into())
-			}
-			Expr::Unary(op, arg) => op.get().execute(scope, &arg),
-			Expr::Binary(op, lhs, rhs) => op.get().execute(scope, lhs, rhs),
-			Expr::Sequence(list) => {
-				let mut value = Value::from(()).into();
-				for it in list.iter() {
-					value = it.execute(scope)?;
-				}
-				Ok(value)
-			}
-			Expr::Conditional(cond, a, b) => {
-				let cond = cond.execute(scope)?;
-				let cond = cond.value().bool()?;
-				if cond {
-					a.execute(scope)
-				} else {
-					b.execute(scope)
-				}
-			}
-			Expr::For(var, offset, from, to, body) => {
-				let from_value = from.execute(scope)?;
-				let from_value = from_value.value();
-				let from_type = from_value.get_type();
-				let from_value = from_value.int_value(&IntType::I128, NumericConversion::None)?;
-				let from_value = from_value.signed();
-
-				let to_value = to.execute(scope)?;
-				let to_value = to_value.value();
-				let to_value = to_value.int_value(&IntType::I128, NumericConversion::None)?;
-				let to_value = to_value.signed();
-
-				let step = if from_value <= to_value { 1 } else { -1 };
-
-				let var_offset = Some(*offset);
-				let mut cur = from_value;
-				loop {
-					let value = Value::from(cur).cast_to(&from_type, NumericConversion::None)?;
-					scope.set(var.clone(), var_offset, value);
-					body.execute(scope)?;
-					if cur == to_value {
-						break;
-					}
-					cur += step;
-				}
-				Ok(Value::Unit.into())
-			}
-		}
-	}
-
-	pub fn as_sequence(&self) -> Vec<Expr> {
-		let mut output = Vec::new();
-		match self {
-			Expr::Sequence(list) => output = list.clone(),
-			expr => output.push(expr.clone()),
-		}
-		output
-	}
-}
-
-#[derive(Clone, Debug)]
-pub enum ExprValue {
-	Value(Value),
-	Variable(Symbol, Option<usize>, Value),
-}
-
-impl ExprValue {
-	pub fn value(&self) -> &Value {
-		match self {
-			ExprValue::Value(ref value) => value,
-			ExprValue::Variable(.., ref value) => value,
-		}
-	}
-
-	pub fn into_value(self) -> Value {
-		match self {
-			ExprValue::Value(value) => value,
-			ExprValue::Variable(.., value) => value,
-		}
-	}
-}
-
-impl From<ExprValue> for Value {
-	fn from(expr_value: ExprValue) -> Self {
-		expr_value.value().clone()
-	}
-}
-
-impl From<Value> for ExprValue {
-	fn from(value: Value) -> Self {
-		ExprValue::Value(value)
 	}
 }
 
@@ -412,12 +264,15 @@ mod tests {
 
 	#[test]
 	fn basic_eval() -> Result<()> {
-		let a = Expr::Int(IntValue::I32(2));
-		let b = Expr::Int(IntValue::I32(3));
+		let compiler = Compiler::new();
+		let program = compiler.new_program();
+		let scope = program.root_scope().handle();
+		let a = Expr::Int(IntValue::I32(2)).at(scope.clone(), Span::default());
+		let b = Expr::Int(IntValue::I32(3)).at(scope.clone(), Span::default());
 
-		let op = BinaryOpImpl::from(OpAdd::for_type(&a.get_type()).unwrap());
+		let op = BinaryOpImpl::from(OpAdd::for_type(&a.get_type()?).unwrap());
 
-		let expr = Expr::Binary(op, a.into(), b.into());
+		let expr = Expr::BinaryOp(BinaryOp::Add, Some(op), a, b).at(scope, Span::default());
 
 		let mut scope = RuntimeScope::new();
 		let result = expr.execute(&mut scope)?.into_value();

@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 
+// TODO: make expression parsing more powerful (see muncher test)
+
 use super::*;
 
 #[derive(Default, Clone, Debug, Eq, PartialEq, Hash)]
@@ -22,7 +24,7 @@ impl OperatorSet {
 	}
 }
 
-impl ParseExpr for OperatorSet {
+impl ParseOps for OperatorSet {
 	type Op = Operator;
 
 	fn get_operator(&self, node: &Node) -> Option<Self::Op> {
@@ -30,13 +32,13 @@ impl ParseExpr for OperatorSet {
 	}
 }
 
-impl IsNodeOperator for OperatorSet {
+impl IsNodeEval for OperatorSet {
 	fn applies(&self, node: &Node) -> bool {
-		node.has_expr(self)
+		node.has_ops(self)
 	}
 
-	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
-		node.parse_expr(ctx, self)
+	fn execute(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
+		node.parse_ops(ctx, self)
 	}
 }
 
@@ -111,21 +113,21 @@ impl IsOperator for Operator {
 		self.can_value
 	}
 
-	fn node_prefix(&self, ctx: &mut OperatorContext, op: Node, arg: Node, span: Span) -> Result<Node> {
+	fn node_prefix(&self, ctx: &mut EvalContext, op: Node, arg: Node, span: Span) -> Result<Node> {
 		let _ = op;
-		let node = NodeValue::UnaryOp(self.prefix.unwrap().0, arg).at(ctx.scope_handle(), span);
+		let node = Expr::UnaryOp(self.prefix.unwrap().0, None, arg).at(ctx.scope_handle(), span);
 		Ok(node)
 	}
 
-	fn node_posfix(&self, ctx: &mut OperatorContext, op: Node, arg: Node, span: Span) -> Result<Node> {
+	fn node_posfix(&self, ctx: &mut EvalContext, op: Node, arg: Node, span: Span) -> Result<Node> {
 		let _ = op;
-		let node = NodeValue::UnaryOp(self.posfix.unwrap().0, arg).at(ctx.scope_handle(), span);
+		let node = Expr::UnaryOp(self.posfix.unwrap().0, None, arg).at(ctx.scope_handle(), span);
 		Ok(node)
 	}
 
-	fn node_binary(&self, ctx: &mut OperatorContext, op: Node, lhs: Node, rhs: Node, span: Span) -> Result<Node> {
+	fn node_binary(&self, ctx: &mut EvalContext, op: Node, lhs: Node, rhs: Node, span: Span) -> Result<Node> {
 		let _ = op;
-		let node = NodeValue::BinaryOp(self.binary.unwrap().0, lhs, rhs).at(ctx.scope_handle(), span);
+		let node = Expr::BinaryOp(self.binary.unwrap().0, None, lhs, rhs).at(ctx.scope_handle(), span);
 		Ok(node)
 	}
 }

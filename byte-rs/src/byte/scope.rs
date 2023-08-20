@@ -1,3 +1,5 @@
+use std::collections::{btree_map::Entry, BTreeMap};
+
 use super::*;
 
 /// Manages a root [`Scope`] and provides access to writing to scopes
@@ -78,8 +80,9 @@ struct ScopeData {
 	parent: Option<ScopeHandle>,
 	children: RwLock<Vec<Arc<ScopeData>>>,
 	matcher: Arc<RwLock<Option<Matcher>>>,
-	node_operators: Arc<RwLock<HashMap<NodeOperator, NodePrecedence>>>,
+	node_evaluators: Arc<RwLock<HashMap<NodeEval, NodePrecedence>>>,
 	bindings: RwLock<HashMap<Symbol, BindingList>>,
+	init: Arc<RwLock<Vec<Node>>>,
 }
 
 impl ScopeData {
@@ -90,8 +93,9 @@ impl ScopeData {
 			parent: Default::default(),
 			children: Default::default(),
 			matcher: Default::default(),
-			node_operators: Default::default(),
+			node_evaluators: Default::default(),
 			bindings: Default::default(),
+			init: Default::default(),
 		}
 	}
 }
@@ -141,24 +145,24 @@ impl Scope {
 	}
 
 	//----------------------------------------------------------------------------------------------------------------//
-	// Node operators
+	// Node evaluators
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub fn get_node_operators(&self) -> Vec<(NodeOperator, NodePrecedence)> {
+	pub fn get_node_evaluators(&self) -> Vec<(NodeEval, NodePrecedence)> {
 		let mut map = HashMap::new();
 		if let Some(parent) = self.parent() {
-			parent.get_node_operator_map(&mut map);
+			parent.get_node_evaluator_map(&mut map);
 		}
-		self.get_node_operator_map(&mut map);
+		self.get_node_evaluator_map(&mut map);
 
 		let mut output = map.into_iter().collect::<Vec<_>>();
 		output.sort_by_key(|x| x.1);
 		output
 	}
 
-	fn get_node_operator_map(&self, map: &mut HashMap<NodeOperator, NodePrecedence>) {
-		let operators = self.data.node_operators.read().unwrap();
-		for (key, val) in operators.iter() {
+	fn get_node_evaluator_map(&self, map: &mut HashMap<NodeEval, NodePrecedence>) {
+		let evaluators = self.data.node_evaluators.read().unwrap();
+		for (key, val) in evaluators.iter() {
 			map.insert(key.clone(), val.clone());
 		}
 	}
@@ -167,7 +171,7 @@ impl Scope {
 	// Bindings
 	//----------------------------------------------------------------------------------------------------------------//
 
-	pub fn lookup(&self, name: &Symbol, offset: Option<usize>) -> Option<Option<usize>> {
+	pub fn lookup(&self, name: &Symbol, offset: &CodeOffset) -> Option<CodeOffset> {
 		let value = {
 			let bindings = self.data.bindings.read().unwrap();
 			if let Some(value) = bindings.get(&name) {
@@ -186,30 +190,34 @@ impl Scope {
 		})
 	}
 
-	pub fn get_static(&self, name: Symbol) -> Option<BindingValue> {
+	pub fn lookup_value(&self, name: &Symbol, offset: &CodeOffset) -> Option<Node> {
 		let value = {
 			let bindings = self.data.bindings.read().unwrap();
-			bindings.get(&name).and_then(|x| x.get_static().cloned())
+			if let Some(value) = bindings.get(&name) {
+				value.lookup_value(offset)
+			} else {
+				None
+			}
 		};
 
 		value.or_else(|| {
 			if let Some(parent) = self.parent() {
-				parent.get_static(name)
+				parent.lookup_value(name, offset)
 			} else {
 				None
 			}
 		})
 	}
 
-	pub fn get_at(&self, name: Symbol, offset: usize) -> Option<BindingValue> {
+	pub fn get(&self, name: Symbol, offset: &CodeOffset) -> Option<Node> {
 		let value = {
 			let bindings = self.data.bindings.read().unwrap();
-			bindings.get(&name).and_then(|x| x.get_at(offset).cloned())
+			bindings.get(&name).and_then(|x| x.get(offset).cloned())
 		};
 
 		value.or_else(|| {
 			if let Some(parent) = self.parent() {
-				parent.get_at(name, offset)
+				parent.get(name, offset)
 			} else {
 				None
 			}
@@ -227,35 +235,23 @@ impl ScopeWriter {
 		*matcher = Some(new_matcher);
 	}
 
-	pub fn add_node_operator(&mut self, op: NodeOperator, prec: NodePrecedence) {
-		let mut operators = self.data().node_operators.write().unwrap();
-		operators.insert(op, prec);
+	pub fn add_node_eval(&mut self, op: NodeEval, prec: NodePrecedence) {
+		let mut evaluators = self.data().node_evaluators.write().unwrap();
+		evaluators.insert(op, prec);
 	}
 
-	pub fn set_static(&mut self, name: Symbol, value: BindingValue) -> Result<()> {
-		let mut bindings = self.data().bindings.write().unwrap();
-		let binding = bindings.entry(name.clone()).or_insert(Default::default());
-		let span = value.span();
-		if binding.set_static(value) {
-			Ok(())
-		} else {
-			let error = format!("static `{name}` already defined");
-			let error = Errors::from(error, span);
-			Err(error)
-		}
+	pub fn init(&mut self, code: Node) {
+		let mut init = self.data().init.write().unwrap();
+		init.push(code);
 	}
 
-	pub fn set_at(&mut self, name: Symbol, offset: usize, value: BindingValue) -> Result<()> {
+	pub fn set(&mut self, name: Symbol, offset: CodeOffset, value: Node) -> Result<()> {
+		// TODO: setting the expression value here does not have much of a meaning right now
 		let mut bindings = self.data().bindings.write().unwrap();
-		let binding = bindings.entry(name.clone()).or_insert(Default::default());
-		let span = value.span();
-		if binding.set_at(offset, value) {
-			Ok(())
-		} else {
-			let error = format!("`{name}` already defined for the given offset");
-			let error = Errors::from(error, span);
-			Err(error)
-		}
+		let binding = bindings
+			.entry(name.clone())
+			.or_insert_with(|| BindingList::new(name.clone()));
+		binding.set(offset, value)
 	}
 
 	fn data(&mut self) -> &ScopeData {
@@ -277,83 +273,84 @@ impl Deref for ScopeWriter {
 
 #[derive(Default)]
 struct BindingList {
-	value_static: Option<BindingValue>,
-	value_from: Vec<(usize, BindingValue)>,
-}
-
-// TODO: replace by the node itself
-#[derive(Clone)]
-pub enum BindingValue {
-	Node(Node),
-}
-
-impl BindingValue {
-	pub fn span(&self) -> Span {
-		match self {
-			BindingValue::Node(node) => node.span().clone(),
-		}
-	}
+	name: Symbol,
+	values: BTreeMap<CodeOffset, Node>,
 }
 
 impl BindingList {
-	pub fn get_static(&self) -> Option<&BindingValue> {
-		self.value_static.as_ref()
-	}
-
-	pub fn set_static(&mut self, value: BindingValue) -> bool {
-		if self.value_static.is_some() {
-			false
-		} else {
-			self.value_static = Some(value);
-			true
+	pub fn new(name: Symbol) -> Self {
+		Self {
+			name,
+			values: Default::default(),
 		}
 	}
 
-	pub fn set_at(&mut self, offset: usize, value: BindingValue) -> bool {
-		let index = self.value_from.binary_search_by_key(&offset, |x| x.0);
-		match index {
-			Ok(..) => false, // offset already exists
-			Err(index) => {
-				self.value_from.insert(index, (offset, value));
-				true
+	pub fn get(&self, offset: &CodeOffset) -> Option<&Node> {
+		let offset = self.lookup_index(offset);
+		offset.and_then(|offset| self.values.get(&offset))
+	}
+
+	pub fn set(&mut self, offset: CodeOffset, value: Node) -> Result<()> {
+		match self.values.entry(offset) {
+			Entry::Vacant(entry) => {
+				entry.insert(value);
+				Ok(())
+			}
+			Entry::Occupied(..) => {
+				let name = &self.name;
+				let error = format!("`{name}` already bound at {offset}");
+				Err(Errors::from(error, value.span().clone()))
 			}
 		}
 	}
 
-	pub fn lookup_index(&self, offset: Option<usize>) -> Option<Option<usize>> {
-		let static_value = || if self.value_static.is_some() { Some(None) } else { None };
-		if let Some(offset) = offset {
-			let index = self.value_from.binary_search_by_key(&offset, |x| x.0);
-			let index = match index {
-				Ok(index) => index,
-				Err(index) => {
-					if index > 0 {
-						index - 1
-					} else {
-						return (static_value)();
-					}
-				}
-			};
-			Some(Some(self.value_from[index].0))
-		} else {
-			(static_value)()
-		}
-	}
-
-	pub fn get_at(&self, offset: usize) -> Option<&BindingValue> {
-		let index = self.value_from.binary_search_by_key(&offset, |x| x.0);
-
-		// return the nearest definition visible at the requested offset
-		let index = match index {
-			Ok(index) => index,
-			Err(index) => {
-				if index > 0 {
-					index - 1
-				} else {
-					return self.get_static();
-				}
+	pub fn lookup_index(&self, offset: &CodeOffset) -> Option<CodeOffset> {
+		let static_offset = || {
+			if self.values.contains_key(&CodeOffset::Static) {
+				Some(CodeOffset::Static)
+			} else {
+				None
 			}
 		};
-		Some(&self.value_from[index].1)
+		match offset {
+			CodeOffset::Static => static_offset(),
+			CodeOffset::At(offset) => {
+				let keys = self.values.keys().collect::<Vec<_>>();
+				let index = keys.partition_point(|x| {
+					if let CodeOffset::At(bind_offset) = x {
+						offset < bind_offset
+					} else {
+						true
+					}
+				});
+				if let Some(offset) = keys.get(index) {
+					Some(**offset)
+				} else {
+					static_offset()
+				}
+			}
+		}
+	}
+
+	pub fn lookup_value(&self, offset: &CodeOffset) -> Option<Node> {
+		let static_offset = || self.values.get(&CodeOffset::Static).cloned();
+		match offset {
+			CodeOffset::Static => static_offset(),
+			CodeOffset::At(offset) => {
+				let pairs = self.values.iter().collect::<Vec<_>>();
+				let index = pairs.partition_point(|(x, _)| {
+					if let CodeOffset::At(bind_offset) = x {
+						offset < bind_offset
+					} else {
+						true
+					}
+				});
+				if let Some((_, node)) = pairs.get(index) {
+					Some((*node).clone())
+				} else {
+					static_offset()
+				}
+			}
+		}
 	}
 }

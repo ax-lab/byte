@@ -1,10 +1,12 @@
 use super::*;
 
-pub struct OpFor(pub Symbol, pub Symbol, pub Symbol);
+// TODO: make `for` into a macro
 
-impl OpFor {
+pub struct EvalFor(pub Symbol, pub Symbol, pub Symbol);
+
+impl EvalFor {
 	fn get_for(&self, node: &Node) -> Option<(Node, Node)> {
-		if let NodeValue::Block(head, body) = node.val() {
+		if let Expr::Block(head, body) = node.expr() {
 			if head.is_symbol_at(0, &self.0) {
 				Some((head, body))
 			} else {
@@ -16,12 +18,12 @@ impl OpFor {
 	}
 }
 
-impl ParseReplace for OpFor {
+impl ParseReplace for EvalFor {
 	fn can_replace(&self, node: &Node) -> bool {
 		self.get_for(node).is_some()
 	}
 
-	fn replace(&self, ctx: &mut OperatorContext, node: &Node) -> Result<Option<Node>> {
+	fn replace(&self, ctx: &mut EvalContext, node: &Node) -> Result<Option<Node>> {
 		if let Some((head, body)) = self.get_for(node) {
 			let span = Span::merge(head.span(), body.span());
 			let mut errors = Errors::new();
@@ -45,12 +47,14 @@ impl ParseReplace for OpFor {
 							errors.add("missing upper bound in `for`", head.span());
 						}
 
-						// TODO: this for binding is completely bogus, figure out a better way
-						let offset = var_node.offset();
-						ctx.declare_at(var.clone(), offset, BindingValue::Node(from.clone()));
+						let offset = CodeOffset::At(var_node.offset());
+
+						let value = Expr::Variable(var.clone(), offset, from.clone());
+						let value = value.at(ctx.scope_handle(), var_node.span());
+						ctx.declare(var.clone(), offset, value);
 
 						let body = body.clone();
-						let node = NodeValue::For {
+						let node = Expr::For {
 							var,
 							offset,
 							from,
@@ -82,12 +86,12 @@ impl ParseReplace for OpFor {
 	}
 }
 
-impl IsNodeOperator for OpFor {
+impl IsNodeEval for EvalFor {
 	fn applies(&self, node: &Node) -> bool {
 		node.can_replace(self)
 	}
 
-	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
+	fn execute(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
 		node.replace(ctx, self)
 	}
 }

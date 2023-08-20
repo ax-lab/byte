@@ -1,0 +1,5 @@
+print 'basic module'
+
+let simple = load mod_simple
+
+print 'the simple answer is', simple.ANSWER

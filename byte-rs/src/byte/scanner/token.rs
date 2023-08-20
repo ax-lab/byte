@@ -14,7 +14,7 @@ pub enum Token {
 
 impl Node {
 	pub fn token(&self) -> Option<Token> {
-		if let NodeValue::Token(token) = self.val() {
+		if let Expr::Token(token) = self.expr() {
 			Some(token)
 		} else {
 			None

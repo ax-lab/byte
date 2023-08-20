@@ -9,10 +9,14 @@ pub struct Program {
 struct ProgramData {
 	compiler: Compiler,
 	scopes: ScopeList,
-	nodes: RwLock<Vec<Node>>,
 	run_list: RwLock<Vec<Node>>,
 	runtime: RwLock<RuntimeScope>,
 	dump_code: RwLock<bool>,
+
+	/// List of top level nodes to resolve. Evaluators are applied to all
+	/// nodes, to their entire tree, in order of precedence. Each evaluation
+	/// step occurs "in parallel" for all nodes.
+	nodes: RwLock<Vec<Node>>,
 }
 
 //====================================================================================================================//
@@ -63,6 +67,7 @@ impl Deref for ProgramRef {
 
 impl Program {
 	pub fn new(compiler: &Compiler) -> Program {
+		let runtime = RuntimeScope::new();
 		let data = Arc::new_cyclic(|data| {
 			let handle = ProgramHandle { data: data.clone() };
 			let compiler = compiler.clone();
@@ -72,7 +77,7 @@ impl Program {
 				scopes,
 				nodes: Default::default(),
 				run_list: Default::default(),
-				runtime: Default::default(),
+				runtime: runtime.into(),
 				dump_code: Default::default(),
 			}
 		});
@@ -87,7 +92,7 @@ impl Program {
 		&self.data.compiler
 	}
 
-	pub fn dump_code(&mut self) {
+	pub fn enable_dump(&mut self) {
 		*self.data.dump_code.write().unwrap() = true;
 	}
 
@@ -107,17 +112,17 @@ impl Program {
 	pub fn run(&self) -> Result<Value> {
 		self.resolve()?;
 		let mut value = Value::from(());
-		let run_list = { self.data.run_list.read().unwrap().clone() };
-		for it in run_list.iter() {
+		let mut run_list = { self.data.run_list.read().unwrap().clone() };
+		for it in run_list.iter_mut() {
 			value = self.run_resolved(it)?;
 		}
 		Ok(value)
 	}
 
 	pub fn eval<T1: Into<String>, T2: AsRef<str>>(&mut self, name: T1, text: T2) -> Result<Value> {
-		let node = self.load_string(name, text)?;
+		let mut node = self.load_string(name, text)?;
 		self.resolve()?;
-		self.run_resolved(&node)
+		self.run_resolved(&mut node)
 	}
 
 	pub fn load_string<T1: Into<String>, T2: AsRef<str>>(&mut self, name: T1, data: T2) -> Result<Node> {
@@ -137,7 +142,7 @@ impl Program {
 		Ok(list)
 	}
 
-	pub fn run_node(&mut self, node: &Node) -> Result<Value> {
+	pub fn run_node(&mut self, node: &mut Node) -> Result<Value> {
 		self.resolve()?;
 		self.run_resolved(node)
 	}
@@ -151,19 +156,15 @@ impl Program {
 		Ok(node)
 	}
 
-	fn run_resolved(&self, node: &Node) -> Result<Value> {
-		let mut context = CodeContext::new();
-		if self.dump_enabled() {
-			context.dump_code();
-		}
-
-		let scope = self.data.runtime.write();
-		let mut scope = match scope {
+	fn run_resolved(&self, node: &mut Node) -> Result<Value> {
+		// TODO: unify scope and runtime
+		let runtime_scope = self.data.runtime.write();
+		let mut runtime_scope = match runtime_scope {
 			Ok(scope) => scope,
 			Err(poisoned) => poisoned.into_inner(),
 		};
-		let expr = node.generate_code(&mut context)?;
-		let value = expr.execute(&mut scope)?.into_value();
+		let expr = node.generate_code()?;
+		let value = expr.execute(&mut runtime_scope)?.into_value();
 		Ok(value)
 	}
 
@@ -180,13 +181,14 @@ impl Program {
 				println!("\n=> processing {} node(s)", nodes_to_process.len());
 			}
 
-			// collect the applicable operator for all segments
+			// collect the applicable operations for all nodes
+			let mut seen = HashSet::new();
 			for it in nodes_to_process.iter_mut() {
-				match it.get_node_operations(precedence) {
-					Ok(Some((changes, prec))) => {
+				match it.get_node_operations(precedence, &mut seen) {
+					Ok(Some((ops, prec))) => {
 						assert!(precedence.is_none() || Some(prec) <= precedence);
 						precedence = Some(prec);
-						to_process.push((changes, prec));
+						to_process.push((ops, prec));
 					}
 					Ok(None) => {
 						// do nothing
@@ -201,29 +203,28 @@ impl Program {
 				break;
 			}
 
-			// precedence will contain the highest precedence level from all
-			// segments
+			// this contains the highest precedence level from all nodes
 			let precedence = precedence.unwrap();
 
-			// only process segments that are at the highest precedence level
+			// only process the highest precedence level for a given step
 			let to_process = to_process.into_iter().filter(|(_, prec)| *prec == precedence);
-
-			let mut has_changes = false;
-
 			let to_process = to_process.flat_map(|(ops, _)| ops.into_iter());
 
+			let mut has_changes = false;
+			let mut scope_changes = Vec::new();
 			for change in to_process {
 				let node = change.node();
-				let op = change.operator();
 				if DEBUG_PROCESSING {
-					println!("\n-> #{pc}: apply {op:?} to {}", node.short_repr());
-					pc += 1;
+					println!("\n-> #{pc}: apply {change:?}");
 				}
+				pc += 1;
 
-				let mut context = OperatorContext::new(node);
+				// apply the evaluator to the node
+				let mut context = EvalContext::new(node);
 				let version = node.version();
 				let mut node = node.clone(); // TODO: maybe have a node writer?
-				match change.operator_impl().execute(&mut context, &mut node) {
+				let evaluator = change.evaluator();
+				match evaluator(&mut context, &mut node) {
 					Ok(()) => (),
 					Err(errs) => {
 						errors.append(&errs);
@@ -232,26 +233,34 @@ impl Program {
 				let changed = node.version() > version;
 				has_changes = has_changes || changed;
 
+				// collect scope changes, those are processed at the end
 				let declares = context.get_declares();
+				let init = context.get_init();
 				drop(context);
+
+				if declares.len() > 0 || init.len() > 0 {
+					scope_changes.push((node.scope_handle(), declares, init));
+				}
 
 				if DEBUG_PROCESSING_DETAIL {
 					let pc = pc - 1;
 					println!("\n-> RESULT #{pc} = {node}");
 				}
+			}
 
-				let scope = node.scope_handle().get();
+			// apply changes to the scope
+			for (scope, declares, init) in scope_changes {
+				has_changes = true;
+				let scope = scope.get();
 				let mut writer = self.data.scopes.get_writer(scope);
 				for (name, offset, value) in declares {
-					let result = if let Some(offset) = offset {
-						writer.set_at(name, offset, value)
-					} else {
-						writer.set_static(name, value)
-					};
-					match result {
+					match writer.set(name, offset, value) {
 						Ok(..) => {}
 						Err(errs) => errors.append(&errs),
 					}
+				}
+				for it in init {
+					writer.init(it);
 				}
 			}
 
@@ -267,6 +276,7 @@ impl Program {
 				return Err(errors);
 			}
 
+			// TODO: add a step that allows unresolved nodes to process when there are no further changes
 			if !has_changes {
 				break;
 			}
@@ -281,16 +291,16 @@ impl Program {
 		}
 
 		/*
-			for all Node segments, determine the next set of operators to
+			for all Node segments, determine the next set of evaluators to
 			apply
 
-				in each set, evaluate operators in groups of precedence and
+				in each set, evaluate evaluators in groups of precedence and
 				check that they can be applied
 
 				take only the highest precedence group across all segments to
 				apply
 
-			apply the next set of operators across all segments
+			apply the next set of evaluators across all segments
 
 			merge and apply changes; repeat until there are no changes to
 			apply
@@ -316,7 +326,7 @@ impl Program {
 			inter-module dependencies
 			=========================
 
-			just use bindings declared between the modules and let the operator
+			just use bindings declared between the modules and let the evaluator
 			precedence take care of resolution
 		*/
 		Ok(())

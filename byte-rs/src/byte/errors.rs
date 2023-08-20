@@ -127,8 +127,13 @@ impl Iterator for ErrorIterator {
 
 impl Display for ErrorData {
 	fn fmt(&self, output: &mut Formatter<'_>) -> std::fmt::Result {
+		let minimal = Context::get().format().mode() == Mode::Minimal;
 		if let Some(location) = self.span.location() {
-			write!(output, "at {location}: ")?;
+			if minimal {
+				write!(output, "{location}: ")?;
+			} else {
+				write!(output, "at {location}: ")?;
+			}
 		}
 		write!(output, "{}", self.data)
 	}
@@ -149,6 +154,8 @@ pub trait ResultChain {
 	fn at<T: Into<String>>(self, context: T, span: Span) -> Self;
 
 	fn take_errors(self, errors: &mut Errors);
+
+	fn because<T: Into<String>>(self, context: T, span: &Span) -> Self;
 }
 
 impl<T> ResultChain for Result<T> {
@@ -216,6 +223,23 @@ impl<T> ResultChain for Result<T> {
 			_ => (),
 		}
 	}
+
+	fn because<E: Into<String>>(self, context: E, span: &Span) -> Self {
+		match self {
+			ok @ Ok(..) => ok,
+			Err(errors) => {
+				let ctx = Context::get();
+				let errors = ctx.with_format(ctx.format().with_mode(Mode::Minimal), || errors.to_string());
+				let mut error = String::new();
+				let _ = if !errors.contains('\n') && errors.len() <= 30 {
+					write!(error, "{}: {errors}", context.into())
+				} else {
+					write!(error.indented(), "{}:\n{errors}", context.into())
+				};
+				Err(Errors::from(error, span.clone()))
+			}
+		}
+	}
 }
 
 pub trait ResultChainDefault {
@@ -245,19 +269,31 @@ impl<T: Default> ResultChainDefault for Result<T> {
 impl Error for Errors {}
 
 impl Display for Errors {
-	fn fmt(&self, output: &mut Formatter<'_>) -> std::fmt::Result {
+	fn fmt(&self, output: &mut Formatter) -> std::fmt::Result {
+		let fmt = Context::get().format();
+		let minimal = fmt.mode() == Mode::Minimal;
 		if self.len() == 0 {
 			write!(output, "")
 		} else {
-			write!(output, "Errors:\n")?;
-			{
-				let mut output = output.indented();
+			if !minimal {
+				write!(output, "Errors:\n")?;
+				{
+					let mut output = output.indented();
+					for (n, it) in self.iter().enumerate() {
+						write!(output, "\n[{}]", n + 1)?;
+						write!(output, " {it}")?;
+					}
+				}
+				write!(output, "\n")?;
+			} else {
 				for (n, it) in self.iter().enumerate() {
-					write!(output, "\n[{}]", n + 1)?;
-					write!(output, " {it}")?;
+					if n > 0 {
+						write!(output, "\n")?;
+					}
+					write!(output, "-> {it}")?;
 				}
 			}
-			write!(output, "\n")?;
+
 			Ok(())
 		}
 	}

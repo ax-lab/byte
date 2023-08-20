@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 
 use super::*;
 
-pub type BracketFn = Arc<dyn Fn(Symbol, Node, Symbol) -> NodeValue>;
+// TODO: check if structural evaluators should be a special case for a `Raw` node.
+
+pub type BracketFn = Arc<dyn Fn(Symbol, Node, Symbol) -> Expr>;
 
 /// Configures a set of bracket pairs and provides parsing for [`Node`].
 #[derive(Clone, Default)]
@@ -22,7 +24,7 @@ impl ParseBrackets for BracketPairs {
 		}
 	}
 
-	fn get_bracket(&self, ctx: &OperatorContext, node: &Node) -> Option<Self::Bracket> {
+	fn get_bracket(&self, ctx: &EvalContext, node: &Node) -> Option<Self::Bracket> {
 		if let Some(symbol) = node.symbol() {
 			let span = node.span();
 			if let Some((end, bracket_fn)) = self.pairs.get(&symbol).cloned() {
@@ -46,7 +48,7 @@ impl ParseBrackets for BracketPairs {
 		}
 	}
 
-	fn new_node(&self, ctx: &mut OperatorContext, sta: Self::Bracket, node: Node, end: Self::Bracket) -> Result<Node> {
+	fn new_node(&self, ctx: &mut EvalContext, sta: Self::Bracket, node: Node, end: Self::Bracket) -> Result<Node> {
 		let _ = ctx;
 		let span = sta.span().to(end.span());
 		let (.., bracket_fn) = sta.scope_info.as_ref().unwrap();
@@ -68,12 +70,12 @@ impl BracketPairs {
 	}
 }
 
-impl IsNodeOperator for BracketPairs {
+impl IsNodeEval for BracketPairs {
 	fn applies(&self, node: &Node) -> bool {
 		node.has_brackets(self)
 	}
 
-	fn execute(&self, ctx: &mut OperatorContext, node: &mut Node) -> Result<()> {
+	fn execute(&self, ctx: &mut EvalContext, node: &mut Node) -> Result<()> {
 		node.parse_brackets(ctx, self)
 	}
 }

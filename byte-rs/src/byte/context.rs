@@ -7,10 +7,10 @@ use std::{
 
 use super::*;
 
-pub mod format;
-pub mod ids;
-pub mod sources;
-pub mod symbols;
+mod format;
+mod ids;
+mod sources;
+mod symbols;
 
 pub use format::*;
 pub use ids::*;

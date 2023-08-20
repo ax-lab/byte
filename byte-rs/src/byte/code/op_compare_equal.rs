@@ -14,7 +14,7 @@ impl OpCompareEqual {
 }
 
 impl IsBinaryOp for OpCompareEqual {
-	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue> {
+	fn execute(&self, scope: &mut RuntimeScope, lhs: &Node, rhs: &Node) -> Result<ExprValue> {
 		let lhs = lhs.execute(scope)?;
 		let rhs = rhs.execute(scope)?;
 		let equal = lhs.value() == rhs.value();

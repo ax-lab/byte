@@ -3,8 +3,10 @@ pub use context::*;
 
 pub mod code;
 pub mod compiler;
+pub mod engine;
 pub mod errors;
 pub mod nodes;
+pub mod offset;
 pub mod program;
 pub mod scanner;
 pub mod scope;
@@ -16,6 +18,7 @@ pub use code::*;
 pub use compiler::*;
 pub use errors::*;
 pub use nodes::*;
+pub use offset::*;
 pub use program::*;
 pub use scanner::*;
 pub use scope::*;
@@ -52,7 +55,18 @@ pub use values::*;
 	- [ ] generalize framework for type conversion
 	- [ ] isomorphic code gen and eval
 	- [ ] improve segment handling and resolving (e.g. if-else problem -- defer to code gen?)
-		- [ ] e.g., add a formal code analysis step
+		- [ ] e.g., add a formal code analysis step'
+
+	Next Language Milestones
+	========================
+
+	- Import / Modules
+	- Functions
+	- Type declarations
+	- Pattern matching
+	- Borrows / Timeline
+	- JS transpilation
+	- Native compilation
 
 */
 
@@ -136,8 +150,8 @@ mod tests {
 			rt.redirect_stdout(output);
 		});
 
-		let node = program.load_string("hello", "print 'hello world!!!'")?;
-		program.run_node(&node)?;
+		let mut node = program.load_string("hello", "print 'hello world!!!'")?;
+		program.run_node(&mut node)?;
 
 		let output = output.read().unwrap().clone();
 		let output = String::from_utf8(output)?;
@@ -176,5 +190,103 @@ mod tests {
 		let source = source.join("\n");
 		assert_eq!(compiler.eval_string(source)?, Value::from(int(42)));
 		Ok(())
+	}
+
+	#[test]
+	#[ignore = "build the language so this is possible"]
+	fn muncher() -> Result<()> {
+		/*
+			The idea here is to have the concept of a muncher: a "normal" type
+			member (i.e. `point.new`) that is able to parse raw nodes and
+			result in a value or expression.
+
+			The first challenge is that node resolution needs to be dynamic
+			and powerful enough to enable this sort of resolution during
+			parsing.
+
+			The type system also needs to support this concept. This requires
+			it to be tightly integrated with the nodes.
+
+			Parsing is also a challenge, as the `point.new` needs to be parsed
+			early in the expression parsing so that it can have access to the
+			raw nodes.
+
+			For this to happen:
+
+			- the `point` binding needs to happen early enough for it to be
+			  bound to the type by the time the expression is being parsed.
+			- the expression parser needs to be able to resolve the member
+			  operator mid-parsing to have access to `point.new`
+			- there must be an interface that allows the expression parser
+			  to then use the muncher to parse as many tokens as it wants
+
+			A similar concept would also apply at a higher level for syntax
+			macros.
+
+			This calls for an extension of the node evaluators, where a node
+			itself provides contextual evaluation operators. This would get
+			sorted by precedence and then applied at the appropriate moment.
+		*/
+		let compiler = Compiler::new();
+		let source = vec![
+			"let a = point.new (0, 0)",
+			"let b = point.new x=1, y=2",
+			"let c = point.new 1, 2, 3",
+			"let d = point.new x=10, y=20, z=30",
+			"print a",
+			"print b",
+			"print c",
+			"print d",
+			"d",
+		];
+		let source = source.join("\n");
+
+		let output: Arc<RwLock<Vec<u8>>> = Default::default();
+		let mut program = compiler.new_program();
+		program.configure_runtime(|rt| {
+			let output = RuntimeOutput::Memory(output.clone());
+			rt.redirect_stdout(output);
+		});
+
+		let result = compiler.eval_string(source)?;
+		assert_eq!(result, Point3D::new(10.0, 20.0, 30.0));
+
+		let output = output.read().unwrap().clone();
+		let output = String::from_utf8(output)?;
+		assert_eq!(output, "P(0, 0) P(1, 2) P(1, 2, 3) P(10, 20, 30)\n");
+
+		Ok(())
+	}
+
+	struct Point2D {
+		x: f64,
+		y: f64,
+	}
+
+	struct Point3D {
+		x: f64,
+		y: f64,
+		z: f64,
+	}
+
+	impl Point2D {}
+
+	impl Point3D {
+		pub fn new(x: f64, y: f64, z: f64) -> Value {
+			let _ = (x, y, z);
+			todo!()
+		}
+	}
+
+	impl Display for Point2D {
+		fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+			write!(f, "P({}, {})", self.x, self.y)
+		}
+	}
+
+	impl Display for Point3D {
+		fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+			write!(f, "P({}, {}, {})", self.x, self.y, self.z)
+		}
 	}
 }

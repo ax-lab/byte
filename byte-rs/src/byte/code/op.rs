@@ -4,6 +4,8 @@ use super::*;
 // UnaryOp
 //====================================================================================================================//
 
+// TODO: review the Unary/BinaryOp and implementation duality
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum UnaryOp {
 	Not,
@@ -46,7 +48,7 @@ impl Display for UnaryOp {
 }
 
 pub trait IsUnaryOp: Debug + 'static {
-	fn execute(&self, scope: &mut RuntimeScope, arg: &Expr) -> Result<ExprValue>;
+	fn execute(&self, scope: &mut RuntimeScope, arg: &Node) -> Result<ExprValue>;
 	fn get_type(&self) -> Type;
 }
 
@@ -73,6 +75,20 @@ impl Debug for UnaryOpImpl {
 	}
 }
 
+impl PartialEq for UnaryOpImpl {
+	fn eq(&self, other: &Self) -> bool {
+		Arc::as_ptr(&self.inner) == Arc::as_ptr(&other.inner)
+	}
+}
+
+impl Eq for UnaryOpImpl {}
+
+impl Hash for UnaryOpImpl {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		Arc::as_ptr(&self.inner).hash(state)
+	}
+}
+
 //====================================================================================================================//
 // BinaryOp
 //====================================================================================================================//
@@ -88,6 +104,7 @@ pub enum BinaryOp {
 	Or,
 	Assign,
 	CompareEqual,
+	Member,
 }
 
 impl BinaryOp {
@@ -124,6 +141,7 @@ impl BinaryOp {
 				// TODO: the operator actually needs access to the whole expression
 				Some(BinaryOpImpl::from(OpAssign(lhs.clone())))
 			}
+			BinaryOp::Member => todo!(),
 		};
 
 		match result {
@@ -137,8 +155,9 @@ impl BinaryOp {
 	}
 }
 
+// TODO: this needs to be a generic concept
 pub trait IsBinaryOp: Debug + 'static {
-	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue>;
+	fn execute(&self, scope: &mut RuntimeScope, lhs: &Node, rhs: &Node) -> Result<ExprValue>;
 	fn get_type(&self) -> Type;
 }
 
@@ -177,7 +196,22 @@ impl Display for BinaryOp {
 			BinaryOp::Or => "or",
 			BinaryOp::Assign => "=",
 			BinaryOp::CompareEqual => "==",
+			BinaryOp::Member => ".",
 		};
 		write!(f, "{str}")
+	}
+}
+
+impl PartialEq for BinaryOpImpl {
+	fn eq(&self, other: &Self) -> bool {
+		Arc::as_ptr(&self.inner) == Arc::as_ptr(&other.inner)
+	}
+}
+
+impl Eq for BinaryOpImpl {}
+
+impl Hash for BinaryOpImpl {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		Arc::as_ptr(&self.inner).hash(state)
 	}
 }

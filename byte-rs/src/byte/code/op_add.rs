@@ -20,7 +20,7 @@ impl OpAdd {
 }
 
 impl IsBinaryOp for OpAdd {
-	fn execute(&self, scope: &mut RuntimeScope, lhs: &Expr, rhs: &Expr) -> Result<ExprValue> {
+	fn execute(&self, scope: &mut RuntimeScope, lhs: &Node, rhs: &Node) -> Result<ExprValue> {
 		const CONVERSION: NumericConversion = ARITHMETIC_CONVERSION;
 		let lhs = lhs.execute(scope)?.into_value();
 		let rhs = rhs.execute(scope)?.into_value();

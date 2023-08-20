@@ -1,3 +1,10 @@
+[workspace]
+
+members = [
+	".",
+	"bit"
+]
+
 [package]
 name = "byte"
 version = "0.1.0"
