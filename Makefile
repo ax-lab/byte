@@ -15,7 +15,7 @@ test-cargo:
 	@echo :: Cargo tests
 	@echo ------------------------------------------------------
 	@echo
-	@cd byte-rs && cargo test $(cargo) --all
+	@cd byte-rs && cargo test --all $(cargo)
 	
 test-go:
 	@echo
@@ -34,8 +34,8 @@ test-byte:
 	@go run ./byte.go test
 
 test-bit:
-	@cd byte-rs && cargo test $(cargo) -p bit
+	@cd byte-rs && cargo test -p bit $(cargo)
 	
 build:
 	@go build ./byte.go
-	@cd byte-rs && cargo build $(cargo) --all
+	@cd byte-rs && cargo build --all $(cargo)
