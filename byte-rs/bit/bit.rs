@@ -1,13 +1,7 @@
-pub fn some_bit() -> usize {
-	42
-}
+mod arena;
+mod store;
+mod symbols;
 
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn has_bit() {
-		assert_eq!(some_bit(), 42);
-	}
-}
+pub use arena::*;
+pub use store::*;
+pub use symbols::*;
